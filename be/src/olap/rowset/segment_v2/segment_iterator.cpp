@@ -233,6 +233,22 @@ Status SegmentIterator::_get_row_ranges_from_conditions(RowRanges* condition_row
             cids.insert(column_condition.first);
         }
     }
+
+    // 0. if a condition column is dict encoding, filter it by dict encoding page:
+    for (auto& cid : cids) {
+        if (_column_iterators[cid]->encoding() != DICT_ENCODING) {
+            continue;
+        }
+
+        CondColumn* column_cond = _opts.conditions->get_column(cid);
+        bool not_satisfied = false;
+        RETURN_IF_ERROR(_column_iterators[cid]->filter_by_column_dict(column_cond, &not_satisfied));
+        if (not_satisfied) {
+            condition_row_ranges->clear();
+            return Status::OK(); 
+        }
+    }
+
     // first filter data by bloom filter index
     // bloom filter index only use CondColumn
     RowRanges bf_row_ranges = RowRanges::create_single(num_rows());

@@ -620,21 +620,39 @@ Status FileColumnIterator::_read_data_page(const OrdinalPageIndexIterator& iter)
     if (_reader->encoding_info()->encoding() == DICT_ENCODING) {
         auto dict_page_decoder = reinterpret_cast<BinaryDictPageDecoder*>(_page->data_decoder);
         if (dict_page_decoder->is_dict_encoding()) {
-            if (_dict_decoder == nullptr) {
-                // read dictionary page
-                Slice dict_data;
-                PageFooterPB dict_footer;
-                _opts.type = INDEX_PAGE;
-                RETURN_IF_ERROR(_reader->read_page(_opts, _reader->get_dict_page_pointer(),
-                                                   &_dict_page_handle, &dict_data, &dict_footer));
-                // ignore dict_footer.dict_page_footer().encoding() due to only
-                // PLAIN_ENCODING is supported for dict page right now
-                _dict_decoder.reset(new BinaryPlainPageDecoder(dict_data));
-                RETURN_IF_ERROR(_dict_decoder->init());
-            }
+            RETURN_IF_ERROR(_init_dict_decoder());
             dict_page_decoder->set_dict_decoder(_dict_decoder.get());
         }
     }
+    return Status::OK();
+}
+
+Status FileColumnIterator::_init_dict_decoder() {
+    if (_dict_decoder == nullptr) {
+        // read dictionary page
+        Slice dict_data;
+        PageFooterPB dict_footer;
+        _opts.type = INDEX_PAGE;
+        RETURN_IF_ERROR(_reader->read_page(_opts, _reader->get_dict_page_pointer(),
+                    &_dict_page_handle, &dict_data, &dict_footer));
+        // ignore dict_footer.dict_page_footer().encoding() due to only
+        // PLAIN_ENCODING is supported for dict page right now
+        _dict_decoder.reset(new BinaryPlainPageDecoder(dict_data));
+        RETURN_IF_ERROR(_dict_decoder->init());
+    }
+    return Status::OK();
+}
+
+Status FileColumnIterator::filter_by_column_dict(CondColumn* cond_column, bool* not_satisfied) {
+    CHECK(_reader->encoding_info()->encoding() == DICT_ENCODING);
+    RETURN_IF_ERROR(_init_dict_decoder());
+
+    BinaryPlainPageDecoder* decoder = (BinaryPlainPageDecoder*) _dict_decoder.get();
+    uint32_t num_item = decoder->count();
+    for (uint32_t i = 0; i < num_item; ++i) {
+        _dictionary.emplace(decoder->string_at_index(i), i);
+    }
+    LOG(INFO) << "cmy get _dictionary size(): " << _dictionary.size();
     return Status::OK();
 }
 

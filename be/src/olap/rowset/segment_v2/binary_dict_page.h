@@ -80,11 +80,13 @@ private:
     std::unique_ptr<BinaryPlainPageBuilder> _dict_builder;
 
     EncodingTypePB _encoding_type;
+
     struct HashOfSlice {
         size_t operator()(const Slice& slice) const {
             return HashStringThoroughly(slice.data, slice.size);
         }
     };
+
     // query for dict item -> dict id
     phmap::flat_hash_map<Slice, uint32_t, HashOfSlice> _dictionary;
     // used to remember the insertion order of dict keys

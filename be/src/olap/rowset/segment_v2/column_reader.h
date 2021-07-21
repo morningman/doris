@@ -20,6 +20,7 @@
 #include <cstddef> // for size_t
 #include <cstdint> // for uint32_t
 #include <memory>  // for unique_ptr
+#include <parallel_hashmap/phmap.h>
 
 #include "common/logging.h"
 #include "common/status.h"                              // for Status
@@ -235,6 +236,13 @@ public:
         return Status::OK();
     }
 
+    virtual EncodingTypePB encoding() const { return UNKNOWN_ENCODING; }
+
+    virtual Status filter_by_column_dict(CondColumn* cond_column, bool* not_satisfied) {
+        *not_satisfied = false;
+        return Status::OK();
+    }
+
 #if 0
     // Call this function every time before next_batch.
     // This function will preload pages from disk into memory if necessary.
@@ -285,11 +293,16 @@ public:
     ParsedPage* get_current_page() { return _page.get(); }
 
     bool is_nullable() { return _reader->is_nullable(); }
+    
+    EncodingTypePB encoding() const override { return _reader->encoding_info()->encoding(); }
+
+    Status filter_by_column_dict(CondColumn* cond_column, bool* not_satisfied) override;
 
 private:
     void _seek_to_pos_in_page(ParsedPage* page, ordinal_t offset_in_page);
     Status _load_next_page(bool* eos);
     Status _read_data_page(const OrdinalPageIndexIterator& iter);
+    Status _init_dict_decoder();
 
 private:
     ColumnReader* _reader;
@@ -315,6 +328,14 @@ private:
 
     // page indexes those are DEL_PARTIAL_SATISFIED
     std::unordered_set<uint32_t> _delete_partial_satisfied_pages;
+
+    struct HashOfSlice {
+        size_t operator()(const Slice& slice) const {
+            return HashStringThoroughly(slice.data, slice.size);
+        }
+    };
+
+    phmap::flat_hash_map<Slice, uint32_t, HashOfSlice> _dictionary;
 };
 
 class ArrayFileColumnIterator final : public ColumnIterator {
