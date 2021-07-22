@@ -17,6 +17,7 @@
 
 #include "exec/broker_scanner.h"
 
+#include <fmt/format.h>
 #include <iostream>
 #include <sstream>
 
@@ -58,7 +59,6 @@ BrokerScanner::BrokerScanner(RuntimeState* state, RuntimeProfile* profile,
           _cur_decompressor(nullptr),
           _next_range(0),
           _cur_line_reader_eof(false),
-          _scanner_eof(false),
           _skip_next_line(false) {
     if (params.__isset.column_separator_length && params.column_separator_length > 1) {
         _value_separator = params.column_separator_str;
@@ -115,7 +115,8 @@ Status BrokerScanner::get_next(Tuple* tuple, MemPool* tuple_pool, bool* eof) {
         {
             COUNTER_UPDATE(_rows_read_counter, 1);
             SCOPED_TIMER(_materialize_timer);
-            if (convert_one_row(Slice(ptr, size), tuple, tuple_pool)) {
+            RETURN_IF_ERROR(_convert_one_row(Slice(ptr, size), tuple, tuple_pool));
+            if (_success) {
                 free_expr_local_allocations();
                 break;
             }
@@ -456,22 +457,29 @@ bool is_null(const Slice& slice) {
 }
 
 // Convert one row to this tuple
-bool BrokerScanner::convert_one_row(const Slice& line, Tuple* tuple, MemPool* tuple_pool) {
-    if (!line_to_src_tuple(line)) {
-        return false;
+Status BrokerScanner::_convert_one_row(const Slice& line, Tuple* tuple, MemPool* tuple_pool) {
+    RETURN_IF_ERROR(_line_to_src_tuple(line));
+    if (!_success) {
+        // If not success, which means we met an invalid row, return.
+        return Status::OK();
     }
 
     return fill_dest_tuple(tuple, tuple_pool);
 }
 
 // Convert one row to this tuple
-bool BrokerScanner::line_to_src_tuple(const Slice& line) {
-    if (_file_format_type != TFileFormatType::FORMAT_PROTO && !validate_utf8(line.data, line.size)) {
-        std::stringstream error_msg;
-        error_msg << "data is not encoded by UTF-8";
-        _state->append_error_msg_to_file("Unable to display", error_msg.str());
+Status BrokerScanner::_line_to_src_tuple(const Slice& line) {
+    bool is_proto_format = _file_format_type == TFileFormatType::FORMAT_PROTO;
+    if (!is_proto_format && !validate_utf8(line.data, line.size)) {
+        RETURN_IF_ERROR(_state->append_error_msg_to_file([]() -> std::string { return "Unable to display"; },
+                []() -> std::string {
+                    fmt::memory_buffer error_msg;
+                    fmt::format_to(error_msg, "{}", "Unable to display");
+                    return error_msg.data();
+                }, &_scanner_eof));
         _counter->num_rows_filtered++;
-        return false;
+        _success = false;
+        return Status::OK();
     }
 
     split_line(line);
@@ -480,33 +488,31 @@ bool BrokerScanner::line_to_src_tuple(const Slice& line) {
     const TBrokerRangeDesc& range = _ranges.at(_next_range - 1);
     const std::vector<std::string>& columns_from_path = range.columns_from_path;
     if (_split_values.size() + columns_from_path.size() < _src_slot_descs.size()) {
-        std::stringstream error_msg;
-        error_msg << "actual column number is less than schema column number. "
-                  << "actual number: " << _split_values.size() << " column separator: ["
-                  << _value_separator << "], "
-                  << "line delimiter: [" << _line_delimiter << "], "
-                  << "schema number: " << _src_slot_descs.size() << "; ";
-        if (_file_format_type == TFileFormatType::FORMAT_PROTO) {
-            _state->append_error_msg_to_file("", error_msg.str());
-        } else {
-            _state->append_error_msg_to_file(std::string(line.data, line.size), error_msg.str());
-        }
+        RETURN_IF_ERROR(_state->append_error_msg_to_file(
+                [&]() -> std::string { return is_proto_format ? "" : std::string(line.data, line.size); },
+                [&]() -> std::string {
+                fmt::memory_buffer error_msg;
+                fmt::format_to(error_msg, "{}", "actual column number is less than schema column number.");
+                fmt::format_to(error_msg, "actual number: {}, column separator: [{}], ", _split_values.size(), _value_separator);
+                fmt::format_to(error_msg, "line delimiter: [{}], schema number: {}; ", _line_delimiter, _src_slot_descs.size());
+                return error_msg.data();
+                }, &_scanner_eof));
         _counter->num_rows_filtered++;
-        return false;
+        _success = false;
+        return Status::OK();
     } else if (_split_values.size() + columns_from_path.size() > _src_slot_descs.size()) {
-        std::stringstream error_msg;
-        error_msg << "actual column number is more than schema column number. "
-                  << "actual number: " << _split_values.size() << " column separator: ["
-                  << _value_separator << "], "
-                  << "line delimiter: [" << _line_delimiter << "], "
-                  << "schema number: " << _src_slot_descs.size() << "; ";
-        if (_file_format_type == TFileFormatType::FORMAT_PROTO) {
-            _state->append_error_msg_to_file("", error_msg.str());
-        } else {
-            _state->append_error_msg_to_file(std::string(line.data, line.size), error_msg.str());
-        }
+        RETURN_IF_ERROR(_state->append_error_msg_to_file(
+                [&]() -> std::string { return is_proto_format ? "" : std::string(line.data, line.size); },
+                [&]() -> std::string {
+                fmt::memory_buffer error_msg;
+                fmt::format_to(error_msg, "{}", "actual column number is more than schema column number.");
+                fmt::format_to(error_msg, "actual number: {}, column separator: [{}], ", _split_values.size(), _value_separator);
+                fmt::format_to(error_msg, "line delimiter: [{}], schema number: {}; ", _line_delimiter, _src_slot_descs.size());
+                return error_msg.data();
+                }, &_scanner_eof));
         _counter->num_rows_filtered++;
-        return false;
+        _success = false;
+        return Status::OK();
     }
 
     for (int i = 0; i < _split_values.size(); ++i) {
@@ -527,7 +533,8 @@ bool BrokerScanner::line_to_src_tuple(const Slice& line) {
         fill_slots_of_columns_from_path(range.num_of_columns_from_file, columns_from_path);
     }
 
-    return true;
+    _success = true;
+    return Status::OK();
 }
 
 } // namespace doris

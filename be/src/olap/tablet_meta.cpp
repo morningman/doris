@@ -150,12 +150,12 @@ TabletMeta::TabletMeta(const TabletMeta& b)
           _tablet_uid(b._tablet_uid),
           _tablet_type(b._tablet_type),
           _tablet_state(b._tablet_state),
+          _preferred_rowset_type(b._preferred_rowset_type),
           _schema(b._schema),
-          _in_restore_mode(b._in_restore_mode),
           _rs_metas(b._rs_metas),
           _stale_rs_metas(b._stale_rs_metas),
           _del_pred_array(b._del_pred_array),
-          _preferred_rowset_type(b._preferred_rowset_type) {
+          _in_restore_mode(b._in_restore_mode) {
 }
 
 void TabletMeta::_init_column_from_tcolumn(uint32_t unique_id, const TColumn& tcolumn,

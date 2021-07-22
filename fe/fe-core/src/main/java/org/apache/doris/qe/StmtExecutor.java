@@ -1185,6 +1185,7 @@ public class StmtExecutor implements ProfileWriter {
 
             try {
                 coord = new Coordinator(context, analyzer, planner);
+                coord.setLoadZeroTolerance(context.getSessionVariable().getEnableInsertStrict());
                 coord.setQueryType(TQueryType.LOAD);
 
                 QeProcessorImpl.INSTANCE.registerQuery(context.queryId(), coord);

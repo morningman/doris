@@ -187,6 +187,7 @@ private:
     TabletTypePB _tablet_type = TabletTypePB::TABLET_TYPE_DISK;
 
     TabletState _tablet_state = TABLET_NOTREADY;
+    RowsetTypePB _preferred_rowset_type = BETA_ROWSET;
     // the reference of _schema may use in tablet, so here need keep
     // the lifetime of tablemeta and _schema is same with tablet
     std::shared_ptr<TabletSchema> _schema;
@@ -199,7 +200,6 @@ private:
 
     DelPredicateArray _del_pred_array;
     bool _in_restore_mode = false;
-    RowsetTypePB _preferred_rowset_type = ALPHA_ROWSET;
 
     RWMutex _meta_lock;
 };

@@ -17,7 +17,6 @@
 
 package org.apache.doris.load.loadv2;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.doris.analysis.BrokerDesc;
 import org.apache.doris.analysis.DataDescription;
 import org.apache.doris.analysis.LoadStmt;
@@ -49,6 +48,7 @@ import org.apache.doris.qe.SqlModeHelper;
 import org.apache.doris.transaction.TabletCommitInfo;
 import org.apache.doris.transaction.TransactionState;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
