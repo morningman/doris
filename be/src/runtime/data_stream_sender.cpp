@@ -136,6 +136,11 @@ Status DataStreamSender::Channel::send_batch(PRowBatch* batch, bool eos) {
 
     _brpc_request.set_eos(eos);
     if (batch != nullptr) {
+        butil::IOBuf& io_buf = _closure->cntl.request_attachment();
+        io_buf.append(batch->tuple_data());
+        // we still need to row batch field in request,
+        // because PRowBatch has other meta fields which we need to describe the tuple data.
+        batch->set_tuple_data(""); 
         _brpc_request.set_allocated_row_batch(batch);
     }
     _brpc_request.set_packet_seq(_packet_seq++);
@@ -183,12 +188,8 @@ Status DataStreamSender::Channel::send_current_batch(bool eos) {
     if (is_local()) {
         return send_local_batch(eos);
     }
-    {
-        SCOPED_TIMER(_parent->_serialize_batch_timer);
-        size_t uncompressed_bytes = _batch->serialize(&_pb_batch);
-        COUNTER_UPDATE(_parent->_bytes_sent_counter, RowBatch::get_batch_size(_pb_batch));
-        COUNTER_UPDATE(_parent->_uncompressed_bytes_counter, uncompressed_bytes);
-    }
+
+    _parent->serialize_batch(_batch.get(), &_pb_batch, 1);
     _batch->reset();
     RETURN_IF_ERROR(send_batch(&_pb_batch, eos));
     return Status::OK();
