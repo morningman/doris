@@ -761,6 +761,10 @@ Status OlapScanKeys::extend_scan_key(ColumnValueRange<T>& range, int32_t max_sca
     }
 
     //if a column doesn't have any predicate, we will try converting the range to fixed values
+    // range可能是 fixed range，比如 in (1,2,3)，也可能是 range range，比如 (1< a < 3).
+    // 这里要做的，就是如果是 fix range，并且组合数大于了 max_scan_key_num，尝试将其转换成 range range。
+    // 如果是 range range，并且组合数小于 max_scan_key_num，则尝试转换成 fix range。
+    // fix range 过滤效果更好，但是数量受限，range 过滤范围大。
     auto scan_keys_size = _begin_scan_keys.empty() ? 1 : _begin_scan_keys.size();
     if (range.is_fixed_value_range()) {
         if (range.get_fixed_value_size() * scan_keys_size > max_scan_key_num) {
@@ -809,6 +813,9 @@ Status OlapScanKeys::extend_scan_key(ColumnValueRange<T>& range, int32_t max_sca
 
                 const_iterator_type iter = fixed_value_set.begin();
 
+                // a in (1,2) and b in (4,5)
+                // _begin_scan_keys: [[1], [2]]
+                // after extenct: [[1,4], [2,4], [1,5], [2,5]]
                 for (; iter != fixed_value_set.end(); ++iter) {
                     // alter the first ScanKey in original place
                     if (iter == fixed_value_set.begin()) {
