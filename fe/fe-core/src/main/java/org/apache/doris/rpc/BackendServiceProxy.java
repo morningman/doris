@@ -24,13 +24,13 @@ import org.apache.doris.thrift.TFoldConstantParams;
 import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TUniqueId;
 
+import com.google.common.collect.Maps;
+import com.google.protobuf.ByteString;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
-
-import com.google.common.collect.Maps;
-import com.google.protobuf.ByteString;
 
 import java.util.List;
 import java.util.Map;
@@ -64,6 +64,10 @@ public class BackendServiceProxy {
         service = new BackendServiceClient(address);
         serviceMap.put(address, service);
         return service;
+    }
+
+    public synchronized void removeProxy(TNetworkAddress address) {
+        serviceMap.remove(address);
     }
 
     public Future<InternalService.PExecPlanFragmentResult> execPlanFragmentAsync(

@@ -87,6 +87,7 @@ void PInternalServiceImpl<T>::exec_plan_fragment(google::protobuf::RpcController
     brpc::ClosureGuard closure_guard(done);
     brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
     auto st = Status::OK();
+    LOG(INFO) << "receive exec_plan_fragment";
     if (request->has_request()) {
         st = _exec_plan_fragment(request->request());
     } else {

@@ -59,6 +59,7 @@ class SmallFileMgr;
 class FileBlockManager;
 class PluginMgr;
 class FoldConstantMgr;
+class OutputExprCache;
 
 class BackendServiceClient;
 class FrontendServiceClient;
@@ -146,6 +147,7 @@ public:
     HeartbeatFlags* heartbeat_flags() { return _heartbeat_flags; }
 
     PluginMgr* plugin_mgr() { return _plugin_mgr; }
+    OutputExprCache* output_expr_cache() { return _output_expr_cache; }
 
     // The root tracker should be set before calling ExecEnv::init();
     void set_root_mem_tracker(std::shared_ptr<MemTracker> root_tracker);
@@ -219,6 +221,8 @@ private:
     HeartbeatFlags* _heartbeat_flags = nullptr;
 
     PluginMgr* _plugin_mgr = nullptr;
+
+    OutputExprCache* _output_expr_cache = nullptr;
 };
 
 template <>

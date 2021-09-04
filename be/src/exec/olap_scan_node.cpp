@@ -443,7 +443,7 @@ Status OlapScanNode::start_scan(RuntimeState* state) {
     VLOG_CRITICAL << "NormalizeConjuncts";
     // 2. Convert conjuncts to ColumnValueRange in each column, some conjuncts may
     // set eos = true
-    RETURN_IF_ERROR(normalize_conjuncts());
+    // RETURN_IF_ERROR(normalize_conjuncts());
 
     // 1 and 2 step dispose find conjuncts set eos = true, return directly
     if (_eos) {
