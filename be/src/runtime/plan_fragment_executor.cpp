@@ -67,6 +67,7 @@ PlanFragmentExecutor::~PlanFragmentExecutor() {
 }
 
 Status PlanFragmentExecutor::prepare(const TExecPlanFragmentParams& request,
+                                     const std::string& output_expr_md5,
                                      QueryFragmentsCtx* fragments_ctx) {
     const TPlanFragmentExecParams& params = request.params;
     _query_id = params.query_id;
@@ -198,9 +199,16 @@ Status PlanFragmentExecutor::prepare(const TExecPlanFragmentParams& request,
 
     // set up sink, if required
     if (request.fragment.__isset.output_sink) {
-        RETURN_IF_ERROR(DataSink::create_data_sink(obj_pool(), request.fragment.output_sink,
-                                                   request.fragment.output_exprs, params,
-                                                   row_desc(), runtime_state()->enable_vectorized_exec(), &_sink));
+        if (request.fragment.output_sink.type ==  TDataSinkType::RESULT_SINK) {
+            RETURN_IF_ERROR(DataSink::create_result_sink(obj_pool(), request.fragment.output_sink,
+                        output_expr_md5, params,
+                        row_desc(), runtime_state(), &_sink));
+        } else {
+            RETURN_IF_ERROR(DataSink::create_data_sink(obj_pool(), request.fragment.output_sink,
+                        request.fragment.output_exprs, params,
+                        row_desc(), runtime_state()->enable_vectorized_exec(), &_sink));
+        }
+
         RETURN_IF_ERROR(_sink->prepare(runtime_state()));
 
         RuntimeProfile* sink_profile = _sink->profile();

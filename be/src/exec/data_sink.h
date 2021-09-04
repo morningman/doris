@@ -77,6 +77,13 @@ public:
                                    bool is_vec,
                                    boost::scoped_ptr<DataSink>* sink);
 
+    static Status create_result_sink(ObjectPool* pool, const TDataSink& thrift_sink,
+                                  const std::string& output_expr_md5,
+                                  const TPlanFragmentExecParams& params,
+                                  const RowDescriptor& row_desc,
+                                  RuntimeState* state,
+                                  boost::scoped_ptr<DataSink>* sink);
+
     // Returns the runtime profile for the sink.
     virtual RuntimeProfile* profile() = 0;
 

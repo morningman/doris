@@ -47,6 +47,9 @@ public:
     // buffer_size is the buffer size allocated to each query
     ResultSink(const RowDescriptor& row_desc, const std::vector<TExpr>& select_exprs,
                const TResultSink& sink, int buffer_size);
+
+    ResultSink(const RowDescriptor& row_desc, const std::vector<ExprContext*>& copied_ctxs,
+                       const TResultSink& sink, int buffer_size);
     virtual ~ResultSink();
     virtual Status prepare(RuntimeState* state);
     virtual Status open(RuntimeState* state);

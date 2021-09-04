@@ -98,6 +98,7 @@ public:
     // The query will be aborted (MEM_LIMIT_EXCEEDED) if it goes over that limit.
     // If fragments_ctx is not null, some components will be got from fragments_ctx.
     Status prepare(const TExecPlanFragmentParams& request,
+                   const std::string& output_expr_md5,
                    QueryFragmentsCtx* fragments_ctx = nullptr);
 
     // Start execution. Call this prior to get_next().

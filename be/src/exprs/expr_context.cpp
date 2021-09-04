@@ -114,7 +114,12 @@ Status ExprContext::clone(RuntimeState* state, ExprContext** new_ctx) {
     DCHECK(*new_ctx == NULL);
 
     *new_ctx = state->obj_pool()->add(new ExprContext(_root));
-    (*new_ctx)->_pool.reset(new MemPool(_pool->mem_tracker()));
+    if (_pool.get() != nullptr) {
+        (*new_ctx)->_pool.reset(new MemPool(_pool->mem_tracker()));
+    } else {
+        // LOG(INFO) << "cmy create a new memtracker" << get_stack_trace();
+        (*new_ctx)->_pool.reset(new MemPool(state->exec_env()->process_mem_tracker().get()));
+    }
     for (int i = 0; i < _fn_contexts.size(); ++i) {
         (*new_ctx)->_fn_contexts.push_back(_fn_contexts[i]->impl()->clone((*new_ctx)->_pool.get()));
     }

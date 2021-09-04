@@ -100,7 +100,7 @@ Status BackendService::start_plan_fragment_execution(const TExecPlanFragmentPara
     if (!exec_params.fragment.__isset.output_sink) {
         return Status::InternalError("missing sink in plan fragment");
     }
-    return _exec_env->fragment_mgr()->exec_plan_fragment(exec_params);
+    return _exec_env->fragment_mgr()->exec_plan_fragment(exec_params, std::string());
 }
 
 void BackendService::cancel_plan_fragment(TCancelPlanFragmentResult& return_val,

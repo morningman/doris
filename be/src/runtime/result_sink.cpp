@@ -48,11 +48,30 @@ ResultSink::ResultSink(const RowDescriptor& row_desc, const std::vector<TExpr>& 
     _name = "ResultSink";
 }
 
+ResultSink::ResultSink(const RowDescriptor& row_desc, const std::vector<ExprContext*>& copied_ctxs,
+                       const TResultSink& sink, int buffer_size)
+        : _row_desc(row_desc), _t_output_expr(std::vector<TExpr>()), _output_expr_ctxs(copied_ctxs), _buf_size(buffer_size) {
+    if (!sink.__isset.type || sink.type == TResultSinkType::MYSQL_PROTOCAL) {
+        _sink_type = TResultSinkType::MYSQL_PROTOCAL;
+    } else {
+        _sink_type = sink.type;
+    }
+
+    if (_sink_type == TResultSinkType::FILE) {
+        CHECK(sink.__isset.file_options);
+        _file_opts.reset(new ResultFileOptions(sink.file_options));
+    }
+
+    _name = "ResultSink";
+}
+
 ResultSink::~ResultSink() {}
 
 Status ResultSink::prepare_exprs(RuntimeState* state) {
-    // From the thrift expressions create the real exprs.
-    RETURN_IF_ERROR(Expr::create_expr_trees(state->obj_pool(), _t_output_expr, &_output_expr_ctxs));
+    if (_output_expr_ctxs.empty()) {
+        // From the thrift expressions create the real exprs.
+        RETURN_IF_ERROR(Expr::create_expr_trees(state->obj_pool(), _t_output_expr, &_output_expr_ctxs));
+    }
     // Prepare the exprs to run.
     RETURN_IF_ERROR(Expr::prepare(_output_expr_ctxs, state, _row_desc, _expr_mem_tracker));
     return Status::OK();

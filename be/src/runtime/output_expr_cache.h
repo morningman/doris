@@ -24,7 +24,9 @@
 #include <mutex>
 
 #include "common/status.h"
+#include "exprs/expr.h"
 #include "runtime/runtime_state.h"
+#include "gen_cpp/internal_service.pb.h"
 
 namespace doris {
 
@@ -50,11 +52,18 @@ public:
         return nullptr;
     }
 
-    void insert_expr_ctxs_cache(const std::string& key, const std::vector<ExprContext*>& ctxs) {
+    bool contains(const std::string& key) {
         std::lock_guard<std::mutex> lock(_mutex);
+        return _cache.find(key) != _cache.end();
+    }
+
+    Status insert_expr_ctxs_cache(const std::string& key, const TOutputExprs& t_output_exprs) {
+        std::lock_guard<std::mutex> lock(_mutex);
+
         std::vector<ExprContext*> new_contexts;
-        Expr::clone_if_not_exists(ctxs, _state, &new_contexts);
+        RETURN_IF_ERROR(Expr::create_expr_trees(_state->obj_pool(), t_output_exprs.output_exprs, &new_contexts)); 
         _cache.emplace(std::make_pair(key, new_contexts));
+        return Status::OK();
     }
 
 private:

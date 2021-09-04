@@ -87,7 +87,7 @@ Status EtlJobMgr::start_job(const TMiniLoadEtlTaskRequest& req) {
     }
 
     RETURN_IF_ERROR(_exec_env->fragment_mgr()->exec_plan_fragment(
-            req.params, std::bind<void>(&EtlJobMgr::finalize_job, this, std::placeholders::_1)));
+            req.params, std::string(), std::bind<void>(&EtlJobMgr::finalize_job, this, std::placeholders::_1)));
 
     // redo this job if failed before
     if (_failed_jobs.exists(id)) {

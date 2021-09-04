@@ -84,7 +84,7 @@ public:
 
     ~FragmentExecState();
 
-    Status prepare(const TExecPlanFragmentParams& params);
+    Status prepare(const TExecPlanFragmentParams& params, const std::string& output_expr_md5);
 
     // just no use now
     void callback(const Status& status, RuntimeProfile* profile, bool done);
@@ -211,7 +211,7 @@ FragmentExecState::FragmentExecState(const TUniqueId& query_id,
 
 FragmentExecState::~FragmentExecState() {}
 
-Status FragmentExecState::prepare(const TExecPlanFragmentParams& params) {
+Status FragmentExecState::prepare(const TExecPlanFragmentParams& params, const std::string& output_expr_md5) {
     if (params.__isset.query_options) {
         _timeout_second = params.query_options.query_timeout;
     }
@@ -223,9 +223,9 @@ Status FragmentExecState::prepare(const TExecPlanFragmentParams& params) {
     }
 
     if (_fragments_ctx == nullptr) {
-        return _executor.prepare(params);
+        return _executor.prepare(params, output_expr_md5);
     } else {
-        return _executor.prepare(params, _fragments_ctx.get());
+        return _executor.prepare(params, output_expr_md5, _fragments_ctx.get());
     }
 }
 
@@ -470,7 +470,7 @@ void FragmentMgr::_exec_actual(std::shared_ptr<FragmentExecState> exec_state, Fi
     cb(exec_state->executor());
 }
 
-Status FragmentMgr::exec_plan_fragment(const TExecPlanFragmentParams& params) {
+Status FragmentMgr::exec_plan_fragment(const TExecPlanFragmentParams& params, const std::string& output_expr_md5) {
     if (params.txn_conf.need_txn) {
         StreamLoadContext* stream_load_cxt = new StreamLoadContext(_exec_env);
         stream_load_cxt->db = params.txn_conf.db;
@@ -502,7 +502,7 @@ Status FragmentMgr::exec_plan_fragment(const TExecPlanFragmentParams& params) {
         set_pipe(params.params.fragment_instance_id, pipe);
         return Status::OK();
     } else {
-        return exec_plan_fragment(params, std::bind<void>(&empty_function, std::placeholders::_1));
+        return exec_plan_fragment(params, output_expr_md5, std::bind<void>(&empty_function, std::placeholders::_1));
     }
 }
 
@@ -529,7 +529,7 @@ std::shared_ptr<StreamLoadPipe> FragmentMgr::get_pipe(const TUniqueId& fragment_
     }
 }
 
-Status FragmentMgr::exec_plan_fragment(const TExecPlanFragmentParams& params, FinishCallback cb) {
+Status FragmentMgr::exec_plan_fragment(const TExecPlanFragmentParams& params, const std::string& output_expr_md5, FinishCallback cb) {
     const TUniqueId& fragment_instance_id = params.params.fragment_instance_id;
     {
         std::lock_guard<std::mutex> lock(_lock);
@@ -606,7 +606,7 @@ Status FragmentMgr::exec_plan_fragment(const TExecPlanFragmentParams& params, Fi
     _runtimefilter_controller.add_entity(params, &handler);
     exec_state->set_merge_controller_handler(handler);
 
-    RETURN_IF_ERROR(exec_state->prepare(params));
+    RETURN_IF_ERROR(exec_state->prepare(params, output_expr_md5));
     {
         std::lock_guard<std::mutex> lock(_lock);
         _fragment_map.insert(std::make_pair(params.params.fragment_instance_id, exec_state));
@@ -801,7 +801,7 @@ Status FragmentMgr::exec_external_plan_fragment(const TScanOpenParams& params,
     exec_fragment_params.__set_query_options(query_options);
     VLOG_ROW << "external exec_plan_fragment params is "
              << apache::thrift::ThriftDebugString(exec_fragment_params).c_str();
-    return exec_plan_fragment(exec_fragment_params);
+    return exec_plan_fragment(exec_fragment_params, std::string());
 }
 
 Status FragmentMgr::apply_filter(const PPublishFilterRequest* request, const char* data) {

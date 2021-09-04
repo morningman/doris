@@ -54,7 +54,7 @@ Status StreamLoadExecutor::execute_plan_fragment(StreamLoadContext* ctx, std::sh
     LOG(INFO) << "begin to execute job. label=" << ctx->label << ", txn_id=" << ctx->txn_id
               << ", query_id=" << print_id(ctx->put_result.params.params.query_id);
     auto st = _exec_env->fragment_mgr()->exec_plan_fragment(
-            ctx->put_result.params, [ctx, pipe, this](PlanFragmentExecutor* executor) {
+            ctx->put_result.params, std::string(), [ctx, pipe, this](PlanFragmentExecutor* executor) {
                 ctx->commit_infos = std::move(executor->runtime_state()->tablet_commit_infos());
                 Status status = executor->status();
                 if (status.ok()) {

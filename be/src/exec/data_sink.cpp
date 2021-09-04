@@ -34,6 +34,7 @@
 #include "runtime/odbc_table_sink.h"
 #include "runtime/result_sink.h"
 #include "runtime/runtime_state.h"
+#include "runtime/output_expr_cache.h"
 #include "util/logging.h"
 
 namespace doris {
@@ -157,6 +158,24 @@ Status DataSink::create_data_sink(ObjectPool* pool, const TDataSink& thrift_sink
     }
 
     return Status::OK();
+}
+
+Status DataSink::create_result_sink(ObjectPool* pool, const TDataSink& thrift_sink,
+                                  const std::string& output_expr_md5,
+                                  const TPlanFragmentExecParams& params,
+                                  const RowDescriptor& row_desc,
+                                  RuntimeState* state,
+                                  boost::scoped_ptr<DataSink>* sink) {
+
+    OutputExprCache* cache = state->exec_env()->output_expr_cache();
+    const std::vector<ExprContext*>* cached_ctxs = cache->get_cached_expr_ctxs(output_expr_md5);
+    CHECK(cached_ctxs != nullptr) << "not found cached output expr";
+    std::vector<ExprContext*> copied_ctxs;
+    Expr::clone_if_not_exists(*cached_ctxs, state, &copied_ctxs); 
+
+    DataSink* tmp_sink = new ResultSink(row_desc, copied_ctxs, thrift_sink.result_sink, 1024);
+    sink->reset(tmp_sink);
+    return (*sink)->init(thrift_sink);
 }
 
 Status DataSink::init(const TDataSink& thrift_sink) {

@@ -29,6 +29,8 @@
 #include "runtime/result_buffer_mgr.h"
 #include "runtime/routine_load/routine_load_task_executor.h"
 #include "runtime/runtime_state.h"
+#include "runtime/output_expr_cache.h"
+#include "util/md5.h"
 #include "service/brpc.h"
 #include "util/thrift_util.h"
 #include "util/uid_util.h"
@@ -89,7 +91,7 @@ void PInternalServiceImpl<T>::exec_plan_fragment(google::protobuf::RpcController
     auto st = Status::OK();
     LOG(INFO) << "receive exec_plan_fragment";
     if (request->has_request()) {
-        st = _exec_plan_fragment(request->request());
+        st = _exec_plan_fragment(request);
     } else {
         // TODO(yangzhengguo) this is just for compatible with old version, this should be removed in the release 0.15
         st = _exec_plan_fragment(cntl->request_attachment().to_string());
@@ -149,6 +151,37 @@ void PInternalServiceImpl<T>::tablet_writer_cancel(google::protobuf::RpcControll
 }
 
 template <typename T>
+Status PInternalServiceImpl<T>::_exec_plan_fragment(const PExecPlanFragmentRequest* request) {
+    // output exprs
+    const std::string& output_exprs_str = request->output_exprs();
+    Md5Digest digest;
+    digest.update(output_exprs_str.data(), output_exprs_str.length());
+    const std::string& md5 = digest.hex();
+    if (!_exec_env->output_expr_cache()->contains(md5)) {
+        LOG(INFO) << "cmy create cache for output expr";
+        TOutputExprs t_output_exprs;
+        {
+            const uint8_t* buf = (const uint8_t*) output_exprs_str.data();
+            uint32_t len = output_exprs_str.size();
+            RETURN_IF_ERROR(deserialize_thrift_msg(buf, &len, false, &t_output_exprs));
+        }
+        RETURN_IF_ERROR(_exec_env->output_expr_cache()->insert_expr_ctxs_cache(md5, t_output_exprs));
+    }
+     
+    // request
+    const std::string& ser_request = request->request();
+    TExecPlanFragmentParams t_request;
+    {
+        const uint8_t* buf = (const uint8_t*)ser_request.data();
+        uint32_t len = ser_request.size();
+        RETURN_IF_ERROR(deserialize_thrift_msg(buf, &len, false, &t_request));
+    }
+    // LOG(INFO) << "exec plan fragment, fragment_instance_id=" << print_id(t_request.params.fragment_instance_id)
+    //  << ", coord=" << t_request.coord << ", backend=" << t_request.backend_num;
+    return _exec_env->fragment_mgr()->exec_plan_fragment(t_request, md5);
+}
+
+template <typename T>
 Status PInternalServiceImpl<T>::_exec_plan_fragment(const std::string& ser_request) {
     TExecPlanFragmentParams t_request;
     {
@@ -158,7 +191,7 @@ Status PInternalServiceImpl<T>::_exec_plan_fragment(const std::string& ser_reque
     }
     // LOG(INFO) << "exec plan fragment, fragment_instance_id=" << print_id(t_request.params.fragment_instance_id)
     //  << ", coord=" << t_request.coord << ", backend=" << t_request.backend_num;
-    return _exec_env->fragment_mgr()->exec_plan_fragment(t_request);
+    return _exec_env->fragment_mgr()->exec_plan_fragment(t_request, std::string());
 }
 
 template <typename T>
