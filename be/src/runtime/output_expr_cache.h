@@ -59,7 +59,9 @@ public:
 
     Status insert_expr_ctxs_cache(const std::string& key, const TOutputExprs& t_output_exprs) {
         std::lock_guard<std::mutex> lock(_mutex);
-
+        if (_cache.find(key) != _cache.end()) {
+            return Status::OK();
+        }
         std::vector<ExprContext*> new_contexts;
         RETURN_IF_ERROR(Expr::create_expr_trees(_state->obj_pool(), t_output_exprs.output_exprs, &new_contexts)); 
         _cache.emplace(std::make_pair(key, new_contexts));
