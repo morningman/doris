@@ -22,6 +22,7 @@
 #include "gen_cpp/Exprs_types.h"
 #include "runtime/runtime_state.h"
 #include "util/types.h"
+#include "util/stack_util.h"
 
 namespace doris {
 
@@ -81,7 +82,7 @@ Status SlotRef::prepare(RuntimeState* state, const RowDescriptor& row_desc, Expr
     if (slot_desc == NULL) {
         // TODO: create macro MAKE_ERROR() that returns a stream
         std::stringstream error;
-        error << "couldn't resolve slot descriptor " << _slot_id;
+        error << "couldn't resolve slot descriptor " << _slot_id << ", " << get_stack_trace();
         return Status::InternalError(error.str());
     }
 

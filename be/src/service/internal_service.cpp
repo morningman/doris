@@ -89,7 +89,7 @@ void PInternalServiceImpl<T>::exec_plan_fragment(google::protobuf::RpcController
     brpc::ClosureGuard closure_guard(done);
     brpc::Controller* cntl = static_cast<brpc::Controller*>(cntl_base);
     auto st = Status::OK();
-    LOG(INFO) << "receive exec_plan_fragment";
+    // LOG(INFO) << "receive exec_plan_fragment";
     if (request->has_request()) {
         st = _exec_plan_fragment(request);
     } else {
@@ -156,16 +156,19 @@ Status PInternalServiceImpl<T>::_exec_plan_fragment(const PExecPlanFragmentReque
     const std::string& output_exprs_str = request->output_exprs();
     Md5Digest digest;
     digest.update(output_exprs_str.data(), output_exprs_str.length());
+    digest.digest();
     const std::string& md5 = digest.hex();
+    // LOG(INFO) << "cmy get output expr: " << md5 << ", " << output_exprs_str.length();
     if (!_exec_env->output_expr_cache()->contains(md5)) {
-        LOG(INFO) << "cmy create cache for output expr";
+        LOG(INFO) << "cmy create cache for output expr: " << md5 << ", " << output_exprs_str.length();
         TOutputExprs t_output_exprs;
         {
             const uint8_t* buf = (const uint8_t*) output_exprs_str.data();
             uint32_t len = output_exprs_str.size();
-            RETURN_IF_ERROR(deserialize_thrift_msg(buf, &len, false, &t_output_exprs));
+            RETURN_IF_ERROR(deserialize_thrift_msg(buf, &len, true, &t_output_exprs));
         }
         RETURN_IF_ERROR(_exec_env->output_expr_cache()->insert_expr_ctxs_cache(md5, t_output_exprs));
+        LOG(INFO) << "cmy after create cache";
     }
      
     // request
@@ -174,7 +177,9 @@ Status PInternalServiceImpl<T>::_exec_plan_fragment(const PExecPlanFragmentReque
     {
         const uint8_t* buf = (const uint8_t*)ser_request.data();
         uint32_t len = ser_request.size();
-        RETURN_IF_ERROR(deserialize_thrift_msg(buf, &len, false, &t_request));
+        // LOG(INFO) << "cmy receive fragment: " << len;
+        RETURN_IF_ERROR(deserialize_thrift_msg(buf, &len, true, &t_request));
+        // LOG(INFO) << "cmy after receive fragment: " << len;
     }
     // LOG(INFO) << "exec plan fragment, fragment_instance_id=" << print_id(t_request.params.fragment_instance_id)
     //  << ", coord=" << t_request.coord << ", backend=" << t_request.backend_num;

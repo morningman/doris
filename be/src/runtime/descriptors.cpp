@@ -570,6 +570,13 @@ SlotDescriptor* DescriptorTbl::get_slot_descriptor(SlotId id) const {
     SlotDescriptorMap::const_iterator i = _slot_desc_map.find(id);
 
     if (i == _slot_desc_map.end()) {
+#if 0
+        std::stringstream ss;
+        for (auto it : _slot_desc_map) {
+            ss << it.first << ", ";
+        }
+        LOG(INFO) << "cmy get slot map key: " << ss.str();
+#endif
         return NULL;
     } else {
         return i->second;

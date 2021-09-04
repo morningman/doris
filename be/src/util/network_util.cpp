@@ -166,12 +166,14 @@ Status get_inet_interfaces(std::vector<std::string>* interfaces, bool include_ip
     }
 
     for (ifaddrs* if_addr = if_addrs; if_addr != nullptr; if_addr = if_addr->ifa_next) {
+        LOG(INFO) << "cmy net " << if_addr->ifa_name; 
         if (if_addr->ifa_addr == nullptr || if_addr->ifa_name == nullptr) {
             continue;
         }
-        if (if_addr->ifa_addr->sa_family == AF_INET ||
+        if (if_addr->ifa_addr->sa_family == AF_INET || if_addr->ifa_addr->sa_family == AF_LOCAL ||
             (include_ipv6 && if_addr->ifa_addr->sa_family == AF_INET6)) {
             interfaces->emplace_back(if_addr->ifa_name);
+            LOG(INFO) << "cmy insert net " << if_addr->ifa_name;
         }
     }
     if (if_addrs != nullptr) {

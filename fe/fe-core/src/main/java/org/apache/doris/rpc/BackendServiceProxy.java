@@ -34,6 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
+import org.apache.thrift.protocol.TCompactProtocol;
 
 import java.util.List;
 import java.util.Map;
@@ -87,8 +88,8 @@ public class BackendServiceProxy {
         }
 
         final InternalService.PExecPlanFragmentRequest pRequest = InternalService.PExecPlanFragmentRequest.newBuilder()
-                .setOutputExprs(ByteString.copyFrom(new TSerializer().serialize(tOutputExprs)))
-                .setRequest(ByteString.copyFrom(new TSerializer().serialize(tRequest))).build();
+                .setOutputExprs(ByteString.copyFrom(new TSerializer(new TCompactProtocol.Factory()).serialize(tOutputExprs)))
+                .setRequest(ByteString.copyFrom(new TSerializer(new TCompactProtocol.Factory()).serialize(tRequest))).build();
         try {
             final BackendServiceClient client = getProxy(address);
             return client.execPlanFragmentAsync(pRequest);
@@ -244,3 +245,4 @@ public class BackendServiceProxy {
         }
     }
 }
+
