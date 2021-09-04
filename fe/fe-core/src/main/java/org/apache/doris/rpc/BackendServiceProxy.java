@@ -20,8 +20,11 @@ package org.apache.doris.rpc;
 import org.apache.doris.proto.InternalService;
 import org.apache.doris.proto.Types;
 import org.apache.doris.thrift.TExecPlanFragmentParams;
+import org.apache.doris.thrift.TExpr;
 import org.apache.doris.thrift.TFoldConstantParams;
 import org.apache.doris.thrift.TNetworkAddress;
+import org.apache.doris.thrift.TOutputExprs;
+import org.apache.doris.thrift.TPlanFragment;
 import org.apache.doris.thrift.TUniqueId;
 
 import com.google.common.collect.Maps;
@@ -73,7 +76,18 @@ public class BackendServiceProxy {
     public Future<InternalService.PExecPlanFragmentResult> execPlanFragmentAsync(
             TNetworkAddress address, TExecPlanFragmentParams tRequest)
             throws TException, RpcException {
+
+        TOutputExprs tOutputExprs = new TOutputExprs();
+
+        TPlanFragment planFragment = tRequest.getFragment();
+        if (planFragment.isSetOutputExprs()) {
+            List<TExpr> outputExprs = planFragment.getOutputExprs();
+            tOutputExprs.setOutputExprs(outputExprs);
+            planFragment.unsetOutputExprs();
+        }
+
         final InternalService.PExecPlanFragmentRequest pRequest = InternalService.PExecPlanFragmentRequest.newBuilder()
+                .setOutputExprs(ByteString.copyFrom(new TSerializer().serialize(tOutputExprs)))
                 .setRequest(ByteString.copyFrom(new TSerializer().serialize(tRequest))).build();
         try {
             final BackendServiceClient client = getProxy(address);

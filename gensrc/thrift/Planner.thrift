@@ -24,6 +24,10 @@ include "DataSinks.thrift"
 include "PlanNodes.thrift"
 include "Partitions.thrift"
 
+struct TOutputExprs {
+    1: optional list<Exprs.TExpr> output_exprs;
+}
+
 // TPlanFragment encapsulates info needed to execute a particular
 // plan fragment, including how to produce and how to partition its output.
 // It leaves out node-specific parameters neede for the actual execution.

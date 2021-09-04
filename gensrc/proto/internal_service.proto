@@ -115,8 +115,8 @@ message PTabletWriterCancelResult {
 };
 
 message PExecPlanFragmentRequest {
-    optional bytes request = 1;
-    optional bytes output_exprs = 2;
+    optional bytes output_exprs = 1;
+    optional bytes request = 2;
 };
 
 message PExecPlanFragmentResult {
