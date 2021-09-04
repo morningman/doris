@@ -576,6 +576,7 @@ public class Coordinator {
                         LOG.warn("catch a timeout exception", e);
                         exception = e;
                         code = TStatusCode.TIMEOUT;
+                        BackendServiceProxy.getInstance().removeProxy(pair.first.brpcAddress);
                     }
 
                     if (code != TStatusCode.OK) {
@@ -1821,6 +1822,7 @@ public class Coordinator {
         int profileFragmentId;
         RuntimeProfile profile;
         TNetworkAddress address;
+        TNetworkAddress brpcAddress;
         Backend backend;
         long lastMissingHeartbeatTime = -1;
 
@@ -1898,7 +1900,7 @@ public class Coordinator {
                 if (this.hasCanceled) {
                     return false;
                 }
-                TNetworkAddress brpcAddress = toBrpcHost(address);
+                brpcAddress = toBrpcHost(address);
 
                 try {
                     BackendServiceProxy.getInstance().cancelPlanFragmentAsync(brpcAddress,
