@@ -129,7 +129,10 @@ public class StatisticProcDir implements ProcDirInterface {
 
                 ++dbTableNum;
                 OlapTable olapTable = (OlapTable) table;
-                ColocateTableIndex.GroupId groupId = colocateTableIndex.getGroup(olapTable.getId());
+                ColocateTableIndex.GroupId groupId = null;
+                if (colocateTableIndex.isColocateTable(olapTable.getId())) {
+                    groupId = colocateTableIndex.getGroup(olapTable.getId());
+                }
                 table.readLock();
                 try {
                     for (Partition partition : olapTable.getAllPartitions()) {
