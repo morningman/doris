@@ -1200,7 +1200,9 @@ public class TabletScheduler extends MasterDaemon {
                 continue;
             }
 
-            if (slot.takeSlot(rootPathLoadStatistic.getPathHash()) != -1) {
+            long pathHash = slot.takeSlot(rootPathLoadStatistic.getPathHash());
+            if (pathHash != -1) {
+                LOG.debug("take dest slot {} for tablet {}", pathHash, tabletCtx.getTabletId());
                 return rootPathLoadStatistic;
             }
         }
@@ -1213,7 +1215,9 @@ public class TabletScheduler extends MasterDaemon {
                 continue;
             }
 
-            if (slot.takeSlot(rootPathLoadStatistic.getPathHash()) != -1) {
+            long pathHash = slot.takeSlot(rootPathLoadStatistic.getPathHash());
+            if (pathHash != -1) {
+                LOG.debug("take dest slot {} for tablet {}", pathHash, tabletCtx.getTabletId());
                 return rootPathLoadStatistic;
             }
         }
