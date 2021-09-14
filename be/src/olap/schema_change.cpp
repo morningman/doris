@@ -1574,10 +1574,10 @@ OLAPStatus SchemaChangeHandler::_do_process_alter_tablet_v2(const TAlterTabletRe
 
         for (auto& rs_reader : rs_readers) {
             res = rs_reader->init(&reader_context);
-			if (res != OLAP_SUCCESS) {
-				LOG(WARN) << "failed to init rowset reader: " << base_tablet->full_name();
-				break;
-			}
+            if (res != OLAP_SUCCESS) {
+                LOG(WARNING) << "failed to init rowset reader: " << base_tablet->full_name();
+                break;
+            }
         }
 
     } while (0);
