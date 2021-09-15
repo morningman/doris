@@ -1196,13 +1196,11 @@ public class TabletScheduler extends MasterDaemon {
 
             PathSlot slot = backendsWorkingSlots.get(rootPathLoadStatistic.getBeId());
             if (slot == null) {
-                LOG.debug("backend {} does not found when getting slots", rootPathLoadStatistic.getBeId());
                 continue;
             }
 
             long pathHash = slot.takeSlot(rootPathLoadStatistic.getPathHash());
             if (pathHash != -1) {
-                LOG.debug("take dest slot {} for tablet {}", pathHash, tabletCtx.getTabletId());
                 return rootPathLoadStatistic;
             }
         }
@@ -1211,13 +1209,11 @@ public class TabletScheduler extends MasterDaemon {
         for (RootPathLoadStatistic rootPathLoadStatistic : allFitPaths) {
             PathSlot slot = backendsWorkingSlots.get(rootPathLoadStatistic.getBeId());
             if (slot == null) {
-                LOG.debug("backend {} does not found when getting slots", rootPathLoadStatistic.getBeId());
                 continue;
             }
 
             long pathHash = slot.takeSlot(rootPathLoadStatistic.getPathHash());
             if (pathHash != -1) {
-                LOG.debug("take dest slot {} for tablet {}", pathHash, tabletCtx.getTabletId());
                 return rootPathLoadStatistic;
             }
         }

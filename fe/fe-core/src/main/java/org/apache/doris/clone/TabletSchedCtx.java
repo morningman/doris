@@ -610,7 +610,6 @@ public class TabletSchedCtx implements Comparable<TabletSchedCtx> {
         if (destPathHash == -1) {
             throw new SchedException(Status.SCHEDULE_FAILED, "unable to take slot of dest path");
         }
-        LOG.debug("take desc slot {} for tablet {}", srcPathHash, getTabletId());
         if (chosenReplica.getState() == ReplicaState.DECOMMISSION) {
             // Since this replica is selected as the repair object of VERSION_INCOMPLETE,
             // it means that this replica needs to be able to accept loading data.
@@ -1090,6 +1089,7 @@ public class TabletSchedCtx implements Comparable<TabletSchedCtx> {
         return sb.toString();
     }
 
+    // Comparator to sort the replica with version count, asc
     public static class VersionCountComparator implements Comparator<Replica> {
         @Override
         public int compare(Replica r1, Replica r2) {
