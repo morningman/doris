@@ -1346,7 +1346,7 @@ int64_t Tablet::prepare_compaction_and_calculate_permits(CompactionType compacti
         if (res != OLAP_SUCCESS) {
             set_last_base_compaction_failure_time(UnixMillis());
             if (res != OLAP_ERR_BE_NO_SUITABLE_VERSION) {
-				DorisMetrics::instance()->base_compaction_request_failed->increment(1);
+                DorisMetrics::instance()->base_compaction_request_failed->increment(1);
                 LOG(WARNING) << "failed to pick rowsets for base compaction. res=" << res
                              << ", tablet=" << full_name();
             }
