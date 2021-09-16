@@ -377,6 +377,7 @@ Status ExecNode::create_node(RuntimeState* state, ObjectPool* pool, const TPlanN
         }
         return Status::OK();
 
+#if 1
     case TPlanNodeType::AGGREGATION_NODE:
         if (state->enable_vectorized_exec()) {
         } else {
@@ -387,6 +388,7 @@ Status ExecNode::create_node(RuntimeState* state, ObjectPool* pool, const TPlanN
             }
         }
         return Status::OK();
+#endif
 
     case TPlanNodeType::HASH_JOIN_NODE:
         *node = pool->add(new HashJoinNode(pool, tnode, descs));

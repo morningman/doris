@@ -376,6 +376,16 @@ Status BufferedTupleStream3::NewWritePage(int64_t page_len) noexcept {
 }
 
 Status BufferedTupleStream3::CalcPageLenForRow(int64_t row_size, int64_t* page_len) {
+    if (UNLIKELY(row_size > 4194304)) {
+        std::stringstream ss;
+        ss << " execeed max row size, row size:" << PrettyPrinter::print(row_size, TUnit::BYTES)
+           << " node id:" << node_id_;
+        //<< " query option max row size:"
+        //<< PrettyPrinter::print
+        //    (state_->query_options().max_row_size, TUnit::BYTES);
+	LOG(INFO) << "cmy: " << ss.str();
+        return Status::InternalError(ss.str());
+    }
     *page_len = std::max(default_page_len_, BitUtil::RoundUpToPowerOfTwo(row_size));
     return Status::OK();
 }
