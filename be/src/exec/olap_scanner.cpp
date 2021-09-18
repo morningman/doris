@@ -60,9 +60,12 @@ OlapScanner::OlapScanner(RuntimeState* runtime_state, OlapScanNode* parent, bool
                   runtime_state->fragment_mem_tracker(), true, true, MemTrackerLevel::VERBOSE)) {
     _rows_read_counter = parent->rows_read_counter();
     _rows_pushed_cond_filtered_counter = parent->_rows_pushed_cond_filtered_counter;
+    DorisMetrics::instance()->olap_scanner->increment(1);
 }
 
-OlapScanner::~OlapScanner() {}
+OlapScanner::~OlapScanner() {
+    DorisMetrics::instance()->olap_scanner->increment(-1);
+}
 
 Status OlapScanner::prepare(
         const TPaloScanRange& scan_range, const std::vector<OlapScanRange*>& key_ranges,
@@ -99,7 +102,7 @@ Status OlapScanner::prepare(
             // the rowsets maybe compacted when the last olap scanner starts
             Version rd_version(0, _version);
             OLAPStatus acquire_reader_st =
-                    _tablet->capture_rs_readers(rd_version, &_params.rs_readers, _mem_tracker);
+                    _tablet->capture_rs_readers(3, rd_version, &_params.rs_readers, _mem_tracker);
             if (acquire_reader_st != OLAP_SUCCESS) {
                 LOG(WARNING) << "fail to init reader.res=" << acquire_reader_st;
                 std::stringstream ss;

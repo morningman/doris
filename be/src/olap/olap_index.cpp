@@ -27,6 +27,7 @@
 #include "olap/rowset/column_data.h"
 #include "olap/utils.h"
 #include "olap/wrapper_field.h"
+#include "util/doris_metrics.h"
 
 using std::ifstream;
 using std::string;
@@ -41,7 +42,10 @@ MemIndex::MemIndex()
           _data_size(0),
           _num_rows(0),
           _tracker(new MemTracker(-1)),
-          _mem_pool(new MemPool(_tracker.get())) {}
+          _mem_pool(new MemPool(_tracker.get())) {
+
+    DorisMetrics::instance()->olap_index->increment(1);
+}
 
 MemIndex::~MemIndex() {
     _num_entries = 0;
@@ -50,6 +54,7 @@ MemIndex::~MemIndex() {
         it->buffer.data = NULL;
         it->buffer.length = 0;
     }
+    DorisMetrics::instance()->olap_index->increment(-1);
 }
 
 OLAPStatus MemIndex::load_segment(const char* file, size_t* current_num_rows_per_row_block,

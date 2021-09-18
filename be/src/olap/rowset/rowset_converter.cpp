@@ -64,7 +64,7 @@ OLAPStatus RowsetConverter::_convert_rowset(const RowsetMetaSharedPtr& src_rowse
         RETURN_NOT_OK(RowsetFactory::create_rowset(&tablet_schema, rowset_path, src_rowset_meta,
                                                    &rowset));
         RowsetReaderSharedPtr rowset_reader;
-        RETURN_NOT_OK(rowset->create_reader(&rowset_reader));
+        RETURN_NOT_OK(rowset->create_reader(4, &rowset_reader));
         std::vector<uint32_t> cids;
         for (int i = 0; i < tablet_schema.num_columns(); ++i) {
             cids.push_back(i);

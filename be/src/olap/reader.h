@@ -39,6 +39,7 @@
 #include "olap/rowset/rowset_reader.h"
 #include "olap/tablet.h"
 #include "util/runtime_profile.h"
+#include "util/doris_metrics.h"
 
 namespace doris {
 
@@ -51,6 +52,15 @@ class RuntimeState;
 // Params for Reader,
 // mainly include tablet, data version and fetch range.
 struct ReaderParams {
+
+    ReaderParams() {
+        DorisMetrics::instance()->reader_params->increment(1);
+    }
+
+    ~ReaderParams() {
+         DorisMetrics::instance()->reader_params->increment(-1);
+    }
+
     TabletSharedPtr tablet;
     ReaderType reader_type = READER_QUERY;
     bool aggregation = false;

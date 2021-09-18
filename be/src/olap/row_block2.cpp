@@ -23,12 +23,15 @@
 #include "gutil/strings/substitute.h"
 #include "olap/row_cursor.h"
 #include "util/bitmap.h"
+#include "util/doris_metrics.h"
 
 using strings::Substitute;
 namespace doris {
 
 RowBlockV2::RowBlockV2(const Schema& schema, uint16_t capacity)
-        : RowBlockV2(schema, capacity, nullptr) {}
+        : RowBlockV2(schema, capacity, nullptr) {
+    DorisMetrics::instance()->row_block2->increment(1);
+}
 
 RowBlockV2::RowBlockV2(const Schema& schema, uint16_t capacity, std::shared_ptr<MemTracker> parent)
         : _schema(schema),
@@ -49,10 +52,12 @@ RowBlockV2::RowBlockV2(const Schema& schema, uint16_t capacity, std::shared_ptr<
     }
     _selection_vector = new uint16_t[_capacity];
     clear();
+    DorisMetrics::instance()->row_block2->increment(1);
 }
 
 RowBlockV2::~RowBlockV2() {
     delete[] _selection_vector;
+    DorisMetrics::instance()->row_block2->increment(-1);
 }
 
 Status RowBlockV2::convert_to_row_block(RowCursor* helper, RowBlock* dst) {

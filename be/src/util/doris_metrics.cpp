@@ -166,6 +166,29 @@ DEFINE_GAUGE_METRIC_PROTOTYPE_2ARG(blocks_open_writing, MetricUnit::BLOCKS);
 DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(query_cache_memory_total_byte, MetricUnit::BYTES);
 DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(query_cache_sql_total_count, MetricUnit::NOUNIT);
 DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(query_cache_partition_total_count, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(system_alloc, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(system_alloc2, MetricUnit::NOUNIT);
+
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(bitmap_index_reader, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(column_reader, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(bloom_filter_index_reader, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(segment_reader, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(push_handler, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(schema_change, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(row_block, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(memtable, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(olap_index, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(engine_checksum_task, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(merger, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(row_block2, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(reader, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(compaction_instance, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(alpha_rowset_reader1, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(alpha_rowset_reader2, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(alpha_rowset_reader3, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(alpha_rowset_reader4, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(olap_scanner, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(reader_params, MetricUnit::NOUNIT);
 
 const std::string DorisMetrics::_s_registry_name = "doris_be";
 const std::string DorisMetrics::_s_hook_name = "doris_metrics";
@@ -280,6 +303,29 @@ DorisMetrics::DorisMetrics() : _metric_registry(_s_registry_name) {
     INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, query_cache_memory_total_byte);
     INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, query_cache_sql_total_count);
     INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, query_cache_partition_total_count);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, system_alloc);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, system_alloc2);
+
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, bitmap_index_reader);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, column_reader);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, bloom_filter_index_reader);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, segment_reader);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, push_handler);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, schema_change);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, row_block);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, memtable);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, olap_index);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, engine_checksum_task);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, merger);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, row_block2);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, reader);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, compaction_instance);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, alpha_rowset_reader1);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, alpha_rowset_reader2);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, alpha_rowset_reader3);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, alpha_rowset_reader4);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, olap_scanner);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, reader_params);
 }
 
 void DorisMetrics::initialize(bool init_system_metrics, const std::set<std::string>& disk_devices,

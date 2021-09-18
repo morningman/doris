@@ -27,6 +27,7 @@
 #include "olap/field.h"
 #include "olap/row_cursor.h"
 #include "olap/utils.h"
+#include "util/doris_metrics.h"
 
 using std::exception;
 using std::lower_bound;
@@ -41,10 +42,13 @@ RowBlock::RowBlock(const TabletSchema* schema, const std::shared_ptr<MemTracker>
         : _capacity(0), _schema(schema) {
     _tracker = MemTracker::CreateTracker(-1, "RowBlock", parent_tracker, true, true, MemTrackerLevel::VERBOSE);
     _mem_pool.reset(new MemPool(_tracker.get()));
+
+    DorisMetrics::instance()->row_block->increment(1);
 }
 
 RowBlock::~RowBlock() {
     delete[] _mem_buf;
+    DorisMetrics::instance()->row_block->increment(-1);
 }
 
 void RowBlock::init(const RowBlockInfo& block_info) {

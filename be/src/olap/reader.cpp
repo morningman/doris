@@ -41,6 +41,7 @@
 #include "runtime/string_value.hpp"
 #include "util/date_func.h"
 #include "util/mem_util.hpp"
+#include "util/doris_metrics.h"
 
 using std::nothrow;
 using std::set;
@@ -99,10 +100,14 @@ std::string Reader::KeysParam::to_string() const {
     return ss.str();
 }
 
-Reader::Reader() : _collect_iter(new CollectIterator()) {}
+Reader::Reader() : _collect_iter(new CollectIterator()) {
+
+    DorisMetrics::instance()->reader->increment(1);
+}
 
 Reader::~Reader() {
     close();
+    DorisMetrics::instance()->reader->increment(-1);
 }
 
 OLAPStatus Reader::init(const ReaderParams& read_params) {

@@ -21,6 +21,7 @@
 #include "olap/rowset/rowset_factory.h"
 #include "util/time.h"
 #include "util/trace.h"
+#include "util/doris_metrics.h"
 
 using std::vector;
 
@@ -36,9 +37,14 @@ Compaction::Compaction(TabletSharedPtr tablet, const std::string& label,
           _tablet(tablet),
           _input_rowsets_size(0),
           _input_row_num(0),
-          _state(CompactionState::INITED) {}
+          _state(CompactionState::INITED) {
 
-Compaction::~Compaction() {}
+    DorisMetrics::instance()->compaction_instance->increment(1);
+}
+
+Compaction::~Compaction() {
+    DorisMetrics::instance()->compaction_instance->increment(-1);
+}
 
 OLAPStatus Compaction::compact() {
     RETURN_NOT_OK(prepare_compact());
@@ -174,7 +180,7 @@ OLAPStatus Compaction::construct_output_rowset_writer() {
 OLAPStatus Compaction::construct_input_rowset_readers() {
     for (auto& rowset : _input_rowsets) {
         RowsetReaderSharedPtr rs_reader;
-        RETURN_NOT_OK(rowset->create_reader(
+        RETURN_NOT_OK(rowset->create_reader(1,
                 MemTracker::CreateTracker(
                         -1, "Compaction:RowsetReader:" + rowset->rowset_id().to_string(),
                         _readers_tracker, true, true),

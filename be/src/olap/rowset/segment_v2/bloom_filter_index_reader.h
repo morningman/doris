@@ -28,6 +28,8 @@
 #include "olap/rowset/segment_v2/row_ranges.h"
 #include "runtime/mem_pool.h"
 #include "runtime/mem_tracker.h"
+#include "util/doris_metrics.h"
+
 
 namespace doris {
 
@@ -70,7 +72,12 @@ public:
             : _reader(reader),
               _bloom_filter_iter(reader->_bloom_filter_reader.get()),
               _tracker(new MemTracker()),
-              _pool(new MemPool(_tracker.get())) {}
+              _pool(new MemPool(_tracker.get())) {
+
+        DorisMetrics::instance()->bloom_filter_index_reader->increment(1);
+    }
+
+    ~BloomFilterIndexIterator() {DorisMetrics::instance()->bloom_filter_index_reader->increment(-1);}
 
     // Read bloom filter at the given ordinal into `bf`.
     Status read_bloom_filter(rowid_t ordinal, std::unique_ptr<BloomFilter>* bf);

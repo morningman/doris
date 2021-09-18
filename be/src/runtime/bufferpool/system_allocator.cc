@@ -24,6 +24,7 @@
 #include "gutil/strings/substitute.h"
 #include "util/bit_util.h"
 #include "util/error_util.h"
+#include "util/doris_metrics.h"
 
 // TODO: IMPALA-5073: this should eventually become the default once we are confident
 // that it is superior to allocating via TCMalloc.
@@ -65,6 +66,7 @@ Status SystemAllocator::Allocate(int64_t len, BufferPool::BufferHandle* buffer) 
         RETURN_IF_ERROR(AllocateViaMalloc(len, &buffer_mem));
     }
     buffer->Open(buffer_mem, len, CpuInfo::get_current_core());
+    DorisMetrics::instance()->system_alloc->increment(len); 
     return Status::OK();
 }
 
@@ -163,6 +165,7 @@ void SystemAllocator::Free(BufferPool::BufferHandle&& buffer) {
         }
         free(buffer.data());
     }
+    DorisMetrics::instance()->system_alloc->increment(-buffer.len()); 
     buffer.Reset(); // Avoid DCHECK in ~BufferHandle().
 }
 } // namespace doris

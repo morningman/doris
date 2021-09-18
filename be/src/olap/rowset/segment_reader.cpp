@@ -27,6 +27,7 @@
 #include "olap/out_stream.h"
 #include "olap/row_block.h"
 #include "olap/rowset/segment_group.h"
+#include "util/doris_metrics.h"
 
 namespace doris {
 
@@ -63,7 +64,10 @@ SegmentReader::SegmentReader(const std::string file, SegmentGroup* segment_group
           _shared_buffer(NULL),
           _lru_cache(lru_cache),
           _runtime_state(runtime_state),
-          _stats(stats) {}
+          _stats(stats) {
+
+    DorisMetrics::instance()->segment_reader->increment(1);
+}
 
 SegmentReader::~SegmentReader() {
     SAFE_DELETE(_shared_buffer);
@@ -101,6 +105,7 @@ SegmentReader::~SegmentReader() {
     if (_is_using_mmap) {
         SAFE_DELETE(_mmap_buffer);
     }
+    DorisMetrics::instance()->segment_reader->increment(-1);
 }
 
 OLAPStatus SegmentReader::_check_file_version() {

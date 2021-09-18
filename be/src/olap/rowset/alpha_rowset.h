@@ -40,9 +40,9 @@ class AlphaRowset : public Rowset {
 public:
     virtual ~AlphaRowset() {}
 
-    OLAPStatus create_reader(std::shared_ptr<RowsetReader>* result) override;
+    OLAPStatus create_reader(int flag, std::shared_ptr<RowsetReader>* result) override;
 
-    OLAPStatus create_reader(const std::shared_ptr<MemTracker>& parent_tracker,
+    OLAPStatus create_reader(int flag, const std::shared_ptr<MemTracker>& parent_tracker,
                              std::shared_ptr<RowsetReader>* result) override;
 
     OLAPStatus split_range(const RowCursor& start_key, const RowCursor& end_key,

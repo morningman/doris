@@ -23,12 +23,14 @@
 
 #include "common/config.h"
 #include "common/logging.h"
+#include "util/doris_metrics.h"
 
 namespace doris {
 
 #define PAGE_SIZE (4 * 1024) // 4K
 
 uint8_t* SystemAllocator::allocate(size_t length) {
+    DorisMetrics::instance()->system_alloc2->increment(length);
     if (config::use_mmap_allocate_chunk) {
         return allocate_via_mmap(length);
     } else {
@@ -47,6 +49,7 @@ void SystemAllocator::free(uint8_t* ptr, size_t length) {
     } else {
         ::free(ptr);
     }
+    DorisMetrics::instance()->system_alloc2->increment(-length);
 }
 
 uint8_t* SystemAllocator::allocate_via_malloc(size_t length) {

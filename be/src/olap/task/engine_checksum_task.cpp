@@ -70,7 +70,7 @@ OLAPStatus EngineChecksumTask::_compute_checksum() {
         }
 
         OLAPStatus acquire_reader_st =
-                tablet->capture_rs_readers(reader_params.version, &reader_params.rs_readers);
+                tablet->capture_rs_readers(4, reader_params.version, &reader_params.rs_readers);
         if (acquire_reader_st != OLAP_SUCCESS) {
             LOG(WARNING) << "fail to init reader. tablet=" << tablet->full_name()
                          << "res=" << acquire_reader_st;

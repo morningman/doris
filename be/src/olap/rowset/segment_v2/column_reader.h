@@ -35,6 +35,7 @@
 #include "olap/tablet_schema.h"
 #include "util/file_cache.h"
 #include "util/once.h"
+#include "util/doris_metrics.h"
 
 namespace doris {
 
@@ -387,7 +388,12 @@ public:
               _is_default_value_null(false),
               _type_size(0),
               _tracker(new MemTracker()),
-              _pool(new MemPool(_tracker.get())) {}
+              _pool(new MemPool(_tracker.get())) {
+
+       DorisMetrics::instance()->column_reader->increment(1); 
+    }
+
+    ~DefaultValueColumnIterator() { DorisMetrics::instance()->column_reader->increment(-1); }
 
     Status init(const ColumnIteratorOptions& opts) override;
 

@@ -52,7 +52,7 @@ struct AlphaMergeContextComparator {
 
 class AlphaRowsetReader : public RowsetReader {
 public:
-    AlphaRowsetReader(int num_rows_per_row_block, AlphaRowsetSharedPtr rowset,
+    AlphaRowsetReader(int flag, int num_rows_per_row_block, AlphaRowsetSharedPtr rowset,
                       const std::shared_ptr<MemTracker>& parent_tracker = nullptr);
 
     ~AlphaRowsetReader() override;
@@ -98,6 +98,7 @@ private:
     OLAPStatus _update_merge_ctx_and_build_merge_heap(AlphaMergeContext* merge_ctx);
 
 private:
+    int _flag;
     int _num_rows_per_row_block;
     AlphaRowsetSharedPtr _rowset;
     std::shared_ptr<MemTracker> _parent_tracker;

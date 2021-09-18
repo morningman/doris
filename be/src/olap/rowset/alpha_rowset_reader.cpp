@@ -22,9 +22,10 @@
 
 namespace doris {
 
-AlphaRowsetReader::AlphaRowsetReader(int num_rows_per_row_block, AlphaRowsetSharedPtr rowset,
+AlphaRowsetReader::AlphaRowsetReader(int flag, int num_rows_per_row_block, AlphaRowsetSharedPtr rowset,
                                      const std::shared_ptr<MemTracker>& parent_tracker)
-        : _num_rows_per_row_block(num_rows_per_row_block),
+        : _flag(flag),
+            _num_rows_per_row_block(num_rows_per_row_block),
           _rowset(std::move(rowset)),
           _parent_tracker(parent_tracker),
           _alpha_rowset_meta(
@@ -32,6 +33,21 @@ AlphaRowsetReader::AlphaRowsetReader(int num_rows_per_row_block, AlphaRowsetShar
           _segment_groups(_rowset->_segment_groups),
           _key_range_size(0) {
     _rowset->aquire();
+
+    switch (_flag) {
+        case 1:
+            DorisMetrics::instance()->alpha_rowset_reader1->increment(1);
+            break;
+        case 2:
+            DorisMetrics::instance()->alpha_rowset_reader2->increment(1);
+            break;
+        case 3:
+            DorisMetrics::instance()->alpha_rowset_reader3->increment(1);
+            break;
+        default:
+            DorisMetrics::instance()->alpha_rowset_reader4->increment(1);
+            break;
+    }
 }
 
 AlphaRowsetReader::~AlphaRowsetReader() {
@@ -46,6 +62,20 @@ AlphaRowsetReader::~AlphaRowsetReader() {
         delete ctx;
     }
     _sequential_ctxs.clear();
+    switch (_flag) {
+        case 1:
+            DorisMetrics::instance()->alpha_rowset_reader1->increment(-1);
+            break;
+        case 2:
+            DorisMetrics::instance()->alpha_rowset_reader2->increment(-1);
+            break;
+        case 3:
+            DorisMetrics::instance()->alpha_rowset_reader3->increment(-1);
+            break;
+        default:
+            DorisMetrics::instance()->alpha_rowset_reader4->increment(-1);
+            break;
+    }
 }
 
 OLAPStatus AlphaRowsetReader::init(RowsetReaderContext* read_context) {

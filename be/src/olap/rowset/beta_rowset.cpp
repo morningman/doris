@@ -61,13 +61,13 @@ OLAPStatus BetaRowset::do_load(bool /*use_cache*/, std::shared_ptr<MemTracker> p
     return OLAP_SUCCESS;
 }
 
-OLAPStatus BetaRowset::create_reader(RowsetReaderSharedPtr* result) {
+OLAPStatus BetaRowset::create_reader(int flag, RowsetReaderSharedPtr* result) {
     // NOTE: We use std::static_pointer_cast for performance
     result->reset(new BetaRowsetReader(std::static_pointer_cast<BetaRowset>(shared_from_this())));
     return OLAP_SUCCESS;
 }
 
-OLAPStatus BetaRowset::create_reader(const std::shared_ptr<MemTracker>& parent_tracker,
+OLAPStatus BetaRowset::create_reader(int flag, const std::shared_ptr<MemTracker>& parent_tracker,
                                      std::shared_ptr<RowsetReader>* result) {
     // NOTE: We use std::static_pointer_cast for performance
     result->reset(new BetaRowsetReader(std::static_pointer_cast<BetaRowset>(shared_from_this()),

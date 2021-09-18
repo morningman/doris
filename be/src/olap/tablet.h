@@ -121,11 +121,11 @@ public:
 
     OLAPStatus capture_consistent_rowsets(const Version& spec_version,
                                           std::vector<RowsetSharedPtr>* rowsets) const;
-    OLAPStatus capture_rs_readers(const Version& spec_version,
+    OLAPStatus capture_rs_readers(int flag, const Version& spec_version,
                                   std::vector<RowsetReaderSharedPtr>* rs_readers,
                                   std::shared_ptr<MemTracker> parent_tracker = nullptr) const;
 
-    OLAPStatus capture_rs_readers(const std::vector<Version>& version_path,
+    OLAPStatus capture_rs_readers(int flag, const std::vector<Version>& version_path,
                                   std::vector<RowsetReaderSharedPtr>* rs_readers,
                                   std::shared_ptr<MemTracker> parent_tracker = nullptr) const;
 

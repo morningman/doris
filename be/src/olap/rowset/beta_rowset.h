@@ -37,9 +37,9 @@ class BetaRowset : public Rowset {
 public:
     virtual ~BetaRowset();
 
-    OLAPStatus create_reader(RowsetReaderSharedPtr* result) override;
+    OLAPStatus create_reader(int flag, RowsetReaderSharedPtr* result) override;
 
-    OLAPStatus create_reader(const std::shared_ptr<MemTracker>& parent_tracker,
+    OLAPStatus create_reader(int flag, const std::shared_ptr<MemTracker>& parent_tracker,
                              std::shared_ptr<RowsetReader>* result) override;
 
     static std::string segment_file_path(const std::string& segment_dir, const RowsetId& rowset_id,

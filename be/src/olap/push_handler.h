@@ -31,6 +31,7 @@
 #include "olap/olap_common.h"
 #include "olap/row_cursor.h"
 #include "olap/rowset/rowset.h"
+#include "util/doris_metrics.h"
 
 namespace doris {
 
@@ -184,8 +185,12 @@ private:
 
 class PushBrokerReader {
 public:
-    PushBrokerReader() : _ready(false), _eof(false) {}
-    ~PushBrokerReader() {}
+    PushBrokerReader() : _ready(false), _eof(false) {
+        DorisMetrics::instance()->push_handler->increment(1);
+    }
+    ~PushBrokerReader() {
+        DorisMetrics::instance()->push_handler->increment(-1);
+    }
 
     OLAPStatus init(const Schema* schema, const TBrokerScanRange& t_scan_range,
                     const TDescriptorTable& t_desc_tbl);

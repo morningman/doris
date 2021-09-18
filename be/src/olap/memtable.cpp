@@ -46,10 +46,14 @@ MemTable::MemTable(int64_t tablet_id, Schema* schema, const TabletSchema* tablet
           _schema_size(_schema->schema_size()),
           _skip_list(new Table(_row_comparator, _table_mem_pool.get(),
                                _keys_type == KeysType::DUP_KEYS)),
-          _rowset_writer(rowset_writer) {}
+          _rowset_writer(rowset_writer) {
+
+   DorisMetrics::instance()->memtable->increment(1); 
+}
 
 MemTable::~MemTable() {
     delete _skip_list;
+   DorisMetrics::instance()->memtable->increment(-1); 
 }
 
 MemTable::RowCursorComparator::RowCursorComparator(const Schema* schema) : _schema(schema) {}

@@ -196,6 +196,32 @@ public:
     UIntGauge* send_batch_thread_pool_thread_num;
     UIntGauge* send_batch_thread_pool_queue_size;
 
+    UIntGauge* system_alloc;
+    UIntGauge* system_alloc2;
+
+
+    UIntGauge* bitmap_index_reader;
+    UIntGauge* column_reader;
+    UIntGauge* bloom_filter_index_reader;
+    UIntGauge* segment_reader;
+    UIntGauge* push_handler;
+    UIntGauge* schema_change;
+    UIntGauge* row_block;
+    UIntGauge* memtable;
+    UIntGauge* olap_index;
+    UIntGauge* engine_checksum_task;
+    UIntGauge* merger;
+    UIntGauge* row_block2;
+    UIntGauge* reader;
+    UIntGauge* compaction_instance;
+    UIntGauge* alpha_rowset_reader1;
+    UIntGauge* alpha_rowset_reader2;
+    UIntGauge* alpha_rowset_reader3;
+    UIntGauge* alpha_rowset_reader4;
+    UIntGauge* olap_scanner;
+    UIntGauge* reader_params;
+     
+
     static DorisMetrics* instance() {
         static DorisMetrics instance;
         return &instance;

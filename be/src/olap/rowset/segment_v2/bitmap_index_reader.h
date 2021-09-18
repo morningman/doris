@@ -26,6 +26,7 @@
 #include "olap/rowset/segment_v2/indexed_column_reader.h"
 #include "runtime/mem_pool.h"
 #include "runtime/mem_tracker.h"
+#include "util/doris_metrics.h"
 
 namespace doris {
 
@@ -72,7 +73,14 @@ public:
               _bitmap_column_iter(reader->_bitmap_column_reader.get()),
               _current_rowid(0),
               _tracker(new MemTracker()),
-              _pool(new MemPool(_tracker.get())) {}
+              _pool(new MemPool(_tracker.get())) {
+
+        DorisMetrics::instance()->bitmap_index_reader->increment(1); 
+    }
+
+    ~BitmapIndexIterator() {
+        DorisMetrics::instance()->bitmap_index_reader->increment(-1); 
+    }
 
     bool has_null_bitmap() const { return _reader->_has_null; }
 
