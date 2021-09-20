@@ -27,6 +27,7 @@
 #include "gutil/macros.h"
 #include "olap/rowset/rowset_meta.h"
 #include "olap/tablet_schema.h"
+#include "util/doris_metrics.h"
 
 namespace doris {
 
@@ -106,7 +107,9 @@ private:
 
 class Rowset : public std::enable_shared_from_this<Rowset> {
 public:
-    virtual ~Rowset() {}
+    virtual ~Rowset() {
+        DorisMetrics::instance()->rowset->increment(-1);
+    }
 
     // Open all segment files in this rowset and load necessary metadata.
     // - `use_cache` : whether to use fd cache, only applicable to alpha rowset now

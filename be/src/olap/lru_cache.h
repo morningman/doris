@@ -18,6 +18,7 @@
 #include "util/metrics.h"
 #include "util/mutex.h"
 #include "util/slice.h"
+#include "util/doris_metrics.h"
 
 namespace doris {
 
@@ -235,6 +236,9 @@ typedef struct LRUHandle {
     }
 
     void free() {
+        DorisMetrics::instance()->lru_handle->increment(-1);
+        DorisMetrics::instance()->lru_handle_size->increment(-(sizeof(LRUHandle) - 1 + key_length));
+        DorisMetrics::instance()->lru_handle_value_size->increment(-charge);
         (*deleter)(key(), value);
         ::free(this);
     }

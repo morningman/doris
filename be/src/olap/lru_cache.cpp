@@ -294,6 +294,9 @@ Cache::Handle* LRUCache::insert(const CacheKey& key, uint32_t hash, void* value,
                                 void (*deleter)(const CacheKey& key, void* value),
                                 CachePriority priority) {
     LRUHandle* e = reinterpret_cast<LRUHandle*>(malloc(sizeof(LRUHandle) - 1 + key.size()));
+    DorisMetrics::instance()->lru_handle->increment(1);
+    DorisMetrics::instance()->lru_handle_size->increment(sizeof(LRUHandle) - 1 + key.size());
+    DorisMetrics::instance()->lru_handle_value_size->increment(charge);
     e->value = value;
     e->deleter = deleter;
     e->charge = charge;

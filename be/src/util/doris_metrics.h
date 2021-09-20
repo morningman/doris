@@ -220,7 +220,13 @@ public:
     UIntGauge* alpha_rowset_reader4;
     UIntGauge* olap_scanner;
     UIntGauge* reader_params;
-     
+    UIntGauge* lru_handle;
+    UIntGauge* lru_handle_size;
+    UIntGauge* lru_handle_value_size;
+    UIntGauge* rowset;
+    UIntGauge* rowset_meta;
+    UIntGauge* segment;
+    UIntGauge* column_reader2;
 
     static DorisMetrics* instance() {
         static DorisMetrics instance;

@@ -53,10 +53,12 @@ Segment::Segment(std::string fname, uint32_t segment_id, const TabletSchema* tab
 #else
     _mem_tracker = MemTracker::CreateTracker(-1, "Segment", nullptr, false);
 #endif
+    DorisMetrics::instance()->segment->increment(1);
 }
 
 Segment::~Segment() {
     _mem_tracker->Release(_mem_tracker->consumption());
+    DorisMetrics::instance()->segment->increment(-1);
 }
 
 Status Segment::_open() {

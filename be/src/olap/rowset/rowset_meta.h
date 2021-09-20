@@ -28,6 +28,7 @@
 #include "json2pb/json_to_pb.h"
 #include "json2pb/pb_to_json.h"
 #include "olap/olap_common.h"
+#include "util/doris_metrics.h"
 
 namespace doris {
 
@@ -36,7 +37,12 @@ using RowsetMetaSharedPtr = std::shared_ptr<RowsetMeta>;
 
 class RowsetMeta {
 public:
-    virtual ~RowsetMeta() {}
+    RowsetMeta() {
+        DorisMetrics::instance()->rowset_meta->increment(1);
+    }
+    virtual ~RowsetMeta() {
+        DorisMetrics::instance()->rowset_meta->increment(-1);
+    }
 
     virtual bool init(const std::string& pb_rowset_meta) {
         bool ret = _deserialize_from_pb(pb_rowset_meta);

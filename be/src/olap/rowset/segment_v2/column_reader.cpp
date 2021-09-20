@@ -92,9 +92,14 @@ Status ColumnReader::create(const ColumnReaderOptions& opts, const ColumnMetaPB&
 
 ColumnReader::ColumnReader(const ColumnReaderOptions& opts, const ColumnMetaPB& meta,
                            uint64_t num_rows, const std::string& file_name)
-        : _meta(meta), _opts(opts), _num_rows(num_rows), _file_name(file_name) {}
+        : _meta(meta), _opts(opts), _num_rows(num_rows), _file_name(file_name) {
 
-ColumnReader::~ColumnReader() = default;
+    DorisMetrics::instance()->column_reader2->increment(1);
+}
+
+ColumnReader::~ColumnReader() {
+    DorisMetrics::instance()->column_reader2->increment(-1);
+}
 
 Status ColumnReader::init() {
     _type_info = get_type_info(&_meta);

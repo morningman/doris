@@ -36,7 +36,9 @@ std::string BetaRowset::segment_file_path(const std::string& dir, const RowsetId
 
 BetaRowset::BetaRowset(const TabletSchema* schema, string rowset_path,
                        RowsetMetaSharedPtr rowset_meta)
-        : Rowset(schema, std::move(rowset_path), std::move(rowset_meta)) {}
+        : Rowset(schema, std::move(rowset_path), std::move(rowset_meta)) {
+            DorisMetrics::instance()->rowset->increment(1);
+}
 
 BetaRowset::~BetaRowset() {}
 
