@@ -46,8 +46,7 @@ OLAPStatus BetaRowset::init() {
     return OLAP_SUCCESS; // no op
 }
 
-// `use_cache` is ignored because beta rowset doesn't support fd cache now
-OLAPStatus BetaRowset::do_load(bool /*use_cache*/, std::shared_ptr<MemTracker> parent) {
+OLAPStatus BetaRowset::do_load(bool use_cache, std::shared_ptr<MemTracker> parent) {
     // Open all segments under the current rowset
     for (int seg_id = 0; seg_id < num_segments(); ++seg_id) {
         std::string seg_path = segment_file_path(_rowset_path, rowset_id(), seg_id);

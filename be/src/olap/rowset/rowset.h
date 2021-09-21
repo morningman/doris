@@ -105,6 +105,43 @@ private:
     RowsetState _rowset_state;
 };
 
+#if 0
+// A handle for a single rowset from rowset lru cache.
+// The handle can ensure that the rowset remains in the LOADED state
+// and will not be closed while the holder of the handle is accessing the rowset.
+// The handle will automatically release the cache entry when it is destroyed.
+class RowsetHandle {
+public:
+    RowsetHandle() {}
+    RowsetHandle(Cache* cache, Cache::Handle* handle) : _cache(cache), _handle(handle) {}
+    ~RowsetHandle() {
+        if (_handle != nullptr) {
+            _cache->release(_handle);
+        }
+    }
+
+    RowsetHandle(RowsetHandle&& other) noexcept {
+        std::swap(_cache, other._cache);
+        std::swap(_handle, other._handle);
+    }
+
+    RowsetHandle& operator=(RowsetHandle&& other) noexcept {
+        std::swap(_cache, other._cache);
+        std::swap(_handle, other._handle);
+        return *this;
+    }
+
+    Cache* cache() const { return _cache; }
+
+private:
+    Cache* _cache = nullptr;
+    Cache::Handle* _handle = nullptr;
+
+    // Don't allow copy and assign
+    DISALLOW_COPY_AND_ASSIGN(RowsetHandle);
+};
+#endif
+
 class Rowset : public std::enable_shared_from_this<Rowset> {
 public:
     virtual ~Rowset() {
@@ -115,7 +152,7 @@ public:
     // - `use_cache` : whether to use fd cache, only applicable to alpha rowset now
     //
     // May be called multiple times, subsequent calls will no-op.
-    // Derived class implements the load logic by overriding the `do_load_once()` method.
+    // Derived class implements the load logic by overriding the `do_load()` method.
     OLAPStatus load(bool use_cache = true, std::shared_ptr<MemTracker> parent = nullptr);
 
     // returns OLAP_ERR_ROWSET_CREATE_READER when failed to create reader

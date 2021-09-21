@@ -57,6 +57,17 @@ OLAPStatus Rowset::load(bool use_cache, std::shared_ptr<MemTracker> parent) {
               << ", state from ROWSET_UNLOADED to ROWSET_LOADED. tabletid:"
               << _rowset_meta->tablet_id();
     return OLAP_SUCCESS;
+
+    // 1. find it in loaded rowset lru cache
+    //      1.1 if found, just return rowset handle.
+    //      1.2 if not found, which means this rowset has not been loaded.
+    //
+    // 2. lock the _lock and find it from lru cache again
+    //      2.1 if found, just return rowset handle.
+    //      2.2 if not found, begin loading rowset, and then insert rowset handle to the cache, return handle
+    //
+    // when delete rowset handle from lru cache, it will release all segment instances
+    // segment contains ColumnReader, which contains some index info
 }
 
 void Rowset::make_visible(Version version, VersionHash version_hash) {

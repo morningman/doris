@@ -219,6 +219,7 @@ typedef struct LRUHandle {
     LRUHandle* prev = nullptr;      // previous entry in lru list
     size_t charge;
     size_t key_length;
+    size_t total_size;  // sizeof(LRUHandle) - 1 + key_length + charge
     bool in_cache; // Whether entry is in the cache.
     uint32_t refs;
     uint32_t hash; // Hash of key(); used for fast sharding and comparisons
@@ -237,8 +238,7 @@ typedef struct LRUHandle {
 
     void free() {
         DorisMetrics::instance()->lru_handle->increment(-1);
-        DorisMetrics::instance()->lru_handle_size->increment(-(sizeof(LRUHandle) - 1 + key_length));
-        DorisMetrics::instance()->lru_handle_value_size->increment(-charge);
+        DorisMetrics::instance()->lru_handle_value_size->increment(-total_size);
         (*deleter)(key(), value);
         ::free(this);
     }
@@ -315,7 +315,7 @@ private:
     void _lru_remove(LRUHandle* e);
     void _lru_append(LRUHandle* list, LRUHandle* e);
     bool _unref(LRUHandle* e);
-    void _evict_from_lru(size_t charge, LRUHandle** to_remove_head);
+    void _evict_from_lru(size_t total_size, LRUHandle** to_remove_head);
     void _evict_one_entry(LRUHandle* e);
     void _prune_one(LRUHandle* old);
 

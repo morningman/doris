@@ -39,14 +39,14 @@ using strings::Substitute;
 Status ColumnReader::create(const ColumnReaderOptions& opts, const ColumnMetaPB& meta,
                             uint64_t num_rows, const std::string& file_name,
                             std::unique_ptr<ColumnReader>* reader) {
-    if (is_scalar_type((FieldType)meta.type())) {
+    if (is_scalar_type((FieldType) meta.type())) {
         std::unique_ptr<ColumnReader> reader_local(
                 new ColumnReader(opts, meta, num_rows, file_name));
         RETURN_IF_ERROR(reader_local->init());
         *reader = std::move(reader_local);
         return Status::OK();
     } else {
-        auto type = (FieldType)meta.type();
+        auto type = (FieldType) meta.type();
         switch (type) {
         case FieldType::OLAP_FIELD_TYPE_ARRAY: {
             DCHECK(meta.children_columns_size() == 2 || meta.children_columns_size() == 3);
