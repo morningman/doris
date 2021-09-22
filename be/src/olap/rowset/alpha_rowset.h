@@ -82,6 +82,8 @@ protected:
 
     OLAPStatus do_load(bool use_cache, std::shared_ptr<MemTracker>) override;
 
+    OLAPStatus do_unload() override { return OLAP_SUCCESS; }
+
     void do_close() override {}
 
     // add custom logic when rowset is published

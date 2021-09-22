@@ -17,6 +17,7 @@
 
 #include "olap/rowset/rowset.h"
 
+#include "olap/rowset_cache.h"
 #include "util/time.h"
 
 namespace doris {
@@ -25,7 +26,6 @@ Rowset::Rowset(const TabletSchema* schema, std::string rowset_path, RowsetMetaSh
         : _schema(schema),
           _rowset_path(std::move(rowset_path)),
           _rowset_meta(std::move(rowset_meta)),
-          _refs_by_reader(0),
           _rowset_state_machine(RowsetStateMachine()) {
     _is_pending = !_rowset_meta->has_version();
     if (_is_pending) {
@@ -50,24 +50,39 @@ OLAPStatus Rowset::load(bool use_cache, std::shared_ptr<MemTracker> parent) {
             // first do load, then change the state
             RETURN_NOT_OK(do_load(use_cache, parent));
             RETURN_NOT_OK(_rowset_state_machine.on_load());
+        } else if (_rowset_state_machine.rowset_state() == ROWSET_CLOSED) {
+            return OLAP_ERR_ROWSET_ALREADY_CLOSED;
         }
     }
     // load is done
     VLOG_CRITICAL << "rowset is loaded. " << rowset_id() << ", rowset version:" << rowset_meta()->version()
-              << ", state from ROWSET_UNLOADED to ROWSET_LOADED. tabletid:"
+              << ", state from ROWSET_UNLOADED to ROWSET_LOADED. tablet id:"
               << _rowset_meta->tablet_id();
     return OLAP_SUCCESS;
+}
 
-    // 1. find it in loaded rowset lru cache
-    //      1.1 if found, just return rowset handle.
-    //      1.2 if not found, which means this rowset has not been loaded.
-    //
-    // 2. lock the _lock and find it from lru cache again
-    //      2.1 if found, just return rowset handle.
-    //      2.2 if not found, begin loading rowset, and then insert rowset handle to the cache, return handle
-    //
-    // when delete rowset handle from lru cache, it will release all segment instances
-    // segment contains ColumnReader, which contains some index info
+OLAPStatus Rowset::unload() {
+    if (_rowset_state_machine.rowset_state() == ROWSET_UNLOADED) {
+        return OLAP_SUCCESS;
+    }
+    {
+        std::lock_guard<std::mutex> load_lock(_lock);
+        // after lock, if rowset state is ROWSET_UNLOADING, it is ok to return
+        if (_rowset_state_machine.rowset_state() == ROWSET_UNLOADED) {
+            // first do load, then change the state
+            RETURN_NOT_OK(do_unload());
+            RETURN_NOT_OK(_rowset_state_machine.on_unload());
+        } else if (_rowset_state_machine.rowset_state() == ROWSET_CLOSED) {
+            // just return ok, resource has already been release when close()
+            return OLAP_SUCCESS;
+        }
+    }
+
+    // unload is done
+    VLOG_CRITICAL << "rowset is unloaded. " << rowset_id() << ", rowset version:" << rowset_meta()->version()
+        << ", state from ROWSET_LOADED to ROWSET_UNLOADED. tablet id:"
+        << _rowset_meta->tablet_id();
+    return OLAP_SUCCESS;
 }
 
 void Rowset::make_visible(Version version, VersionHash version_hash) {

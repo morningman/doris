@@ -32,7 +32,6 @@ AlphaRowsetReader::AlphaRowsetReader(int flag, int num_rows_per_row_block, Alpha
                   std::static_pointer_cast<AlphaRowsetMeta>(_rowset->rowset_meta()).get()),
           _segment_groups(_rowset->_segment_groups),
           _key_range_size(0) {
-    _rowset->aquire();
 
     switch (_flag) {
         case 1:
@@ -52,7 +51,6 @@ AlphaRowsetReader::AlphaRowsetReader(int flag, int num_rows_per_row_block, Alpha
 
 AlphaRowsetReader::~AlphaRowsetReader() {
     delete _dst_cursor;
-    _rowset->release();
     while (!_merge_heap.empty()) {
         auto ctx = _merge_heap.top();
         _merge_heap.pop();

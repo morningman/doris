@@ -22,6 +22,7 @@
 #include "olap/row_block.h"
 #include "olap/row_block2.h"
 #include "olap/row_cursor.h"
+#include "olap/rowset_cache.h"
 #include "olap/rowset/beta_rowset.h"
 #include "olap/rowset/rowset_reader.h"
 
@@ -32,7 +33,7 @@ public:
     BetaRowsetReader(BetaRowsetSharedPtr rowset,
                      std::shared_ptr<MemTracker> parent_tracker = nullptr);
 
-    ~BetaRowsetReader() override { _rowset->release(); }
+    ~BetaRowsetReader() override {};
 
     OLAPStatus init(RowsetReaderContext* read_context) override;
 
@@ -54,6 +55,9 @@ public:
     }
 
 private:
+    OLAPStatus _load_rowset();
+
+private:
     RowsetReaderContext* _context;
     BetaRowsetSharedPtr _rowset;
 
@@ -67,6 +71,8 @@ private:
     std::unique_ptr<RowBlockV2> _input_block;
     std::unique_ptr<RowBlock> _output_block;
     std::unique_ptr<RowCursor> _row;
+
+    RowsetCacheHandle _rowset_handle;
 };
 
 } // namespace doris

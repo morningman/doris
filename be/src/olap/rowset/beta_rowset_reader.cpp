@@ -35,7 +35,6 @@ BetaRowsetReader::BetaRowsetReader(BetaRowsetSharedPtr rowset,
           _rowset(std::move(rowset)),
           _stats(&_owned_stats),
           _parent_tracker(std::move(parent_tracker)) {
-    _rowset->aquire();
 }
 
 OLAPStatus BetaRowsetReader::init(RowsetReaderContext* read_context) {
@@ -44,7 +43,7 @@ OLAPStatus BetaRowsetReader::init(RowsetReaderContext* read_context) {
         _parent_tracker = read_context->runtime_state->instance_mem_tracker();
     }
 
-    RETURN_NOT_OK(_rowset->load(true, _parent_tracker));
+    RETURN_NOT_OK(_load_rowset());
     _context = read_context;
     if (_context->stats != nullptr) {
         // schema change/compaction should use owned_stats
@@ -140,6 +139,10 @@ OLAPStatus BetaRowsetReader::init(RowsetReaderContext* read_context) {
     RETURN_NOT_OK(_row->init(*(read_context->tablet_schema), *(_context->seek_columns)));
 
     return OLAP_SUCCESS;
+}
+
+OLAPStatus BetaRowsetReader::_load_rowset() {
+    return RowsetCache::instance()->load_rowset(_rowset, &_rowset_handle, _parent_tracker);
 }
 
 OLAPStatus BetaRowsetReader::next_block(RowBlock** block) {

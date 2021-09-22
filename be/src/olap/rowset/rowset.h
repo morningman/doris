@@ -41,18 +41,16 @@ class RowsetFactory;
 class RowsetReader;
 
 // the rowset state transfer graph:
-//    ROWSET_UNLOADED    <--|
-//          ↓               |
-//    ROWSET_LOADED         |
-//          ↓               |
-//    ROWSET_UNLOADING   -->|
+// ROWSET_UNLOADED -> (ROWSET_LOADED, ROWSET_CLOSED)
+// ROWSET_LOADED   -> (ROWSET_UNLOADED, ROWSET_CLOSED)
+// ROWSET_CLOSED -> none
 enum RowsetState {
-    // state for new created rowset
+    // state for new created rowset, or after unload() called.
     ROWSET_UNLOADED,
     // state after load() called
     ROWSET_LOADED,
-    // state for closed() called but owned by some readers
-    ROWSET_UNLOADING
+    // state after close() called
+    ROWSET_CLOSED
 };
 
 class RowsetStateMachine {
@@ -64,38 +62,25 @@ public:
         case ROWSET_UNLOADED:
             _rowset_state = ROWSET_LOADED;
             break;
-
         default:
             return OLAP_ERR_ROWSET_INVALID_STATE_TRANSITION;
         }
         return OLAP_SUCCESS;
     }
 
-    OLAPStatus on_close(uint64_t refs_by_reader) {
+    OLAPStatus on_unload() {
         switch (_rowset_state) {
         case ROWSET_LOADED:
-            if (refs_by_reader == 0) {
-                _rowset_state = ROWSET_UNLOADED;
-            } else {
-                _rowset_state = ROWSET_UNLOADING;
-            }
+            _rowset_state = ROWSET_UNLOADED;
             break;
-
         default:
             return OLAP_ERR_ROWSET_INVALID_STATE_TRANSITION;
         }
         return OLAP_SUCCESS;
     }
 
-    OLAPStatus on_release() {
-        switch (_rowset_state) {
-        case ROWSET_UNLOADING:
-            _rowset_state = ROWSET_UNLOADED;
-            break;
-
-        default:
-            return OLAP_ERR_ROWSET_INVALID_STATE_TRANSITION;
-        }
+    OLAPStatus on_close() {
+        _rowset_state = ROWSET_CLOSED;
         return OLAP_SUCCESS;
     }
 
@@ -105,43 +90,26 @@ private:
     RowsetState _rowset_state;
 };
 
-#if 0
-// A handle for a single rowset from rowset lru cache.
-// The handle can ensure that the rowset remains in the LOADED state
-// and will not be closed while the holder of the handle is accessing the rowset.
-// The handle will automatically release the cache entry when it is destroyed.
-class RowsetHandle {
-public:
-    RowsetHandle() {}
-    RowsetHandle(Cache* cache, Cache::Handle* handle) : _cache(cache), _handle(handle) {}
-    ~RowsetHandle() {
-        if (_handle != nullptr) {
-            _cache->release(_handle);
-        }
-    }
 
-    RowsetHandle(RowsetHandle&& other) noexcept {
-        std::swap(_cache, other._cache);
-        std::swap(_handle, other._handle);
-    }
+// The rowset represents a Version. The rowset also corresponds to an immutable data set.
+// The rowset will transition in the following three states:
+//      ROWSET_LOADED, ROWSET_UNLOADED, and ROWSET_CLOSED.
 
-    RowsetHandle& operator=(RowsetHandle&& other) noexcept {
-        std::swap(_cache, other._cache);
-        std::swap(_handle, other._handle);
-        return *this;
-    }
+// ROWSET_UNLOADED is the initial state, which means that the rowset has not been loaded yet.
+// Calling the load() method will load the rowset, including opening the corresponding segment,
+// column readers, and reading some necessary meta-information (such as zonemap index).
+// After that, the status of rowset changes to ROWSET_LOADED.
 
-    Cache* cache() const { return _cache; }
+// Calling the unload() method will release the loaded objects in the rowset. In this way,
+// the memory space occupied by these corresponding ones can be released.
+// After the call, rowset will enter the ROWSET_UNLOADED state again, waiting to be loaded next time.
 
-private:
-    Cache* _cache = nullptr;
-    Cache::Handle* _handle = nullptr;
+// ROWSET_CLOSED is the termination status of rowset. Calling the close() method will put the rowset in this state.
+// The rowset in this state will release all loaded objects and cannot be loaded again.
 
-    // Don't allow copy and assign
-    DISALLOW_COPY_AND_ASSIGN(RowsetHandle);
-};
-#endif
-
+// The loaded rowset consumes memory resources, so we use rowset lru cache to cache a limited number of rowset.
+// For instructions on rowset lru cache, please refer to rowse_cache.h
+class RowsetHandle;
 class Rowset : public std::enable_shared_from_this<Rowset> {
 public:
     virtual ~Rowset() {
@@ -154,6 +122,30 @@ public:
     // May be called multiple times, subsequent calls will no-op.
     // Derived class implements the load logic by overriding the `do_load()` method.
     OLAPStatus load(bool use_cache = true, std::shared_ptr<MemTracker> parent = nullptr);
+
+    // Release the resource of this rowset, such as opened segment and column reader.
+    OLAPStatus unload();
+
+    // close to clear the resource owned by rowset
+    // including: open files, indexes and so on
+    void close() {
+        RowsetState old_state = _rowset_state_machine.rowset_state(); 
+        if (old_state == ROWSET_CLOSED) {
+            return;
+        }
+        {
+            std::lock_guard<std::mutex> close_lock(_lock);
+            old_state = _rowset_state_machine.rowset_state();
+            if (old_state == ROWSET_CLOSED) {
+                return;
+            }
+            do_close();
+            _rowset_state_machine.on_close();
+        }
+        VLOG_NOTICE << "rowset is close. rowset state from:" << old_state << " to "
+                    << _rowset_state_machine.rowset_state() << ", version:" << start_version()
+                    << "-" << end_version() << ", tablet id:" << _rowset_meta->tablet_id();
+    }
 
     // returns OLAP_ERR_ROWSET_CREATE_READER when failed to create reader
     virtual OLAPStatus create_reader(int flag, std::shared_ptr<RowsetReader>* result) = 0;
@@ -207,35 +199,6 @@ public:
     // TODO should we rename the method to remove_files() to be more specific?
     virtual OLAPStatus remove() = 0;
 
-    // close to clear the resource owned by rowset
-    // including: open files, indexes and so on
-    // NOTICE: can not call this function in multithreads
-    void close() {
-        RowsetState old_state = _rowset_state_machine.rowset_state();
-        if (old_state != ROWSET_LOADED) {
-            return;
-        }
-        OLAPStatus st = OLAP_SUCCESS;
-        {
-            std::lock_guard<std::mutex> close_lock(_lock);
-            uint64_t current_refs = _refs_by_reader;
-            old_state = _rowset_state_machine.rowset_state();
-            if (old_state != ROWSET_LOADED) {
-                return;
-            }
-            if (current_refs == 0) {
-                do_close();
-            }
-            st = _rowset_state_machine.on_close(current_refs);
-        }
-        if (st != OLAP_SUCCESS) {
-            LOG(WARNING) << "state transition failed from:" << _rowset_state_machine.rowset_state();
-            return;
-        }
-        VLOG_NOTICE << "rowset is close. rowset state from:" << old_state << " to "
-                    << _rowset_state_machine.rowset_state() << ", version:" << start_version()
-                    << "-" << end_version() << ", tabletid:" << _rowset_meta->tablet_id();
-    }
 
     // hard link all files in this rowset to `dir` to form a new rowset with id `new_rowset_id`.
     virtual OLAPStatus link_files_to(const std::string& dir, RowsetId new_rowset_id) = 0;
@@ -263,32 +226,6 @@ public:
         return left->end_version() < right->end_version();
     }
 
-    // this function is called by reader to increase reference of rowset
-    void aquire() { ++_refs_by_reader; }
-
-    void release() {
-        // if the refs by reader is 0 and the rowset is closed, should release the resouce
-        uint64_t current_refs = --_refs_by_reader;
-        if (current_refs == 0 && _rowset_state_machine.rowset_state() == ROWSET_UNLOADING) {
-            {
-                std::lock_guard<std::mutex> release_lock(_lock);
-                // rejudge _refs_by_reader because we do not add lock in create reader
-                if (_refs_by_reader == 0 &&
-                    _rowset_state_machine.rowset_state() == ROWSET_UNLOADING) {
-                    // first do close, then change state
-                    do_close();
-                    _rowset_state_machine.on_release();
-                }
-            }
-            if (_rowset_state_machine.rowset_state() == ROWSET_UNLOADED) {
-                VLOG_NOTICE
-                        << "close the rowset. rowset state from ROWSET_UNLOADING to ROWSET_UNLOADED"
-                        << ", version:" << start_version() << "-" << end_version()
-                        << ", tabletid:" << _rowset_meta->tablet_id();
-            }
-        }
-    }
-
 protected:
     friend class RowsetFactory;
 
@@ -299,10 +236,13 @@ protected:
     // this is non-public because all clients should use RowsetFactory to obtain pointer to initialized Rowset
     virtual OLAPStatus init() = 0;
 
-    // The actual implementation of load(). Guaranteed by to called exactly once.
+    // The actual implementation of load().
     virtual OLAPStatus do_load(bool use_cache, std::shared_ptr<MemTracker> parent = nullptr) = 0;
 
-    // release resources in this api
+    // The actual implementation of unload()
+    virtual OLAPStatus do_unload() = 0;
+
+    // The actual implementation of close()
     virtual void do_close() = 0;
 
     // allow subclass to add custom logic when rowset is being published
@@ -318,8 +258,6 @@ protected:
     // mutex lock for load/close api because it is costly
     std::mutex _lock;
     bool _need_delete_file = false;
-    // variable to indicate how many rowset readers owned this rowset
-    std::atomic<uint64_t> _refs_by_reader;
     // rowset state machine
     RowsetStateMachine _rowset_state_machine;
 };

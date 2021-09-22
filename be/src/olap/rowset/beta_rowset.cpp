@@ -62,6 +62,13 @@ OLAPStatus BetaRowset::do_load(bool use_cache, std::shared_ptr<MemTracker> paren
     return OLAP_SUCCESS;
 }
 
+OLAPStatus BetaRowset::do_unload() {
+    // clear the Segment in _segments.
+    // It will also release related column readers in Segment.
+    _segments.clear();
+    return OLAP_SUCCESS;
+}
+
 OLAPStatus BetaRowset::create_reader(int flag, RowsetReaderSharedPtr* result) {
     // NOTE: We use std::static_pointer_cast for performance
     result->reset(new BetaRowsetReader(std::static_pointer_cast<BetaRowset>(shared_from_this())));

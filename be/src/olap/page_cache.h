@@ -33,7 +33,6 @@ class PageCacheHandle;
 
 // Wrapper around Cache, and used for cache page of column data
 // in Segment.
-// TODO(zc): We should add some metric to see cache hit/miss rate.
 class StoragePageCache {
 public:
     // The unique key identifying entries in the page cache.
