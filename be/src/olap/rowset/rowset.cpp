@@ -19,6 +19,7 @@
 
 #include "olap/rowset_cache.h"
 #include "util/time.h"
+#include "util/stack_util.h"
 
 namespace doris {
 
@@ -57,7 +58,7 @@ OLAPStatus Rowset::load(bool use_cache, std::shared_ptr<MemTracker> parent) {
     // load is done
     VLOG_CRITICAL << "rowset is loaded. " << rowset_id() << ", rowset version:" << rowset_meta()->version()
               << ", state from ROWSET_UNLOADED to ROWSET_LOADED. tablet id:"
-              << _rowset_meta->tablet_id();
+              << _rowset_meta->tablet_id() << ",  " << get_stack_trace();
     return OLAP_SUCCESS;
 }
 
@@ -68,7 +69,7 @@ OLAPStatus Rowset::unload() {
     {
         std::lock_guard<std::mutex> load_lock(_lock);
         // after lock, if rowset state is ROWSET_UNLOADING, it is ok to return
-        if (_rowset_state_machine.rowset_state() == ROWSET_UNLOADED) {
+        if (_rowset_state_machine.rowset_state() == ROWSET_LOADED) {
             // first do load, then change the state
             RETURN_NOT_OK(do_unload());
             RETURN_NOT_OK(_rowset_state_machine.on_unload());
@@ -81,7 +82,7 @@ OLAPStatus Rowset::unload() {
     // unload is done
     VLOG_CRITICAL << "rowset is unloaded. " << rowset_id() << ", rowset version:" << rowset_meta()->version()
         << ", state from ROWSET_LOADED to ROWSET_UNLOADED. tablet id:"
-        << _rowset_meta->tablet_id();
+        << _rowset_meta->tablet_id() << ", " << get_stack_trace();
     return OLAP_SUCCESS;
 }
 

@@ -82,7 +82,10 @@ protected:
 
     OLAPStatus do_load(bool use_cache, std::shared_ptr<MemTracker>) override;
 
-    OLAPStatus do_unload() override { return OLAP_SUCCESS; }
+    OLAPStatus do_unload() override {
+        // Do nothing, the segment group can be reloaded multiple times.
+        return OLAP_SUCCESS;
+    }
 
     void do_close() override {}
 

@@ -131,6 +131,8 @@ public:
 
     PagePointer get_dict_page_pointer() const { return _meta.dict_page(); }
 
+    int64_t mem_footprint() const { return _mem_footprint; }
+
 private:
     ColumnReader(const ColumnReaderOptions& opts, const ColumnMetaPB& meta, uint64_t num_rows,
                  const std::string& file_name);
@@ -145,6 +147,7 @@ private:
             RETURN_IF_ERROR(_load_ordinal_index(use_page_cache, _opts.kept_in_memory));
             RETURN_IF_ERROR(_load_bitmap_index(use_page_cache, _opts.kept_in_memory));
             RETURN_IF_ERROR(_load_bloom_filter_index(use_page_cache, _opts.kept_in_memory));
+            LOG(INFO) << "cmy finish _ensure_index_loaded: " << _mem_footprint;
             return Status::OK();
         });
     }
@@ -188,6 +191,10 @@ private:
     std::unique_ptr<BloomFilterIndexReader> _bloom_filter_index;
 
     std::vector<std::unique_ptr<ColumnReader>> _sub_readers;
+
+    // This is the estimate memory footprint of this reader.
+    // It currenlty equals to the sum of mem footprint of all index meta.
+    int64_t _mem_footprint = 0;
 };
 
 // Base iterator to read one column data

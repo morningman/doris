@@ -125,7 +125,7 @@ void StorageEngine::_fd_cache_clean_callback() {
 #ifdef GOOGLE_PROFILER
     ProfilerRegisterThread();
 #endif
-    int32_t interval = 600;
+    int32_t interval = 60;
     while (!_stop_background_threads_latch.wait_for(MonoDelta::FromSeconds(interval))) {
         interval = config::file_descriptor_cache_clean_interval;
         if (interval <= 0) {

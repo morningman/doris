@@ -27,7 +27,7 @@ namespace segment_v2 {
 
 using strings::Substitute;
 
-Status IndexedColumnReader::load(bool use_page_cache, bool kept_in_memory) {
+Status IndexedColumnReader::load(bool use_page_cache, bool kept_in_memory, int64_t* mem_footprint) {
     _use_page_cache = use_page_cache;
     _kept_in_memory = kept_in_memory;
 
@@ -47,9 +47,13 @@ Status IndexedColumnReader::load(bool use_page_cache, bool kept_in_memory) {
     if (_meta.has_ordinal_index_meta()) {
         if (_meta.ordinal_index_meta().is_root_data_page()) {
             _sole_data_page = PagePointer(_meta.ordinal_index_meta().root_page());
+            if (mem_footprint != nullptr) {
+                *mem_footprint += _sole_data_page.size;
+            }
         } else {
             RETURN_IF_ERROR(load_index_page(rblock.get(), _meta.ordinal_index_meta().root_page(),
-                                            &_ordinal_index_page_handle, &_ordinal_index_reader));
+                                            &_ordinal_index_page_handle, &_ordinal_index_reader,
+                                            mem_footprint));
             _has_index_page = true;
         }
     }
@@ -58,9 +62,13 @@ Status IndexedColumnReader::load(bool use_page_cache, bool kept_in_memory) {
     if (_meta.has_value_index_meta()) {
         if (_meta.value_index_meta().is_root_data_page()) {
             _sole_data_page = PagePointer(_meta.value_index_meta().root_page());
+            if (mem_footprint != nullptr) {
+                *mem_footprint += _sole_data_page.size;
+            }
         } else {
             RETURN_IF_ERROR(load_index_page(rblock.get(), _meta.value_index_meta().root_page(),
-                                            &_value_index_page_handle, &_value_index_reader));
+                                            &_value_index_page_handle, &_value_index_reader,
+                                            mem_footprint));
             _has_index_page = true;
         }
     }
@@ -69,11 +77,15 @@ Status IndexedColumnReader::load(bool use_page_cache, bool kept_in_memory) {
 }
 
 Status IndexedColumnReader::load_index_page(fs::ReadableBlock* rblock, const PagePointerPB& pp,
-                                            PageHandle* handle, IndexPageReader* reader) {
+                                            PageHandle* handle, IndexPageReader* reader,
+                                            int64_t* mem_footprint) {
     Slice body;
     PageFooterPB footer;
     RETURN_IF_ERROR(read_page(rblock, PagePointer(pp), handle, &body, &footer, INDEX_PAGE));
     RETURN_IF_ERROR(reader->parse(body, footer.index_page_footer()));
+    if (mem_footprint != nullptr) {
+        *mem_footprint += body.get_size();
+    }
     return Status::OK();
 }
 

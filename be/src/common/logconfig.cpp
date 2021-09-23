@@ -47,6 +47,12 @@ static bool iequals(const std::string& a, const std::string& b) {
     return true;
 }
 
+void SignalHandle(const char* data, int size)
+{
+    std::string str = std::string(data,size);
+    LOG(ERROR) << "cmy" << str;
+}
+
 bool init_glog(const char* basename, bool install_signal_handler) {
     std::lock_guard<std::mutex> logging_lock(logging_mutex);
 
@@ -56,6 +62,7 @@ bool init_glog(const char* basename, bool install_signal_handler) {
 
     if (install_signal_handler) {
         google::InstallFailureSignalHandler();
+        google::InstallFailureWriter(&SignalHandle);
     }
 
     // don't log to stderr

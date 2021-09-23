@@ -76,6 +76,7 @@ void Daemon::tcmalloc_gc_thread() {
         MallocExtension::instance()->GetNumericProperty("tcmalloc.pageheap_free_bytes", &free_size);
         size_t alloc_size = used_size + free_size;
 
+        LOG(INFO) << "cmy release to system. used: " << used_size << ", free: " << free_size << ", max free: " << alloc_size * config::tc_free_memory_rate / 100;
         if (alloc_size > config::tc_use_memory_min) {
             size_t max_free_size = alloc_size * config::tc_free_memory_rate / 100;
             if (free_size > max_free_size) {

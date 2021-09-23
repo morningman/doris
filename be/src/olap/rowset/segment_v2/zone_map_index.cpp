@@ -124,9 +124,9 @@ Status ZoneMapIndexWriter::finish(fs::WritableBlock* wblock, ColumnIndexMetaPB* 
     return writer.finish(meta->mutable_page_zone_maps());
 }
 
-Status ZoneMapIndexReader::load(bool use_page_cache, bool kept_in_memory) {
+Status ZoneMapIndexReader::load(bool use_page_cache, bool kept_in_memory, int64_t* mem_footprint) {
     IndexedColumnReader reader(_filename, _index_meta->page_zone_maps());
-    RETURN_IF_ERROR(reader.load(use_page_cache, kept_in_memory));
+    RETURN_IF_ERROR(reader.load(use_page_cache, kept_in_memory, mem_footprint));
     IndexedColumnIterator iter(&reader);
 
     auto tracker = std::make_shared<MemTracker>(-1, "temp in ZoneMapIndexReader");

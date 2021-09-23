@@ -107,11 +107,11 @@ Status PlanFragmentExecutor::prepare(const TExecPlanFragmentParams& request,
     }
 
     if (bytes_limit > _exec_env->process_mem_tracker()->limit()) {
-        LOG(WARNING) << "Query memory limit " << PrettyPrinter::print(bytes_limit, TUnit::BYTES)
-                     << " exceeds process memory limit of "
-                     << PrettyPrinter::print(_exec_env->process_mem_tracker()->limit(),
-                                             TUnit::BYTES)
-                     << ". Using process memory limit instead";
+        LOG(INFO) << "Query memory limit " << PrettyPrinter::print(bytes_limit, TUnit::BYTES)
+            << " exceeds process memory limit of "
+            << PrettyPrinter::print(_exec_env->process_mem_tracker()->limit(),
+                    TUnit::BYTES)
+            << ". Using process memory limit instead";
         bytes_limit = _exec_env->process_mem_tracker()->limit();
     }
     // NOTE: this MemTracker only for olap

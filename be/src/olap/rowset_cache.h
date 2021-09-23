@@ -78,6 +78,10 @@ public:
     OLAPStatus load_rowset(const RowsetSharedPtr& rowset, RowsetCacheHandle* cache_handle,
             std::shared_ptr<MemTracker> parent_tracker = nullptr);
 
+    void prune() {
+        _cache->prune();
+    }
+
 private:
     RowsetCache();
     static RowsetCache* _s_instance;
@@ -123,13 +127,15 @@ private:
 };
 
 struct RowsetCacheValue {
-    RowsetCacheValue(int64_t tablet_id_, int32_t schema_hash_, const Version& version_):
+    RowsetCacheValue(int64_t tablet_id_, int32_t schema_hash_, const Version& version_, int64_t mem_footprint_) :
             tablet_id(tablet_id_),
             schema_hash(schema_hash_),
-            version(version_) {}
+            version(version_),
+            mem_footprint(mem_footprint_) {}
     int64_t tablet_id;
     int32_t schema_hash; 
     Version version;
+    int64_t mem_footprint;
 };
 
 } // namespace doris

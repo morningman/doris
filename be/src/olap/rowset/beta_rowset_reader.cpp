@@ -35,9 +35,13 @@ BetaRowsetReader::BetaRowsetReader(BetaRowsetSharedPtr rowset,
           _rowset(std::move(rowset)),
           _stats(&_owned_stats),
           _parent_tracker(std::move(parent_tracker)) {
+
+   //  LOG(INFO) << "cmy rowset reader create";
+   DorisMetrics::instance()->alpha_rowset_reader1->increment(1);
 }
 
 OLAPStatus BetaRowsetReader::init(RowsetReaderContext* read_context) {
+    // LOG(INFO) << "cmy rowset reader init";
     // If do not init the RowsetReader with a parent_tracker, use the runtime_state instance_mem_tracker
     if (_parent_tracker == nullptr && read_context->runtime_state != nullptr) {
         _parent_tracker = read_context->runtime_state->instance_mem_tracker();

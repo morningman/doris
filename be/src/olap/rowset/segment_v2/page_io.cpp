@@ -48,6 +48,7 @@ Status PageIO::compress_page_body(const BlockCompressionCodec* codec, double min
             RETURN_IF_ERROR(codec->compress(body, &compressed_slice));
             buf.resize(compressed_slice.get_size());
     
+            LOG(INFO) << "cmy get uncompress size: " << uncompressed_size << ", compress size: " << compressed_slice.get_size() << ", max compress size: " << max_compressed_size;
             double space_saving = 1.0 - static_cast<double>(buf.size()) / uncompressed_size;
             // return compressed body only when it saves more than min_space_saving
             if (space_saving > 0 && space_saving >= min_space_saving) {

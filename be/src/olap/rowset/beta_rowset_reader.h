@@ -33,7 +33,10 @@ public:
     BetaRowsetReader(BetaRowsetSharedPtr rowset,
                      std::shared_ptr<MemTracker> parent_tracker = nullptr);
 
-    ~BetaRowsetReader() override {};
+    ~BetaRowsetReader() override {
+
+   DorisMetrics::instance()->alpha_rowset_reader1->increment(-1);
+};
 
     OLAPStatus init(RowsetReaderContext* read_context) override;
 

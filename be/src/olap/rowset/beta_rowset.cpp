@@ -57,6 +57,7 @@ OLAPStatus BetaRowset::do_load(bool use_cache, std::shared_ptr<MemTracker> paren
                          << " : " << s.to_string();
             return OLAP_ERR_ROWSET_LOAD_FAILED;
         }
+        _mem_footprint += segment->mem_footprint();
         _segments.push_back(std::move(segment));
     }
     return OLAP_SUCCESS;
@@ -66,6 +67,7 @@ OLAPStatus BetaRowset::do_unload() {
     // clear the Segment in _segments.
     // It will also release related column readers in Segment.
     _segments.clear();
+    _mem_footprint = 0;
     return OLAP_SUCCESS;
 }
 

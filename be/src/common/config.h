@@ -305,6 +305,7 @@ CONF_mInt64(row_step_for_compaction_merge_log, "0");
 // Threshold to logging compaction trace, in seconds.
 CONF_mInt32(base_compaction_trace_threshold, "60");
 CONF_mInt32(cumulative_compaction_trace_threshold, "10");
+CONF_mBool(disable_compaction_trace_log, "true");
 
 // Threshold to logging agent task trace, in seconds.
 CONF_mInt32(agent_task_trace_threshold_sec, "2");
@@ -631,6 +632,9 @@ CONF_Validator(max_send_batch_parallelism_per_job, [](const int config) -> bool 
 CONF_Int32(send_batch_thread_pool_thread_num, "64");
 // number of send batch thread pool queue size
 CONF_Int32(send_batch_thread_pool_queue_size, "102400");
+
+CONF_Int32(rowset_cache_capacity, "3");
+CONF_Int32(rowset_cache_capacity_factor, "10");
 
 } // namespace config
 

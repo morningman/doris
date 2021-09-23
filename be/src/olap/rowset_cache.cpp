@@ -42,6 +42,7 @@ bool RowsetCache::lookup(const CacheKey& key, RowsetCacheHandle* handle) {
         return false;
     }
     *handle = RowsetCacheHandle(_cache.get(), lru_handle);
+    // LOG(INFO) << "cmy look up ok";
     return true;
 }
 
@@ -77,7 +78,8 @@ void RowsetCache::insert(const CacheKey& key, RowsetCacheValue& value, RowsetCac
         delete cache_value;
     };
 
-    auto lru_handle = _cache->insert(key.encode(), &value, sizeof(RowsetCacheValue), deleter, CachePriority::NORMAL);
+    LOG(INFO) << "cmy insert rowset cache mem footprint: " << value.mem_footprint;
+    auto lru_handle = _cache->insert(key.encode(), &value, sizeof(RowsetCacheValue) + value.mem_footprint, deleter, CachePriority::NORMAL);
     *handle = RowsetCacheHandle(_cache.get(), lru_handle);
 }
 
@@ -96,7 +98,8 @@ OLAPStatus RowsetCache::load_rowset(const RowsetSharedPtr& rowset, RowsetCacheHa
     RowsetCacheValue* cache_value = new RowsetCacheValue(
             rowset->rowset_meta()->tablet_id(),
             rowset->rowset_meta()->tablet_schema_hash(),
-            rowset->version()); 
+            rowset->version(),
+            rowset->mem_footprint()); 
     insert(cache_key, *cache_value, &handle);
     *cache_handle = std::move(handle);
     return OLAP_SUCCESS;

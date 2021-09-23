@@ -122,7 +122,7 @@ public:
             : _filename(filename), _index_meta(index_meta) {}
 
     // load all page zone maps into memory
-    Status load(bool use_page_cache, bool kept_in_memory);
+    Status load(bool use_page_cache, bool kept_in_memory, int64_t* mem_footprint = nullptr);
 
     const std::vector<ZoneMapPB>& page_zone_maps() const { return _page_zone_maps; }
 

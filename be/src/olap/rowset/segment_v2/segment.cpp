@@ -64,6 +64,8 @@ Segment::~Segment() {
 Status Segment::_open() {
     RETURN_IF_ERROR(_parse_footer());
     RETURN_IF_ERROR(_create_column_readers());
+    RETURN_IF_ERROR(_load_index());
+    _mem_footprint *= config::rowset_cache_capacity_factor;
     return Status::OK();
 }
 
@@ -125,6 +127,8 @@ Status Segment::_parse_footer() {
                                                       _fname, file_size, 12 + footer_length));
     }
     _mem_tracker->Consume(footer_length);
+    _mem_footprint += footer_length;
+    LOG(INFO) << "cmy footer length: " << footer_length << ", mem: " << _mem_footprint;
 
     std::string footer_buf;
     footer_buf.resize(footer_length);
@@ -169,6 +173,8 @@ Status Segment::_load_index() {
         DCHECK(footer.has_short_key_page_footer());
 
         _mem_tracker->Consume(body.get_size());
+        _mem_footprint += body.get_size();
+        LOG(INFO) << "cmy index length: " << body.get_size() << ", mem: " << _mem_footprint;
         _sk_index_decoder.reset(new ShortKeyIndexDecoder);
         return _sk_index_decoder->parse(body, footer.short_key_page_footer());
     });
@@ -193,6 +199,8 @@ Status Segment::_create_column_readers() {
         std::unique_ptr<ColumnReader> reader;
         RETURN_IF_ERROR(ColumnReader::create(opts, _footer.columns(iter->second),
                                              _footer.num_rows(), _fname, &reader));
+        _mem_footprint += reader->mem_footprint();
+        LOG(INFO) << "cmy reader " << ordinal << " length: " << reader->mem_footprint() << ", mem: " << _mem_footprint;
         _column_readers[ordinal] = std::move(reader);
     }
     return Status::OK();

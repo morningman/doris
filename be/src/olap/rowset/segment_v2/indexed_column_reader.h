@@ -47,7 +47,7 @@ public:
     explicit IndexedColumnReader(const std::string& file_name, const IndexedColumnMetaPB& meta)
             : _file_name(file_name), _meta(meta){};
 
-    Status load(bool use_page_cache, bool kept_in_memory);
+    Status load(bool use_page_cache, bool kept_in_memory, int64_t* mem_footprint = nullptr);
 
     // read a page specified by `pp' from `file' into `handle'
     Status read_page(fs::ReadableBlock* rblock, const PagePointer& pp, PageHandle* handle,
@@ -61,7 +61,7 @@ public:
 
 private:
     Status load_index_page(fs::ReadableBlock* rblock, const PagePointerPB& pp, PageHandle* handle,
-                           IndexPageReader* reader);
+                           IndexPageReader* reader, int64_t* mem_footprint = nullptr);
 
     friend class IndexedColumnIterator;
 

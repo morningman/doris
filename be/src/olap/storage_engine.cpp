@@ -48,6 +48,7 @@
 #include "olap/rowset/alpha_rowset.h"
 #include "olap/rowset/alpha_rowset_meta.h"
 #include "olap/rowset/column_data_writer.h"
+#include "olap/rowset_cache.h"
 #include "olap/rowset/rowset_meta_manager.h"
 #include "olap/rowset/unique_rowset_id_generator.h"
 #include "olap/schema_change.h"
@@ -632,6 +633,7 @@ void StorageEngine::clear_transaction_task(const TTransactionId transaction_id,
 void StorageEngine::_start_clean_fd_cache() {
     VLOG_TRACE << "start clean file descritpor cache";
     _file_cache->prune();
+    RowsetCache::instance()->prune();
     VLOG_TRACE << "end clean file descritpor cache";
 }
 

@@ -227,6 +227,7 @@ public:
     UIntGauge* rowset_meta;
     UIntGauge* segment;
     UIntGauge* column_reader2;
+    UIntGauge* rowset_cache_num;
 
     static DorisMetrics* instance() {
         static DorisMetrics instance;

@@ -66,7 +66,7 @@ public:
             : _filename(filename), _index_meta(index_meta), _num_values(num_values) {}
 
     // load and parse the index page into memory
-    Status load(bool use_page_cache, bool kept_in_memory);
+    Status load(bool use_page_cache, bool kept_in_memory, int64_t* mem_footprint = nullptr);
 
     OrdinalPageIndexIterator seek_at_or_before(ordinal_t ordinal);
     inline OrdinalPageIndexIterator begin();

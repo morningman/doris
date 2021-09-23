@@ -103,6 +103,8 @@ public:
     // only used by UT
     const SegmentFooterPB& footer() const { return _footer; }
 
+    int64_t mem_footprint() const { return _mem_footprint; }
+
 private:
     DISALLOW_COPY_AND_ASSIGN(Segment);
     Segment(std::string fname, uint32_t segment_id, const TabletSchema* tablet_schema);
@@ -141,6 +143,9 @@ private:
     PageHandle _sk_index_handle;
     // short key index decoder
     std::unique_ptr<ShortKeyIndexDecoder> _sk_index_decoder;
+
+    // This is the estimate memory footprint of this segment
+    int64_t _mem_footprint = 0;
 };
 
 } // namespace segment_v2

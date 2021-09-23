@@ -226,6 +226,8 @@ public:
         return left->end_version() < right->end_version();
     }
 
+    int64_t mem_footprint() const { return _mem_footprint; }    
+
 protected:
     friend class RowsetFactory;
 
@@ -260,6 +262,10 @@ protected:
     bool _need_delete_file = false;
     // rowset state machine
     RowsetStateMachine _rowset_state_machine;
+
+    // This is the estimate memory footprint of this rowset.
+    // It mainly contains the mem footprint of opened segments.
+    int64_t _mem_footprint = 0;
 };
 
 } // namespace doris

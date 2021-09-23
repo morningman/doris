@@ -196,6 +196,7 @@ DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(rowset, MetricUnit::NOUNIT);
 DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(rowset_meta, MetricUnit::NOUNIT);
 DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(segment, MetricUnit::NOUNIT);
 DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(column_reader2, MetricUnit::NOUNIT);
+DEFINE_GAUGE_CORE_METRIC_PROTOTYPE_2ARG(rowset_cache_num, MetricUnit::NOUNIT);
 
 const std::string DorisMetrics::_s_registry_name = "doris_be";
 const std::string DorisMetrics::_s_hook_name = "doris_metrics";
@@ -340,6 +341,7 @@ DorisMetrics::DorisMetrics() : _metric_registry(_s_registry_name) {
     INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, rowset_meta);
     INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, segment);
     INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, column_reader2);
+    INT_UGAUGE_METRIC_REGISTER(_server_metric_entity, rowset_cache_num);
 }
 
 void DorisMetrics::initialize(bool init_system_metrics, const std::set<std::string>& disk_devices,

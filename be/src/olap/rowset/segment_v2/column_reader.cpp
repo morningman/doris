@@ -110,8 +110,10 @@ Status ColumnReader::init() {
     RETURN_IF_ERROR(EncodingInfo::get(_type_info, _meta.encoding(), &_encoding_info));
     RETURN_IF_ERROR(get_block_compression_codec(_meta.compression(), &_compress_codec));
 
+    LOG(INFO) << "cmy get index size: " << _meta.indexes_size();
     for (int i = 0; i < _meta.indexes_size(); i++) {
         auto& index_meta = _meta.indexes(i);
+        LOG(INFO) << "cmy get index type: " << index_meta.type();
         switch (index_meta.type()) {
         case ORDINAL_INDEX:
             _ordinal_index_meta = &index_meta.ordinal_index();
@@ -134,6 +136,8 @@ Status ColumnReader::init() {
         return Status::Corruption(strings::Substitute(
                 "Bad file $0: missing ordinal index for column $1", _file_name, _meta.column_id()));
     }
+    // load index here because we need to calculate the memory footprint
+    RETURN_IF_ERROR(_ensure_index_loaded());
     return Status::OK();
 }
 
@@ -294,13 +298,13 @@ Status ColumnReader::get_row_ranges_by_bloom_filter(CondColumn* cond_column,
 Status ColumnReader::_load_ordinal_index(bool use_page_cache, bool kept_in_memory) {
     DCHECK(_ordinal_index_meta != nullptr);
     _ordinal_index.reset(new OrdinalIndexReader(_file_name, _ordinal_index_meta, _num_rows));
-    return _ordinal_index->load(use_page_cache, kept_in_memory);
+    return _ordinal_index->load(use_page_cache, kept_in_memory, &_mem_footprint);
 }
 
 Status ColumnReader::_load_zone_map_index(bool use_page_cache, bool kept_in_memory) {
     if (_zone_map_index_meta != nullptr) {
         _zone_map_index.reset(new ZoneMapIndexReader(_file_name, _zone_map_index_meta));
-        return _zone_map_index->load(use_page_cache, kept_in_memory);
+        return _zone_map_index->load(use_page_cache, kept_in_memory, &_mem_footprint);
     }
     return Status::OK();
 }
@@ -308,7 +312,7 @@ Status ColumnReader::_load_zone_map_index(bool use_page_cache, bool kept_in_memo
 Status ColumnReader::_load_bitmap_index(bool use_page_cache, bool kept_in_memory) {
     if (_bitmap_index_meta != nullptr) {
         _bitmap_index.reset(new BitmapIndexReader(_file_name, _bitmap_index_meta));
-        return _bitmap_index->load(use_page_cache, kept_in_memory);
+        return _bitmap_index->load(use_page_cache, kept_in_memory, &_mem_footprint);
     }
     return Status::OK();
 }
@@ -316,7 +320,7 @@ Status ColumnReader::_load_bitmap_index(bool use_page_cache, bool kept_in_memory
 Status ColumnReader::_load_bloom_filter_index(bool use_page_cache, bool kept_in_memory) {
     if (_bf_index_meta != nullptr) {
         _bloom_filter_index.reset(new BloomFilterIndexReader(_file_name, _bf_index_meta));
-        return _bloom_filter_index->load(use_page_cache, kept_in_memory);
+        return _bloom_filter_index->load(use_page_cache, kept_in_memory, &_mem_footprint);
     }
     return Status::OK();
 }

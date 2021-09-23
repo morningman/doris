@@ -103,7 +103,7 @@ message RowsetMetaPB {
     optional int64 data_disk_size = 13;
     // calculated sum(segmentgroup.index_size)
     optional int64 index_disk_size = 14;
-    // rowset level column min/max/null statistics, not not used currently
+    // rowset level column min/max/null statistics, not used currently
     repeated ZoneMap zone_maps = 15;
     optional DeletePredicatePB delete_predicate = 16;
     // calculated from segment group

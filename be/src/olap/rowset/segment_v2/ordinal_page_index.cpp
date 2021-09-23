@@ -58,7 +58,7 @@ Status OrdinalIndexWriter::finish(fs::WritableBlock* wblock, ColumnIndexMetaPB* 
     return Status::OK();
 }
 
-Status OrdinalIndexReader::load(bool use_page_cache, bool kept_in_memory) {
+Status OrdinalIndexReader::load(bool use_page_cache, bool kept_in_memory, int64_t* mem_footprint) {
     if (_index_meta->root_page().is_root_data_page()) {
         // only one data page, no index page
         _num_pages = 1;
@@ -105,6 +105,10 @@ Status OrdinalIndexReader::load(bool use_page_cache, bool kept_in_memory) {
         _pages[i] = reader.get_value(i);
     }
     _ordinals[_num_pages] = _num_values;
+
+    if (mem_footprint != nullptr) {
+        *mem_footprint += body.get_size();
+    }
     return Status::OK();
 }
 

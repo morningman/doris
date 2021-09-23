@@ -26,6 +26,7 @@
 #include "gen_cpp/TExtDataSourceService.h"
 #include "gen_cpp/TPaloBrokerService.h"
 #include "olap/page_cache.h"
+#include "olap/rowset_cache.h"
 #include "olap/storage_engine.h"
 #include "plugin/plugin_mgr.h"
 #include "runtime/broker_mgr.h"
@@ -229,7 +230,11 @@ Status ExecEnv::_init_mem_tracker() {
     LOG(INFO) << "Storage page cache memory limit: " << PrettyPrinter::print(storage_cache_limit, TUnit::BYTES)
             << ", origin config value: " << config::storage_page_cache_limit;
 
-    // 4. init other managers
+    // 4. init rowset cache
+    RowsetCache::create_global_cache(config::rowset_cache_capacity);
+    LOG(INFO) << "Rowset cache capacity: " << config::rowset_cache_capacity;
+
+    // 5. init other managers
     RETURN_IF_ERROR(_disk_io_mgr->init(_mem_tracker));
     RETURN_IF_ERROR(_tmp_file_mgr->init());
 
