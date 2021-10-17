@@ -134,6 +134,23 @@ public class BackendServiceProxy {
         }
     }
 
+    public Future<InternalService.PEndPlanFragmentResult> endExecutionEarly(
+            TNetworkAddress address, TUniqueId finstId)
+            throws RpcException {
+        final InternalService.PEndPlanFragmentRequest pRequest = InternalService.PEndPlanFragmentRequest
+                .newBuilder()
+                .setFinstId(
+                        Types.PUniqueId.newBuilder().setHi(finstId.hi).setLo(finstId.lo).build()).build();
+        try {
+            final BackendServiceClient client = getProxy(address);
+            return client.endPlanFragmentAsync(pRequest);
+        } catch (Throwable e) {
+            LOG.warn("Cancel plan fragment catch a exception, address={}:{}",
+                    address.getHostname(), address.getPort(), e);
+            throw new RpcException(address.hostname, e.getMessage());
+        }
+    }
+
     public Future<InternalService.PFetchDataResult> fetchDataAsync(
             TNetworkAddress address, InternalService.PFetchDataRequest request) throws RpcException {
         try {

@@ -186,6 +186,7 @@ void PInternalServiceImpl<T>::cancel_plan_fragment(google::protobuf::RpcControll
     st.to_protobuf(result->mutable_status());
 }
 
+
 template <typename T>
 void PInternalServiceImpl<T>::fetch_data(google::protobuf::RpcController* cntl_base,
                                          const PFetchDataRequest* request, PFetchDataResult* result,

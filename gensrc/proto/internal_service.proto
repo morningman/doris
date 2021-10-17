@@ -136,7 +136,15 @@ message PCancelPlanFragmentRequest {
     optional PPlanFragmentCancelReason cancel_reason = 2;
 };
 
+message PEndPlanFragmentRequest {
+    required PUniqueId finst_id = 1;
+};
+
 message PCancelPlanFragmentResult {
+    required PStatus status = 1;
+};
+
+message PEndPlanFragmentResult {
     required PStatus status = 1;
 };
 
@@ -389,6 +397,7 @@ service PBackendService {
     rpc transmit_data(PTransmitDataParams) returns (PTransmitDataResult);
     rpc exec_plan_fragment(PExecPlanFragmentRequest) returns (PExecPlanFragmentResult);
     rpc cancel_plan_fragment(PCancelPlanFragmentRequest) returns (PCancelPlanFragmentResult);
+    rpc end_plan_fragment(PEndPlanFragmentRequest) returns (PEndPlanFragmentResult);
     rpc fetch_data(PFetchDataRequest) returns (PFetchDataResult);
     rpc tablet_writer_open(PTabletWriterOpenRequest) returns (PTabletWriterOpenResult);
     rpc tablet_writer_add_batch(PTabletWriterAddBatchRequest) returns (PTabletWriterAddBatchResult);

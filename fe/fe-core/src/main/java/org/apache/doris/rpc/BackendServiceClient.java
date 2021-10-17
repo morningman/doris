@@ -61,6 +61,11 @@ public class BackendServiceClient {
         return stub.cancelPlanFragment(request);
     }
 
+    public Future<InternalService.PEndPlanFragmentResult> endPlanFragmentAsync(
+            InternalService.PEndPlanFragmentRequest request) {
+        return stub.endPlanFragment(request);
+    }
+
     public Future<InternalService.PFetchDataResult> fetchDataAsync(InternalService.PFetchDataRequest request) {
         return stub.fetchData(request);
     }

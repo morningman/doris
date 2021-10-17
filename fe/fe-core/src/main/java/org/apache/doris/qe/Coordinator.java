@@ -218,6 +218,8 @@ public class Coordinator {
     // Runtime filter ID to the builder instance number
     public Map<RuntimeFilterId, Integer> ridToBuilderNum = Maps.newHashMap();
 
+    private boolean isLoad = false;
+
     // Used for query/insert
     public Coordinator(ConnectContext context, Analyzer analyzer, Planner planner) {
         this.isBlockQuery = planner.isBlockQuery();
@@ -474,6 +476,7 @@ public class Coordinator {
                             .getBroker(topResultFileSink.getBrokerName(), execBeAddr.getHostname());
                 topResultFileSink.setBrokerAddr(broker.ip, broker.port);
             }
+            isLoad = false;
         }  else {
             // This is a load process.
             this.queryOptions.setIsReportSuccess(true);
@@ -483,6 +486,7 @@ public class Coordinator {
             List<Long> relatedBackendIds = Lists.newArrayList(addressToBackendID.values());
             Catalog.getCurrentCatalog().getLoadManager().initJobProgress(jobId, queryId, instanceIds,
                     relatedBackendIds);
+            isLoad = true;
             LOG.info("dispatch load job: {} to {}", DebugUtil.printId(queryId), addressToBackendID.keySet());
         }
 
@@ -651,7 +655,8 @@ public class Coordinator {
         }
     }
 
-    private void updateLoadCounters(Map<String, String> newLoadCounters) {
+    // return true if there are abnormal rows
+    private boolean updateLoadCounters(Map<String, String> newLoadCounters) {
         lock.lock();
         try {
             long numRowsNormal = 0L;
@@ -687,6 +692,7 @@ public class Coordinator {
             this.loadCounters.put(LoadEtlTask.DPP_NORMAL_ALL, "" + numRowsNormal);
             this.loadCounters.put(LoadEtlTask.DPP_ABNORMAL_ALL, "" + numRowsAbnormal);
             this.loadCounters.put(LoadJob.UNSELECTED_ROWS, "" + numRowsUnselected);
+            return numRowsAbnormal > 0;
         } finally {
             lock.unlock();
         }
@@ -720,7 +726,7 @@ public class Coordinator {
             }
 
             queryStatus.setStatus(status);
-            LOG.warn("one instance report fail throw updateStatus(), need cancel. job id: {}, query id: {}, instance id: {}",
+            LOG.warn("one instance report fail, cancel the query. job id: {}, query id: {}, instance id: {}",
                     jobId, DebugUtil.printId(queryId), instanceId != null ? DebugUtil.printId(instanceId) : "NaN");
             cancelInternal(InternalService.PPlanFragmentCancelReason.INTERNAL_ERROR);
         } finally {
@@ -820,6 +826,14 @@ public class Coordinator {
     private void cancelRemoteFragmentsAsync(InternalService.PPlanFragmentCancelReason cancelReason) {
         for (BackendExecState backendExecState : backendExecStates) {
             backendExecState.cancelFragmentInstance(cancelReason);
+        }
+    }
+
+    private void endPlanFragmentExecution(TUniqueId instanceId) {
+        LOG.warn("one load instance report fail, end the execution early. job id: {}, query id: {}, instance id: {}",
+                jobId, DebugUtil.printId(queryId), instanceId != null ? DebugUtil.printId(instanceId) : "NaN");
+        for (BackendExecState backendExecState : backendExecStates) {
+            backendExecState.endFragmentInstance();
         }
     }
 
@@ -1508,11 +1522,12 @@ public class Coordinator {
             updateStatus(status, params.getFragmentInstanceId());
         }
         if (execState.done) {
+            boolean hasAbnormalRows = false;
             if (params.isSetDeltaUrls()) {
                 updateDeltas(params.getDeltaUrls());
             }
             if (params.isSetLoadCounters()) {
-                updateLoadCounters(params.getLoadCounters());
+                hasAbnormalRows = updateLoadCounters(params.getLoadCounters());
             }
             if (params.isSetTrackingUrl()) {
                 trackingUrl = params.getTrackingUrl();
@@ -1523,6 +1538,10 @@ public class Coordinator {
             if (params.isSetCommitInfos()) {
                 updateCommitInfos(params.getCommitInfos());
             }
+
+            if (hasAbnormalRows && shouldEndLoadJobEarly(params)) {
+                endPlanFragmentExecution(params.getFragmentInstanceId());
+            }
             profileDoneSignal.markedCountDown(params.getFragmentInstanceId(), -1L);
         }
 
@@ -1531,6 +1550,17 @@ public class Coordinator {
                     jobId, params.backend_id, params.query_id, params.fragment_instance_id, params.loaded_rows,
                     params.done);
         }
+    }
+
+    private boolean shouldEndLoadJobEarly(TReportExecStatusParams params) {
+        if (!isLoad) {
+            return false;
+        }
+
+        if (!this.queryGlobals.isLoadZeroTolerance()) {
+            return false;
+        }
+        return true;
     }
 
     public void endProfile() {
@@ -1833,7 +1863,7 @@ public class Coordinator {
         int instanceId;
         boolean initiated;
         volatile boolean done;
-        boolean hasCanceled;
+        boolean hasCancelled;
         int profileFragmentId;
         RuntimeProfile profile;
         TNetworkAddress brpcAddress;
@@ -1855,7 +1885,7 @@ public class Coordinator {
 
             String name = "Instance " + DebugUtil.printId(fi.instanceId) + " (host=" + address + ")";
             this.profile = new RuntimeProfile(name);
-            this.hasCanceled = false;
+            this.hasCancelled = false;
             this.lastMissingHeartbeatTime = backend.getLastMissingHeartbeatTime();
         }
 
@@ -1900,8 +1930,8 @@ public class Coordinator {
         // return true if cancel success. Otherwise, return false
         public synchronized boolean cancelFragmentInstance(InternalService.PPlanFragmentCancelReason cancelReason) {
             if (LOG.isDebugEnabled()) {
-                LOG.debug("cancelRemoteFragments initiated={} done={} hasCanceled={} backend: {}, fragment instance id={}, reason: {}",
-                        this.initiated, this.done, this.hasCanceled, backend.getId(),
+                LOG.debug("cancelRemoteFragments initiated={} done={} hasCancelled={} backend: {}, fragment instance id={}, reason: {}",
+                        this.initiated, this.done, this.hasCancelled, backend.getId(),
                         DebugUtil.printId(fragmentInstanceId()), cancelReason.name());
             }
             try {
@@ -1912,7 +1942,7 @@ public class Coordinator {
                 if (this.done) {
                     return false;
                 }
-                if (this.hasCanceled) {
+                if (this.hasCancelled) {
                     return false;
                 }
 
@@ -1925,7 +1955,40 @@ public class Coordinator {
                     SimpleScheduler.addToBlacklist(addressToBackendID.get(brpcAddress), e.getMessage());
                 }
 
-                this.hasCanceled = true;
+                this.hasCancelled = true;
+            } catch (Exception e) {
+                LOG.warn("catch a exception", e);
+                return false;
+            }
+            return true;
+        }
+
+        // Send signal to the fragment to end the execution early.
+        // Not like cancelFragmentInstance(), this is just to finish the plan fragment as early as possible.
+        public synchronized boolean endFragmentInstance() {
+            if (LOG.isDebugEnabled()) {
+                LOG.debug("endFragmentInstance initiated={} done={} hasCancelled={} backend: {}, fragment instance id={}",
+                        this.initiated, this.done, this.hasCancelled, backend.getId(),
+                        DebugUtil.printId(fragmentInstanceId()));
+            }
+            try {
+                if (!this.initiated) {
+                    return false;
+                }
+                // don't cancel if it is already finished
+                if (this.done) {
+                    return false;
+                }
+                if (this.hasCancelled) {
+                    return false;
+                }
+
+                try {
+                    BackendServiceProxy.getInstance().endExecutionEarly(brpcAddress, fragmentInstanceId());
+                } catch (RpcException e) {
+                    LOG.warn("endFragmentInstance get a exception, address={}:{}", brpcAddress.getHostname(),
+                            brpcAddress.getPort());
+                }
             } catch (Exception e) {
                 LOG.warn("catch a exception", e);
                 return false;
