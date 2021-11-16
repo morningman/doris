@@ -36,6 +36,7 @@ Apache 的发布必须至少是 IPMC 成员，拥有 apache 邮箱的committer�
 	2. 创建分支用于发布
 	3. 清理 issue
 	4. 将必要的 Patch 合并到发布的分支
+	5. 检查 License
 3. 验证分支
 	1. QA 稳定性测试
 	2. 验证编译镜像正确性
@@ -208,14 +209,14 @@ mQINBFwJEQ0BEACwqLluHfjBqD/RWZ4uoYxNYHlIzZvbvxAlwS2mn53BirLIU/G3
 公钥服务器是网络上专门储存用户公钥的服务器。send-keys 参数可以将公钥上传到服务器。
 
 ```
-gpg --send-keys xxxx
+gpg --keyserver keys.openpgp.org --send-keys xxxx
 
 ```
 其中 xxxx 为上一步 `--list-keys` 结果中 pub 后面的字符串，如上为：33DBF2E0
 
-也可以通过[网站](https://keys.gnupg.net)上传上述 public-key.txt 的内容：
+也可以通过[网站](keys.openpgp.org)上传上述 public-key.txt 的内容：
 
-上传成功之后，可以通过查询这个[网站](https://keys.gnupg.net)，输入 0x33DBF2E0 查询：
+上传成功之后，可以通过查询这个[网站](keys.openpgp.org)，输入 0x33DBF2E0 查询：
 
 该网站查询有延迟，可能需要等1个小时。
 
@@ -280,6 +281,20 @@ $ git checkout -b branch-0.9
 ### 合并必要的Patch
 
 在发布等待过程中，可能会有比较重要的Patch合入，如果社区有人说要有重要的Bug需要合入，那么 Release Manager 需要评估并将重要的Patch合入到发布分支中。
+
+### 检查License
+
+这里我们使用 [SkyWalking Eyes](https://github.com/apache/skywalking-eyes) 来进行代码 License 扫描。
+
+进入代码目录执行：
+
+```
+docker run -it --rm -v $(pwd):/github/workspace apache/skywalking-eyes header check
+```
+
+并查看最终输出中是否有 License 不合规的代码文件。
+
+> 一些代码文件引用自其他代码库，有自己的 License(但和 Apache 协议兼容)。这些代码需要添加到 `.licenserc.yaml` 来跳过扫描。
 
 ## 验证分支
 
