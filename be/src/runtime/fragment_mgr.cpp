@@ -454,9 +454,7 @@ static void empty_function(PlanFragmentExecutor* exec) {}
 void FragmentMgr::_exec_actual(std::shared_ptr<FragmentExecState> exec_state, FinishCallback cb) {
     TAG(LOG(INFO))
             .log("PlanFragmentExecutor::_exec_actual")
-            .query_id(exec_state->query_id())
-            .instance_id(exec_state->fragment_instance_id())
-            .tag("pthread_id", std::to_string((uintptr_t)pthread_self()));
+            .instance_id(exec_state->fragment_instance_id());
     exec_state->execute();
 
     std::shared_ptr<QueryFragmentsCtx> fragments_ctx = exec_state->get_fragments_ctx();
@@ -622,8 +620,11 @@ Status FragmentMgr::exec_plan_fragment(const TExecPlanFragmentParams& params, Fi
         _cv.notify_all();
     }
 
-    auto st = _thread_pool->submit_func(
-            std::bind<void>(&FragmentMgr::_exec_actual, this, exec_state, cb));
+    ThreadTask task;
+    task.task_id = print_id(params.params.query_id);
+    task.type = ThreadTask::Type::QUERY;
+    task.work_function = std::bind<void>(&FragmentMgr::_exec_actual, this, exec_state, cb);
+    auto st = _thread_pool->submit(task);
     if (!st.ok()) {
         {
             // Remove the exec state added

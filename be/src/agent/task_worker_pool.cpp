@@ -214,7 +214,11 @@ void TaskWorkerPool::start() {
             .build(&_thread_pool);
 
     for (int i = 0; i < _worker_count; i++) {
-        auto st = _thread_pool->submit_func(cb);
+        ThreadTask task;
+        task.work_function = cb;
+        task.task_id = TYPE_STRING(_task_worker_type) + "_" + std::to_string(i);
+        task.type = ThreadTask::Type::AGENT;
+        auto st = _thread_pool->submit(task);
         CHECK(st.ok()) << st.to_string();
     }
 #endif

@@ -97,7 +97,10 @@ void EvHttpServer::start() {
     evthread_use_pthreads();
     _event_bases.resize(_num_workers);
     for (int i = 0; i < _num_workers; ++i) {
-        CHECK(_workers->submit_func([this, i]() {
+        ThreadTask task;
+        task.task_id = "EvHttpServer_" + std::to_string(i);
+        task.type = ThreadTask::Type::HTTP_WORKER;
+        task.work_function = [this, i]() {
                           std::shared_ptr<event_base> base(event_base_new(), [](event_base* base) {
                               event_base_free(base);
                           });
@@ -119,8 +122,8 @@ void EvHttpServer::start() {
                           evhttp_set_gencb(http.get(), on_request, this);
 
                           event_base_dispatch(base.get());
-                      })
-                      .ok());
+                      };
+        CHECK(_workers->submit(task).ok());
     }
 }
 

@@ -351,7 +351,11 @@ int NodeChannel::try_send_and_fetch_status(std::unique_ptr<ThreadPoolToken>& thr
     bool is_finished = true;
     if (!_add_batch_closure->is_packet_in_flight() && _pending_batches_num > 0 &&
         _last_patch_processed_finished.compare_exchange_strong(is_finished, false)) {
-        auto s = thread_pool_token->submit_func(std::bind(&NodeChannel::try_send_batch, this));
+        ThreadTask task;
+        task.work_function = std::bind(&NodeChannel::try_send_batch, this);
+        task.task_id = print_id(_parent->_load_id);
+        task.type = ThreadTask::Type::LOAD;
+        auto s = thread_pool_token->submit(task);
         if (!s.ok()) {
             _cancel_with_msg("submit send_batch task to send_batch_thread_pool failed");
         }

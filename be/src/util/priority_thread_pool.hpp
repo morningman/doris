@@ -21,8 +21,10 @@
 #include <mutex>
 #include <thread>
 
+#include "runtime/thread_context.h"
 #include "util/blocking_priority_queue.hpp"
 #include "util/thread_group.h"
+#include "util/thread_task.h"
 
 namespace doris {
 
@@ -30,23 +32,6 @@ namespace doris {
 // blocking queue by Offer(). Each item is processed by a single user-supplied method.
 class PriorityThreadPool {
 public:
-    // Signature of a work-processing function. Takes the integer id of the thread which is
-    // calling it (ids run from 0 to num_threads - 1) and a reference to the item to
-    // process.
-    typedef std::function<void()> WorkFunction;
-
-    struct Task {
-    public:
-        int priority;
-        WorkFunction work_function;
-        bool operator<(const Task& o) const { return priority < o.priority; }
-
-        Task& operator++() {
-            priority += 2;
-            return *this;
-        }
-    };
-
     // Creates a new thread pool and start num_threads threads.
     //  -- num_threads: how many threads are part of this pool
     //  -- queue_size: the maximum size of the queue on which work items are offered. If the
@@ -79,12 +64,7 @@ public:
     //
     // Returns true if the work item was successfully added to the queue, false otherwise
     // (which typically means that the thread pool has already been shut down).
-    bool offer(Task task) { return _work_queue.blocking_put(task); }
-
-    bool offer(WorkFunction func) {
-        PriorityThreadPool::Task task = {0, func};
-        return _work_queue.blocking_put(task);
-    }
+    bool offer(const ThreadTask& task) { return _work_queue.blocking_put(task); }
 
     // Shuts the thread pool down, causing the work queue to cease accepting offered work
     // and the worker threads to terminate once they have processed their current work item.
@@ -120,9 +100,11 @@ private:
     // until the pool is shutdown.
     void work_thread(int thread_id) {
         while (!is_shutdown()) {
-            Task task;
+            ThreadTask task;
             if (_work_queue.blocking_get(&task)) {
+                thread_local_ctx.attach(task.type, task.task_id);
                 task.work_function();
+                thread_local_ctx.detach();
             }
             if (_work_queue.get_size() == 0) {
                 _empty_cv.notify_all();
@@ -134,7 +116,7 @@ private:
 
     // Queue on which work items are held until a thread is available to process them in
     // FIFO order.
-    BlockingPriorityQueue<Task> _work_queue;
+    BlockingPriorityQueue<ThreadTask> _work_queue;
 
     // Collection of worker threads that process work from the queue.
     ThreadGroup _threads;

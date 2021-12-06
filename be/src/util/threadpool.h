@@ -33,18 +33,13 @@
 #include "util/condition_variable.h"
 #include "util/monotime.h"
 #include "util/mutex.h"
+#include "util/thread_task.h"
 
 namespace doris {
 
 class Thread;
 class ThreadPool;
 class ThreadPoolToken;
-
-class Runnable {
-public:
-    virtual void run() = 0;
-    virtual ~Runnable() {}
-};
 
 // ThreadPool takes a lot of arguments. We provide sane defaults with a builder.
 //
@@ -163,11 +158,8 @@ public:
     //       require an explicit "abort" notification to exit from the run loop.
     void shutdown();
 
-    // Submits a Runnable class.
-    Status submit(std::shared_ptr<Runnable> r);
-
-    // Submits a function bound using std::bind(&FuncName, args...).
-    Status submit_func(std::function<void()> f);
+    // Submits a task
+    Status submit(const ThreadTask& task);
 
     // Waits until all the tasks are completed.
     void wait();
@@ -232,14 +224,6 @@ private:
     friend class ThreadPoolBuilder;
     friend class ThreadPoolToken;
 
-    // Client-provided task to be executed by this pool.
-    struct Task {
-        std::shared_ptr<Runnable> runnable;
-
-        // Time at which the entry was submitted to the pool.
-        MonoTime submit_time;
-    };
-
     // Creates a new thread pool using a builder.
     explicit ThreadPool(const ThreadPoolBuilder& builder);
 
@@ -259,7 +243,7 @@ private:
     void check_not_pool_thread_unlocked();
 
     // Submits a task to be run via token.
-    Status do_submit(std::shared_ptr<Runnable> r, ThreadPoolToken* token);
+    Status _do_submit(const ThreadTask& task, ThreadPoolToken* token);
 
     // Releases token 't' and invalidates it.
     void release_token(ThreadPoolToken* t);
@@ -366,10 +350,7 @@ public:
     ~ThreadPoolToken();
 
     // Submits a Runnable class.
-    Status submit(std::shared_ptr<Runnable> r);
-
-    // Submits a function bound using std::bind(&FuncName, args...).
-    Status submit_func(std::function<void()> f);
+    Status submit(const ThreadTask& task);
 
     // Marks the token as unusable for future submissions. Any queued tasks not
     // yet running are destroyed. If tasks are in flight, Shutdown() will wait
@@ -463,7 +444,7 @@ private:
     State _state;
 
     // Queued client tasks.
-    std::deque<ThreadPool::Task> _entries;
+    std::deque<ThreadTask> _entries;
 
     // Condition variable for "token is idle". Waiters wake up when the token
     // transitions to IDLE or QUIESCED.

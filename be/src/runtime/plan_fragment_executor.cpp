@@ -71,9 +71,8 @@ Status PlanFragmentExecutor::prepare(const TExecPlanFragmentParams& request,
     _query_id = params.query_id;
 
     TAG(LOG(INFO)).log("PlanFragmentExecutor::prepare")
-                  .query_id(_query_id).instance_id(params.fragment_instance_id)
-                  .tag("backend_num", std::to_string(request.backend_num))
-                  .tag("pthread_id", std::to_string((uintptr_t) pthread_self()));
+                  .instance_id(params.fragment_instance_id)
+                  .tag("backend_num", std::to_string(request.backend_num));
     // VLOG_CRITICAL << "request:\n" << apache::thrift::ThriftDebugString(request);
 
     const TQueryGlobals& query_globals =
@@ -228,7 +227,7 @@ Status PlanFragmentExecutor::prepare(const TExecPlanFragmentParams& request,
 Status PlanFragmentExecutor::open() {
     int64_t mem_limit = _runtime_state->fragment_mem_tracker()->limit();
     TAG(LOG(INFO)).log("PlanFragmentExecutor::open, using query memory limit: " + PrettyPrinter::print(mem_limit, TUnit::BYTES))
-                  .query_id(_query_id).instance_id(_runtime_state->fragment_instance_id())
+                  .instance_id(_runtime_state->fragment_instance_id())
                   .tag("mem_limit", std::to_string(mem_limit));
 
     // we need to start the profile-reporting thread before calling Open(), since it
@@ -459,7 +458,7 @@ Status PlanFragmentExecutor::get_next(RowBatch** batch) {
 
     if (_done) {
         TAG(LOG(INFO)).log("PlanFragmentExecutor::get_next finished")
-                      .query_id(_query_id).instance_id(_runtime_state->fragment_instance_id());
+                      .instance_id(_runtime_state->fragment_instance_id());
         // Query is done, return the thread token
         stop_report_thread();
         send_report(true);
@@ -518,7 +517,7 @@ void PlanFragmentExecutor::update_status(const Status& new_status) {
 
 void PlanFragmentExecutor::cancel() {
     TAG(LOG(INFO)).log("PlanFragmentExecutor::cancel")
-                  .query_id(_query_id).instance_id(_runtime_state->fragment_instance_id());
+                  .instance_id(_runtime_state->fragment_instance_id());
     DCHECK(_prepared);
     _runtime_state->set_is_cancelled(true);
     _runtime_state->exec_env()->stream_mgr()->cancel(_runtime_state->fragment_instance_id());

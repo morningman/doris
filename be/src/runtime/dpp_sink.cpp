@@ -897,8 +897,11 @@ Status DppSink::finish(RuntimeState* state) {
     CountDownLatch latch(_translator_count);
     for (auto& iter : _translator_map) {
         for (auto& trans : iter.second) {
-            state->exec_env()->etl_thread_pool()->offer(
-                    std::bind<void>(&DppSink::process, this, state, trans, &latch));
+            ThreadTask task;
+            task.task_id = "1";
+            task.type = ThreadTask::Type::LOAD;
+            task.work_function = std::bind<void>(&DppSink::process, this, state, trans, &latch);
+            state->exec_env()->etl_thread_pool()->offer(task);
         }
     }
 

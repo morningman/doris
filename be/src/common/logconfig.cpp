@@ -18,14 +18,18 @@
 #include <glog/logging.h>
 #include <glog/vlog_is_on.h>
 
+#include <sys/syscall.h>
+
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <mutex>
+#include <thread>
 
 #include "common/config.h"
 #include "gutil/stringprintf.h"
+#include "runtime/thread_context.h"
 #include "util/logging.h"
 
 namespace doris {
@@ -170,6 +174,7 @@ void TaggableLogger::flush() {
         delete head;
         head = next;
     }
+    _stream << thread_local_ctx;
 }
 
 /// Modify these tag names to suit your log format and collector.

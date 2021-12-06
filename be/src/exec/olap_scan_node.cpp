@@ -1413,8 +1413,11 @@ void OlapScanNode::transfer_thread(RuntimeState* state) {
         auto iter = olap_scanners.begin();
         if (thread_token != nullptr) {
             while (iter != olap_scanners.end()) {
-                auto s = thread_token->submit_func(
-                        std::bind(&OlapScanNode::scanner_thread, this, *iter));
+                ThreadTask task;
+                task.task_id = print_id(_runtime_state->fragment_instance_id());
+                task.type = ThreadTask::Type::QUERY;
+                task.work_function =  std::bind(&OlapScanNode::scanner_thread, this, *iter);
+                auto s = thread_token->submit(task);
                 if (s.ok()) {
                     (*iter)->start_wait_worker_timer();
                     olap_scanners.erase(iter++);
@@ -1426,7 +1429,9 @@ void OlapScanNode::transfer_thread(RuntimeState* state) {
             }
         } else {
             while (iter != olap_scanners.end()) {
-                PriorityThreadPool::Task task;
+                ThreadTask task;
+                task.task_id = print_id(_runtime_state->fragment_instance_id());
+                task.type = ThreadTask::Type::QUERY;
                 task.work_function = std::bind(&OlapScanNode::scanner_thread, this, *iter);
                 task.priority = _nice;
                 (*iter)->start_wait_worker_timer();

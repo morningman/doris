@@ -124,7 +124,10 @@ void PInternalServiceImpl<T>::tablet_writer_add_batch(google::protobuf::RpcContr
     // this will influence query execution, because the pthreads under bthread may be
     // exhausted, so we put this to a local thread pool to process
     int64_t submit_task_time_ns = MonotonicNanos();
-    _tablet_worker_pool.offer([cntl_base, request, response, done, submit_task_time_ns, this]() {
+    ThreadTask task;
+    task.task_id = print_id(request->id());
+    task.type = ThreadTask::Type::LOAD;
+    task.work_function = [cntl_base, request, response, done, submit_task_time_ns, this]() {
         int64_t wait_execution_time_ns = MonotonicNanos() - submit_task_time_ns;
         brpc::ClosureGuard closure_guard(done);
         int64_t execution_time_ns = 0;
@@ -144,7 +147,8 @@ void PInternalServiceImpl<T>::tablet_writer_add_batch(google::protobuf::RpcContr
         }
         response->set_execution_time_us(execution_time_ns / NANOS_PER_MICRO);
         response->set_wait_execution_time_us(wait_execution_time_ns / NANOS_PER_MICRO);
-    });
+    };
+    _tablet_worker_pool.offer(task);
 }
 
 template <typename T>
@@ -173,7 +177,12 @@ Status PInternalServiceImpl<T>::_exec_plan_fragment(const std::string& ser_reque
     }
     // LOG(INFO) << "exec plan fragment, fragment_instance_id=" << print_id(t_request.params.fragment_instance_id)
     //  << ", coord=" << t_request.coord << ", backend=" << t_request.backend_num;
-    return _exec_env->fragment_mgr()->exec_plan_fragment(t_request);
+    
+    thread_local_ctx.attach(t_request.query_options.query_type == TQueryType::SELECT ? ThreadTask::Type::QUERY : ThreadTask::Type::LOAD,
+            print_id(t_request.params.query_id));
+    Status st = _exec_env->fragment_mgr()->exec_plan_fragment(t_request);
+    thread_local_ctx.detach();
+    return st;
 }
 
 template <typename T>

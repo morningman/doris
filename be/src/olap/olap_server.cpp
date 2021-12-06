@@ -290,14 +290,20 @@ void StorageEngine::_tablet_checkpoint_callback(const std::vector<DataDir*>& dat
     int64_t interval = config::generate_tablet_meta_checkpoint_tasks_interval_secs;
     do {
         LOG(INFO) << "begin to produce tablet meta checkpoint tasks.";
+        int i = 0;
         for (auto data_dir : data_dirs) {
-            auto st = _tablet_meta_checkpoint_thread_pool->submit_func([=]() {
+            ThreadTask task;
+            task.task_id = "tablet_checkpoint_" + std::to_string(i);
+            task.type = ThreadTask::Type::CHECKPOINT;
+            task.work_function = [=]() {
                 CgroupsMgr::apply_system_cgroup();
                 _tablet_manager->do_tablet_meta_checkpoint(data_dir);
-            });
+            };
+            auto st = _tablet_meta_checkpoint_thread_pool->submit(task);
             if (!st.ok()) {
                 LOG(WARNING) << "submit tablet checkpoint tasks failed.";
             }
+            ++i;
         }
         interval = config::generate_tablet_meta_checkpoint_tasks_interval_secs;
     } while (!_stop_background_threads_latch.wait_for(MonoDelta::FromSeconds(interval)));
@@ -397,14 +403,18 @@ void StorageEngine::_compaction_tasks_producer_callback() {
                 if (permits > 0 && _permit_limiter.request(permits)) {
                     // Push to _tablet_submitted_compaction before submitting task
                     _push_tablet_into_submitted_compaction(tablet, compaction_type);
-                    auto st = _compaction_thread_pool->submit_func([=]() {
+                    ThreadTask task;
+                    task.task_id = std::to_string(tablet->tablet_id());
+                    task.type = ThreadTask::Type::COMPACTION;
+                    task.work_function = [=]() {
                         CgroupsMgr::apply_system_cgroup();
                         tablet->execute_compaction(compaction_type);
                         _permit_limiter.release(permits);
                         _pop_tablet_from_submitted_compaction(tablet, compaction_type);
                         // reset compaction
                         tablet->reset_compaction(compaction_type);
-                    });
+                    };
+                    auto st = _compaction_thread_pool->submit(task);
                     if (!st.ok()) {
                         _permit_limiter.release(permits);
                         _pop_tablet_from_submitted_compaction(tablet, compaction_type);

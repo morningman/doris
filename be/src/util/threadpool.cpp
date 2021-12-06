@@ -26,6 +26,7 @@
 #include "gutil/map-util.h"
 #include "gutil/strings/substitute.h"
 #include "gutil/sysinfo.h"
+#include "runtime/thread_context.h"
 #include "util/debug/sanitizer_scopes.h"
 #include "util/scoped_cleanup.h"
 #include "util/thread.h"
@@ -34,16 +35,6 @@ namespace doris {
 
 using std::string;
 using strings::Substitute;
-
-class FunctionRunnable : public Runnable {
-public:
-    explicit FunctionRunnable(std::function<void()> func) : _func(std::move(func)) {}
-
-    void run() OVERRIDE { _func(); }
-
-private:
-    std::function<void()> _func;
-};
 
 ThreadPoolBuilder::ThreadPoolBuilder(string name)
         : _name(std::move(name)),
@@ -100,12 +91,8 @@ ThreadPoolToken::~ThreadPoolToken() {
     _pool->release_token(this);
 }
 
-Status ThreadPoolToken::submit(std::shared_ptr<Runnable> r) {
-    return _pool->do_submit(std::move(r), this);
-}
-
-Status ThreadPoolToken::submit_func(std::function<void()> f) {
-    return submit(std::make_shared<FunctionRunnable>(std::move(f)));
+Status ThreadPoolToken::submit(const ThreadTask& task) {
+    return _pool->_do_submit(task, this);
 }
 
 void ThreadPoolToken::shutdown() {
@@ -116,7 +103,7 @@ void ThreadPoolToken::shutdown() {
     // outside the lock, in case there are concurrent threads wanting to access
     // the ThreadPool. The task's destructors may acquire locks, etc, so this
     // also prevents lock inversions.
-    std::deque<ThreadPool::Task> to_release = std::move(_entries);
+    std::deque<ThreadTask> to_release = std::move(_entries);
     _pool->_total_queued_tasks -= to_release.size();
 
     switch (state()) {
@@ -308,7 +295,7 @@ void ThreadPool::shutdown() {
     // locks, etc, so this also prevents lock inversions.
     _queue.clear();
 
-    std::deque<std::deque<Task>> to_release;
+    std::deque<std::deque<ThreadTask>> to_release;
     for (auto* t : _tokens) {
         if (!t->_entries.empty()) {
             to_release.emplace_back(std::move(t->_entries));
@@ -364,17 +351,12 @@ void ThreadPool::release_token(ThreadPoolToken* t) {
     CHECK_EQ(1, _tokens.erase(t));
 }
 
-Status ThreadPool::submit(std::shared_ptr<Runnable> r) {
-    return do_submit(std::move(r), _tokenless.get());
+Status ThreadPool::submit(const ThreadTask& task) {
+    return _do_submit(task, _tokenless.get());
 }
 
-Status ThreadPool::submit_func(std::function<void()> f) {
-    return submit(std::make_shared<FunctionRunnable>(std::move(f)));
-}
-
-Status ThreadPool::do_submit(std::shared_ptr<Runnable> r, ThreadPoolToken* token) {
+Status ThreadPool::_do_submit(const ThreadTask& task, ThreadPoolToken* token) {
     DCHECK(token);
-    MonoTime submit_time = MonoTime::Now();
 
     MutexLock unique_lock(&_lock);
     if (PREDICT_FALSE(!_pool_status.ok())) {
@@ -421,10 +403,6 @@ Status ThreadPool::do_submit(std::shared_ptr<Runnable> r, ThreadPoolToken* token
         need_a_thread = true;
         _num_threads_pending_start++;
     }
-
-    Task task;
-    task.runnable = std::move(r);
-    task.submit_time = submit_time;
 
     // Add the task to the token's queue.
     ThreadPoolToken::State state = token->state();
@@ -530,7 +508,7 @@ void ThreadPool::dispatch_thread() {
             // Note: if FIFO behavior is desired, it's as simple as changing this to push_back().
             _idle_threads.push_front(me);
             SCOPED_CLEANUP({
-                // For some wake ups (i.e. shutdown or do_submit) this thread is
+                // For some wake ups (i.e. shutdown or _do_submit) this thread is
                 // guaranteed to be unlinked after being awakened. In others (i.e.
                 // spurious wake-up or Wait timeout), it'll still be linked.
                 if (me.is_linked()) {
@@ -558,7 +536,7 @@ void ThreadPool::dispatch_thread() {
         _queue.pop_front();
         DCHECK_EQ(ThreadPoolToken::State::RUNNING, token->state());
         DCHECK(!token->_entries.empty());
-        Task task = std::move(token->_entries.front());
+        ThreadTask task = std::move(token->_entries.front());
         token->_entries.pop_front();
         token->_active_threads++;
         --_total_queued_tasks;
@@ -567,7 +545,9 @@ void ThreadPool::dispatch_thread() {
         unique_lock.unlock();
 
         // Execute the task
-        task.runnable->run();
+        thread_local_ctx.attach(task.type, task.task_id);
+        task.work_function();
+        thread_local_ctx.detach();
 
         // Destruct the task while we do not hold the lock.
         //
@@ -575,7 +555,7 @@ void ThreadPool::dispatch_thread() {
         // objects, and we don't want to block submission of the threadpool.
         // In the worst case, the destructor might even try to do something
         // with this threadpool, and produce a deadlock.
-        task.runnable.reset();
+        // task.runnable.reset();
         unique_lock.lock();
 
         // Possible states:

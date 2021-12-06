@@ -73,8 +73,10 @@ void TabletMigrationAction::handle(HttpRequest* req) {
                         }
                         _migration_tasks[current_task] = "submitted";
                     }
-                    auto st = _migration_thread_pool->submit_func([&, tablet_id, schema_hash,
-                                                                   dest_disk, current_task]() {
+                    ThreadTask task;
+                    task.task_id = "manual_migration_tablet_" + std::to_string(tablet_id);
+                    task.type = ThreadTask::Type::MIGRATION;
+                    task.work_function = [&, tablet_id, schema_hash, dest_disk, current_task]() {
                         {
                             std::unique_lock<std::mutex> lock(_migration_status_mutex);
                             _migration_tasks[current_task] = "running";
@@ -95,7 +97,8 @@ void TabletMigrationAction::handle(HttpRequest* req) {
                             }
                             _finished_migration_tasks.push_back(finished_task);
                         }
-                    });
+                    }; 
+                    auto st = _migration_thread_pool->submit(task);
                     if (!st.ok()) {
                         status = Status::InternalError("Migration task submission failed");
                         std::unique_lock<std::mutex> lock(_migration_status_mutex);

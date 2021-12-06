@@ -218,7 +218,10 @@ Status RoutineLoadTaskExecutor::submit_task(const TRoutineLoadTask& task) {
     _task_map[ctx->id] = ctx;
 
     // offer the task to thread pool
-    if (!_thread_pool.offer(std::bind<void>(&RoutineLoadTaskExecutor::exec_task, this, ctx,
+    ThreadTask thread_task;
+    thread_task.task_id = ctx->id.to_string();
+    thread_task.type = ThreadTask::Type::LOAD;
+    thread_task.work_function = std::bind<void>(&RoutineLoadTaskExecutor::exec_task, this, ctx,
                                             &_data_consumer_pool, [this](StreamLoadContext* ctx) {
                                                 std::unique_lock<std::mutex> l(_lock);
                                                 _task_map.erase(ctx->id);
@@ -230,7 +233,8 @@ Status RoutineLoadTaskExecutor::submit_task(const TRoutineLoadTask& task) {
                                                 if (ctx->unref()) {
                                                     delete ctx;
                                                 }
-                                            }))) {
+                                            });
+    if (!_thread_pool.offer(thread_task)) {
         // failed to submit task, clear and return
         LOG(WARNING) << "failed to submit routine load task: " << ctx->brief();
         _task_map.erase(ctx->id);

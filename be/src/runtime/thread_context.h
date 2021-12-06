@@ -17,9 +17,11 @@
 
 #pragma once
 
+#include <iostream>
 #include <string>
 #include <thread>
 
+#include "util/thread_task.h"
 #include "gen_cpp/Types_types.h"
 
 namespace doris {
@@ -34,19 +36,10 @@ namespace doris {
 // There may be other optional info to be added later.
 class ThreadContext {
 public:
-    enum TaskType {
-        UNKNOWN = 0,
-        QUERY,
-        LOAD,
-        COMPACTION
-        // to be added ...
-    };
-
-public:
-    ThreadContext() : _thread_id(std::this_thread::get_id()), _type(TaskType::UNKNOWN) {}
+    ThreadContext() : _thread_id(std::this_thread::get_id()), _type(ThreadTask::Type::UNKNOWN) {}
     ~ThreadContext() {}
 
-    void attach(TaskType type, const std::string& task_id,
+    void attach(ThreadTask::Type type, const std::string& task_id,
                 const TUniqueId& fragment_instance_id = TUniqueId()) {
         _type = type;
         _task_id = task_id;
@@ -54,38 +47,27 @@ public:
     }
 
     void detach() {
-        _type = TaskType::UNKNOWN;
+        _type = ThreadTask::Type::UNKNOWN;
         _task_id = "";
         _fragment_instance_id = TUniqueId();
     }
 
-    const std::string type();
+    std::string type();
     const std::string& task_id() const { return _task_id; }
     const std::thread::id& thread_id() { return _thread_id; }
 
+    friend std::ostream& operator<<(std::ostream& os, const ThreadContext& ctx);
+
 private:
     std::thread::id _thread_id;
-    TaskType _type;
+    ThreadTask::Type _type;
     std::string _task_id;
     TUniqueId _fragment_instance_id;
 };
 
 inline thread_local ThreadContext thread_local_ctx;
 
-inline const std::string TASK_TYPE_STRING(ThreadContext::TaskType type) {
-    switch (type) {
-    case ThreadContext::TaskType::QUERY:
-        return "QUERY";
-    case ThreadContext::TaskType::LOAD:
-        return "LOAD";
-    case ThreadContext::TaskType::COMPACTION:
-        return "COMPACTION";
-    default:
-        return "UNKNOWN";
-    }
-}
-
-inline const std::string ThreadContext::type() {
+inline std::string ThreadContext::type() {
     return TASK_TYPE_STRING(_type);
 }
 

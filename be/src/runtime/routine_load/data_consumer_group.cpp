@@ -67,7 +67,10 @@ Status KafkaDataConsumerGroup::start_all(StreamLoadContext* ctx) {
     Status result_st = Status::OK();
     // start all consumers
     for (auto& consumer : _consumers) {
-        if (!_thread_pool.offer(std::bind<void>(
+        ThreadTask task;
+        task.task_id = ctx->id.to_string();
+        task.type = ThreadTask::Type::LOAD;
+        task.work_function = std::bind<void>(
                     &KafkaDataConsumerGroup::actual_consume, this, consumer, &_queue,
                     ctx->max_interval_s * 1000, [this, &result_st](const Status& st) {
                         std::unique_lock<std::mutex> lock(_mutex);
@@ -81,7 +84,8 @@ Status KafkaDataConsumerGroup::start_all(StreamLoadContext* ctx) {
                         if (result_st.ok() && !st.ok()) {
                             result_st = st;
                         }
-                    }))) {
+                    });
+        if (!_thread_pool.offer(task)) {
             LOG(WARNING) << "failed to submit data consumer: " << consumer->id()
                          << ", group id: " << _grp_id;
             return Status::InternalError("failed to submit data consumer");

@@ -113,6 +113,7 @@ set(RUNTIME_FILES
     cache/result_cache.cpp
     odbc_table_sink.cpp	
     minidump.cpp
+    thread_context.cpp
 )
 
 if (WITH_MYSQL)
