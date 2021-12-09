@@ -234,7 +234,7 @@ parser code {:
 
 // Total keywords of doris
 terminal String KW_ADD, KW_ADMIN, KW_AFTER, KW_AGGREGATE, KW_ALIAS, KW_ALL, KW_ALTER, KW_AND, KW_ANTI, KW_APPEND, KW_AS, KW_ASC, KW_AUTHORS, KW_ARRAY,
-    KW_BACKEND, KW_BACKUP, KW_BETWEEN, KW_BEGIN, KW_BIGINT, KW_BINLOG, KW_BITMAP, KW_BITMAP_UNION, KW_BLOB, KW_BOOLEAN, KW_BROKER, KW_BACKENDS, KW_BY, KW_BUILTIN,
+    KW_BACKEND, KW_BACKUP, KW_BETWEEN, KW_BEGIN, KW_BIGINT, KW_BINARY, KW_BINLOG, KW_BITMAP, KW_BITMAP_UNION, KW_BLOB, KW_BOOLEAN, KW_BROKER, KW_BACKENDS, KW_BY, KW_BUILTIN,
     KW_CANCEL, KW_CASE, KW_CAST, KW_CHAIN, KW_CHAR, KW_CHARSET, KW_CHECK, KW_CLUSTER, KW_CLUSTERS, KW_CLEAN,
     KW_COLLATE, KW_COLLATION, KW_COLUMN, KW_COLUMNS, KW_COMMENT, KW_COMMIT, KW_COMMITTED,
     KW_CONFIG, KW_CONNECTION, KW_CONNECTION_ID, KW_CONSISTENT, KW_CONVERT, KW_COUNT, KW_CREATE, KW_CROSS, KW_CUBE, KW_CURRENT, KW_CURRENT_USER,
@@ -513,7 +513,7 @@ nonterminal Boolean opt_tmp;
 nonterminal OutFileClause opt_outfile;
 nonterminal RoutineLoadDataSourceProperties opt_datasource_properties;
 
-nonterminal Boolean opt_signed_unsigned;
+nonterminal Boolean opt_signed_unsigned, opt_binary;
 
 nonterminal StorageBackend storage_backend;
 
@@ -550,6 +550,9 @@ precedence left KW_PARTITION;
 precedence left KW_PARTITIONS;
 precedence right KW_TEMPORARY;
 precedence right LBRACKET;
+precedence right KW_BINARY;
+precedence right KW_NULL;
+precedence right KW_ISNULL;
 
 // unused
 // nonterminal Expr where_clause_without_null, List<String> col_list, opt_charset_name, AlterClause alter_cluster_clause;
@@ -4636,6 +4639,12 @@ sign_chain_expr ::=
   {: RESULT = e; :}
   ;
 
+opt_binary ::=
+  {: RESULT = false; :}
+  | KW_BINARY
+  {: RESULT = true; :}
+  ;
+
 expr ::=
   non_pred_expr:e opt_collate:collate
   {: RESULT = e; :}
@@ -4693,7 +4702,7 @@ exists_predicate ::=
   KW_EXISTS subquery:s
   {: RESULT = new ExistsPredicate(s, false); :}
   ;
-
+  
 non_pred_expr ::=
   sign_chain_expr:e
   {: RESULT = e; :}
@@ -4705,7 +4714,7 @@ non_pred_expr ::=
   {:
     RESULT = new SysVariableDesc(l, type);
   :}
-  | literal:l
+  | opt_binary literal:l
   {: RESULT = l; :}
   | array_expr:a
   {: RESULT = a; :}
@@ -4735,7 +4744,7 @@ non_pred_expr ::=
   {: RESULT = c; :}
   | case_expr:c
   {: RESULT = c; :}
-  | column_ref:c
+  | opt_binary column_ref:c
   {: RESULT = c; :}
   | column_subscript:c
   {: RESULT = c; :}

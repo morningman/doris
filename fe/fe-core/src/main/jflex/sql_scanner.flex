@@ -108,6 +108,7 @@ import org.apache.doris.qe.SqlModeHelper;
         keywordMap.put("begin", new Integer(SqlParserSymbols.KW_BEGIN));
         keywordMap.put("between", new Integer(SqlParserSymbols.KW_BETWEEN));
         keywordMap.put("bigint", new Integer(SqlParserSymbols.KW_BIGINT));
+        keywordMap.put("binary", new Integer(SqlParserSymbols.KW_BINARY));
         keywordMap.put("binlog", new Integer(SqlParserSymbols.KW_BINLOG));
         keywordMap.put("bitmap", new Integer(SqlParserSymbols.KW_BITMAP));
         keywordMap.put("bitmap_union", new Integer(SqlParserSymbols.KW_BITMAP_UNION));

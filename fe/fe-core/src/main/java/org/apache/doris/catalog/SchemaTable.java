@@ -417,6 +417,60 @@ public class SchemaTable extends Table {
                                             .column("NODEGROUP", ScalarType.createVarchar(256))
                                             .column("TABLESPACE_NAME", ScalarType.createVarchar(268))
                                             .build()))
+                    .put("triggers",
+                            new SchemaTable(
+                                    SystemIdGenerator.getNextId(),
+                                    "triggers",
+                                    TableType.SCHEMA,
+                                    builder()
+                                            .column("TRIGGER_CATALOG", ScalarType.createVarchar(512))
+                                            .column("TRIGGER_SCHEMA", ScalarType.createVarchar(64))
+                                            .column("TRIGGER_NAME", ScalarType.createVarchar(64))
+                                            .column("EVENT_MANIPULATION", ScalarType.createVarchar(64))
+                                            .column("EVENT_OBJECT_CATALOG", ScalarType.createVarchar(512))
+                                            .column("EVENT_OBJECT_SCHEMA", ScalarType.createVarchar(64))
+                                            .column("EVENT_OBJECT_TABLE", ScalarType.createVarchar(64))
+                                            .column("ACTION_ORDER", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("ACTION_CONDITION", ScalarType.createStringType())
+                                            .column("ACTION_STATEMENT", ScalarType.createStringType())
+                                            .column("ACTION_ORIENTATION", ScalarType.createVarchar(64))
+                                            .column("ACTION_TIMING", ScalarType.createVarchar(64))
+                                            .column("ACTION_REFERENCE_OLD_TABLE", ScalarType.createVarchar(64))
+                                            .column("ACTION_REFERENCE_NEW_TABLE", ScalarType.createVarchar(64))
+                                            .column("ACTION_REFERENCE_OLD_ROW", ScalarType.createVarchar(64))
+                                            .column("ACTION_REFERENCE_NEW_ROW", ScalarType.createVarchar(64))
+                                            .column("CREATED", ScalarType.createType(PrimitiveType.DATETIME))
+                                            .column("SQL_MODE", ScalarType.createVarchar(8192))
+                                            .column("DEFINER", ScalarType.createVarchar(77))
+                                            .column("CHARACTER_SET_CLIENT", ScalarType.createVarchar(64))
+                                            .column("COLLATION_CONNECTION", ScalarType.createVarchar(64))
+                                            .column("DATABASE_COLLATION", ScalarType.createVarchar(64))
+                                            .build()))
+                    .put("profiling",
+                            new SchemaTable(
+                                    SystemIdGenerator.getNextId(),
+                                    "profiling",
+                                    TableType.SCHEMA,
+                                    builder()
+                                            .column("QUERY_ID", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("SEQ", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("STATE", ScalarType.createVarchar(64))
+                                            .column("DURATION", ScalarType.createDecimalV2Type(9, 6))
+                                            .column("CPU_USER", ScalarType.createDecimalV2Type(9, 6))
+                                            .column("CPU_SYSTEM", ScalarType.createDecimalV2Type(9, 6))
+                                            .column("CONTEXT_VOLUNTARY", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("CONTEXT_INVOLUNTARY", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("BLOCK_OPS_IN", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("BLOCK_OPS_OUT", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("MESSAGES_SENT", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("MESSAGES_RECEIVED", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("PAGE_FAULTS_MAJOR", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("PAGE_FAULTS_MINOR", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("SWAPS", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .column("SOURCE_FUNCTION", ScalarType.createVarchar(64))
+                                            .column("SOURCE_FILE", ScalarType.createVarchar(64))
+                                            .column("SOURCE_LINE", ScalarType.createType(PrimitiveType.BIGINT))
+                                            .build()))
                     .build();
     //  statistics is table provides information about table indexes in mysql: 5.7
     // views column is from show create table views in mysql: 5.5.6
