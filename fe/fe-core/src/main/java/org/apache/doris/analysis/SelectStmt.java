@@ -191,8 +191,8 @@ public class SelectStmt extends QueryStmt {
         groupingInfo = null;
     }
 
+    @Override
     public void resetSelectList() {
-        // DORIS-7361, Reset selectList to keep clean
         if (originSelectList != null) {
             selectList = originSelectList;
         }
