@@ -288,6 +288,19 @@ public class MaterializedViewFunctionTest {
         dorisAssert.query(query).explainContains(QUERY_USE_EMPS_MV);
     }
 
+    /**
+     * Aggregation query with two aggregation operators
+     */
+    @Test
+    public void testAggQueryOnAggMV11() throws Exception {
+        String createMVSQL = "create materialized view " + EMPS_MV_NAME + " as select deptno, count(salary) "
+                + "from " + EMPS_TABLE_NAME + " group by deptno;";
+        String query = "select deptno, count(salary) + count(1) from " + EMPS_TABLE_NAME
+                + " group by deptno;";
+        dorisAssert.withMaterializedView(createMVSQL);
+        dorisAssert.query(query).explainContains(QUERY_USE_EMPS);
+    }
+
     @Test
     public void testJoinOnLeftProjectToJoin() throws Exception {
         String createEmpsMVSQL = "create materialized view " + EMPS_MV_NAME

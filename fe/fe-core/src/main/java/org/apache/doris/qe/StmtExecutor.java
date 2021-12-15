@@ -673,6 +673,17 @@ public class StmtExecutor implements ProfileWriter {
         analyzer = new Analyzer(context.getCatalog(), context);
 
         parsedStmt.reset();
+
+        if (parsedStmt instanceof SelectStmt) {
+            ((SelectStmt) parsedStmt).resetSelectList();
+        }
+
+        if (parsedStmt instanceof InsertStmt) {
+            InsertStmt insertStmt = (InsertStmt) parsedStmt;
+            if (insertStmt.getQueryStmt() instanceof SelectStmt) {
+                ((SelectStmt) insertStmt.getQueryStmt()).resetSelectList();
+            }
+        }
     }
 
     // Because this is called by other thread
