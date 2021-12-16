@@ -20,6 +20,7 @@ package org.apache.doris.master;
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.common.CheckpointException;
 import org.apache.doris.common.Config;
+import org.apache.doris.common.DdlException;
 import org.apache.doris.common.FeConstants;
 import org.apache.doris.common.util.MasterDaemon;
 import org.apache.doris.metric.MetricRepo;
@@ -49,7 +50,7 @@ public class Checkpoint extends MasterDaemon {
     private static final int PUT_TIMEOUT_SECOND = 3600;
     private static final int CONNECT_TIMEOUT_SECOND = 1;
     private static final int READ_TIMEOUT_SECOND = 1;
-    
+
     private Catalog catalog;
     private String imageDir;
     private EditLog editLog;
@@ -129,7 +130,15 @@ public class Checkpoint extends MasterDaemon {
             catalog = null;
             Catalog.destroyCheckpoint();
         }
-        
+
+        // check the new generated image
+        try {
+            validateNewImage(checkPointVersion);
+        } catch (Throwable e) {
+            LOG.error("exception when validating new generated image.", e);
+            return;
+        }
+
         // push image file to all the other non master nodes
         // DO NOT get other nodes from HaProtocol, because node may not in bdbje replication group yet.
         List<Frontend> allFrontends = Catalog.getServingCatalog().getFrontends(null);
@@ -144,7 +153,7 @@ public class Checkpoint extends MasterDaemon {
                     continue;
                 }
                 int port = Config.http_port;
-                
+
                 String url = "http://" + host + ":" + port + "/put?version=" + replayedJournalId
                         + "&port=" + port;
                 LOG.info("Put image:{}", url);
@@ -213,7 +222,7 @@ public class Checkpoint extends MasterDaemon {
                     }
                     deleteVersion = Math.min(minOtherNodesJournalId, checkPointVersion);
                 }
-                
+
                 editLog.deleteJournals(deleteVersion + 1);
                 if (MetricRepo.isInit) {
                     MetricRepo.COUNTER_EDIT_LOG_CLEAN_SUCCESS.increase(1L);
@@ -242,7 +251,7 @@ public class Checkpoint extends MasterDaemon {
             }
         }
     }
-    
+
     /*
      * Check whether can we do the checkpoint due to the memory used percent.
      */
@@ -255,7 +264,7 @@ public class Checkpoint extends MasterDaemon {
                     memUsedPercent, Config.metadata_checkpoint_memory_threshold);
             return false;
         }
-       
+
         return true;
     }
 
@@ -288,4 +297,10 @@ public class Checkpoint extends MasterDaemon {
         }
     }
 
+    private void validateNewImage(long checkpointVersion) throws IOException, DdlException {
+        Catalog testCatalog = Catalog.createTestCatalog();
+        // if loading failed, exception will throw
+        testCatalog.loadImage(imageDir, checkpointVersion);
+        LOG.info("Succeed to validate new generated image with version: {}", checkpointVersion);
+    }
 }

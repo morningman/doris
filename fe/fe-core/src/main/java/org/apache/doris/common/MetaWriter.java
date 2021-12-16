@@ -86,7 +86,7 @@ public class MetaWriter {
     }
 
     public long doWork(String name, WriteMethod method) throws IOException {
-        if(delegate == null){
+        if (delegate == null) {
             return method.write();
         }
         return delegate.doWork(name, method);
@@ -135,5 +135,4 @@ public class MetaWriter {
         LOG.info("finished save image {} in {} ms. checksum is {}",
                 imageFile.getAbsolutePath(), (saveImageEndTime - saveImageStartTime), checksum.getRef());
     }
-
 }

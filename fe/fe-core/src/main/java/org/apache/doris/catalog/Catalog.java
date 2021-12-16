@@ -631,6 +631,11 @@ public class Catalog {
         }
     }
 
+    // create a catalog for test(eg, checksum validation)
+    public static Catalog createTestCatalog() {
+        return new Catalog(true);
+    }
+
     // NOTICE: in most case, we should use getCurrentCatalog() to get the right catalog.
     // but in some cases, we should get the serving catalog explicitly.
     public static Catalog getServingCatalog() {
@@ -1568,7 +1573,9 @@ public class Catalog {
         return replayer != null;
     }
 
-    public void loadImage(String imageDir) throws IOException, DdlException {
+    // load latest image file.
+    // if imageVersion is not -1, it will check if the latest image has same version as imageVersion
+    public void loadImage(String imageDir, long imageVersion) throws IOException, DdlException {
         Storage storage = new Storage(imageDir);
         clusterId = storage.getClusterID();
         File curFile = storage.getCurrentImageFile();
@@ -1577,8 +1584,16 @@ public class Catalog {
             LOG.info("image does not exist: {}", curFile.getAbsolutePath());
             return;
         }
+        if (imageVersion != -1 && storage.getImageSeq() != imageVersion) {
+            throw new DdlException("Failed to find image with version " + imageVersion
+                    + ". Found: " + storage.getImageSeq());
+        }
         replayedJournalId.set(storage.getImageSeq());
         MetaReader.read(curFile, this);
+    }
+
+    public void loadImage(String imageDir) throws IOException, DdlException {
+        loadImage(imageDir, -1);
     }
 
     public void recreateTabletInvertIndex() {

@@ -19,8 +19,6 @@ package org.apache.doris.common;
 
 import org.apache.doris.catalog.Catalog;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.commons.io.IOUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -91,7 +89,7 @@ public class MetaReader {
             checksum = catalog.loadBrokers(dis, checksum);
             checksum = catalog.loadResources(dis, checksum);
             checksum = catalog.loadExportJob(dis, checksum);
-            checksum = catalog.loadSyncJobs(dis,checksum);
+            checksum = catalog.loadSyncJobs(dis, checksum);
             checksum = catalog.loadBackupHandler(dis, checksum);
             checksum = catalog.loadPaloAuth(dis, checksum);
             // global transaction must be replayed before load jobs v2
@@ -106,11 +104,13 @@ public class MetaReader {
         }
 
         MetaFooter metaFooter = MetaFooter.read(imageFile);
-        long remoteChecksum = metaFooter.checksum;
-        Preconditions.checkState(remoteChecksum == checksum, remoteChecksum + " vs. " + checksum);
+        long expectedChecksum = metaFooter.checksum;
+        if (expectedChecksum != checksum) {
+            throw new IOException(String.format("Invalid checksum of image %s, expected: %d, actual: %d",
+                    imageFile.getAbsoluteFile(), expectedChecksum, checksum));
+        }
 
         long loadImageEndTime = System.currentTimeMillis();
         LOG.info("finished to load image in " + (loadImageEndTime - loadImageStartTime) + " ms");
     }
-
 }
