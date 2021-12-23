@@ -4972,12 +4972,12 @@ function_params ::=
   {: RESULT = FunctionParams.createStarParam(); :}
   | KW_ALL STAR
   {: RESULT = FunctionParams.createStarParam(); :}
-  | expr_list:exprs
-  {: RESULT = new FunctionParams(false, exprs); :}
+  | expr_list:exprs order_by_clause:o
+  {: RESULT = new FunctionParams(false, exprs, o); :}
   | KW_ALL expr_list:exprs
   {: RESULT = new FunctionParams(false, exprs); :}
-  | KW_DISTINCT:distinct expr_list:exprs
-  {: RESULT = new FunctionParams(true, exprs); :}
+  | KW_DISTINCT:distinct expr_list:exprs order_by_clause:o
+  {: RESULT = new FunctionParams(true, exprs, o); :}
   ;
 
 predicate ::=
