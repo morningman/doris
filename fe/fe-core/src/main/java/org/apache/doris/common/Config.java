@@ -31,7 +31,8 @@ public class Config extends ConfigBase {
     /**
      * The max size of one sys log and audit log
      */
-    @ConfField public static int log_roll_size_mb = 1024; // 1 GB
+    @ConfField
+    public static int log_roll_size_mb = 1024; // 1 GB
 
     /**
      * sys_log_dir:
@@ -66,14 +67,19 @@ public class Config extends ConfigBase {
      */
     @ConfField
     public static String sys_log_dir = PaloFe.DORIS_HOME_DIR + "/log";
-    @ConfField public static String sys_log_level = "INFO";
-    @ConfField public static int sys_log_roll_num = 10;
+    @ConfField
+    public static String sys_log_level = "INFO";
+    @ConfField
+    public static int sys_log_roll_num = 10;
     @ConfField
     public static String[] sys_log_verbose_modules = {};
-    @ConfField public static String sys_log_roll_interval = "DAY";
-    @ConfField public static String sys_log_delete_age = "7d";
+    @ConfField
+    public static String sys_log_roll_interval = "DAY";
+    @ConfField
+    public static String sys_log_delete_age = "7d";
     @Deprecated
-    @ConfField public static String sys_log_roll_mode = "SIZE-MB-1024";
+    @ConfField
+    public static String sys_log_roll_mode = "SIZE-MB-1024";
 
     /**
      * audit_log_dir:
@@ -183,7 +189,8 @@ public class Config extends ConfigBase {
      * temp dir is used to save intermediate results of some process, such as backup and restore process.
      * file in this dir will be cleaned after these process is finished.
      */
-    @ConfField public static String tmp_dir = PaloFe.DORIS_HOME_DIR + "/temp_dir";
+    @ConfField
+    public static String tmp_dir = PaloFe.DORIS_HOME_DIR + "/temp_dir";
 
     /**
      * Edit log type.
@@ -209,7 +216,8 @@ public class Config extends ConfigBase {
      * Non-master FE will stop offering service
      * if meta data delay gap exceeds *meta_delay_toleration_second*
      */
-    @ConfField public static int meta_delay_toleration_second = 300;    // 5 min
+    @ConfField
+    public static int meta_delay_toleration_second = 300;    // 5 min
 
     /**
      * Master FE sync policy of bdbje.
@@ -217,18 +225,21 @@ public class Config extends ConfigBase {
      * you can set this and the following 'replica_sync_policy' to WRITE_NO_SYNC.
      * more info, see: http://docs.oracle.com/cd/E17277_02/html/java/com/sleepycat/je/Durability.SyncPolicy.html
      */
-    @ConfField public static String master_sync_policy = "SYNC"; // SYNC, NO_SYNC, WRITE_NO_SYNC
+    @ConfField
+    public static String master_sync_policy = "SYNC"; // SYNC, NO_SYNC, WRITE_NO_SYNC
 
     /**
      * Follower FE sync policy of bdbje.
      */
-    @ConfField public static String replica_sync_policy = "SYNC"; // SYNC, NO_SYNC, WRITE_NO_SYNC
+    @ConfField
+    public static String replica_sync_policy = "SYNC"; // SYNC, NO_SYNC, WRITE_NO_SYNC
 
     /**
      * Replica ack policy of bdbje.
      * more info, see: http://docs.oracle.com/cd/E17277_02/html/java/com/sleepycat/je/Durability.ReplicaAckPolicy.html
      */
-    @ConfField public static String replica_ack_policy = "SIMPLE_MAJORITY"; // ALL, NONE, SIMPLE_MAJORITY
+    @ConfField
+    public static String replica_ack_policy = "SIMPLE_MAJORITY"; // ALL, NONE, SIMPLE_MAJORITY
 
     /**
      * The heartbeat timeout of bdbje between master and follower.
@@ -275,7 +286,8 @@ public class Config extends ConfigBase {
     /**
      * the max txn number which bdbje can rollback when trying to rejoin the group
      */
-    @ConfField public static int txn_rollback_limit = 100;
+    @ConfField
+    public static int txn_rollback_limit = 100;
 
     /**
      * Specified an IP for frontend, instead of the ip get by *InetAddress.getByName*.
@@ -293,7 +305,8 @@ public class Config extends ConfigBase {
      * this is a list in semicolon-delimited format, in CIDR notation, e.g. 10.10.10.0/24
      * If no ip match this rule, will choose one randomly.
      */
-    @ConfField public static String priority_networks = "";
+    @ConfField
+    public static String priority_networks = "";
 
     /**
      * If true, FE will reset bdbje replication group(that is, to remove all electable nodes info)
@@ -301,7 +314,8 @@ public class Config extends ConfigBase {
      * If all the electable nodes can not start, we can copy the meta data
      * to another node and set this config to true to try to restart the FE.
      */
-    @ConfField public static String metadata_failure_recovery = "false";
+    @ConfField
+    public static String metadata_failure_recovery = "false";
 
     /**
      * If true, non-master FE will ignore the meta data delay gap between Master FE and its self,
@@ -319,29 +333,35 @@ public class Config extends ConfigBase {
      * This value is checked whenever a non-master FE establishes a connection to master FE via BDBJE.
      * The connection is abandoned if the clock skew is larger than this value.
      */
-    @ConfField public static long max_bdbje_clock_delta_ms = 5000; // 5s
+    @ConfField
+    public static long max_bdbje_clock_delta_ms = 5000; // 5s
 
     /**
      * Fe http port
      * Currently, all FEs' http port must be same.
      */
-    @ConfField public static int http_port = 8030;
+    @ConfField
+    public static int http_port = 8030;
 
     /*
      * Netty http param
      */
-    @ConfField public static int http_max_line_length = HttpServer.DEFAULT_MAX_LINE_LENGTH;
+    @ConfField
+    public static int http_max_line_length = HttpServer.DEFAULT_MAX_LINE_LENGTH;
 
-    @ConfField public static int http_max_header_size = HttpServer.DEFAULT_MAX_HEADER_SIZE;
+    @ConfField
+    public static int http_max_header_size = HttpServer.DEFAULT_MAX_HEADER_SIZE;
 
-    @ConfField public static int http_max_chunk_size = HttpServer.DEFAULT_MAX_CHUNK_SIZE;
+    @ConfField
+    public static int http_max_chunk_size = HttpServer.DEFAULT_MAX_CHUNK_SIZE;
 
     /**
      * The backlog_num for netty http server
      * When you enlarge this backlog_num, you should enlarge the value in
      * the linux /proc/sys/net/core/somaxconn file at the same time
      */
-    @ConfField public static int http_backlog_num = 1024;
+    @ConfField
+    public static int http_backlog_num = 1024;
 
     /**
      * Jetty container default configuration
@@ -357,76 +377,91 @@ public class Config extends ConfigBase {
      * the more threads are required, the higher the proportion of IO,
      * the more threads waiting, and the more total threads required.
      */
-    @ConfField public static int jetty_server_acceptors = 2;
-    @ConfField public static int jetty_server_selectors = 4;
-    @ConfField public static int jetty_server_workers = 0;
+    @ConfField
+    public static int jetty_server_acceptors = 2;
+    @ConfField
+    public static int jetty_server_selectors = 4;
+    @ConfField
+    public static int jetty_server_workers = 0;
     /**
      * jetty Maximum number of bytes in put or post method,default:100MB
      */
-    @ConfField public static int jetty_server_max_http_post_size = 100 * 1024 * 1024;
+    @ConfField
+    public static int jetty_server_max_http_post_size = 100 * 1024 * 1024;
 
     /**
      * The backlog_num for mysql nio server
      * When you enlarge this backlog_num, you should enlarge the value in
      * the linux /proc/sys/net/core/somaxconn file at the same time
      */
-    @ConfField public static int mysql_nio_backlog_num = 1024;
+    @ConfField
+    public static int mysql_nio_backlog_num = 1024;
 
     /**
      * The connection timeout and socket timeout config for thrift server
      * The default value for thrift_client_timeout_ms is set to be zero to prevent readtimeout
      *
      */
-    @ConfField public static int thrift_client_timeout_ms = 0;
+    @ConfField
+    public static int thrift_client_timeout_ms = 0;
 
     /**
      * The backlog_num for thrift server
      * When you enlarge this backlog_num, you should ensure it's value larger than
      * the linux /proc/sys/net/core/somaxconn config
      */
-    @ConfField public static int thrift_backlog_num = 1024;
+    @ConfField
+    public static int thrift_backlog_num = 1024;
 
     /**
      * FE thrift server port
      */
-    @ConfField public static int rpc_port = 9020;
+    @ConfField
+    public static int rpc_port = 9020;
 
     /**
      * FE mysql server port
      */
-    @ConfField public static int query_port = 9030;
+    @ConfField
+    public static int query_port = 9030;
 
     /**
      * mysql service nio option.
      */
-    @ConfField public static boolean mysql_service_nio_enabled = true;
+    @ConfField
+    public static boolean mysql_service_nio_enabled = true;
 
     /**
      * num of thread to handle io events in mysql.
      */
-    @ConfField public static int mysql_service_io_threads_num = 4;
+    @ConfField
+    public static int mysql_service_io_threads_num = 4;
 
     /**
      * max num of thread to handle task in mysql.
      */
-    @ConfField public static int max_mysql_service_task_threads_num = 4096;
+    @ConfField
+    public static int max_mysql_service_task_threads_num = 4096;
 
     /**
      * Cluster name will be shown as the title of web page
      */
-    @ConfField public static String cluster_name = "Baidu Palo";
+    @ConfField
+    public static String cluster_name = "Baidu Palo";
 
     /**
      * node(FE or BE) will be considered belonging to the same Palo cluster if they have same cluster id.
      * Cluster id is usually a random integer generated when master FE start at first time.
      * You can also specify one.
      */
-    @ConfField public static int cluster_id = -1;
+    @ConfField
+    public static int cluster_id = -1;
 
     /**
      * Cluster token used for internal authentication.
      */
-    @ConfField public static String auth_token = "";
+    @ConfField
+    public static String auth_token = "";
 
     // Configurations for load, clone, create table, alter table etc. We will rarely change them
     /**
@@ -460,12 +495,14 @@ public class Config extends ConfigBase {
     /**
      * minimal intervals between two publish version action
      */
-    @ConfField public static int publish_version_interval_ms = 10;
+    @ConfField
+    public static int publish_version_interval_ms = 10;
 
     /**
      * The thrift server max worker threads
      */
-    @ConfField public static int thrift_server_max_worker_threads = 4096;
+    @ConfField
+    public static int thrift_server_max_worker_threads = 4096;
 
     /**
      * Maximal wait seconds for straggler node in load
@@ -490,13 +527,15 @@ public class Config extends ConfigBase {
      *      while the txn callback will transfer load job from LOADING to FINISHED.
      * So a load job will cost at most one interval to finish when the concurrency has not reached the upper limit.
      */
-    @ConfField public static int load_checker_interval_second = 5;
+    @ConfField
+    public static int load_checker_interval_second = 5;
 
     /**
      * The spark load scheduler running interval.
      * Default 60 seconds, because spark load job is heavy and yarn client returns slowly.
      */
-    @ConfField public static int spark_load_checker_interval_second = 60;
+    @ConfField
+    public static int spark_load_checker_interval_second = 60;
 
     /**
      * Concurrency of HIGH priority pending load jobs.
@@ -507,26 +546,31 @@ public class Config extends ConfigBase {
      * Currently, you can not specified the job priority manually,
      * and do not change this if you know what you are doing.
      */
-    @ConfField public static int load_pending_thread_num_high_priority = 3;
+    @ConfField
+    public static int load_pending_thread_num_high_priority = 3;
     /**
      * Concurrency of NORMAL priority pending load jobs.
      * Do not change this if you know what you are doing.
      */
-    @ConfField public static int load_pending_thread_num_normal_priority = 10;
+    @ConfField
+    public static int load_pending_thread_num_normal_priority = 10;
     /**
      * Concurrency of HIGH priority etl load jobs.
      * Do not change this if you know what you are doing.
      */
-    @ConfField public static int load_etl_thread_num_high_priority = 3;
+    @ConfField
+    public static int load_etl_thread_num_high_priority = 3;
     /**
      * Concurrency of NORMAL priority etl load jobs.
      * Do not change this if you know what you are doing.
      */
-    @ConfField public static int load_etl_thread_num_normal_priority = 10;
+    @ConfField
+    public static int load_etl_thread_num_normal_priority = 10;
     /**
      * Concurrency of delete jobs.
      */
-    @ConfField public static int delete_thread_num = 10;
+    @ConfField
+    public static int delete_thread_num = 10;
     /**
      * Not available.
      */
@@ -639,12 +683,14 @@ public class Config extends ConfigBase {
     /**
      * Sync checker's running interval.
      */
-    @ConfField public static int sync_checker_interval_second = 5;
+    @ConfField
+    public static int sync_checker_interval_second = 5;
 
     /**
      * max num of thread to handle sync task in sync task thread-pool.
      */
-    @ConfField public static int max_sync_task_threads_num = 10;
+    @ConfField
+    public static int max_sync_task_threads_num = 10;
 
 
     /**
@@ -740,11 +786,7 @@ public class Config extends ConfigBase {
      */
     @ConfField(mutable = true, masterOnly = true)
     public static int tablet_delete_timeout_second = 2;
-    /**
-     * the minimal delay seconds between a replica is failed and fe try to recovery it using clone.
-     */
-    @ConfField(mutable = true, masterOnly = true)
-    public static int replica_delay_recovery_second = 0;
+
     /**
      * Balance threshold of data size in BE.
      * The balance algorithm is:
@@ -789,14 +831,16 @@ public class Config extends ConfigBase {
      * When create a table(or partition), you can specify its storage medium(HDD or SSD).
      * If not set, this specifies the default medium when created.
      */
-    @ConfField public static String default_storage_medium = "HDD";
+    @ConfField
+    public static String default_storage_medium = "HDD";
     /**
      * When create a table(or partition), you can specify its storage medium(HDD or SSD).
      * If set to SSD, this specifies the default duration that tablets will stay on SSD.
      * After that, tablets will be moved to HDD automatically.
      * You can set storage cooldown time in CREATE TABLE stmt.
      */
-    @ConfField public static long storage_cooldown_second = 30 * 24 * 3600L; // 30 days
+    @ConfField
+    public static long storage_cooldown_second = 30 * 24 * 3600L; // 30 days
     /**
      * After dropping database(table/partition), you can recover it by using RECOVER stmt.
      * And this specifies the maximal data retention time. After time, the data will be deleted permanently.
@@ -819,7 +863,8 @@ public class Config extends ConfigBase {
     /**
      * Export checker's running interval.
      */
-    @ConfField public static int export_checker_interval_second = 5;
+    @ConfField
+    public static int export_checker_interval_second = 5;
     /**
      * Limitation of the concurrency of running export jobs.
      * Default is 5.
@@ -857,12 +902,14 @@ public class Config extends ConfigBase {
     /**
      * Maximal number of connections per FE.
      */
-    @ConfField public static int qe_max_connection = 1024;
+    @ConfField
+    public static int qe_max_connection = 1024;
 
     /**
      * Maximal number of thread in connection-scheduler-pool.
      */
-    @ConfField public static int max_connection_scheduler_threads_num = 4096;
+    @ConfField
+    public static int max_connection_scheduler_threads_num = 4096;
 
     /**
      * The memory_limit for colocote join PlanFragment instance =
@@ -880,14 +927,18 @@ public class Config extends ConfigBase {
      *   Because once the balance is turned off, the unstable colocate table may not be restored
      *   Eventually the colocate plan cannot be used when querying.
      */
-    @ConfField(mutable = true, masterOnly = true) public static boolean disable_colocate_balance = false;
+    @ConfField(mutable = true, masterOnly = true)
+    public static boolean disable_colocate_balance = false;
 
     /**
      * The default user resource publishing timeout.
      */
-    @ConfField public static int meta_publish_timeout_ms = 1000;
-    @ConfField public static boolean proxy_auth_enable = false;
-    @ConfField public static String proxy_auth_magic_prefix = "x@8";
+    @ConfField
+    public static int meta_publish_timeout_ms = 1000;
+    @ConfField
+    public static boolean proxy_auth_enable = false;
+    @ConfField
+    public static String proxy_auth_magic_prefix = "x@8";
     /**
      * Limit on the number of expr children of an expr tree.
      * Exceed this limit may cause long analysis time while holding database read lock.
@@ -908,16 +959,21 @@ public class Config extends ConfigBase {
      * Plugins' path for BACKUP and RESTORE operations. Currently deprecated.
      */
     @Deprecated
-    @ConfField public static String backup_plugin_path = "/tools/trans_file_tool/trans_files.sh";
+    @ConfField
+    public static String backup_plugin_path = "/tools/trans_file_tool/trans_files.sh";
 
     // Configurations for hadoop dpp
     /**
      * The following configurations are not available.
      */
-    @ConfField public static String dpp_hadoop_client_path = "/lib/hadoop-client/hadoop/bin/hadoop";
-    @ConfField public static long dpp_bytes_per_reduce = 100 * 1024 * 1024L; // 100M
-    @ConfField public static String dpp_default_cluster = "palo-dpp";
-    @ConfField public static String dpp_default_config_str = ""
+    @ConfField
+    public static String dpp_hadoop_client_path = "/lib/hadoop-client/hadoop/bin/hadoop";
+    @ConfField
+    public static long dpp_bytes_per_reduce = 100 * 1024 * 1024L; // 100M
+    @ConfField
+    public static String dpp_default_cluster = "palo-dpp";
+    @ConfField
+    public static String dpp_default_config_str = ""
             + "{"
             + "hadoop_configs : '"
             + "mapred.job.priority=NORMAL;"
@@ -929,7 +985,8 @@ public class Config extends ConfigBase {
             + "dfs.client.authserver.force_stop=true;"
             + "dfs.client.auth.method=0"
             + "'}";
-    @ConfField public static String dpp_config_str = ""
+    @ConfField
+    public static String dpp_config_str = ""
             + "{palo-dpp : {"
             + "hadoop_palo_path : '/dir',"
             + "hadoop_configs : '"
@@ -941,7 +998,8 @@ public class Config extends ConfigBase {
 
     // For forward compatibility, will be removed later.
     // check token when download image file.
-    @ConfField public static boolean enable_token_check = true;
+    @ConfField
+    public static boolean enable_token_check = true;
 
     /**
      * Set to true if you deploy Palo using thirdparty deploy manager
@@ -951,13 +1009,16 @@ public class Config extends ConfigBase {
      *      ambari:     Ambari
      *      local:      Local File (for test or Boxer2 BCC version)
      */
-    @ConfField public static String enable_deploy_manager = "disable";
+    @ConfField
+    public static String enable_deploy_manager = "disable";
 
     // If use k8s deploy manager locally, set this to true and prepare the certs files
-    @ConfField public static boolean with_k8s_certs = false;
+    @ConfField
+    public static boolean with_k8s_certs = false;
 
     // Set runtime locale when exec some cmds
-    @ConfField public static String locale = "zh_CN.UTF-8";
+    @ConfField
+    public static String locale = "zh_CN.UTF-8";
 
     // default timeout of backup job
     @ConfField(mutable = true, masterOnly = true)
@@ -987,12 +1048,14 @@ public class Config extends ConfigBase {
 
     // update interval of tablet stat
     // All frontends will get tablet stat from all backends at each interval
-    @ConfField public static int tablet_stat_update_interval_second = 300;  // 5 min
+    @ConfField
+    public static int tablet_stat_update_interval_second = 300;  // 5 min
 
     /**
      * if set to false, auth check will be disable, in case some goes wrong with the new privilege system.
      */
-    @ConfField public static boolean enable_auth_check = true;
+    @ConfField
+    public static boolean enable_auth_check = true;
 
     /**
      * Max bytes a broker scanner can process in one broker load job.
@@ -1094,12 +1157,14 @@ public class Config extends ConfigBase {
      * the default slot number per path in tablet scheduler
      * TODO(cmy): remove this config and dynamically adjust it by clone task statistic
      */
-    @ConfField public static int schedule_slot_num_per_path = 2;
+    @ConfField
+    public static int schedule_slot_num_per_path = 2;
 
     /**
      * Deprecated after 0.10
      */
-    @ConfField public static boolean use_new_tablet_scheduler = true;
+    @ConfField
+    public static boolean use_new_tablet_scheduler = true;
 
     /**
      * the threshold of cluster balance score, if a backend's load score is 10% lower than average score,
@@ -1154,7 +1219,8 @@ public class Config extends ConfigBase {
     /**
      * If set to true, metric collector will be run as a daemon timer to collect metrics at fix interval
      */
-    @ConfField public static boolean enable_metric_calculator = true;
+    @ConfField
+    public static boolean enable_metric_calculator = true;
 
     /**
      * the max routine load job num, including NEED_SCHEDULED, RUNNING, PAUSE
@@ -1192,7 +1258,8 @@ public class Config extends ConfigBase {
     /**
      * Save small files
      */
-    @ConfField public static String small_file_dir = PaloFe.DORIS_HOME_DIR + "/small_files";
+    @ConfField
+    public static String small_file_dir = PaloFe.DORIS_HOME_DIR + "/small_files";
 
     /**
      * If set to true, the insert stmt with processing error will still return a label to user.
@@ -1200,7 +1267,8 @@ public class Config extends ConfigBase {
      * The default value is false, which means if insert operation encounter errors,
      * exception will be thrown to user client directly without load label.
      */
-    @ConfField(mutable = true, masterOnly = true) public static boolean using_old_load_usage_pattern = false;
+    @ConfField(mutable = true, masterOnly = true)
+    public static boolean using_old_load_usage_pattern = false;
 
     /**
      * This will limit the max recursion depth of hash distribution pruner.
@@ -1319,7 +1387,7 @@ public class Config extends ConfigBase {
      * This config will decide whether to resend agent task when create_time for agent_task is set,
      * only when current_time - create_time > agent_task_resend_wait_time_ms can ReportHandler do resend agent task
      */
-    @ConfField (mutable = true, masterOnly = true)
+    @ConfField(mutable = true, masterOnly = true)
     public static long agent_task_resend_wait_time_ms = 5000;
 
     /**
@@ -1561,4 +1629,15 @@ public class Config extends ConfigBase {
      */
     @ConfField(mutable = true, masterOnly = true)
     public static boolean repair_slow_replica = true;
+    
+    /*
+     * The relocation of a colocation group may involve a large number of tablets moving within the cluster.
+     * Therefore, we should use a more conservative strategy to avoid relocation of colocation groups as much as possible.
+     * Reloaction usually occurs after a BE node goes offline or goes down.
+     * This parameter is used to delay the determination of BE node unavailability.
+     * The default is 30 minutes, i.e., if a BE node recovers within 30 minutes, relocation of the colocation group
+     * will not be triggered.
+     */
+    @ConfField(mutable = true, masterOnly = true)
+    public static long colocate_group_relocate_delay_second = 1800; // 30 min
 }
