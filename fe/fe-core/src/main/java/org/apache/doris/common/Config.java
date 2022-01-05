@@ -1640,4 +1640,13 @@ public class Config extends ConfigBase {
      */
     @ConfField(mutable = true, masterOnly = true)
     public static long colocate_group_relocate_delay_second = 1800; // 30 min
+
+    /*
+     * If set to true, when creating table, Doris will allow to locate replicas of a tablet
+     * on same host. And also the tablet repair and balance will be disabled.
+     * This is only for local test, so that we can deploy multi BE on same host and create table
+     * with multi replicas.
+     */
+    @ConfField
+    public static boolean allow_replica_on_same_host = false;
 }
