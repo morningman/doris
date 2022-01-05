@@ -58,10 +58,10 @@ public:
 
     ~TabletsChannel();
 
-    Status open(const PTabletWriterOpenRequest& params);
+    Status open(const PTabletWriterOpenRequest& request);
 
     // no-op when this channel has been closed or cancelled
-    Status add_batch(const PTabletWriterAddBatchRequest& batch);
+    Status add_batch(const PTabletWriterAddBatchRequest& request, PTabletWriterAddBatchResult* response);
 
     // Mark sender with 'sender_id' as closed.
     // If all senders are closed, close this channel, set '*finished' to true, update 'tablet_vec'
@@ -84,7 +84,7 @@ public:
 
 private:
     // open all writer
-    Status _open_all_writers(const PTabletWriterOpenRequest& params);
+    Status _open_all_writers(const PTabletWriterOpenRequest& request);
 
 private:
     // id of this load channel
