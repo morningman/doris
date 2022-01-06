@@ -171,8 +171,12 @@ Status NodeChannel::open_wait() {
     // add batch closure
     _add_batch_closure = ReusableClosure<PTabletWriterAddBatchResult>::create();
     _add_batch_closure->addFailedHandler([this]() {
-        _cancel_with_msg(
-                fmt::format("{}, err: {}", channel_info(), _add_batch_closure->cntl.ErrorText()));
+        // If rpc failed, mark all tablets on this node channel as failed
+        _index_channel->mark_as_failed(this, _add_batch_closure->cntl.ErrorText(), -1);
+        Status st = _index_channel->has_intolerable_failure();
+        if (!st.ok()) {
+            _cancel_with_msg(fmt::format("{}, err: {}", channel_info(), st.get_error_msg()));
+        }
     });
 
     _add_batch_closure->addSuccessHandler([this](const PTabletWriterAddBatchResult& result,
@@ -181,7 +185,7 @@ Status NodeChannel::open_wait() {
         if (status.ok()) {
             // if has error tablet, handle them first 
             for (auto& error : result.tablet_errors()) {
-                _index_channel->mark_as_failed(this, error.msg(),  error.tablet_id());
+                _index_channel->mark_as_failed(this, error.msg(), error.tablet_id());
             }
 
             Status st = _index_channel->has_intolerable_failure();
