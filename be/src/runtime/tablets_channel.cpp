@@ -104,6 +104,10 @@ Status TabletsChannel::add_batch(const PTabletWriterAddBatchRequest& request,
     std::unordered_map<int64_t /* tablet_id */, std::vector<int> /* row index */> tablet_to_rowidxs;
     for (int i = 0; i < request.tablet_ids_size(); ++i) {
         int64_t tablet_id = request.tablet_ids(i);
+        if (_broken_tablets.find(tablet_id) != _broken_tablets.end()) {
+            // skip broken tablets
+            continue;
+        }
         auto it = tablet_to_rowidxs.find(tablet_id);
         if (it == tablet_to_rowidxs.end()) {
             tablet_to_rowidxs.emplace(tablet_id, std::initializer_list<int>{ i });
@@ -129,6 +133,7 @@ Status TabletsChannel::add_batch(const PTabletWriterAddBatchRequest& request,
             PTabletError* error = tablet_errors->Add();
             error->set_tablet_id(tablet_to_rowidxs_it.first);
             error->set_msg(err_msg);
+            _broken_tablets.insert(tablet_to_rowidxs_it.first);
             // continue write to other tablet.
             // the error will return back to sender.
         }

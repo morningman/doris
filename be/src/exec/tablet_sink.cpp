@@ -275,6 +275,7 @@ Status NodeChannel::mark_close() {
         _pending_batches.emplace(std::move(_cur_batch), _cur_add_batch_request);
         _pending_batches_num++;
         DCHECK(_pending_batches.back().second.eos());
+        LOG(INFO) << channel_info() << " mark closed, left pending batch size: " << _pending_batches.size();
     }
 
     _eos_is_produced = true;
@@ -792,14 +793,15 @@ Status OlapTableSink::close(RuntimeState* state, Status close_status) {
             for (auto index_channel : _channels) {
                 int64_t add_batch_exec_time = 0;
                 index_channel->for_each_node_channel(
-                        [&status, &state, &node_add_batch_counter_map, &serialize_batch_ns,
+                        [&status, &index_channel, &state, &node_add_batch_counter_map, &serialize_batch_ns,
                          &mem_exceeded_block_ns, &queue_push_lock_ns, &actual_consume_ns,
                          &total_add_batch_exec_time_ns, &add_batch_exec_time,
                          &total_add_batch_num](NodeChannel* ch) {
                             auto s = ch->close_wait(state);
                             if (!s.ok()) {
+                                index_channel->mark_as_failed(ch, s.get_error_msg(), -1);
                                 // 'status' will store the last non-ok status of all channels
-                                status = s;
+                                // status = s;
                                 LOG(WARNING)
                                         << ch->channel_info()
                                         << ", close channel failed, err: " << s.get_error_msg();
@@ -813,7 +815,14 @@ Status OlapTableSink::close(RuntimeState* state, Status close_status) {
                 if (add_batch_exec_time > max_add_batch_exec_time_ns) {
                     max_add_batch_exec_time_ns = add_batch_exec_time;
                 }
-            }
+
+                // check if index has intolerable failure
+                Status index_st = index_channel->has_intolerable_failure();
+                if (!index_st.ok()) {
+                    status = index_st;
+                }
+            } // end for index channels
+            
         }
         // TODO need to be improved
         LOG(INFO) << "total mem_exceeded_block_ns=" << mem_exceeded_block_ns

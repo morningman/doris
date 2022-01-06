@@ -118,6 +118,10 @@ private:
 
     // tablet_id -> TabletChannel
     std::unordered_map<int64_t, DeltaWriter*> _tablet_writers;
+    // broken tablet ids.
+    // If a tablet write fails, it's id will be added to this set.
+    // So that following batch will not handle this tablet anymore.
+    std::unordered_set<int64_t> _broken_tablets;
 
     std::unordered_set<int64_t> _partition_ids;
 
