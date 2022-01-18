@@ -90,6 +90,7 @@ Status NodeChannel::init(RuntimeState* state) {
     _cur_add_batch_request.set_index_id(_index_id);
     _cur_add_batch_request.set_sender_id(_parent->_sender_id);
     _cur_add_batch_request.set_backend_id(_node_id);
+    _cur_add_batch_request.set_is_high_priority(_parent->_is_high_priority);
     _cur_add_batch_request.set_eos(false);
 
     _rpc_timeout_ms = state->query_options().query_timeout * 1000;
