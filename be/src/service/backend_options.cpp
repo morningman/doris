@@ -81,6 +81,10 @@ std::string BackendOptions::get_localhost() {
     return _s_localhost;
 }
 
+std::string* BackendOptions::get_localhost_ptr() {
+    return &_s_localhost;
+}
+
 bool BackendOptions::analyze_priority_cidrs() {
     if (config::priority_networks == "") {
         return true;

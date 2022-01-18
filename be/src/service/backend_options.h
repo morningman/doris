@@ -31,6 +31,7 @@ class BackendOptions {
 public:
     static bool init();
     static std::string get_localhost();
+    static std::string* get_localhost_ptr();
 
 private:
     static bool analyze_priority_cidrs();

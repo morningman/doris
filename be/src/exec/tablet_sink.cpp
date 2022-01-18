@@ -117,7 +117,7 @@ void NodeChannel::open() {
     request.set_load_mem_limit(_parent->_load_mem_limit);
     request.set_load_channel_timeout_s(_parent->_load_channel_timeout_s);
     request.set_is_high_priority(_parent->_is_high_priority);
-    // request.set_sender_ip(BackendOptions::get_localhost());
+    request.set_allocated_sender_ip(BackendOptions::get_localhost_ptr());
 
     _open_closure = new RefCountClosure<PTabletWriterOpenResult>();
     _open_closure->ref();
@@ -132,6 +132,7 @@ void NodeChannel::open() {
                               _open_closure);
     request.release_id();
     request.release_schema();
+    request.release_sender_ip();
 }
 
 void NodeChannel::_cancel_with_msg(const std::string& msg) {
