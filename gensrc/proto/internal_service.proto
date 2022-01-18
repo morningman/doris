@@ -102,7 +102,6 @@ message PTabletWriterAddBatchRequest {
     optional int64 backend_id = 9 [default = -1];
     // transfer the RowBatch to the Controller Attachment
     optional bool transfer_by_attachment = 10 [default = false];
-    optional bool is_high_priority = 11 [default = false];
 };
 
 message PTabletWriterAddBatchResult {

@@ -90,7 +90,6 @@ Status NodeChannel::init(RuntimeState* state) {
     _cur_add_batch_request.set_index_id(_index_id);
     _cur_add_batch_request.set_sender_id(_parent->_sender_id);
     _cur_add_batch_request.set_backend_id(_node_id);
-    _cur_add_batch_request.set_is_high_priority(_parent->_is_high_priority);
     _cur_add_batch_request.set_eos(false);
 
     _rpc_timeout_ms = state->query_options().query_timeout * 1000;
@@ -118,7 +117,7 @@ void NodeChannel::open() {
     request.set_load_mem_limit(_parent->_load_mem_limit);
     request.set_load_channel_timeout_s(_parent->_load_channel_timeout_s);
     request.set_is_high_priority(_parent->_is_high_priority);
-    request.set_sender_ip(BackendOptions::get_localhost());
+    // request.set_sender_ip(BackendOptions::get_localhost());
 
     _open_closure = new RefCountClosure<PTabletWriterOpenResult>();
     _open_closure->ref();
