@@ -218,6 +218,7 @@ private:
     int32_t _schema_hash = 0;
     std::string _load_info;
     std::string _name;
+    std::string _local_ip = "";
 
     TupleDescriptor* _tuple_desc = nullptr;
     NodeInfo _node_info;

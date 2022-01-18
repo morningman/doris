@@ -41,7 +41,10 @@ namespace stream_load {
 
 NodeChannel::NodeChannel(OlapTableSink* parent, int64_t index_id, int64_t node_id,
                          int32_t schema_hash)
-        : _parent(parent), _index_id(index_id), _node_id(node_id), _schema_hash(schema_hash) {}
+        : _parent(parent), _index_id(index_id), _node_id(node_id), _schema_hash(schema_hash) {
+
+    _local_ip = BackendOptions::get_localhost(); 
+}
 
 NodeChannel::~NodeChannel() {
     if (_open_closure != nullptr) {
@@ -117,7 +120,7 @@ void NodeChannel::open() {
     request.set_load_mem_limit(_parent->_load_mem_limit);
     request.set_load_channel_timeout_s(_parent->_load_channel_timeout_s);
     request.set_is_high_priority(_parent->_is_high_priority);
-    request.set_allocated_sender_ip(BackendOptions::get_localhost_ptr());
+    request.set_sender_ip(_local_ip);
 
     _open_closure = new RefCountClosure<PTabletWriterOpenResult>();
     _open_closure->ref();
@@ -132,7 +135,6 @@ void NodeChannel::open() {
                               _open_closure);
     request.release_id();
     request.release_schema();
-    request.release_sender_ip();
 }
 
 void NodeChannel::_cancel_with_msg(const std::string& msg) {
