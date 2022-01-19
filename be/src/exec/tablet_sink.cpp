@@ -120,7 +120,9 @@ void NodeChannel::open() {
     request.set_load_mem_limit(_parent->_load_mem_limit);
     request.set_load_channel_timeout_s(_parent->_load_channel_timeout_s);
     request.set_is_high_priority(_parent->_is_high_priority);
-    // request.set_sender_ip(_local_ip);
+    //request.set_sender_ip(_local_ip);
+    //request.set_sender_ip("asdasdasd");
+    request.set_sender_ip(BackendOptions::get_localhost());
 
     _open_closure = new RefCountClosure<PTabletWriterOpenResult>();
     _open_closure->ref();
