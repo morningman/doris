@@ -300,53 +300,46 @@ bool to_bitmap(RowCursor* read_helper, RowCursor* write_helper, const TabletColu
     write_helper->set_not_null(field_idx);
     BitmapValue bitmap;
     if (!read_helper->is_null(ref_field_idx)) {
+        bool is_empty = false;
         uint64_t origin_value;
         char* src = read_helper->cell_ptr(ref_field_idx);
         switch (ref_column.type()) {
         case OLAP_FIELD_TYPE_TINYINT:
             if (*(int8_t*)src < 0) {
-                LOG(WARNING) << "The input: " << *(int8_t*)src
-                             << " is not valid, to_bitmap only support bigint value from 0 to "
-                                "18446744073709551615 currently";
-                return false;
+                is_empty = true;
+            } else {
+                origin_value = *(int8_t*)src;
             }
-            origin_value = *(int8_t*)src;
             break;
         case OLAP_FIELD_TYPE_UNSIGNED_TINYINT:
             origin_value = *(uint8_t*)src;
             break;
         case OLAP_FIELD_TYPE_SMALLINT:
             if (*(int16_t*)src < 0) {
-                LOG(WARNING) << "The input: " << *(int16_t*)src
-                             << " is not valid, to_bitmap only support bigint value from 0 to "
-                                "18446744073709551615 currently";
-                return false;
+                is_empty = true;
+            } else {
+                origin_value = *(int16_t*)src;
             }
-            origin_value = *(int16_t*)src;
             break;
         case OLAP_FIELD_TYPE_UNSIGNED_SMALLINT:
             origin_value = *(uint16_t*)src;
             break;
         case OLAP_FIELD_TYPE_INT:
             if (*(int32_t*)src < 0) {
-                LOG(WARNING) << "The input: " << *(int32_t*)src
-                             << " is not valid, to_bitmap only support bigint value from 0 to "
-                                "18446744073709551615 currently";
-                return false;
+                is_empty = true;
+            } else {
+                origin_value = *(int32_t*)src;
             }
-            origin_value = *(int32_t*)src;
             break;
         case OLAP_FIELD_TYPE_UNSIGNED_INT:
             origin_value = *(uint32_t*)src;
             break;
         case OLAP_FIELD_TYPE_BIGINT:
             if (*(int64_t*)src < 0) {
-                LOG(WARNING) << "The input: " << *(int64_t*)src
-                             << " is not valid, to_bitmap only support bigint value from 0 to "
-                                "18446744073709551615 currently";
-                return false;
+                is_empty = true;
+            } else {
+                origin_value = *(int64_t*)src;
             }
-            origin_value = *(int64_t*)src;
             break;
         case OLAP_FIELD_TYPE_UNSIGNED_BIGINT:
             origin_value = *(uint64_t*)src;
@@ -356,7 +349,9 @@ bool to_bitmap(RowCursor* read_helper, RowCursor* write_helper, const TabletColu
                          << " from_type=" << ref_column.type();
             return false;
         }
-        bitmap.add(origin_value);
+        if (!is_empty) {
+            bitmap.add(origin_value);
+        }
     }
     char* buf = reinterpret_cast<char*>(mem_pool->allocate(bitmap.getSizeInBytes()));
     Slice dst(buf, bitmap.getSizeInBytes());
@@ -504,7 +499,7 @@ OLAPStatus RowBlockChanger::change_row_block(const RowBlock* ref_block, int32_t 
             if (!_schema_mapping[i].materialized_function.empty()) {
                 bool (*_do_materialized_transform)(RowCursor*, RowCursor*, const TabletColumn&, int,
                                                    int, MemPool*);
-                if (_schema_mapping[i].materialized_function == "to_bitmap") {
+                if (_schema_mapping[i].materialized_function == "to_bitmap" || _schema_mapping[i].materialized_function == "to_bitmap_with_null") {
                     _do_materialized_transform = to_bitmap;
                 } else if (_schema_mapping[i].materialized_function == "hll_hash") {
                     _do_materialized_transform = hll_hash;

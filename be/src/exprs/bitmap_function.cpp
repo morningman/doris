@@ -373,6 +373,25 @@ StringVal BitmapFunctions::to_bitmap(doris_udf::FunctionContext* ctx,
     return serialize(ctx, &bitmap);
 }
 
+StringVal BitmapFunctions::to_bitmap_with_null(doris_udf::FunctionContext* ctx,
+                                               const doris_udf::StringVal& src) {
+    BitmapValue bitmap;
+    if (src.is_null) {
+        return serialize(ctx, &bitmap);
+    }
+    StringParser::ParseResult parse_result = StringParser::PARSE_SUCCESS;
+    int64_t int_value = StringParser::string_to_unsigned_int<int64_t>(
+            reinterpret_cast<char*>(src.ptr), src.len, &parse_result);
+    if (UNLIKELY(parse_result != StringParser::PARSE_SUCCESS)) {
+        return StringVal::null();
+    }
+    if (int_value < 0) {
+        return serialize(ctx, &bitmap);
+    }
+    bitmap.add(int_value);
+    return serialize(ctx, &bitmap);
+}
+
 StringVal BitmapFunctions::bitmap_hash(doris_udf::FunctionContext* ctx,
                                        const doris_udf::StringVal& src) {
     BitmapValue bitmap;

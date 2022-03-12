@@ -62,6 +62,39 @@ struct ToBitmap {
     }
 };
 
+struct ToBitmapWithNull {
+    static constexpr auto name = "to_bitmap_with_null";
+
+    static Status vector(const ColumnString::Chars& data, const ColumnString::Offsets& offsets,
+                         std::vector<BitmapValue>& res, NullMap& null_map) {
+        auto size = offsets.size();
+        res.reserve(size);
+        for (size_t i = 0; i < size; ++i) {
+            if (data.is_null_at(i)) {
+                res.emplace_back();
+                continue;
+            }
+            const char* raw_str = reinterpret_cast<const char*>(&data[offsets[i - 1]]);
+            size_t str_size = offsets[i] - offsets[i - 1] - 1;
+            if ()
+            StringParser::ParseResult parse_result = StringParser::PARSE_SUCCESS;
+            int64_t int_value = StringParser::string_to_int<int64_t>(raw_str, str_size, &parse_result);
+            if (UNLIKELY(parse_result != StringParser::PARSE_SUCCESS)) {
+                res.emplace_back();
+                null_map[i] = 1;
+                continue;
+            }
+            if (int_value < 0) {
+                res.emplace_back();
+                continue;
+            } 
+            res.emplace_back();
+            res.back().add(int_value);
+        }
+        return Status::OK();
+    }
+};
+
 struct BitmapFromString {
     static constexpr auto name = "bitmap_from_string";
 
@@ -497,6 +530,7 @@ public:
 
 using FunctionBitmapEmpty = FunctionConst<BitmapEmpty, false>;
 using FunctionToBitmap = FunctionBitmapAlwaysNull<ToBitmap>;
+using FunctionToBitmapWithNull = FunctionBitmapAlwaysNull<ToBitmapWithNull>;
 using FunctionBitmapFromString = FunctionBitmapAlwaysNull<BitmapFromString>;
 using FunctionBitmapHash = FunctionAlwaysNotNullable<BitmapHash>;
 
@@ -524,6 +558,7 @@ using FunctionBitmapSubsetInRange = FunctionBitmapSubs<BitmapSubsetInRange>;
 void register_function_bitmap(SimpleFunctionFactory& factory) {
     factory.register_function<FunctionBitmapEmpty>();
     factory.register_function<FunctionToBitmap>();
+    factory.register_function<FunctionToBitmapWithNull>();
     factory.register_function<FunctionBitmapFromString>();
     factory.register_function<FunctionBitmapHash>();
     factory.register_function<FunctionBitmapCount>();
