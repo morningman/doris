@@ -168,6 +168,7 @@ under the License.
                             <goal>copy-dependencies</goal>
                         </goals>
                         <configuration>
+                            <includeScope>runtime</includeScope>
                             <outputDirectory>${project.build.directory}/lib</outputDirectory>
                             <overWriteReleases>false</overWriteReleases>
                             <overWriteSnapshots>false</overWriteSnapshots>
