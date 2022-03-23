@@ -24,6 +24,7 @@
 #include "runtime/string_value.h"
 #include "runtime/string_value.hpp"
 #include "runtime/types.h"
+#include "vec/core/types.h"
 
 namespace doris {
 
@@ -46,6 +47,9 @@ struct ExprValue {
     DateTimeValue datetime_val;
     DecimalV2Value decimalv2_val;
     CollectionValue array_val;
+    doris::vectorized::Decimal32 decimal32_val;
+    doris::vectorized::Decimal64 decimal64_val;
+    doris::vectorized::Decimal128 decimal128_val;
 
     ExprValue()
             : bool_val(false),

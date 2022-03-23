@@ -87,6 +87,9 @@ AnyVal* create_any_val(ObjectPool* pool, const TypeDescriptor& type) {
     case TYPE_DECIMALV2:
         return pool->add(new DecimalV2Val);
 
+    case TYPE_DECIMAL128:
+        return pool->add(new Decimal128Val);
+
     case TYPE_DATE:
         return pool->add(new DateTimeVal);
 
@@ -155,6 +158,21 @@ FunctionContext::TypeDesc AnyValUtil::column_type_to_type_desc(const TypeDescrip
         out.type = FunctionContext::TYPE_DECIMALV2;
         // out.precision = type.precision;
         // out.scale = type.scale;
+        break;
+    case TYPE_DECIMAL32:
+        out.type = FunctionContext::TYPE_DECIMAL32;
+        out.precision = type.precision;
+        out.scale = type.scale;
+        break;
+    case TYPE_DECIMAL64:
+        out.type = FunctionContext::TYPE_DECIMAL64;
+        out.precision = type.precision;
+        out.scale = type.scale;
+        break;
+    case TYPE_DECIMAL128:
+        out.type = FunctionContext::TYPE_DECIMAL128;
+        out.precision = type.precision;
+        out.scale = type.scale;
         break;
     case TYPE_NULL:
         out.type = FunctionContext::TYPE_NULL;

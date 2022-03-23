@@ -126,6 +126,7 @@ public class StreamLoadPlanner {
         boolean negative = taskInfo.getNegative();
         // here we should be full schema to fill the descriptor table
         for (Column col : destTable.getFullSchema()) {
+            LOG.info("liaoxin col: {}", col);
             SlotDescriptor slotDesc = descTable.addSlotDescriptor(tupleDesc);
             slotDesc.setIsMaterialized(true);
             slotDesc.setColumn(col);
@@ -134,6 +135,7 @@ public class StreamLoadPlanner {
                 throw new DdlException("Column is not SUM AggregateType. column:" + col.getName());
             }
         }
+        LOG.info("liaoxin tupleDesc: {}", tupleDesc);
 
         // create scan node
         scanNode = new StreamLoadScanNode(loadId, new PlanNodeId(0), tupleDesc, destTable, taskInfo);
@@ -209,6 +211,7 @@ public class StreamLoadPlanner {
             }
         }
 
+        LOG.info("liaoxin stream load plan: {}",  params);
         // LOG.debug("stream load txn id: {}, plan: {}", streamLoadTask.getTxnId(), params);
         return params;
     }

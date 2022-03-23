@@ -545,6 +545,9 @@ public class HadoopLoadPendingTask extends LoadPendingTask {
                     columnType = "BITMAP";
                     break;
                 case DECIMALV2:
+                case DECIMAL32:
+                case DECIMAL64:
+                case DECIMAL128:
                     columnType = "DECIMAL";
                     break;
                 default:
@@ -573,7 +576,8 @@ public class HadoopLoadPendingTask extends LoadPendingTask {
             }
 
             // decimal precision scale
-            if (type == PrimitiveType.DECIMALV2) {
+            if (type == PrimitiveType.DECIMALV2 || type == PrimitiveType.DECIMAL32
+                    || type == PrimitiveType.DECIMAL64 || type == PrimitiveType.DECIMAL128) {
                 dppColumn.put("precision", column.getPrecision());
                 dppColumn.put("scale", column.getScale());
             }

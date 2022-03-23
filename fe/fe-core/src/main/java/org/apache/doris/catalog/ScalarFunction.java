@@ -130,6 +130,7 @@ public class ScalarFunction extends Function {
         String beFn = name;
         boolean usesDecimal = false;
         boolean usesDecimalV2 = false;
+        boolean usesDecimalV3 = false;
         for (int i = 0; i < argTypes.size(); ++i) {
             switch (argTypes.get(i).getPrimitiveType()) {
                 case BOOLEAN:
@@ -172,12 +173,25 @@ public class ScalarFunction extends Function {
                     beFn += "_decimalv2_val";
                     usesDecimalV2 = true;
                     break;
+                case DECIMAL32:
+                    beFn += "_decimal32_val";
+                    usesDecimalV3 = true;
+                    break;
+                case DECIMAL64:
+                    beFn += "_decimal64_val";
+                    usesDecimalV3 = true;
+                    break;
+                case DECIMAL128:
+                    beFn += "_decimal128_val";
+                    usesDecimalV3 = true;
+                    break;
                 default:
                     Preconditions.checkState(false, "Argument type not supported: " + argTypes.get(i));
             }
         }
         String beClass = usesDecimal ? "DecimalOperators" : "Operators";
         if (usesDecimalV2) beClass = "DecimalV2Operators";
+        if (usesDecimalV3) beClass = "DecimalV3Operators";
         String symbol = "doris::" + beClass + "::" + beFn;
         return createBuiltinOperator(name, symbol, argTypes, retType, nullableMode);
     }
@@ -196,13 +210,11 @@ public class ScalarFunction extends Function {
     public static ScalarFunction createVecBuiltinOperator(
             String name, ArrayList<Type> argTypes, Type retType, NullableMode nullableMode) {
         StringBuilder beFn = new StringBuilder(name);
-        boolean usesDecimal = false;
-        boolean usesDecimalV2 = false;
 
         // just mock a fake symbol for vec function, we treat
         // all argument is same as first argument
         for (int i = 0; i < argTypes.size(); ++i) {
-            switch (argTypes.get(0).getPrimitiveType()) {
+            switch (argTypes.get(i).getPrimitiveType()) {
                 case BOOLEAN:
                     beFn.append("_boolean_val");
                     break;
@@ -240,15 +252,21 @@ public class ScalarFunction extends Function {
                     break;
                 case DECIMALV2:
                     beFn.append("_decimalv2_val");
-                    usesDecimalV2 = true;
+                    break;
+                case DECIMAL32:
+                    beFn.append("_decimal32_val");
+                    break;
+                case DECIMAL64:
+                    beFn.append("_decimal64_val");
+                    break;
+                case DECIMAL128:
+                    beFn.append("_decimal128_val");
                     break;
                 default:
                     Preconditions.checkState(false, "Argument type not supported: " + argTypes.get(i));
             }
         }
-        String beClass = usesDecimal ? "DecimalOperators" : "Operators";
-        if (usesDecimalV2) beClass = "DecimalV2Operators";
-        String symbol = "doris::" + beClass + "::" + beFn;
+        String symbol = "doris::Operators::" + beFn;
         return createVecBuiltinOperator(name, symbol, argTypes, retType, nullableMode);
     }
 

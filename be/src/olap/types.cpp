@@ -83,6 +83,9 @@ ScalarTypeInfoResolver::ScalarTypeInfoResolver() {
     add_mapping<OLAP_FIELD_TYPE_STRING>();
     add_mapping<OLAP_FIELD_TYPE_HLL>();
     add_mapping<OLAP_FIELD_TYPE_OBJECT>();
+    add_mapping<OLAP_FIELD_TYPE_DECIMAL32>();
+    add_mapping<OLAP_FIELD_TYPE_DECIMAL64>();
+    add_mapping<OLAP_FIELD_TYPE_DECIMAL128>();
 }
 
 ScalarTypeInfoResolver::~ScalarTypeInfoResolver() {}

@@ -118,6 +118,7 @@ Status RowBlockV2::_copy_data_to_column(int cid,
         memset(nullable_mark_array, false, _selected_size * sizeof(bool));
     }
 
+    LOG(INFO) << "liaoxin _copy_data_to_column column type: " << demangle(typeid(*column).name());
     auto insert_data_directly = [this, &nullable_mark_array](int cid, auto& column) {
         for (uint16_t j = 0; j < _selected_size; ++j) {
             if (!nullable_mark_array[j]) {
@@ -278,6 +279,31 @@ Status RowBlockV2::_copy_data_to_column(int cid,
                 column_decimal->insert_default();
             }
         }
+        break;
+    }
+    case OLAP_FIELD_TYPE_DECIMAL32: {
+        auto column_decimal =
+                assert_cast<vectorized::ColumnDecimal<vectorized::Decimal32>*>(column);
+        for (uint16_t j = 0; j < _selected_size; ++j) {
+            if (!nullable_mark_array[j]) {
+                uint16_t row_idx = _selection_vector[j];
+                auto ptr = reinterpret_cast<const char*>(column_block(cid).cell_ptr(row_idx));
+                LOG(INFO) << "liaoxin column_decimal32 value: " << *(int32_t*)(ptr);
+            }
+        }
+        insert_data_directly(cid, column_decimal);
+        break;
+    }
+    case OLAP_FIELD_TYPE_DECIMAL64: {
+        auto column_decimal =
+                assert_cast<vectorized::ColumnDecimal<vectorized::Decimal64>*>(column);
+        insert_data_directly(cid, column_decimal);
+        break;
+    }
+    case OLAP_FIELD_TYPE_DECIMAL128: {
+        auto column_decimal =
+                assert_cast<vectorized::ColumnDecimal<vectorized::Decimal128>*>(column);
+        insert_data_directly(cid, column_decimal);
         break;
     }
     case OLAP_FIELD_TYPE_ARRAY: {
@@ -539,6 +565,34 @@ Status RowBlockV2::_append_data_to_column(const ColumnVectorBatch* batch, size_t
                 column_decimal->insert_default();
             }
         }
+        break;
+    }
+    case OLAP_FIELD_TYPE_DECIMAL32: {
+        auto column_decimal =
+                assert_cast<vectorized::ColumnDecimal<vectorized::Decimal32>*>(column);
+        insert_data_directly(batch, column_decimal, start, len);
+        break;
+    }
+    case OLAP_FIELD_TYPE_DECIMAL64: {
+        auto column_decimal =
+                assert_cast<vectorized::ColumnDecimal<vectorized::Decimal128>*>(column);
+        insert_data_directly(batch, column_decimal, start, len);
+        break;
+    }
+    case OLAP_FIELD_TYPE_DECIMAL128: {
+        auto column_decimal =
+                assert_cast<vectorized::ColumnDecimal<vectorized::Decimal128>*>(column);
+
+        for (uint16_t j = 0; j < _selected_size; ++j) {
+            if (!nullable_mark_array[j]) {
+                uint16_t row_idx = _selection_vector[j];
+                auto ptr = reinterpret_cast<const char*>(batch->cell_ptr(row_idx));
+
+                int128_t value = *(int128_t*)(ptr);
+                LOG(ERROR) << "liaoxin row block append value: " << value;
+            }
+        }
+        insert_data_directly(batch, column_decimal, start, len);
         break;
     }
     case OLAP_FIELD_TYPE_ARRAY: {

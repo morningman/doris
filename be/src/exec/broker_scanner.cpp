@@ -80,6 +80,7 @@ BrokerScanner::~BrokerScanner() {
 }
 
 Status BrokerScanner::open() {
+    VLOG_CRITICAL << "liaoxin open ";
     RETURN_IF_ERROR(BaseScanner::open()); // base default function
     _text_converter.reset(new (std::nothrow) TextConverter('\\'));
     if (_text_converter == nullptr) {

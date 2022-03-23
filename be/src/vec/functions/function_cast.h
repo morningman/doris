@@ -1265,6 +1265,7 @@ protected:
                     "Second argument to {} must be a constant string describing type", get_name());
         }
 
+        LOG(WARNING) << "liaoxin get_return_type_impl val: " << type_col->get_value<String>();
         auto type = DataTypeFactory::instance().get(type_col->get_value<String>());
 
         bool need_to_be_nullable = false;

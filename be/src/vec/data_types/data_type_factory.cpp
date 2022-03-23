@@ -98,6 +98,19 @@ DataTypePtr DataTypeFactory::create_data_type(const TypeDescriptor& col_desc, bo
     case TYPE_DECIMALV2:
         nested = std::make_shared<vectorized::DataTypeDecimal<vectorized::Decimal128>>(27, 9);
         break;
+    case TYPE_DECIMAL32:
+        LOG(INFO) << "liaoxin is decimal32: " << TypeName<Decimal32>::get();
+        nested = std::make_shared<vectorized::DataTypeDecimal<vectorized::Decimal32>>(col_desc.precision,
+                                                                                      col_desc.scale);
+        break;
+    case TYPE_DECIMAL64:
+        nested = std::make_shared<vectorized::DataTypeDecimal<vectorized::Decimal64>>(col_desc.precision,
+                                                                                      col_desc.scale);
+        break;
+    case TYPE_DECIMAL128:
+        nested = std::make_shared<vectorized::DataTypeDecimal<vectorized::Decimal128>>(col_desc.precision,
+                                                                                       col_desc.scale);
+        break;
     // Just Mock A NULL Type in Vec Exec Engine
     case TYPE_NULL:
         nested = std::make_shared<vectorized::DataTypeUInt8>();
@@ -113,6 +126,8 @@ DataTypePtr DataTypeFactory::create_data_type(const TypeDescriptor& col_desc, bo
         break;
     }
 
+    LOG(INFO) << "liaoxin create column data type: " << demangle(typeid(*(nested.get())).name())
+              << "  descriptors: "  << col_desc;
     if (nested && is_nullable) {
         return std::make_shared<vectorized::DataTypeNullable>(nested);
     }
@@ -163,6 +178,16 @@ DataTypePtr DataTypeFactory::_create_primitive_data_type(const FieldType& type) 
         break;
     case OLAP_FIELD_TYPE_DECIMAL:
         result = std::make_shared<vectorized::DataTypeDecimal<vectorized::Decimal128>>(27, 9);
+        break;
+    // TODO liaoxin
+    case OLAP_FIELD_TYPE_DECIMAL32:
+        result = std::make_shared<vectorized::DataTypeDecimal<vectorized::Decimal32>>(9, 0);
+        break;
+    case OLAP_FIELD_TYPE_DECIMAL64:
+        result = std::make_shared<vectorized::DataTypeDecimal<vectorized::Decimal64>>(18, 0);
+        break;
+    case OLAP_FIELD_TYPE_DECIMAL128:
+        result = std::make_shared<vectorized::DataTypeDecimal<vectorized::Decimal128>>(38, 0);
         break;
     default:
         DCHECK(false) << "Invalid FieldType:" << (int)type;

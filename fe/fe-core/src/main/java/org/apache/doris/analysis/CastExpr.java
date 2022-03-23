@@ -17,6 +17,16 @@
 
 package org.apache.doris.analysis;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.catalog.Function;
 import org.apache.doris.catalog.FunctionSet;
@@ -31,20 +41,8 @@ import org.apache.doris.thrift.TExpr;
 import org.apache.doris.thrift.TExprNode;
 import org.apache.doris.thrift.TExprNodeType;
 import org.apache.doris.thrift.TExprOpcode;
-
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
 
 
 public class CastExpr extends Expr {
@@ -145,15 +143,22 @@ public class CastExpr extends Expr {
                 }
                 // Disable casting from boolean to decimal or datetime or date
                 if (fromType.isBoolean() &&
-                        (toType.equals(Type.DECIMALV2) ||
-                                toType.equals(Type.DATETIME) || toType.equals(Type.DATE))) {
+                        (toType.equals(Type.DECIMALV2) || toType.equals(Type.DECIMAL32)
+                         || toType.equals(Type.DECIMAL64) || toType.equals(Type.DECIMAL128)
+                         || toType.equals(Type.DATETIME) || toType.equals(Type.DATE))) {
                     continue;
                 }
                 // Disable no-op casts
                 if (fromType.equals(toType)) {
                     continue;
                 }
-                String beClass = toType.isDecimalV2() || fromType.isDecimalV2() ? "DecimalV2Operators" : "CastFunctions";
+                // TODO
+                String beClass = "CastFunctions";
+                if (toType.isDecimalV2() || fromType.isDecimalV2() ) {
+                    beClass = "DecimalV2Operators";
+                } else if (toType.isDecimalV3() || fromType.isDecimalV3()) {
+                    beClass = "DecimalV3Operators";
+                }
                 if (fromType.isTime()) {
                     beClass = "TimeOperators";
                 }
@@ -249,6 +254,11 @@ public class CastExpr extends Expr {
                 fn = Catalog.getCurrentCatalog().getFunction(
                         searchDesc, Function.CompareMode.IS_IDENTICAL);
             }
+            ScalarType scalarType = (ScalarType)type;
+            // TODO liaoxin
+            if (scalarType.isDecimalV3()) {
+                fn.setReturnType(type);
+            }
         } else if (type.isArrayType()){
             fn = ScalarFunction.createBuiltin(getFnName(Type.ARRAY),
                     type, Function.NullableMode.ALWAYS_NULLABLE,
@@ -343,10 +353,9 @@ public class CastExpr extends Expr {
             return new IntLiteral(value.getLongValue(), type);
         } else if (type.isLargeIntType()) {
             return new LargeIntLiteral(value.getStringValue());
-        } else if (type.isDecimalV2()) {
+        } else if (type.isDecimalV2() || type.isDecimalV3()) { // TODO liaoxin
             return new DecimalLiteral(value.getStringValue());
         } else if (type.isFloatingPointType()) {
-
             return new FloatLiteral(value.getDoubleValue(), type);
         } else if (type.isStringType()) {
             return new StringLiteral(value.getStringValue());
@@ -412,6 +421,9 @@ public class CastExpr extends Expr {
         ScalarType newTargetType = null;
         switch (primitiveType) {
             case DECIMALV2:
+            case DECIMAL32:
+            case DECIMAL64:
+            case DECIMAL128:
                 // normal decimal
                 if (targetType.getPrecision() != 0) {
                     newTargetType = targetType;

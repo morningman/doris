@@ -243,6 +243,8 @@ public class SortInfo {
             //     materializedOrderingExprs_.add(origOrderingExpr);
             // }
             {
+                LOG.info("liaoxin createMaterializedOrderExprs origOrderingExpr: {}, javava type: {}, type: {}",
+                        origOrderingExpr.toSql(), origOrderingExpr.getClass().getName(), origOrderingExpr.getType());
                 SlotDescriptor materializedDesc = analyzer.addSlotDescriptor(sortTupleDesc);
                 materializedDesc.initFromExpr(origOrderingExpr);
                 materializedDesc.setIsMaterialized(true);

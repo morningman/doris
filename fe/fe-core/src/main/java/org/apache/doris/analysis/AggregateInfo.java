@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.doris.common.util.DebugUtil;
 
 /**
  * Encapsulates all the information needed to compute the aggregate functions of a single
@@ -211,6 +212,9 @@ public final class AggregateInfo extends AggregateInfoBase {
             result.createDistinctAggInfo(groupingExprs, distinctAggExprs, analyzer);
         }
         if (LOG.isDebugEnabled())  LOG.debug("agg info:\n{}", result.debugString());
+         LOG.info("liaoxin agg info:\n{}", result.debugString());
+            Exception e = new Exception("this is a log"); //相应的log标记
+            LOG.info("liaoxin strace: {}", DebugUtil.getStackTrace(e));
         return result;
     }
 

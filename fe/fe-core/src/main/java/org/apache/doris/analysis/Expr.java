@@ -27,6 +27,7 @@ import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.TreeNode;
 import org.apache.doris.common.io.Writable;
+import org.apache.doris.common.util.DebugUtil;
 import org.apache.doris.common.util.VectorizedUtil;
 import org.apache.doris.thrift.TExpr;
 import org.apache.doris.thrift.TExprNode;
@@ -300,6 +301,8 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
     // add by cmy. for restoring
     public void setType(Type type) {
         this.type = type;
+            Exception e = new Exception("this is a log"); //相应的log标记
+            LOG.info("liaoxin strace: {}", DebugUtil.getStackTrace(e));
     }
 
     public TExprOpcode getOpcode() {
@@ -359,6 +362,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
      * Throws exception if any errors found.
      */
     public final void analyze(Analyzer analyzer) throws AnalysisException {
+        LOG.info("liaoxin expr analyze {}", this.debugString());
         if (isAnalyzed()) return;
 
         // Check the expr child limit.
@@ -433,6 +437,7 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
         Type[] childTypes = new Type[children.size()];
         for (int i = 0; i < children.size(); ++i) {
             childTypes[i] = children.get(i).type;
+            LOG.info("liaoxin collectChildReturnTypes, type: {}", childTypes[i]);
         }
         return childTypes;
     }
@@ -1320,6 +1325,11 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
                     + ", targeType=" + targetType);
 
         }
+        if (true) {
+            Exception e = new Exception("this is a log"); //相应的log标记
+            LOG.info("liaoxin strace: {}", DebugUtil.getStackTrace(e));
+        }
+        LOG.info("liaoxin this: {}, targeType: {}", this, targetType);
         return uncheckedCastTo(targetType);
     }
 
@@ -1390,10 +1400,13 @@ abstract public class Expr extends TreeNode<Expr> implements ParseNode, Cloneabl
         Type t2 = getChild(1).getType();
         // add operand casts
         Preconditions.checkState(compatibleType.isValid());
+        LOG.info("liaoxin castBinaryOp t1: {}, t2: {}, compatibleType: {}", t1, t2, compatibleType);
         if (t1.getPrimitiveType() != compatibleType.getPrimitiveType()) {
+            LOG.info("liaoxin cast t1");
             castChild(compatibleType, 0);
         }
         if (t2.getPrimitiveType() != compatibleType.getPrimitiveType()) {
+            LOG.info("liaoxin cast t2");
             castChild(compatibleType, 1);
         }
         return compatibleType;

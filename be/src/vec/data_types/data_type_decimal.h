@@ -46,7 +46,7 @@ constexpr size_t max_decimal_precision<Decimal64>() {
 }
 template <>
 constexpr size_t max_decimal_precision<Decimal128>() {
-    return 27;
+    return 38;
 }
 
 DataTypePtr create_decimal(UInt64 precision, UInt64 scale);
@@ -97,19 +97,13 @@ public:
 
     DataTypeDecimal(UInt32 precision_ = 27, UInt32 scale_ = 9)
             : precision(precision_), scale(scale_) {
-        if (UNLIKELY(precision < 1 || precision > max_precision())) {
+        if (UNLIKELY(precision < 0 || precision > max_precision())) {
             LOG(FATAL) << fmt::format("Precision {} is out of bounds", precision);
         }
 
         if (UNLIKELY(scale < 0 || static_cast<UInt32>(scale) > max_precision())) {
             LOG(FATAL) << fmt::format("Scale {} is out of bounds", scale);
         }
-
-        // Now, Doris only support precision:27, scale: 9
-        DCHECK(precision_ == 27);
-        DCHECK(scale_ == 9);
-        precision_ = 27;
-        scale_ = 9;
     }
 
     const char* get_family_name() const override { return "Decimal"; }
@@ -174,6 +168,7 @@ public:
     /// @returns multiplier for U to become T with correct scale
     template <typename U>
     T scale_factor_for(const DataTypeDecimal<U>& x, bool) const {
+        LOG(INFO) << "liaoxin scale_factor_for 1";
         if (get_scale() < x.get_scale()) {
             LOG(FATAL) << "Decimal result's scale is less then argiment's one";
         }
@@ -184,6 +179,7 @@ public:
 
     template <typename U>
     T scale_factor_for(const DataTypeNumber<U>&, bool is_multiply_or_divisor) const {
+        LOG(INFO) << "liaoxin scale_factor_for 2" << " is_multiply_or_divisor: " << is_multiply_or_divisor;
         if (is_multiply_or_divisor) return 1;
         return get_scale_multiplier();
     }
@@ -199,26 +195,37 @@ template <typename T, typename U>
 typename std::enable_if_t<(sizeof(T) >= sizeof(U)), const DataTypeDecimal<T>> decimal_result_type(
         const DataTypeDecimal<T>& tx, const DataTypeDecimal<U>& ty, bool is_multiply,
         bool is_divide) {
-    return DataTypeDecimal<T>(max_decimal_precision<T>(), 9);
+    // TODO liaoxin
+    UInt32 scale = (tx.get_scale() > ty.get_scale() ? tx.get_scale() : ty.get_scale());
+    if (is_multiply)
+        scale = tx.get_scale() + ty.get_scale();
+    else if (is_divide)
+        scale = tx.get_scale();
+    return DataTypeDecimal<T>(max_decimal_precision<T>(), scale);
 }
 
 template <typename T, typename U>
 typename std::enable_if_t<(sizeof(T) < sizeof(U)), const DataTypeDecimal<U>> decimal_result_type(
         const DataTypeDecimal<T>& tx, const DataTypeDecimal<U>& ty, bool is_multiply,
         bool is_divide) {
-    return DataTypeDecimal<U>(max_decimal_precision<U>(), 9);
+    UInt32 scale = (tx.get_scale() > ty.get_scale() ? tx.get_scale() : ty.get_scale());
+    if (is_multiply)
+        scale = tx.get_scale() + ty.get_scale();
+    else if (is_divide)
+        scale = tx.get_scale();
+    return DataTypeDecimal<U>(max_decimal_precision<U>(), scale);
 }
 
 template <typename T, typename U>
 const DataTypeDecimal<T> decimal_result_type(const DataTypeDecimal<T>& tx, const DataTypeNumber<U>&,
                                              bool, bool) {
-    return DataTypeDecimal<T>(max_decimal_precision<T>(), 9);
+    return DataTypeDecimal<T>(max_decimal_precision<T>(), tx.get_scale());
 }
 
 template <typename T, typename U>
 const DataTypeDecimal<U> decimal_result_type(const DataTypeNumber<T>&, const DataTypeDecimal<U>& ty,
                                              bool, bool) {
-    return DataTypeDecimal<U>(max_decimal_precision<U>(), 9);
+    return DataTypeDecimal<U>(max_decimal_precision<U>(), ty.get_scale());
 }
 
 template <typename T>

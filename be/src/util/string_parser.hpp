@@ -29,6 +29,7 @@
 #include "common/compiler_util.h"
 #include "common/status.h"
 #include "runtime/primitive_type.h"
+#include "vec/common/int_exp.h"
 
 namespace doris {
 
@@ -70,7 +71,8 @@ public:
     template<typename T>
     static T numeric_limits(bool negative);
 
-    static inline __int128 get_scale_multiplier(int scale);
+    template<typename T>
+    static inline constexpr T get_scale_multiplier(int scale);
 
     // This is considerably faster than glibc's implementation (25x).
     // In the case of overflow, the max/min value for the data type will be returned.
@@ -134,7 +136,8 @@ public:
         return string_to_bool_internal(s + i, len - i, result);
     }
 
-    static inline __int128 string_to_decimal(const char* s, int len, int type_precision,
+    template<typename T>
+    static inline T string_to_decimal(const char* s, int len, int type_precision,
                                              int type_scale, ParseResult* result);
 
     template <typename T>
@@ -616,55 +619,21 @@ inline int StringParser::StringParseTraits<__int128>::max_ascii_len() {
     return 39;
 }
 
-inline __int128 StringParser::get_scale_multiplier(int scale) {
-    DCHECK_GE(scale, 0);
-    static const __int128 values[] = {
-        static_cast<__int128>(1ll),
-        static_cast<__int128>(10ll),
-        static_cast<__int128>(100ll),
-        static_cast<__int128>(1000ll),
-        static_cast<__int128>(10000ll),
-        static_cast<__int128>(100000ll),
-        static_cast<__int128>(1000000ll),
-        static_cast<__int128>(10000000ll),
-        static_cast<__int128>(100000000ll),
-        static_cast<__int128>(1000000000ll),
-        static_cast<__int128>(10000000000ll),
-        static_cast<__int128>(100000000000ll),
-        static_cast<__int128>(1000000000000ll),
-        static_cast<__int128>(10000000000000ll),
-        static_cast<__int128>(100000000000000ll),
-        static_cast<__int128>(1000000000000000ll),
-        static_cast<__int128>(10000000000000000ll),
-        static_cast<__int128>(100000000000000000ll),
-        static_cast<__int128>(1000000000000000000ll),
-        static_cast<__int128>(1000000000000000000ll) * 10ll,
-        static_cast<__int128>(1000000000000000000ll) * 100ll,
-        static_cast<__int128>(1000000000000000000ll) * 1000ll,
-        static_cast<__int128>(1000000000000000000ll) * 10000ll,
-        static_cast<__int128>(1000000000000000000ll) * 100000ll,
-        static_cast<__int128>(1000000000000000000ll) * 1000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 10000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 100000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 1000000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 10000000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 100000000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 1000000000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 10000000000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 100000000000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 1000000000000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 10000000000000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 100000000000000000ll,
-        static_cast<__int128>(1000000000000000000ll) * 100000000000000000ll * 10ll,
-        static_cast<__int128>(1000000000000000000ll) * 100000000000000000ll * 100ll,
-        static_cast<__int128>(1000000000000000000ll) * 100000000000000000ll * 1000ll};
-    if (scale >= 0 && scale < 39) {
-        return values[scale];
+template<typename T>
+inline constexpr T StringParser::get_scale_multiplier(int scale) {
+    if constexpr (std::is_same_v<T, int32_t>) {
+        return common::exp10_i32(scale);
+    } else if constexpr (std::is_same_v<T, int64_t>) {
+        return common::exp10_i64(scale);
+    } else if constexpr (std::is_same_v<T, int128_t>) {
+        return common::exp10_i128(scale);
+    } else {
+        return T(0);
     }
-    return -1;  // Overflow
 }
 
-inline __int128 StringParser::string_to_decimal(const char* s, int len,
+template<typename T>
+inline T StringParser::string_to_decimal(const char* s, int len,
             int type_precision, int type_scale, ParseResult* result) {
     // Special cases:
     //   1) '' == Fail, an empty string fails to parse.
@@ -720,7 +689,7 @@ inline __int128 StringParser::string_to_decimal(const char* s, int len,
     int precision = 0;
     bool found_exponent = false;
     int8_t exponent = 0;
-    __int128 value = 0;
+    T value = 0;
     for (int i = 0; i < len; ++i) {
         const char& c = s[i];
         if (LIKELY('0' <= c && c <= '9')) {
@@ -753,7 +722,7 @@ inline __int128 StringParser::string_to_decimal(const char* s, int len,
                 return 0;
             }
             *result = StringParser::PARSE_SUCCESS;
-            value *= get_scale_multiplier(type_scale - scale);
+            value *= get_scale_multiplier<T>(type_scale - scale);
             return is_negative ? -value : value;
         }
     }
@@ -764,7 +733,7 @@ inline __int128 StringParser::string_to_decimal(const char* s, int len,
         // Ex: 0.1e3 (which at this point would have precision == 1 and scale == 1), the
         //     scale must be set to 0 and the value set to 100 which means a precision of 3.
         precision += exponent - scale;
-        value *= get_scale_multiplier(exponent - scale);
+        value *= get_scale_multiplier<T>(exponent - scale);
         scale = 0;
     } else {
         // Ex: 100e-4, the scale must be set to 4 but no adjustment to the value is needed,
@@ -790,10 +759,10 @@ inline __int128 StringParser::string_to_decimal(const char* s, int len,
             shift -= truncated_digit_count;
         }
         if (shift > 0) {
-            __int128 divisor = get_scale_multiplier(shift);
+            T divisor = get_scale_multiplier<T>(shift);
             if (LIKELY(divisor >= 0)) {
                 value /= divisor;
-                __int128 remainder = value % divisor;
+                T remainder = value % divisor;
                 if ((remainder > 0 ? remainder : -remainder) >= (divisor >> 1)) {
                     value += 1;
                 }
@@ -808,7 +777,7 @@ inline __int128 StringParser::string_to_decimal(const char* s, int len,
     }
 
     if (type_scale > scale) {
-        value *= get_scale_multiplier(type_scale - scale);
+        value *= get_scale_multiplier<T>(type_scale - scale);
     }
 
     return is_negative ? -value : value;

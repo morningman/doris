@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 import java.util.Objects;
+import org.apache.doris.common.util.DebugUtil;
 
 public class ArithmeticExpr extends Expr {
     private static final Logger LOG = LogManager.getLogger(ArithmeticExpr.class);
@@ -135,30 +136,50 @@ public class ArithmeticExpr extends Expr {
                 functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
                         Operator.SUBTRACT.getName(), Lists.newArrayList(t1, t2),
                         Type.getNextNumType(Type.getAssignmentCompatibleType(t1, t2, false))));
+                functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                        Operator.DIVIDE.getName(), Lists.newArrayList(t1, t2),
+                        Type.getNextNumType(Type.getAssignmentCompatibleType(t1, t2, false)),
+                        Function.NullableMode.ALWAYS_NULLABLE));
+                functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                        Operator.MOD.getName(), Lists.newArrayList(t1, t2),
+                        Type.getAssignmentCompatibleType(t1, t2, false),
+                        Function.NullableMode.ALWAYS_NULLABLE));
             }
         }
 
-        functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
-                Operator.DIVIDE.getName(),
-                Lists.<Type>newArrayList(Type.DOUBLE, Type.DOUBLE),
-                Type.DOUBLE, Function.NullableMode.ALWAYS_NULLABLE));
-        functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
-                Operator.DIVIDE.getName(),
-                Lists.<Type>newArrayList(Type.DECIMALV2, Type.DECIMALV2),
-                Type.DECIMALV2, Function.NullableMode.ALWAYS_NULLABLE));
+        // functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                // Operator.DIVIDE.getName(),
+                // Lists.<Type>newArrayList(Type.DOUBLE, Type.DOUBLE),
+                // Type.DOUBLE, Function.NullableMode.ALWAYS_NULLABLE));
+        // functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                // Operator.DIVIDE.getName(),
+                // Lists.<Type>newArrayList(Type.DECIMALV2, Type.DECIMALV2),
+                // Type.DECIMALV2, Function.NullableMode.ALWAYS_NULLABLE));
+        // functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                // Operator.DIVIDE.getName(),
+                // Lists.<Type>newArrayList(Type.DECIMAL32, Type.DECIMAL32),
+                // Type.DECIMAL32, Function.NullableMode.ALWAYS_NULLABLE));
+        // functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                // Operator.DIVIDE.getName(),
+                // Lists.<Type>newArrayList(Type.DECIMAL64, Type.DECIMAL64),
+                // Type.DECIMAL64, Function.NullableMode.ALWAYS_NULLABLE));
+        // functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                // Operator.DIVIDE.getName(),
+                // Lists.<Type>newArrayList(Type.DECIMAL128, Type.DECIMAL128),
+                // Type.DECIMAL128, Function.NullableMode.ALWAYS_NULLABLE));
 
-        functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
-                Operator.MOD.getName(),
-                Lists.<Type>newArrayList(Type.FLOAT, Type.FLOAT),
-                Type.FLOAT, Function.NullableMode.ALWAYS_NULLABLE));
-        functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
-                Operator.MOD.getName(),
-                Lists.<Type>newArrayList(Type.DOUBLE, Type.DOUBLE),
-                Type.DOUBLE, Function.NullableMode.ALWAYS_NULLABLE));
-        functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
-                Operator.MOD.getName(),
-                Lists.<Type>newArrayList(Type.DECIMALV2, Type.DECIMALV2),
-                Type.DECIMALV2, Function.NullableMode.ALWAYS_NULLABLE));
+        // functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                // Operator.MOD.getName(),
+                // Lists.<Type>newArrayList(Type.FLOAT, Type.FLOAT),
+                // Type.FLOAT, Function.NullableMode.ALWAYS_NULLABLE));
+        // functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                // Operator.MOD.getName(),
+                // Lists.<Type>newArrayList(Type.DOUBLE, Type.DOUBLE),
+                // Type.DOUBLE, Function.NullableMode.ALWAYS_NULLABLE));
+        // functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                // Operator.MOD.getName(),
+                // Lists.<Type>newArrayList(Type.DECIMALV2, Type.DECIMALV2),
+                // Type.DECIMALV2, Function.NullableMode.ALWAYS_NULLABLE));
 
         for (int i = 0; i < Type.getIntegerTypes().size(); i++) {
             Type t1 = Type.getIntegerTypes().get(i);
@@ -169,10 +190,10 @@ public class ArithmeticExpr extends Expr {
                         Operator.INT_DIVIDE.getName(), Lists.newArrayList(t1, t2),
                         Type.getAssignmentCompatibleType(t1, t2, false),
                         Function.NullableMode.ALWAYS_NULLABLE));
-                functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
-                        Operator.MOD.getName(), Lists.newArrayList(t1, t2),
-                        Type.getAssignmentCompatibleType(t1, t2, false),
-                        Function.NullableMode.ALWAYS_NULLABLE));
+                // functionSet.addBuiltin(ScalarFunction.createVecBuiltinOperator(
+                        // Operator.MOD.getName(), Lists.newArrayList(t1, t2),
+                        // Type.getAssignmentCompatibleType(t1, t2, false),
+                        // Function.NullableMode.ALWAYS_NULLABLE));
             }
         }
     }
@@ -189,6 +210,9 @@ public class ArithmeticExpr extends Expr {
         if (e2 != null) {
             children.add(e2);
         }
+            Exception e = new Exception("this is a log"); //相应的log标记
+            LOG.info("liaoxin strace: {}", DebugUtil.getStackTrace(e));
+            LOG.info("liaoxin e1: {}, e2: {}", e1.getClass().getName(), e2.getClass().getName());
     }
 
     /**
@@ -221,7 +245,7 @@ public class ArithmeticExpr extends Expr {
     @Override
     protected void toThrift(TExprNode msg) {
         msg.node_type = TExprNodeType.ARITHMETIC_EXPR;
-        if (!type.isDecimalV2()) {
+        if (!type.isDecimalV2() && !type.isDecimalV3()) {
             msg.setOpcode(op.getOpcode());
             msg.setOutputColumn(outputColumn);
         }
@@ -257,6 +281,12 @@ public class ArithmeticExpr extends Expr {
             return Type.DOUBLE;
         } else if (pt1 == PrimitiveType.DECIMALV2 || pt2 == PrimitiveType.DECIMALV2) {
             return Type.DECIMALV2;
+        } else if (pt1 == PrimitiveType.DECIMAL128 || pt2 == PrimitiveType.DECIMAL128) {
+            return Type.DECIMAL128;
+        } else if (pt1 == PrimitiveType.DECIMAL64 || pt2 == PrimitiveType.DECIMAL64) {
+            return Type.DECIMAL64;
+        } else if (pt1 == PrimitiveType.DECIMAL32 || pt2 == PrimitiveType.DECIMAL32) {
+            return Type.DECIMAL64;
         } else if (pt1 == PrimitiveType.LARGEINT || pt2 == PrimitiveType.LARGEINT) {
             return Type.LARGEINT;
         } else {
@@ -330,47 +360,52 @@ public class ArithmeticExpr extends Expr {
                 t2 = getChild(1).getType();
             }
 
+            LOG.info("liaoxin t1 expr1: {}, t2 expr: {}", getChild(0), getChild(1));
             // dispose the case t1 and t2 is not numeric type
             if (!t1.isNumericType()) {
+                LOG.info("liaoxin t1 expr2: {}, t2 expr: {}", getChild(0), getChild(1));
                 castChild(t1.getNumResultType(), 0);
                 t1 = t1.getNumResultType();
             }
             if (!t2.isNumericType()) {
+                LOG.info("liaoxin t1 expr3: {}, t2 expr: {}", getChild(0), getChild(1));
                 castChild(t2.getNumResultType(), 1);
                 t2 = t2.getNumResultType();
             }
 
+            LOG.info("liaoxin t1 expr: {}, t2 expr: {}", getChild(0), getChild(1));
             switch (op) {
                 case MULTIPLY:
                 case ADD:
                 case SUBTRACT:
-                    if (t1.isDecimalV2() || t2.isDecimalV2()) {
-                        castBinaryOp(findCommonType(t1, t2));
-                    }
-                    if (isConstant()) {
-                        castUpperInteger(t1, t2);
-                    }
+                    // if (t1.isDecimalV2() || t2.isDecimalV2() || t1.isDecimalV3() || t2.isDecimalV3()) {
+                        // castBinaryOp(findCommonType(t1, t2));
+                    // }
+                    // if (isConstant()) {
+                        // castUpperInteger(t1, t2);
+                    // }
+                    break;
                 case MOD:
-                    if (t1.isDecimalV2() || t2.isDecimalV2()) {
-                        castBinaryOp(findCommonType(t1, t2));
-                    } else if ((t1.isFloatingPointType() || t2.isFloatingPointType()) && !t1.equals(t2)) {
-                        castBinaryOp(Type.DOUBLE);
-                    }
+                    // if (t1.isDecimalV2() || t2.isDecimalV2()) {
+                        // castBinaryOp(findCommonType(t1, t2));
+                    // } else if ((t1.isFloatingPointType() || t2.isFloatingPointType()) && !t1.equals(t2)) {
+                        // castBinaryOp(Type.DOUBLE);
+                    // }
                     break;
                 case INT_DIVIDE:
-                    if (!t1.isFixedPointType() || !t2.isFloatingPointType()) {
-                        castBinaryOp(Type.BIGINT);
-                    }
+                    // if (!t1.isFixedPointType() || !t2.isFloatingPointType()) {
+                        // castBinaryOp(Type.BIGINT);
+                    // }
                     break;
                 case DIVIDE:
-                    t1 = getChild(0).getType().getNumResultType();
-                    t2 = getChild(1).getType().getNumResultType();
-                    commonType = findCommonType(t1, t2);
-                    if (commonType.getPrimitiveType() == PrimitiveType.BIGINT
-                            || commonType.getPrimitiveType() == PrimitiveType.LARGEINT) {
-                        commonType = Type.DOUBLE;
-                    }
-                    castBinaryOp(commonType);
+                    // t1 = getChild(0).getType().getNumResultType();
+                    // t2 = getChild(1).getType().getNumResultType();
+                    // commonType = findCommonType(t1, t2);
+                    // if (commonType.getPrimitiveType() == PrimitiveType.BIGINT
+                            // || commonType.getPrimitiveType() == PrimitiveType.LARGEINT) {
+                        // commonType = Type.DOUBLE;
+                    // }
+                    // castBinaryOp(commonType);
                     break;
                 case BITAND:
                 case BITOR:
@@ -396,6 +431,7 @@ public class ArithmeticExpr extends Expr {
                 Preconditions.checkState(false, String.format(
                         "No match for vec function '%s' with operand types %s and %s", toSql(), t1, t2));
             }
+            LOG.info("liaoxin fn is: {}", fn.toSql(false));
             type = fn.getReturnType();
         } else {
             // bitnot is the only unary op, deal with it here

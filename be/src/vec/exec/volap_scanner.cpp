@@ -188,6 +188,11 @@ void VOlapScanner::_convert_row_to_block(std::vector<vectorized::MutableColumnPt
                     ->insert_data(reinterpret_cast<char*>(&data), 0);
             break;
         }
+        case TYPE_DECIMAL128: {
+            assert_cast<ColumnDecimal<Decimal128>*>(column_ptr)
+                    ->insert_data(reinterpret_cast<char*>(ptr), 0);
+            break;
+        }
         case TYPE_DATETIME: {
             uint64_t value = *reinterpret_cast<uint64_t*>(ptr);
             VecDateTimeValue data(value);

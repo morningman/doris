@@ -247,16 +247,21 @@ std::unique_ptr<BaseScanner> BrokerScanNode::create_scanner(const TBrokerScanRan
 Status BrokerScanNode::scanner_scan(const TBrokerScanRange& scan_range,
                                     const std::vector<ExprContext*>& conjunct_ctxs,
                                     ScannerCounter* counter) {
+    LOG(WARNING) << "liaoxin BrokerScanNode::scanner_scan0";
     //create scanner object and open
     std::unique_ptr<BaseScanner> scanner = create_scanner(scan_range, counter);
+    LOG(WARNING) << "liaoxin BrokerScanNode::scanner_scan1";
     RETURN_IF_ERROR(scanner->open());
+    LOG(WARNING) << "liaoxin BrokerScanNode::scanner_scan2";
     bool scanner_eof = false;
 
+    LOG(WARNING) << "liaoxin BrokerScanNode::scanner_scan";
     while (!scanner_eof) {
         // Fill one row batch
         std::shared_ptr<RowBatch> row_batch(
                 new RowBatch(row_desc(), _runtime_state->batch_size()));
 
+        LOG(WARNING) << "liaoxin BrokerScanNode::scanner_scan 1";
         // create new tuple buffer for row_batch
         MemPool* tuple_pool = row_batch->tuple_data_pool();
         int tuple_buffer_size = row_batch->capacity() * _tuple_desc->byte_size();
@@ -265,6 +270,7 @@ Status BrokerScanNode::scanner_scan(const TBrokerScanRange& scan_range,
             return Status::InternalError("Allocate memory for row batch failed.");
         }
 
+        LOG(WARNING) << "liaoxin BrokerScanNode::scanner_scan 2";
         Tuple* tuple = reinterpret_cast<Tuple*>(tuple_buffer);
         while (!scanner_eof) {
             RETURN_IF_CANCELLED(_runtime_state);
@@ -278,6 +284,7 @@ Status BrokerScanNode::scanner_scan(const TBrokerScanRange& scan_range,
                 break;
             }
 
+            LOG(WARNING) << "liaoxin BrokerScanNode::scanner_scan 3";
             int row_idx = row_batch->add_row();
             TupleRow* row = row_batch->get_row(row_idx);
             // scan node is the first tuple of tuple row
@@ -291,6 +298,7 @@ Status BrokerScanNode::scanner_scan(const TBrokerScanRange& scan_range,
                 continue;
             }
 
+            LOG(WARNING) << "liaoxin BrokerScanNode::scanner_scan 4";
             // if read row succeed, but fill dest tuple fail, we need to increase # of uncommitted rows, 
             // once reach the capacity of row batch, will transfer the row batch to next operator to release memory
             if (!tuple_fill) {
@@ -353,6 +361,7 @@ void BrokerScanNode::scanner_worker(int start_idx, int length) {
         LOG(WARNING) << "Clone conjuncts failed.";
     }
 
+    LOG(WARNING) << "liaoxin BrokerScanNode::scanner_worker";
     ScannerCounter counter;
     for (int i = 0; i < length && status.ok(); ++i) {
         const TBrokerScanRange& scan_range =

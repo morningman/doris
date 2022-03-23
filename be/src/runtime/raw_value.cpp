@@ -86,6 +86,18 @@ void RawValue::print_value_as_bytes(const void* value, const TypeDescriptor& typ
         stream->write(chars, sizeof(DecimalV2Value));
         break;
 
+    case TYPE_DECIMAL32:
+        stream->write(chars, sizeof(int32_t));
+        break;
+
+    case TYPE_DECIMAL64:
+        stream->write(chars, sizeof(int64_t));
+        break;
+
+    case TYPE_DECIMAL128:
+        stream->write(chars, sizeof(__int128));
+        break;
+
     case TYPE_LARGEINT:
         stream->write(chars, sizeof(__int128));
         break;
@@ -164,6 +176,7 @@ void RawValue::print_value(const void* value, const TypeDescriptor& type, int sc
         *stream << DecimalV2Value(reinterpret_cast<const PackedInt128*>(value)->value).to_string();
         break;
 
+    // TODO liaoxin
     case TYPE_LARGEINT:
         *stream << reinterpret_cast<const PackedInt128*>(value)->value;
         break;
@@ -294,6 +307,18 @@ void RawValue::write(const void* value, void* dst, const TypeDescriptor& type, M
         *reinterpret_cast<PackedInt128*>(dst) = *reinterpret_cast<const PackedInt128*>(value);
         break;
 
+    case TYPE_DECIMAL32:
+        *reinterpret_cast<int32_t*>(dst) = *reinterpret_cast<const int32_t*>(value);
+        break;
+
+    case TYPE_DECIMAL64:
+        *reinterpret_cast<int64_t*>(dst) = *reinterpret_cast<const int64_t*>(value);
+        break;
+
+    case TYPE_DECIMAL128:
+        *reinterpret_cast<PackedInt128*>(dst) = *reinterpret_cast<const PackedInt128*>(value);
+        break;
+
     case TYPE_OBJECT:
     case TYPE_HLL:
     case TYPE_VARCHAR:
@@ -391,6 +416,18 @@ void RawValue::write(const void* value, const TypeDescriptor& type, void* dst, u
     }
 
     case TYPE_DECIMALV2:
+        *reinterpret_cast<PackedInt128*>(dst) = *reinterpret_cast<const PackedInt128*>(value);
+        break;
+
+    case TYPE_DECIMAL32:
+        *reinterpret_cast<int32_t*>(dst) = *reinterpret_cast<const int32_t*>(value);
+        break;
+
+    case TYPE_DECIMAL64:
+        *reinterpret_cast<int64_t*>(dst) = *reinterpret_cast<const int64_t*>(value);
+        break;
+
+    case TYPE_DECIMAL128:
         *reinterpret_cast<PackedInt128*>(dst) = *reinterpret_cast<const PackedInt128*>(value);
         break;
 

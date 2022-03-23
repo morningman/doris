@@ -141,6 +141,12 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                             "8min_initIN9doris_udf11DateTimeValEEEvPNS2_15FunctionContextEPT_")
                     .put(Type.DECIMALV2,
                             "8min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionContextEPT_")
+                    // .put(Type.DECIMAL32,
+                            // "8min_initIN9doris_udf12Decimal32ValEEEvPNS2_15FunctionContextEPT_")
+                    // .put(Type.DECIMAL64,
+                            // "8min_initIN9doris_udf12Decimal64ValEEEvPNS2_15FunctionContextEPT_")
+                    // .put(Type.DECIMAL128,
+                            // "8min_initIN9doris_udf12Decimal128ValEEEvPNS2_15FunctionContextEPT_")
                     .put(Type.LARGEINT,
                             "8min_initIN9doris_udf11LargeIntValEEEvPNS2_15FunctionContextEPT_")
                     .build();
@@ -173,6 +179,12 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                             "8max_initIN9doris_udf11DateTimeValEEEvPNS2_15FunctionContextEPT_")
                     .put(Type.DECIMALV2,
                             "8max_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionContextEPT_")
+                    // .put(Type.DECIMAL32,
+                            // "8max_initIN9doris_udf12Decimal32ValEEEvPNS2_15FunctionContextEPT_")
+                    // .put(Type.DECIMAL64,
+                            // "8max_initIN9doris_udf12Decimal64ValEEEvPNS2_15FunctionContextEPT_")
+                    // .put(Type.DECIMAL128,
+                            // "8max_initIN9doris_udf12Decimal128ValEEEvPNS2_15FunctionContextEPT_")
                     .put(Type.LARGEINT,
                             "8max_initIN9doris_udf11LargeIntValEEEvPNS2_15FunctionContextEPT_")
                     .build();
@@ -205,6 +217,12 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                     "3minIN9doris_udf11DateTimeValEEEvPNS2_15FunctionContextERKT_PS6_")
                 .put(Type.DECIMALV2,
                     "3minIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionContextERKT_PS6_")
+                // .put(Type.DECIMAL32,
+                    // "3minIN9doris_udf12Decimal32ValEEEvPNS2_15FunctionContextERKT_PS6_")
+                // .put(Type.DECIMAL64,
+                    // "3minIN9doris_udf12Decimal64ValEEEvPNS2_15FunctionContextERKT_PS6_")
+                // .put(Type.DECIMAL128,
+                    // "3minIN9doris_udf12Decimal128ValEEEvPNS2_15FunctionContextERKT_PS6_")
                 .put(Type.LARGEINT,
                     "3minIN9doris_udf11LargeIntValEEEvPNS2_15FunctionContextERKT_PS6_")
                 .build();
@@ -237,6 +255,12 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                     "3maxIN9doris_udf11DateTimeValEEEvPNS2_15FunctionContextERKT_PS6_")
                 .put(Type.DECIMALV2,
                     "3maxIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionContextERKT_PS6_")
+                .put(Type.DECIMAL32,
+                    "3maxIN9doris_udf12Decimal32ValEEEvPNS2_15FunctionContextERKT_PS6_")
+                .put(Type.DECIMAL64,
+                    "3maxIN9doris_udf12Decimal64ValEEEvPNS2_15FunctionContextERKT_PS6_")
+                .put(Type.DECIMAL128,
+                    "3maxIN9doris_udf12Decimal128ValEEEvPNS2_15FunctionContextERKT_PS6_")
                 .put(Type.LARGEINT,
                     "3maxIN9doris_udf11LargeIntValEEEvPNS2_15FunctionContextERKT_PS6_")
                .build();
@@ -251,6 +275,9 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                     .put(Type.DOUBLE, Type.DOUBLE)
                     .put(Type.LARGEINT, Type.LARGEINT)
                     .put(Type.DECIMALV2, Type.DECIMALV2)
+                    .put(Type.DECIMAL32, Type.DECIMAL32)
+                    .put(Type.DECIMAL64, Type.DECIMAL64)
+                    .put(Type.DECIMAL128, Type.DECIMAL128)
                     .build();
 
     private static final Map<Type, String> MULTI_DISTINCT_INIT_SYMBOL =
@@ -365,6 +392,9 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                     .put(Type.FLOAT, Type.DOUBLE)
                     .put(Type.DOUBLE, Type.DOUBLE)
                     .put(Type.DECIMALV2, Type.DECIMALV2)
+                    .put(Type.DECIMAL32, Type.DECIMAL32)
+                    .put(Type.DECIMAL64, Type.DECIMAL64)
+                    .put(Type.DECIMAL128, Type.DECIMAL128)
                     .build();
 
     private static final Map<Type, String> STDDEV_INIT_SYMBOL =
@@ -383,6 +413,12 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                         "14knuth_var_initEPN9doris_udf15FunctionContextEPNS1_9StringValE")
                 .put(Type.DECIMALV2,
                         "24decimalv2_knuth_var_initEPN9doris_udf15FunctionContextEPNS1_9StringValE")
+                .put(Type.DECIMAL32,
+                        "24decimal32_knuth_var_initEPN9doris_udf15FunctionContextEPNS1_9StringValE")
+                .put(Type.DECIMAL64,
+                        "24decimal64_knuth_var_initEPN9doris_udf15FunctionContextEPNS1_9StringValE")
+                .put(Type.DECIMAL128,
+                        "24decimal128_knuth_var_initEPN9doris_udf15FunctionContextEPNS1_9StringValE")
                 .build();
 
     private static final Map<Type, String> STDDEV_UPDATE_SYMBOL =
@@ -401,6 +437,12 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                         "16knuth_var_updateIN9doris_udf9DoubleValEEEvPNS2_15FunctionContextERKT_PNS2_9StringValE")
                 .put(Type.DECIMALV2,
                         "16knuth_var_updateEPN9doris_udf15FunctionContextERKNS1_12DecimalV2ValEPNS1_9StringValE")
+                .put(Type.DECIMAL32,
+                        "16knuth_var_updateEPN9doris_udf15FunctionContextERKNS1_12Decimal32ValEPNS1_9StringValE")
+                .put(Type.DECIMAL64,
+                        "16knuth_var_updateEPN9doris_udf15FunctionContextERKNS1_12Decimal64ValEPNS1_9StringValE")
+                .put(Type.DECIMAL128,
+                        "16knuth_var_updateEPN9doris_udf15FunctionContextERKNS1_12Decimal128ValEPNS1_9StringValE")
                 .build();
 
     private static final Map<Type, String> STDDEV_MERGE_SYMBOL =
@@ -419,6 +461,12 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                         "15knuth_var_mergeEPN9doris_udf15FunctionContextERKNS1_9StringValEPS4_")
                 .put(Type.DECIMALV2,
                         "25decimalv2_knuth_var_mergeEPN9doris_udf15FunctionContextERKNS1_9StringValEPS4_")
+                .put(Type.DECIMAL32,
+                        "25decimal32_knuth_var_mergeEPN9doris_udf15FunctionContextERKNS1_9StringValEPS4_")
+                .put(Type.DECIMAL64,
+                        "25decimal64_knuth_var_mergeEPN9doris_udf15FunctionContextERKNS1_9StringValEPS4_")
+                .put(Type.DECIMAL128,
+                        "25decimal128_knuth_var_mergeEPN9doris_udf15FunctionContextERKNS1_9StringValEPS4_")
                 .build();
 
     private static final Map<Type, String> STDDEV_FINALIZE_SYMBOL =
@@ -437,6 +485,12 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                         "21knuth_stddev_finalizeEPN9doris_udf15FunctionContextERKNS1_9StringValE")
                 .put(Type.DECIMALV2,
                         "31decimalv2_knuth_stddev_finalizeEPN9doris_udf15FunctionContextERKNS1_9StringValE")
+                .put(Type.DECIMAL32,
+                        "31decimal32_knuth_stddev_finalizeEPN9doris_udf15FunctionContextERKNS1_9StringValE")
+                .put(Type.DECIMAL64,
+                        "31decimal64_knuth_stddev_finalizeEPN9doris_udf15FunctionContextERKNS1_9StringValE")
+                .put(Type.DECIMAL128,
+                        "31decimal128_knuth_stddev_finalizeEPN9doris_udf15FunctionContextERKNS1_9StringValE")
                 .build();
 
     private static final Map<Type, String> STDDEV_POP_FINALIZE_SYMBOL =
@@ -455,6 +509,12 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                             "25knuth_stddev_pop_finalizeEPN9doris_udf15FunctionContextERKNS1_9StringValE")
                     .put(Type.DECIMALV2,
                             "35decimalv2_knuth_stddev_pop_finalizeEPN9doris_udf15FunctionContextERKNS1_9StringValE")
+                    .put(Type.DECIMAL32,
+                            "35decimal32_knuth_stddev_pop_finalizeEPN9doris_udf15FunctionContextERKNS1_9StringValE")
+                    .put(Type.DECIMAL64,
+                            "35decimal64_knuth_stddev_pop_finalizeEPN9doris_udf15FunctionContextERKNS1_9StringValE")
+                    .put(Type.DECIMAL128,
+                            "35decimal128_knuth_stddev_pop_finalizeEPN9doris_udf15FunctionContextERKNS1_9StringValE")
                     .build();
 
     private static final Map<Type, String> VAR_FINALIZE_SYMBOL =
@@ -1035,6 +1095,7 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
         if (isTableFunction) {
             fns = tableFunctions.get(desc.functionName());
         } else if (desc.isVectorized()) {
+            // LOG.info("liaoxin getFunctionName: {}", desc.functionName());
             fns = vectorizedFunctions.get(desc.functionName());
         } else {
             fns = functions.get(desc.functionName());
@@ -1043,6 +1104,7 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
             return null;
         }
 
+        // LOG.info("liaoxin get funcs: {}", fns);
         // First check for identical
         for (Function f : fns) {
             if (f.compare(desc, Function.CompareMode.IS_IDENTICAL)) {
@@ -1358,7 +1420,8 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                     false, true, true));
                 // vectorized
                 // now we don't support datetime distinct
-            } else if (t.equals(Type.DECIMALV2)) {
+            } else if (t.equals(Type.DECIMALV2) || t.equals(Type.DECIMAL32)
+                       || t.equals(Type.DECIMAL64) || t.equals(Type.DECIMAL128)) {
                addBuiltin(AggregateFunction.createBuiltin("multi_distinct_count", Lists.newArrayList(t),
                     Type.BIGINT,
                     Type.VARCHAR,
@@ -1373,7 +1436,7 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                 // vectorized
                 addBuiltin(AggregateFunction.createBuiltin("multi_distinct_count", Lists.newArrayList(t),
                     Type.BIGINT,
-                    Type.DECIMALV2,
+                    t,
                     prefix + "",
                     prefix + "",
                     prefix + "",
@@ -1410,7 +1473,8 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                     null,
                     prefix + MULTI_DISTINCT_SUM_FINALIZE_SYMBOL.get(t),
                     false, true, true, true));
-            }  else if (t.equals(Type.DECIMALV2)) {
+            }  else if (t.equals(Type.DECIMALV2) || t.equals(Type.DECIMAL32)
+                        || t.equals(Type.DECIMAL64) || t.equals(Type.DECIMAL128)) {
                addBuiltin(AggregateFunction.createBuiltin("multi_distinct_sum", Lists.newArrayList(t),
                     MULTI_DISTINCT_SUM_RETURN_TYPE.get(t),
                     Type.VARCHAR,
@@ -1425,7 +1489,7 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                 // vectorized
                 addBuiltin(AggregateFunction.createBuiltin("multi_distinct_sum", Lists.newArrayList(t),
                     MULTI_DISTINCT_SUM_RETURN_TYPE.get(t),
-                    Type.DECIMALV2,
+                    t,
                     prefix + "",
                     prefix + "",
                     prefix + "",
@@ -1853,6 +1917,27 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                     prefix + "10sum_removeIN9doris_udf12DecimalV2ValES3_EEvPNS2_15FunctionContextERKT_PT0_",
                     null, false, true, false, true));
             addBuiltin(AggregateFunction.createBuiltin(name,
+                    Lists.<Type>newArrayList(Type.DECIMAL32), Type.DECIMAL128, Type.DECIMAL32, initNull,
+                    prefix + "",
+                    prefix + "",
+                    null, null,
+                    prefix + "",
+                    null, false, true, false, true));
+            addBuiltin(AggregateFunction.createBuiltin(name,
+                    Lists.<Type>newArrayList(Type.DECIMAL64), Type.DECIMAL128, Type.DECIMAL64, initNull,
+                    prefix + "",
+                    prefix + "",
+                    null, null,
+                    prefix + "",
+                    null, false, true, false, true));
+            addBuiltin(AggregateFunction.createBuiltin(name,
+                    Lists.<Type>newArrayList(Type.DECIMAL128), Type.DECIMAL128, Type.DECIMAL128, initNull,
+                    prefix + "",
+                    prefix + "",
+                    null, null,
+                    prefix + "",
+                    null, false, true, false, true));
+            addBuiltin(AggregateFunction.createBuiltin(name,
                     Lists.<Type>newArrayList(Type.LARGEINT), Type.LARGEINT, Type.LARGEINT, initNull,
                     prefix + "3sumIN9doris_udf11LargeIntValES3_EEvPNS2_15FunctionContextERKT_PT0_",
                     prefix + "3sumIN9doris_udf11LargeIntValES3_EEvPNS2_15FunctionContextERKT_PT0_",
@@ -2108,6 +2193,36 @@ public class FunctionSet<min_initIN9doris_udf12DecimalV2ValEEEvPNS2_15FunctionCo
                 prefix + "23decimalv2_avg_get_valueEPN9doris_udf15FunctionContextERKNS1_9StringValE",
                 prefix + "20decimalv2_avg_removeEPN9doris_udf15FunctionContextERKNS1_12DecimalV2ValEPNS1_9StringValE",
                 prefix + "22decimalv2_avg_finalizeEPN9doris_udf15FunctionContextERKNS1_9StringValE",
+                false, true, false, true));
+        addBuiltin(AggregateFunction.createBuiltin("avg",
+                Lists.<Type>newArrayList(Type.DECIMAL32), Type.DECIMAL128, Type.DECIMAL32,
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                false, true, false, true));
+        addBuiltin(AggregateFunction.createBuiltin("avg",
+                Lists.<Type>newArrayList(Type.DECIMAL64), Type.DECIMAL128, Type.DECIMAL64,
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                false, true, false, true));
+        addBuiltin(AggregateFunction.createBuiltin("avg",
+                Lists.<Type>newArrayList(Type.DECIMAL128), Type.DECIMAL128, Type.DECIMAL128,
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
+                prefix + "",
                 false, true, false, true));
         addBuiltin(AggregateFunction.createBuiltin("avg",
                 Lists.<Type>newArrayList(Type.DATE), Type.DATE, Type.DATE,

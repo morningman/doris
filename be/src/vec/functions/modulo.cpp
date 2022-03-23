@@ -38,6 +38,9 @@ struct ModuloImpl {
 
     template <typename Result = ResultType>
     static inline Result apply(A a, B b, NullMap& null_map, size_t index) {
+        if constexpr (std::is_arithmetic_v<A> && std::is_arithmetic_v<B>) {
+        LOG(INFO) << "liaoxin ModuloImpl A: " << (int64_t)a << " B: " << (int64_t)b;
+        }
         if constexpr (std::is_floating_point_v<Result>) {
             null_map[index] = b == 0;
             return std::fmod((double)a, (double)b);

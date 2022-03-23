@@ -84,6 +84,8 @@ Status BaseScanner::init_expr_ctxes() {
 
     std::map<SlotId, SlotDescriptor*> src_slot_desc_map;
     for (auto slot_desc : src_tuple_desc->slots()) {
+            LOG(WARNING) << "liaoxin src slot, id=" << slot_desc->id()
+               << ", name=" << slot_desc->col_name();
         src_slot_desc_map.emplace(slot_desc->id(), slot_desc);
     }
     for (auto slot_id : _params.src_slot_ids) {
@@ -121,6 +123,8 @@ Status BaseScanner::init_expr_ctxes() {
 
     bool has_slot_id_map = _params.__isset.dest_sid_to_src_sid_without_trans;
     for (auto slot_desc : _dest_tuple_desc->slots()) {
+            LOG(WARNING) << "liaoxin dest slot, id=" << slot_desc->id()
+               << ", name=" << slot_desc->col_name();
         if (!slot_desc->is_materialized()) {
             continue;
         }
@@ -239,6 +243,7 @@ Status BaseScanner::fill_dest_tuple(Tuple* dest_tuple, MemPool* mem_pool) {
         if (slot_desc->is_nullable()) {
             dest_tuple->set_not_null(slot_desc->null_indicator_offset());
         }
+        LOG(WARNING) << "liaoxin scanner value: " << *(int128_t*)value;
         void* slot = dest_tuple->get_slot(slot_desc->tuple_offset());
         RawValue::write(value, slot, slot_desc->type(), mem_pool);
         continue;

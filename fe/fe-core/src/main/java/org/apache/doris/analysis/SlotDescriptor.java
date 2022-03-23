@@ -17,19 +17,19 @@
 
 package org.apache.doris.analysis;
 
-import org.apache.doris.catalog.Column;
-import org.apache.doris.catalog.ColumnStats;
-import org.apache.doris.catalog.OlapTable;
-import org.apache.doris.catalog.Table;
-import org.apache.doris.catalog.Type;
-import org.apache.doris.thrift.TSlotDescriptor;
+import java.util.Collections;
+import java.util.List;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-
-import java.util.Collections;
-import java.util.List;
+import org.apache.doris.catalog.Column;
+import org.apache.doris.catalog.ColumnStats;
+import org.apache.doris.catalog.OlapTable;
+import org.apache.doris.catalog.ScalarType;
+import org.apache.doris.catalog.Table;
+import org.apache.doris.catalog.Type;
+import org.apache.doris.thrift.TSlotDescriptor;
 
 public class SlotDescriptor {
     private final SlotId id;
@@ -145,8 +145,18 @@ public class SlotDescriptor {
 
     public void setColumn(Column column) {
         this.column = column;
-        this.type = column.getType();
         this.originType = column.getOriginType();
+        if (this.originType.isScalarType()) {
+            ScalarType scalarType = (ScalarType) this.originType;
+            if (scalarType.isDecimalV3()) {
+                this.type = ScalarType.createDecimalV3Type(
+                        scalarType.getPrimitiveType(),
+                        scalarType.getScalarPrecision(),
+                        scalarType.getScalarScale());
+                return;
+            }
+        }
+        this.type = column.getType();
     }
 
     public boolean isMaterialized() {

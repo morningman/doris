@@ -37,8 +37,16 @@ std::string DataTypeDecimal<T>::do_get_name() const {
 
 template <typename T>
 bool DataTypeDecimal<T>::equals(const IDataType& rhs) const {
-    if (auto* ptype = typeid_cast<const DataTypeDecimal<T>*>(&rhs))
+    if (auto* ptype = typeid_cast<const DataTypeDecimal<T>*>(&rhs)) {
+        // wildcard decimal, used for DataTypeFactory
+        if (precision == 0 && scale ==  0) {
+            return true;
+        }
+        if (ptype->get_precision() == 0 && ptype->get_scale() == 0) {
+            return true;
+        }
         return scale == ptype->get_scale();
+    }
     return false;
 }
 

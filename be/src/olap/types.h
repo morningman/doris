@@ -474,6 +474,21 @@ struct CppTypeTraits<OLAP_FIELD_TYPE_DECIMAL> {
     using UnsignedCppType = decimal12_t;
 };
 template <>
+struct CppTypeTraits<OLAP_FIELD_TYPE_DECIMAL32> {
+    using CppType = int32_t;
+    using UnsignedCppType = int32_t;
+};
+template <>
+struct CppTypeTraits<OLAP_FIELD_TYPE_DECIMAL64> {
+    using CppType = int64_t;
+    using UnsignedCppType = int64_t;
+};
+template <>
+struct CppTypeTraits<OLAP_FIELD_TYPE_DECIMAL128> {
+    using CppType = int128_t;
+    using UnsignedCppType = int128_t;
+};
+template <>
 struct CppTypeTraits<OLAP_FIELD_TYPE_DATE> {
     using CppType = uint24_t;
     using UnsignedCppType = uint24_t;
@@ -857,6 +872,64 @@ struct FieldTypeTraits<OLAP_FIELD_TYPE_DECIMAL>
         CppType* data = reinterpret_cast<CppType*>(buf);
         data->integer = -999999999999999999;
         data->fraction = -999999999;
+    }
+};
+
+// TODO liaoxin
+template <>
+struct FieldTypeTraits<OLAP_FIELD_TYPE_DECIMAL32>
+        : public BaseFieldtypeTraits<OLAP_FIELD_TYPE_DECIMAL32> {
+    static OLAPStatus from_string(void* buf, const std::string& scan_key) {
+        return OLAP_SUCCESS;
+    }
+    static std::string to_string(const void* src) {
+        return "";
+    }
+    static void set_to_max(void* buf) {
+        CppType* data = reinterpret_cast<CppType*>(buf);
+        *data = 999999999;
+    }
+    static void set_to_min(void* buf) {
+        CppType* data = reinterpret_cast<CppType*>(buf);
+        *data = -999999999;
+    }
+};
+
+template <>
+struct FieldTypeTraits<OLAP_FIELD_TYPE_DECIMAL64>
+        : public BaseFieldtypeTraits<OLAP_FIELD_TYPE_DECIMAL64> {
+    static OLAPStatus from_string(void* buf, const std::string& scan_key) {
+        return OLAP_SUCCESS;
+    }
+    static std::string to_string(const void* src) {
+        return "";
+    }
+    static void set_to_max(void* buf) {
+        CppType* data = reinterpret_cast<CppType*>(buf);
+        *data = 999999999999999999;
+    }
+    static void set_to_min(void* buf) {
+        CppType* data = reinterpret_cast<CppType*>(buf);
+        *data = -999999999999999999;
+    }
+};
+
+template <>
+struct FieldTypeTraits<OLAP_FIELD_TYPE_DECIMAL128>
+        : public BaseFieldtypeTraits<OLAP_FIELD_TYPE_DECIMAL128> {
+    static OLAPStatus from_string(void* buf, const std::string& scan_key) {
+        return OLAP_SUCCESS;
+    }
+    static std::string to_string(const void* src) {
+        return "";
+    }
+    static void set_to_max(void* buf) {
+        CppType* data = reinterpret_cast<CppType*>(buf);
+        *data = 999999999999999999;
+    }
+    static void set_to_min(void* buf) {
+        CppType* data = reinterpret_cast<CppType*>(buf);
+        *data = -999999999999999999;
     }
 };
 

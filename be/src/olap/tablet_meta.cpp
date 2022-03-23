@@ -171,9 +171,13 @@ void TabletMeta::_init_column_from_tcolumn(uint32_t unique_id, const TColumn& tc
     column->set_has_bitmap_index(false);
     string data_type;
     EnumToString(TPrimitiveType, tcolumn.column_type.type, data_type);
+    LOG(WARNING) << "liaoxin data_type=" << data_type;
     column->set_type(data_type);
 
-    if (tcolumn.column_type.type == TPrimitiveType::DECIMALV2) {
+    if (tcolumn.column_type.type == TPrimitiveType::DECIMALV2
+        || tcolumn.column_type.type == TPrimitiveType::DECIMAL32
+        || tcolumn.column_type.type == TPrimitiveType::DECIMAL64
+        || tcolumn.column_type.type == TPrimitiveType::DECIMAL128) {
         column->set_precision(tcolumn.column_type.precision);
         column->set_frac(tcolumn.column_type.scale);
     }
@@ -379,6 +383,7 @@ void TabletMeta::init_from_pb(const TabletMetaPB& tablet_meta_pb) {
     }
 
     // init _schema
+    LOG(WARNING) << "liaoxin TabletMeta::init_from_pb ";
     _schema->init_from_pb(tablet_meta_pb.schema());
 
     // init _rs_metas

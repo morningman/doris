@@ -554,6 +554,7 @@ std::shared_ptr<StreamLoadPipe> FragmentMgr::get_pipe(const TUniqueId& fragment_
 Status FragmentMgr::exec_plan_fragment(const TExecPlanFragmentParams& params, FinishCallback cb) {
     const TUniqueId& fragment_instance_id = params.params.fragment_instance_id;
     {
+        LOG(WARNING) << "liaoxin exec_plan_fragment, params: " <<  apache::thrift::ThriftDebugString(params);
         std::lock_guard<std::mutex> lock(_lock);
         auto iter = _fragment_map.find(fragment_instance_id);
         if (iter != _fragment_map.end()) {

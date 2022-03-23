@@ -123,6 +123,18 @@ struct TypeDescriptor {
         return ret;
     }
 
+    static TypeDescriptor create_decimalv3_type(PrimitiveType type, int precision, int scale) {
+        // DCHECK_LE(precision, MAX_PRECISION);
+        // DCHECK_LE(scale, MAX_SCALE);
+        DCHECK_GE(precision, 0);
+        DCHECK_LE(scale, precision);
+        TypeDescriptor ret;
+        ret.type = type;
+        ret.precision = precision;
+        ret.scale = scale;
+        return ret;
+    }
+
     static TypeDescriptor from_thrift(const TTypeDesc& t) {
         int idx = 0;
         TypeDescriptor result(t.types, &idx);
@@ -147,7 +159,8 @@ struct TypeDescriptor {
         if (type == TYPE_CHAR) {
             return len == o.len;
         }
-        if (type == TYPE_DECIMALV2) {
+        if (type == TYPE_DECIMALV2 || type == TYPE_DECIMAL32
+            || type == TYPE_DECIMAL64 || type == TYPE_DECIMAL128) {
             return precision == o.precision && scale == o.scale;
         }
         return true;
@@ -171,6 +184,10 @@ struct TypeDescriptor {
     inline bool is_date_type() const { return type == TYPE_DATE || type == TYPE_DATETIME; }
 
     inline bool is_decimal_type() const { return (type == TYPE_DECIMALV2); }
+
+    inline bool is_decimalv3_type() const {
+        return type == TYPE_DECIMAL32 || type == TYPE_DECIMAL64 || type == TYPE_DECIMAL128;
+    }
 
     inline bool is_datetime_type() const { return type == TYPE_DATETIME; }
 
@@ -206,16 +223,19 @@ struct TypeDescriptor {
 
         case TYPE_INT:
         case TYPE_FLOAT:
+        case TYPE_DECIMAL32:
             return 4;
 
         case TYPE_BIGINT:
         case TYPE_DOUBLE:
+        case TYPE_DECIMAL64:
             return 8;
 
         case TYPE_LARGEINT:
         case TYPE_DATETIME:
         case TYPE_DATE:
         case TYPE_DECIMALV2:
+        case TYPE_DECIMAL128:
             return 16;
 
         case INVALID_TYPE:
@@ -245,11 +265,13 @@ struct TypeDescriptor {
 
         case TYPE_INT:
         case TYPE_FLOAT:
+        case TYPE_DECIMAL32:
             return 4;
 
         case TYPE_BIGINT:
         case TYPE_DOUBLE:
         case TYPE_TIME:
+        case TYPE_DECIMAL64:
             return 8;
 
         case TYPE_LARGEINT:
@@ -261,6 +283,7 @@ struct TypeDescriptor {
             return sizeof(DateTimeValue);
 
         case TYPE_DECIMALV2:
+        case TYPE_DECIMAL128:
             return 16;
 
         case TYPE_ARRAY:

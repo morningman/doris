@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import org.apache.doris.common.util.DebugUtil;
 
 public class SlotRef extends Expr {
     private static final Logger LOG = LogManager.getLogger(SlotRef.class);
@@ -62,6 +63,8 @@ public class SlotRef extends Expr {
         this.tblName = tblName;
         this.col = col;
         this.label = "`" + col + "`";
+            Exception e = new Exception("this is a log"); //相应的log标记
+            LOG.info("liaoxin strace: {}", DebugUtil.getStackTrace(e));
     }
 
     // C'tor for a "pre-analyzed" ref to slot that doesn't correspond to
@@ -186,6 +189,8 @@ public class SlotRef extends Expr {
         if (type.equals(Type.BOOLEAN)) {
             selectivity = DEFAULT_SELECTIVITY;
         }
+            Exception e = new Exception("this is a log"); //相应的log标记
+            LOG.info("liaoxin strace: {}", DebugUtil.getStackTrace(e));
     }
 
     @Override

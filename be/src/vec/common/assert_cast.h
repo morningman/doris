@@ -37,6 +37,8 @@
 template <typename To, typename From>
 To assert_cast(From&& from) {
 #ifndef NDEBUG
+    LOG(INFO) << fmt::format("liaoxin cast from type:{} to {}", demangle(typeid(from).name()),
+                              demangle(typeid(To).name()));
     try {
         if constexpr (std::is_pointer_v<To>) {
             if (typeid(*from) == typeid(std::remove_pointer_t<To>)) return static_cast<To>(from);

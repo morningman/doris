@@ -186,6 +186,12 @@ public:
                             ResultDataType type =
                                     decimal_result_type(left, right, is_multiply, is_division);
                             col_res = ColVecResult::create(0, type.get_scale());
+                            auto nested = create_decimal(type.get_precision(), type.get_scale());
+                            if (block.get_by_position(result).type->is_nullable()) {
+                                block.get_by_position(result).type = std::make_shared<vectorized::DataTypeNullable>(nested);
+                            } else {
+                                block.get_by_position(result).type = nested;
+                            }
                         } else {
                             col_res = ColVecResult::create();
                         }
@@ -193,17 +199,21 @@ public:
                         auto& vec_res = col_res->get_data();
                         vec_res.resize(block.rows());
 
+                        LOG(INFO) << "liaoxin is_multiply: " << is_multiply << " is_division: " << is_division;
                         if (auto col_left = check_and_get_column<ColVecT0>(col_left_raw)) {
                             if constexpr (result_is_decimal) {
                                 ResultDataType type =
                                         decimal_result_type(left, right, is_multiply, is_division);
 
-                                typename ResultDataType::FieldType scale_a =
-                                        type.scale_factor_for(left, is_multiply);
-                                typename ResultDataType::FieldType scale_b =
-                                        type.scale_factor_for(right, is_multiply || is_division);
-                                if constexpr (IsDataTypeDecimal<RightDataType> && is_division)
+                                typename ResultDataType::FieldType scale_a;
+                                typename ResultDataType::FieldType scale_b;
+                                if constexpr (IsDataTypeDecimal<RightDataType> && is_division) {
                                     scale_a = right.get_scale_multiplier();
+                                    scale_b = 1;
+                                } else {
+                                    scale_a = type.scale_factor_for(left, is_multiply);
+                                    scale_b = type.scale_factor_for(right, is_multiply || is_division);
+                                }
                                 if (auto col_right =
                                             check_and_get_column<ColVecT1>(col_right_raw)) {
                                     OpImpl::vector_vector(col_left->get_data(),
@@ -225,6 +235,7 @@ public:
 
                         block.get_by_position(result).column =
                                 ColumnNullable::create(std::move(col_res), std::move(null_map));
+                        LOG(INFO) << "liaoxin nullable result column: " << result << " column1: " << arguments[0] << " column2: " << arguments[1];
                         return true;
                     } else {
                         return false;

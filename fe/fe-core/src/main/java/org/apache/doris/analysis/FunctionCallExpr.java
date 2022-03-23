@@ -26,6 +26,7 @@ import org.apache.doris.catalog.Function;
 import org.apache.doris.catalog.FunctionSet;
 import org.apache.doris.catalog.ScalarFunction;
 import org.apache.doris.catalog.ScalarType;
+import org.apache.doris.catalog.PrimitiveType;
 import org.apache.doris.catalog.Type;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.ErrorCode;
@@ -80,6 +81,12 @@ public class FunctionCallExpr extends Expr {
             new ImmutableSortedSet.Builder(String.CASE_INSENSITIVE_ORDER)
                     .add("stddev").add("stddev_val").add("stddev_samp")
                     .add("variance").add("variance_pop").add("variance_pop").add("var_samp").add("var_pop").build();
+    private static final ImmutableSet<String> DECIMAL_SAME_TYPE_SET =
+            new ImmutableSortedSet.Builder(String.CASE_INSENSITIVE_ORDER)
+                    .add("min").add("max").build();
+    private static final ImmutableSet<String> DECIMAL_WIDER_TYPE_SET =
+            new ImmutableSortedSet.Builder(String.CASE_INSENSITIVE_ORDER)
+                    .add("sum").add("avg").build();
     private static final String ELEMENT_EXTRACT_FN_NAME = "%element_extract%";
 
     // use to record the num of json_object parameters 
@@ -856,6 +863,7 @@ public class FunctionCallExpr extends Expr {
             }
         }
 
+        LOG.info("liaoxin function caller, func: {}", fn.signatureString());
         if (!fn.getFunctionName().getFunction().equals(ELEMENT_EXTRACT_FN_NAME)) {
             Type[] args = fn.getArgs();
             if (args.length > 0) {
@@ -907,6 +915,15 @@ public class FunctionCallExpr extends Expr {
                 }
             } else {
                 this.type = Type.DATETIME;
+            }
+        } else if (fn.getReturnType().isDecimalV3()) {
+            Type argType = argTypes[0];
+            if (DECIMAL_SAME_TYPE_SET.contains(fnName.getFunction())) {
+                this.type = argType;
+            } else if (DECIMAL_WIDER_TYPE_SET.contains(fnName.getFunction())) {
+                this.type = ScalarType.createDecimalV3Type(PrimitiveType.DECIMAL128,
+                        ScalarType.getMaxPrecision(PrimitiveType.DECIMAL128),
+                        ((ScalarType) argType).getScalarScale());
             }
         } else {
             this.type = fn.getReturnType();

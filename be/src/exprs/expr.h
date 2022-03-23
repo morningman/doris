@@ -110,6 +110,9 @@ public:
     // virtual ArrayVal GetArrayVal(ExprContext* context, TupleRow*);
     virtual DateTimeVal get_datetime_val(ExprContext* context, TupleRow*);
     virtual DecimalV2Val get_decimalv2_val(ExprContext* context, TupleRow*);
+    virtual Decimal32Val get_decimal32_val(ExprContext* context, TupleRow*);
+    virtual Decimal64Val get_decimal64_val(ExprContext* context, TupleRow*);
+    virtual Decimal128Val get_decimal128_val(ExprContext* context, TupleRow*);
     virtual CollectionVal get_array_val(ExprContext* context, TupleRow*);
 
     // Get the number of digits after the decimal that should be displayed for this
@@ -428,6 +431,9 @@ private:
     static DateTimeVal get_datetime_val(Expr* expr, ExprContext* context, TupleRow* row);
     static CollectionVal get_array_val(Expr* expr, ExprContext* context, TupleRow* row);
     static DecimalV2Val get_decimalv2_val(Expr* expr, ExprContext* context, TupleRow* row);
+    static Decimal32Val get_decimal32_val(Expr* expr, ExprContext* context, TupleRow* row);
+    static Decimal64Val get_decimal64_val(Expr* expr, ExprContext* context, TupleRow* row);
+    static Decimal128Val get_decimal128_val(Expr* expr, ExprContext* context, TupleRow* row);
 
     /// Creates an expression tree rooted at 'root' via depth-first traversal.
     /// Called recursively to create children expr trees for sub-expressions.

@@ -242,6 +242,7 @@ Expr::Expr(const TExprNode& node, bool is_slotref)
 Expr::~Expr() {}
 
 Status Expr::create_expr_tree(ObjectPool* pool, const TExpr& texpr, ExprContext** ctx) {
+    LOG(ERROR) << "liaoxin Expr::create_expr_tree" << apache::thrift::ThriftDebugString(texpr);
     // input is empty
     if (texpr.nodes.size() == 0) {
         *ctx = nullptr;
@@ -305,6 +306,7 @@ Status Expr::create_tree_from_thrift(ObjectPool* pool, const std::vector<TExprNo
 }
 
 Status Expr::create_expr(ObjectPool* pool, const TExprNode& texpr_node, Expr** expr) {
+    LOG(ERROR) << "liaoxin expr node type: " << texpr_node.node_type;
     switch (texpr_node.node_type) {
     case TExprNodeType::BOOL_LITERAL:
     case TExprNodeType::INT_LITERAL:
@@ -701,6 +703,18 @@ doris_udf::AnyVal* Expr::get_const_val(ExprContext* context) {
         _constant_val.reset(new DecimalV2Val(get_decimalv2_val(context, nullptr)));
         break;
     }
+    case TYPE_DECIMAL32: {
+        _constant_val.reset(new Decimal32Val(get_decimal32_val(context, nullptr)));
+        break;
+    }
+    case TYPE_DECIMAL64: {
+        _constant_val.reset(new Decimal64Val(get_decimal64_val(context, nullptr)));
+        break;
+    }
+    case TYPE_DECIMAL128: {
+        _constant_val.reset(new Decimal128Val(get_decimal128_val(context, nullptr)));
+        break;
+    }
     case TYPE_NULL: {
         _constant_val.reset(new AnyVal(true));
         break;
@@ -784,6 +798,21 @@ DateTimeVal Expr::get_datetime_val(ExprContext* context, TupleRow* row) {
 
 DecimalV2Val Expr::get_decimalv2_val(ExprContext* context, TupleRow* row) {
     DecimalV2Val val;
+    return val;
+}
+
+Decimal32Val Expr::get_decimal32_val(ExprContext* context, TupleRow* row) {
+    Decimal32Val val;
+    return val;
+}
+
+Decimal64Val Expr::get_decimal64_val(ExprContext* context, TupleRow* row) {
+    Decimal64Val val;
+    return val;
+}
+
+Decimal128Val Expr::get_decimal128_val(ExprContext* context, TupleRow* row) {
+    Decimal128Val val;
     return val;
 }
 

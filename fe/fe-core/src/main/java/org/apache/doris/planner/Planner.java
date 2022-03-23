@@ -96,11 +96,17 @@ public class Planner {
                 for (Expr expr : outputExprs) {
                     List<SlotId> slotList = Lists.newArrayList();
                     expr.getIds(null, slotList);
-                    if (PrimitiveType.DECIMALV2 != expr.getType().getPrimitiveType()) {
+                    if (PrimitiveType.DECIMALV2 != expr.getType().getPrimitiveType() 
+                            && PrimitiveType.DECIMAL32 != expr.getType().getPrimitiveType()
+                            && PrimitiveType.DECIMAL64 != expr.getType().getPrimitiveType()
+                            && PrimitiveType.DECIMAL128 != expr.getType().getPrimitiveType()) {
                         continue;
                             }
 
-                    if (PrimitiveType.DECIMALV2 != slotDesc.getType().getPrimitiveType()) {
+                    if (PrimitiveType.DECIMALV2 != slotDesc.getType().getPrimitiveType() 
+                            && PrimitiveType.DECIMAL32 != slotDesc.getType().getPrimitiveType()
+                            && PrimitiveType.DECIMAL64 != slotDesc.getType().getPrimitiveType()
+                            && PrimitiveType.DECIMAL128 != slotDesc.getType().getPrimitiveType()) {
                         continue;
                             }
 

@@ -188,9 +188,11 @@ std::string get_real_symbol(const std::string& symbol) {
 Status UserFunctionCache::get_function_ptr(int64_t fid, const std::string& orig_symbol,
                                            const std::string& url, const std::string& checksum,
                                            void** fn_ptr, UserFunctionCacheEntry** output_entry) {
+    LOG(WARNING) << "liaoxin get_function_ptr";
     auto symbol = get_real_symbol(orig_symbol);
     if (fid == 0) {
         // Just loading a function ptr in the current process. No need to take any locks.
+    LOG(WARNING) << "liaoxin get_function_ptr fid=0" << "symbol=" << symbol;
         RETURN_IF_ERROR(dynamic_lookup(_current_process_handle, symbol.c_str(), fn_ptr));
         return Status::OK();
     }

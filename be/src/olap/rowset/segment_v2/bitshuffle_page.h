@@ -93,6 +93,7 @@ public:
     bool is_page_full() override { return _remain_element_capacity == 0; }
 
     Status add(const uint8_t* vals, size_t* count) override {
+        LOG(INFO) << "liaoxin BitshufflePageBuilder, val: " << *(CppType*)vals;
         DCHECK(!_finished);
         int to_add = std::min<int>(_remain_element_capacity, *count);
         _data.append(vals, to_add * SIZE_OF_TYPE);

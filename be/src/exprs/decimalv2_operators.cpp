@@ -28,6 +28,8 @@
 #include "runtime/tuple_row.h"
 // #include "util/decimal_util.h"
 #include "util/string_parser.hpp"
+#include "vec/data_types/data_type.h"
+#include "vec/data_types/data_type_number.h"
 
 namespace doris {
 

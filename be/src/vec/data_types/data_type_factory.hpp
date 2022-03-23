@@ -62,8 +62,12 @@ public:
             instance.register_data_type("Date", std::make_shared<DataTypeDate>());
             instance.register_data_type("DateTime", std::make_shared<DataTypeDateTime>());
             instance.register_data_type("String", std::make_shared<DataTypeString>());
-            instance.register_data_type("Decimal",
-                                      std::make_shared<DataTypeDecimal<Decimal128>>(27, 9));
+            instance.register_data_type("Decimal32",
+                                      std::make_shared<DataTypeDecimal<Decimal32>>(0, 0));
+            instance.register_data_type("Decimal64",
+                                      std::make_shared<DataTypeDecimal<Decimal64>>(0, 0));
+            instance.register_data_type("Decimal128",
+                                      std::make_shared<DataTypeDecimal<Decimal128>>(0, 0));
         });
         return instance;
     }

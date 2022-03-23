@@ -80,6 +80,9 @@ enum TPrimitiveType {
   MAP,
   STRUCT,
   STRING,
+  DECIMAL32,
+  DECIMAL64,
+  DECIMAL128,
   ALL
 }
 

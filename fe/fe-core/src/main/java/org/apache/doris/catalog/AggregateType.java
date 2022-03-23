@@ -49,6 +49,9 @@ public enum AggregateType {
         primitiveTypeList.add(PrimitiveType.FLOAT);
         primitiveTypeList.add(PrimitiveType.DOUBLE);
         primitiveTypeList.add(PrimitiveType.DECIMALV2);
+        primitiveTypeList.add(PrimitiveType.DECIMAL32);
+        primitiveTypeList.add(PrimitiveType.DECIMAL64);
+        primitiveTypeList.add(PrimitiveType.DECIMAL128);
         compatibilityMap.put(SUM, EnumSet.copyOf(primitiveTypeList));
 
         primitiveTypeList.clear();
@@ -60,6 +63,9 @@ public enum AggregateType {
         primitiveTypeList.add(PrimitiveType.FLOAT);
         primitiveTypeList.add(PrimitiveType.DOUBLE);
         primitiveTypeList.add(PrimitiveType.DECIMALV2);
+        primitiveTypeList.add(PrimitiveType.DECIMAL32);
+        primitiveTypeList.add(PrimitiveType.DECIMAL64);
+        primitiveTypeList.add(PrimitiveType.DECIMAL128);
         primitiveTypeList.add(PrimitiveType.DATE);
         primitiveTypeList.add(PrimitiveType.DATETIME);
         primitiveTypeList.add(PrimitiveType.CHAR);
@@ -76,6 +82,9 @@ public enum AggregateType {
         primitiveTypeList.add(PrimitiveType.FLOAT);
         primitiveTypeList.add(PrimitiveType.DOUBLE);
         primitiveTypeList.add(PrimitiveType.DECIMALV2);
+        primitiveTypeList.add(PrimitiveType.DECIMAL32);
+        primitiveTypeList.add(PrimitiveType.DECIMAL64);
+        primitiveTypeList.add(PrimitiveType.DECIMAL128);
         primitiveTypeList.add(PrimitiveType.DATE);
         primitiveTypeList.add(PrimitiveType.DATETIME);
         primitiveTypeList.add(PrimitiveType.CHAR);

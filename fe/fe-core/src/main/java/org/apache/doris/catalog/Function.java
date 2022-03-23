@@ -499,6 +499,12 @@ public class Function implements Writable {
                 return "datetime_val";
             case DECIMALV2:
                 return "decimalv2_val";
+            case DECIMAL32:
+                return "decimal32_val";
+            case DECIMAL64:
+                return "decimal64_val";
+            case DECIMAL128:
+                return "decimal128_val";
             default:
                 Preconditions.checkState(false, t.toString());
                 return "";
@@ -537,6 +543,12 @@ public class Function implements Writable {
                 return "DateTimeVal";
             case DECIMALV2:
                 return "DecimalV2Val";
+            case DECIMAL32:
+                return "Decimal32Val";
+            case DECIMAL64:
+                return "Decimal64Val";
+            case DECIMAL128:
+                return "Decimal128Val";
             default:
                 Preconditions.checkState(false, t.toString());
                 return "";

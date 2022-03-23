@@ -84,7 +84,10 @@ public:
         TYPE_FIXED_BUFFER,
         TYPE_DECIMALV2,
         TYPE_OBJECT,
-        TYPE_ARRAY
+        TYPE_ARRAY,
+        TYPE_DECIMAL32,
+        TYPE_DECIMAL64,
+        TYPE_DECIMAL128
     };
 
     struct TypeDesc {
@@ -698,6 +701,48 @@ struct DecimalV2Val : public AnyVal {
     bool operator!=(const DecimalV2Val& other) const { return !(*this == other); }
 };
 
+template <typename T>
+struct DecimalV3Val : public AnyVal {
+    T val;
+
+    // Default value is zero
+    DecimalV3Val() : val(0) {}
+
+    const T& value() const { return val; }
+
+    DecimalV3Val(T value) : val(value) {}
+
+    static DecimalV3Val null() {
+        DecimalV3Val result;
+        result.is_null = true;
+        return result;
+    }
+
+    void set_to_zero() { val = 0; }
+
+    void set_to_abs_value() {
+        if (val < 0) val = -val;
+    }
+
+    bool operator==(const DecimalV3Val& other) const {
+        if (is_null && other.is_null) {
+            return true;
+        }
+
+        if (is_null || other.is_null) {
+            return false;
+        }
+
+        return val == other.val;
+    }
+
+    bool operator!=(const DecimalV3Val& other) const { return !(*this == other); }
+};
+
+using Decimal32Val = DecimalV3Val<int32_t>;
+using Decimal64Val = DecimalV3Val<int64_t>;
+using Decimal128Val = DecimalV3Val<__int128>;
+
 struct LargeIntVal : public AnyVal {
     __int128 val;
 
@@ -770,6 +815,9 @@ using doris_udf::FloatVal;
 using doris_udf::DoubleVal;
 using doris_udf::StringVal;
 using doris_udf::DecimalV2Val;
+using doris_udf::Decimal32Val;
+using doris_udf::Decimal64Val;
+using doris_udf::Decimal128Val;
 using doris_udf::DateTimeVal;
 using doris_udf::HllVal;
 using doris_udf::FunctionContext;

@@ -113,6 +113,37 @@ void VLiteral::init(const TExprNode& node) {
             field = DecimalField<Decimal128>(value.value(), value.scale());
             break;
         }
+        // TODO liaoxin
+        case TYPE_DECIMAL32: {
+            DCHECK_EQ(node.node_type, TExprNodeType::DECIMAL_LITERAL);
+            DCHECK(node.__isset.decimal_literal);
+            StringParser::ParseResult result = StringParser::PARSE_SUCCESS;
+            auto value = StringParser::string_to_decimal<int32_t>(node.decimal_literal.value.c_str(),
+                    node.decimal_literal.value.size(), node.type.types[0].scalar_type.precision,
+                    node.type.types[0].scalar_type.scale, &result);
+            field = DecimalField<Decimal32>(value, node.type.types[0].scalar_type.scale);
+            break;
+        }
+        case TYPE_DECIMAL64: {
+            DCHECK_EQ(node.node_type, TExprNodeType::DECIMAL_LITERAL);
+            DCHECK(node.__isset.decimal_literal);
+            StringParser::ParseResult result = StringParser::PARSE_SUCCESS;
+            auto value = StringParser::string_to_decimal<int64_t>(node.decimal_literal.value.c_str(),
+                    node.decimal_literal.value.size(), node.type.types[0].scalar_type.precision,
+                    node.type.types[0].scalar_type.scale, &result);
+            field = DecimalField<Decimal64>(value, node.type.types[0].scalar_type.scale);
+            break;
+        }
+        case TYPE_DECIMAL128: {
+            DCHECK_EQ(node.node_type, TExprNodeType::DECIMAL_LITERAL);
+            DCHECK(node.__isset.decimal_literal);
+            StringParser::ParseResult result = StringParser::PARSE_SUCCESS;
+            auto value = StringParser::string_to_decimal<int128_t>(node.decimal_literal.value.c_str(),
+                    node.decimal_literal.value.size(), node.type.types[0].scalar_type.precision,
+                    node.type.types[0].scalar_type.scale, &result);
+            field = DecimalField<Decimal128>(value, node.type.types[0].scalar_type.scale);
+            break;
+        }
         default: {
             DCHECK(false) << "Invalid type: " << _type.type;
             break;

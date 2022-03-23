@@ -272,6 +272,30 @@ void* ExprContext::get_value(Expr* e, TupleRow* row) {
         _result.decimalv2_val = DecimalV2Value::from_decimal_val(v);
         return &_result.decimalv2_val;
     }
+    case TYPE_DECIMAL32: {
+        Decimal32Val v = e->get_decimal32_val(this, row);
+        if (v.is_null) {
+            return nullptr;
+        }
+        _result.decimal32_val = v.val;
+        return &_result.decimal32_val;
+    }
+    case TYPE_DECIMAL64: {
+        Decimal64Val v = e->get_decimal64_val(this, row);
+        if (v.is_null) {
+            return nullptr;
+        }
+        _result.decimal64_val = v.val;
+        return &_result.decimal64_val;
+    }
+    case TYPE_DECIMAL128: {
+        Decimal128Val v = e->get_decimal128_val(this, row);
+        if (v.is_null) {
+            return nullptr;
+        }
+        _result.decimal128_val = v.val;
+        return &_result.decimal128_val;
+    }
     case TYPE_ARRAY: {
         doris_udf::CollectionVal v = e->get_array_val(this, row);
         if (v.is_null) {
@@ -346,6 +370,18 @@ DateTimeVal ExprContext::get_datetime_val(TupleRow* row) {
 
 DecimalV2Val ExprContext::get_decimalv2_val(TupleRow* row) {
     return _root->get_decimalv2_val(this, row);
+}
+
+Decimal32Val ExprContext::get_decimal32_val(TupleRow* row) {
+    return _root->get_decimal32_val(this, row);
+}
+
+Decimal64Val ExprContext::get_decimal64_val(TupleRow* row) {
+    return _root->get_decimal64_val(this, row);
+}
+
+Decimal128Val ExprContext::get_decimal128_val(TupleRow* row) {
+    return _root->get_decimal128_val(this, row);
 }
 
 Status ExprContext::get_const_value(RuntimeState* state, Expr& expr, AnyVal** const_val) {

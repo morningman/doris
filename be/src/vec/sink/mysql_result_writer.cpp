@@ -26,6 +26,7 @@
 #include "vec/exprs/vexpr.h"
 #include "vec/exprs/vexpr_context.h"
 #include "vec/runtime/vdatetime_value.h"
+#include "vec/io/io_helper.h"
 namespace doris {
 namespace vectorized {
 VMysqlResultWriter::VMysqlResultWriter(BufferControlBlock* sinker,
@@ -202,6 +203,30 @@ Status VMysqlResultWriter::_add_one_column(const ColumnPtr& column_ptr,
             if constexpr (type == TYPE_DECIMALV2) {
                 DecimalV2Value decimal_val(data[i]);
                 auto decimal_str = decimal_val.to_string();
+                buf_ret = _buffer.push_string(decimal_str.c_str(), decimal_str.length());
+            }
+
+            if constexpr (type == TYPE_DECIMAL32) {
+                std::ostringstream buf;
+                LOG(WARNING) << "liaoxin mysql vec scale: " << data.get_scale();
+                write_text<Int32>(data[i], data.get_scale(), buf);
+                string decimal_str = buf.str();
+                buf_ret = _buffer.push_string(decimal_str.c_str(), decimal_str.length());
+            }
+
+            if constexpr (type == TYPE_DECIMAL64) {
+                std::ostringstream buf;
+                LOG(WARNING) << "liaoxin mysql vec scale: " << data.get_scale();
+                write_text<Int64>(data[i], data.get_scale(), buf);
+                string decimal_str = buf.str();
+                buf_ret = _buffer.push_string(decimal_str.c_str(), decimal_str.length());
+            }
+
+            if constexpr (type == TYPE_DECIMAL128) {
+                std::ostringstream buf;
+                LOG(WARNING) << "liaoxin mysql vec scale: " << data.get_scale();
+                write_text<Int128>(data[i], data.get_scale(), buf);
+                string decimal_str = buf.str();
                 buf_ret = _buffer.push_string(decimal_str.c_str(), decimal_str.length());
             }
 
@@ -422,6 +447,32 @@ Status VMysqlResultWriter::append_block(Block& input_block) {
                 status = _add_one_column<PrimitiveType::TYPE_DECIMALV2, true>(column_ptr, result);
             } else {
                 status = _add_one_column<PrimitiveType::TYPE_DECIMALV2, false>(column_ptr, result);
+            }
+            break;
+        }
+        case TYPE_DECIMAL32: {
+            if (type_ptr->is_nullable()) {
+                status = _add_one_column<PrimitiveType::TYPE_DECIMAL32, true>(column_ptr, result);
+            } else {
+                status = _add_one_column<PrimitiveType::TYPE_DECIMAL32, false>(column_ptr, result);
+            }
+            break;
+        }
+        case TYPE_DECIMAL64: {
+            LOG(INFO) << fmt::format("liaoxin mysql type:{}", demangle(typeid(*column_ptr).name()));
+            if (type_ptr->is_nullable()) {
+                status = _add_one_column<PrimitiveType::TYPE_DECIMAL64, true>(column_ptr, result);
+            } else {
+                status = _add_one_column<PrimitiveType::TYPE_DECIMAL64, false>(column_ptr, result);
+            }
+            break;
+        }
+        case TYPE_DECIMAL128: {
+            LOG(INFO) << fmt::format("liaoxin mysql type:{}", demangle(typeid(*column_ptr).name()));
+            if (type_ptr->is_nullable()) {
+                status = _add_one_column<PrimitiveType::TYPE_DECIMAL128, true>(column_ptr, result);
+            } else {
+                status = _add_one_column<PrimitiveType::TYPE_DECIMAL128, false>(column_ptr, result);
             }
             break;
         }

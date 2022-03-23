@@ -18,6 +18,7 @@
 package org.apache.doris.analysis;
 
 import org.apache.doris.catalog.PrimitiveType;
+import org.apache.doris.catalog.ScalarType;
 import org.apache.doris.catalog.Type;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.NotImplementedException;
@@ -39,6 +40,7 @@ import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Objects;
+import org.apache.doris.common.util.DebugUtil;
 
 public class DecimalLiteral extends LiteralExpr {
     private static final Logger LOG = LogManager.getLogger(DecimalLiteral.class);
@@ -50,6 +52,8 @@ public class DecimalLiteral extends LiteralExpr {
     public DecimalLiteral(BigDecimal value) {
         init(value);
         analysisDone();
+            Exception e = new Exception("this is a log"); //相应的log标记
+            LOG.info("liaoxin strace: {}", DebugUtil.getStackTrace(e));
     }
 
     public DecimalLiteral(String value) throws AnalysisException {
@@ -61,6 +65,8 @@ public class DecimalLiteral extends LiteralExpr {
         }
         init(v);
         analysisDone();
+            Exception e = new Exception("this is a log"); //相应的log标记
+            LOG.info("liaoxin strace: {}", DebugUtil.getStackTrace(e));
     }
 
     protected DecimalLiteral(DecimalLiteral other) {
@@ -73,9 +79,25 @@ public class DecimalLiteral extends LiteralExpr {
         return new DecimalLiteral(this);
     }
 
+    public static int getBigDecimalPrecision(BigDecimal decimal) {
+        int scale = decimal.scale();
+        int precision = decimal.precision();
+        if (scale < 0) {
+            return Math.abs(scale) + precision;
+        } else {
+            return Math.max(scale, precision);
+        }
+    }
+
+    public static int getBigDecimalScale(BigDecimal decimal) {
+        return Math.max(0, decimal.scale());
+    }
+
     private void init(BigDecimal value) {
         this.value = value;
-        type = Type.DECIMALV2;
+        int precision = getBigDecimalPrecision(this.value);
+        int scale = getBigDecimalScale(this.value);
+        type = ScalarType.createDecimalV3Type(precision, scale);
     }
 
     public BigDecimal getValue() {
@@ -242,7 +264,8 @@ public class DecimalLiteral extends LiteralExpr {
 
     @Override
     protected Expr uncheckedCastTo(Type targetType) throws AnalysisException {
-        if (targetType.isDecimalV2()) {
+        // TODO liaoxin
+        if (targetType.isDecimalV2() || targetType.isDecimalV3()) {
             return this;
         } else if (targetType.isFloatingPointType()) {
             return new FloatLiteral(value.doubleValue(), targetType);

@@ -65,6 +65,10 @@ enum PrimitiveType {
     TYPE_TIME,   /* 21 */
     TYPE_OBJECT, /* 22 */
     TYPE_STRING, /* 23 */
+
+    TYPE_DECIMAL32,  /* 24 */
+    TYPE_DECIMAL64,  /* 25 */
+    TYPE_DECIMAL128, /* 26 */
 };
 
 inline PrimitiveType convert_type_to_primitive(FunctionContext::Type type) {
@@ -85,6 +89,12 @@ inline PrimitiveType convert_type_to_primitive(FunctionContext::Type type) {
         return PrimitiveType::TYPE_DATETIME;
     case FunctionContext::Type::TYPE_DECIMALV2:
         return PrimitiveType::TYPE_DECIMALV2;
+    case FunctionContext::Type::TYPE_DECIMAL32:
+        return PrimitiveType::TYPE_DECIMAL32;
+    case FunctionContext::Type::TYPE_DECIMAL64:
+        return PrimitiveType::TYPE_DECIMAL64;
+    case FunctionContext::Type::TYPE_DECIMAL128:
+        return PrimitiveType::TYPE_DECIMAL128;
     case FunctionContext::Type::TYPE_BOOLEAN:
         return PrimitiveType::TYPE_BOOLEAN;
     case FunctionContext::Type::TYPE_ARRAY:
@@ -122,6 +132,9 @@ inline bool is_enumeration_type(PrimitiveType type) {
     case TYPE_STRING:
     case TYPE_DATETIME:
     case TYPE_DECIMALV2:
+    case TYPE_DECIMAL32:
+    case TYPE_DECIMAL64:
+    case TYPE_DECIMAL128:
     case TYPE_BOOLEAN:
     case TYPE_ARRAY:
     case TYPE_HLL:
@@ -174,17 +187,20 @@ inline int get_byte_size(PrimitiveType type) {
 
     case TYPE_INT:
     case TYPE_FLOAT:
+    case TYPE_DECIMAL32:
         return 4;
 
     case TYPE_BIGINT:
     case TYPE_TIME:
     case TYPE_DOUBLE:
+    case TYPE_DECIMAL64:
         return 8;
 
     case TYPE_DATETIME:
     case TYPE_DATE:
     case TYPE_LARGEINT:
     case TYPE_DECIMALV2:
+    case TYPE_DECIMAL128:
         return 16;
 
     case INVALID_TYPE:
@@ -214,16 +230,19 @@ inline int get_real_byte_size(PrimitiveType type) {
 
     case TYPE_INT:
     case TYPE_FLOAT:
+    case TYPE_DECIMAL32:
         return 4;
 
     case TYPE_BIGINT:
     case TYPE_TIME:
     case TYPE_DOUBLE:
+    case TYPE_DECIMAL64:
         return 8;
 
     case TYPE_DATETIME:
     case TYPE_DATE:
     case TYPE_DECIMALV2:
+    case TYPE_DECIMAL128:
         return 16;
 
     case TYPE_LARGEINT:
@@ -326,6 +345,21 @@ struct PrimitiveTypeTraits<TYPE_DATETIME> {
 template <>
 struct PrimitiveTypeTraits<TYPE_DECIMALV2> {
     using CppType = DecimalV2Value;
+    using ColumnType = vectorized::ColumnDecimal<vectorized::Decimal128>;
+};
+template <>
+struct PrimitiveTypeTraits<TYPE_DECIMAL32> {
+    using CppType = int32_t;
+    using ColumnType = vectorized::ColumnDecimal<vectorized::Decimal32>;
+};
+template <>
+struct PrimitiveTypeTraits<TYPE_DECIMAL64> {
+    using CppType = int64_t;
+    using ColumnType = vectorized::ColumnDecimal<vectorized::Decimal64>;
+};
+template <>
+struct PrimitiveTypeTraits<TYPE_DECIMAL128> {
+    using CppType = __int128_t;
     using ColumnType = vectorized::ColumnDecimal<vectorized::Decimal128>;
 };
 template <>

@@ -121,6 +121,8 @@ struct DecimalBinaryOperation {
     static constexpr bool is_compare =
             std::is_same_v<Operation<Int32, Int32>, LeastBaseImpl<Int32, Int32>> ||
             std::is_same_v<Operation<Int32, Int32>, GreatestBaseImpl<Int32, Int32>>;
+    static constexpr bool is_modulo_op =
+            std::is_same_v<Operation<Int32, Int32>, ModuloImpl<Int32, Int32>>;
     static constexpr bool is_plus_minus_compare = is_plus_minus || is_compare;
     static constexpr bool can_overflow = is_plus_minus || is_multiply;
 
@@ -210,6 +212,18 @@ struct DecimalBinaryOperation {
                 c[i] = apply_scaled_div(a[i], b[i], scale_a, null_map, i);
             }
             return;
+        } else if constexpr (is_modulo_op) {
+            if (scale_a != 1) {
+                for (size_t i = 0; i < size; ++i) {
+                    c[i] = apply_scaled_mod<true>(a[i], b[i], scale_a, null_map, i);
+                }
+                return;
+            } else if (scale_b != 1) {
+                for (size_t i = 0; i < size; ++i) {
+                    c[i] = apply_scaled_mod<false>(a[i], b[i], scale_b, null_map, i);
+                }
+                return;
+            }
         }
 
         /// default: use it if no return before
@@ -275,25 +289,28 @@ struct DecimalBinaryOperation {
 private:
     /// there's implicit type convertion here
     static NativeResultType apply(NativeResultType a, NativeResultType b) {
-        // Now, Doris only support decimal +-*/ decimal.
-        // overflow in consider in operator
-        DecimalV2Value l(a);
-        DecimalV2Value r(b);
-        auto ans = Op::template apply(l, r);
-        NativeResultType result;
-        memcpy(&result, &ans, sizeof(NativeResultType));
-        return result;
+            NativeResultType res;
+        if constexpr (_check_overflow) {
+            bool overflow = false;
+            if constexpr (can_overflow)
+                overflow |= Op::template apply<NativeResultType>(a, b, res);
+            else
+                res = Op::template apply<NativeResultType>(a, b);
+
+            if (overflow) {
+                LOG(FATAL) << "Decimal math overflow";
+            }
+        } else {
+            res = Op::template apply<NativeResultType>(a, b);
+        }
+
+        return res;
     }
 
     /// null_map for divide and mod
     static NativeResultType apply(NativeResultType a, NativeResultType b, NullMap& null_map,
                                   size_t index) {
-        DecimalV2Value l(a);
-        DecimalV2Value r(b);
-        auto ans = Op::template apply(l, r, null_map, index);
-        NativeResultType result;
-        memcpy(&result, &ans, std::min(sizeof(result), sizeof(ans)));
-        return result;
+        return Op::template apply<NativeResultType>(a, b, null_map, index);
     }
 
     template <bool scale_left>
@@ -344,6 +361,32 @@ private:
             } else {
                 if constexpr (!IsDecimalNumber<A>) scale *= scale;
                 a *= scale;
+            }
+
+            return Op::template apply<NativeResultType>(a, b, null_map, index);
+        }
+    }
+
+    template <bool scale_left>
+    static NativeResultType apply_scaled_mod(NativeResultType a, NativeResultType b,
+                                             NativeResultType scale, NullMap& null_map,
+                                             size_t index) {
+        if constexpr (is_modulo_op) {
+            if constexpr (_check_overflow) {
+                bool overflow = false;
+                if constexpr (scale_left)
+                    overflow |= common::mul_overflow(a, scale, a);
+                else
+                    overflow |= common::mul_overflow(b, scale, b);
+
+                if (overflow) {
+                    LOG(FATAL) << "Decimal math overflow";
+                }
+            } else {
+                if constexpr (scale_left)
+                    a *= scale;
+                else
+                    b *= scale;
             }
 
             return Op::template apply<NativeResultType>(a, b, null_map, index);
@@ -541,8 +584,6 @@ public:
                         else if constexpr (IsDataTypeDecimal<RightDataType>)
                             type_res = std::make_shared<RightDataType>(right.get_precision(),
                                                                        right.get_scale());
-                        else if constexpr (IsDataTypeDecimal<ResultDataType>)
-                            type_res = std::make_shared<ResultDataType>(27, 9);
                         else
                             type_res = std::make_shared<ResultDataType>();
                         return true;
@@ -593,6 +634,17 @@ public:
                                 DecimalBinaryOperation<T0, T1, Op, ResultType>,
                                 BinaryOperationImpl<T0, T1, Op<T0, T1>, ResultType>>;
 
+                        if constexpr (result_is_decimal) {
+                            ResultDataType type =
+                                    decimal_result_type(left, right, is_multiply, is_division);
+                            LOG(INFO) << "liaoxin decimal_result_type type precision: " << type.get_precision() << " scale: " << type.get_scale();
+                            auto nested = create_decimal(type.get_precision(), type.get_scale());
+                            if (block.get_by_position(result).type->is_nullable()) {
+                                block.get_by_position(result).type = std::make_shared<vectorized::DataTypeNullable>(nested);
+                            } else {
+                                block.get_by_position(result).type = nested;
+                            }
+                        }
                         auto col_left_raw = block.get_by_position(arguments[0]).column.get();
                         auto col_right_raw = block.get_by_position(arguments[1]).column.get();
                         if (auto col_left = check_and_get_column_const<ColVecT0>(col_left_raw)) {
@@ -631,9 +683,11 @@ public:
                         }
 
                         typename ColVecResult::MutablePtr col_res = nullptr;
+                        LOG(INFO) << "liaoxin result_is_decimal: " << result_is_decimal;
                         if constexpr (result_is_decimal) {
                             ResultDataType type =
                                     decimal_result_type(left, right, is_multiply, is_division);
+                            LOG(INFO) << "liaoxin decimal_result_type type precision: " << type.get_precision() << " scale: " << type.get_scale();
                             col_res = ColVecResult::create(0, type.get_scale());
                         } else
                             col_res = ColVecResult::create();
@@ -706,6 +760,7 @@ public:
                             return false;
 
                         block.replace_by_position(result, std::move(col_res));
+                        LOG(INFO) << "liaoxin result column: " << result << " column1: " << arguments[0] << " column2: " << arguments[1];
                         return true;
                     }
                     return false;

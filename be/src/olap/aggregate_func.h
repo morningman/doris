@@ -134,6 +134,49 @@ struct AggregateFuncTraits<OLAP_FIELD_AGGREGATION_NONE, OLAP_FIELD_TYPE_DECIMAL>
     }
 };
 
+// TODO liaoxin
+template <>
+struct AggregateFuncTraits<OLAP_FIELD_AGGREGATION_NONE, OLAP_FIELD_TYPE_DECIMAL32>
+        : public BaseAggregateFuncs<OLAP_FIELD_TYPE_DECIMAL32> {
+    static void init(RowCursorCell* dst, const char* src, bool src_null, MemPool* mem_pool,
+                     ObjectPool* agg_pool) {
+    typedef typename FieldTypeTraits<OLAP_FIELD_TYPE_DECIMAL32>::CppType CppType;
+        dst->set_is_null(src_null);
+        if (src_null) {
+            return;
+        }
+        memcpy(dst->mutable_cell_ptr(), src, sizeof(CppType));
+    }
+};
+
+template <>
+struct AggregateFuncTraits<OLAP_FIELD_AGGREGATION_NONE, OLAP_FIELD_TYPE_DECIMAL64>
+        : public BaseAggregateFuncs<OLAP_FIELD_TYPE_DECIMAL64> {
+    static void init(RowCursorCell* dst, const char* src, bool src_null, MemPool* mem_pool,
+                     ObjectPool* agg_pool) {
+    typedef typename FieldTypeTraits<OLAP_FIELD_TYPE_DECIMAL64>::CppType CppType;
+        dst->set_is_null(src_null);
+        if (src_null) {
+            return;
+        }
+        memcpy(dst->mutable_cell_ptr(), src, sizeof(CppType));
+    }
+};
+
+template <>
+struct AggregateFuncTraits<OLAP_FIELD_AGGREGATION_NONE, OLAP_FIELD_TYPE_DECIMAL128>
+        : public BaseAggregateFuncs<OLAP_FIELD_TYPE_DECIMAL128> {
+    static void init(RowCursorCell* dst, const char* src, bool src_null, MemPool* mem_pool,
+                     ObjectPool* agg_pool) {
+    typedef typename FieldTypeTraits<OLAP_FIELD_TYPE_DECIMAL128>::CppType CppType;
+        dst->set_is_null(src_null);
+        if (src_null) {
+            return;
+        }
+        memcpy(dst->mutable_cell_ptr(), src, sizeof(CppType));
+    }
+};
+
 template <>
 struct AggregateFuncTraits<OLAP_FIELD_AGGREGATION_NONE, OLAP_FIELD_TYPE_DATETIME>
         : public BaseAggregateFuncs<OLAP_FIELD_TYPE_DECIMAL> {

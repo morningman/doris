@@ -219,6 +219,10 @@ public class StringLiteral extends LiteralExpr {
                     }
                     break;
                 case DECIMALV2:
+                // TODO liaoxin
+                case DECIMAL32:
+                case DECIMAL64:
+                case DECIMAL128:
                     return new DecimalLiteral(value);
                 default:
                     break;

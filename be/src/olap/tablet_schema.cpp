@@ -59,8 +59,16 @@ FieldType TabletColumn::get_field_type_by_string(const std::string& type_str) {
         type = OLAP_FIELD_TYPE_DATE;
     } else if (0 == upper_type_str.compare("DATETIME")) {
         type = OLAP_FIELD_TYPE_DATETIME;
-    } else if (0 == upper_type_str.compare(0, 7, "DECIMAL")) {
+    } else if (0 == upper_type_str.compare("DECIMAL")) {
         type = OLAP_FIELD_TYPE_DECIMAL;
+    } else if (0 == upper_type_str.compare("DECIMALV2")) {
+        type = OLAP_FIELD_TYPE_DECIMAL;
+    } else if (0 == upper_type_str.compare("DECIMAL32")) {
+        type = OLAP_FIELD_TYPE_DECIMAL32;
+    } else if (0 == upper_type_str.compare("DECIMAL64")) {
+        type = OLAP_FIELD_TYPE_DECIMAL64;
+    } else if (0 == upper_type_str.compare("DECIMAL128")) {
+        type = OLAP_FIELD_TYPE_DECIMAL128;
     } else if (0 == upper_type_str.compare(0, 7, "VARCHAR")) {
         type = OLAP_FIELD_TYPE_VARCHAR;
     } else if (0 == upper_type_str.compare("STRING")) {
@@ -166,6 +174,15 @@ std::string TabletColumn::get_string_by_field_type(FieldType type) {
     case OLAP_FIELD_TYPE_DECIMAL:
         return "DECIMAL";
 
+    case OLAP_FIELD_TYPE_DECIMAL32:
+        return "DECIMAL32";
+
+    case OLAP_FIELD_TYPE_DECIMAL64:
+        return "DECIMAL64";
+
+    case OLAP_FIELD_TYPE_DECIMAL128:
+        return "DECIMAL128";
+
     case OLAP_FIELD_TYPE_VARCHAR:
         return "VARCHAR";
 
@@ -260,6 +277,12 @@ uint32_t TabletColumn::get_field_length_by_type(TPrimitiveType::type type, uint3
         return OLAP_ARRAY_MAX_LENGTH;
     case TPrimitiveType::DECIMALV2:
         return 12; // use 12 bytes in olap engine.
+    case TPrimitiveType::DECIMAL32:
+        return 4;
+    case TPrimitiveType::DECIMAL64:
+        return 8;
+    case TPrimitiveType::DECIMAL128:
+        return 16;
     default:
         OLAP_LOG_WARNING("unknown field type. [type=%d]", type);
         return 0;
@@ -293,6 +316,8 @@ void TabletColumn::init_from_pb(const ColumnPB& column) {
     _unique_id = column.unique_id();
     _col_name = column.name();
     _type = TabletColumn::get_field_type_by_string(column.type());
+    LOG(WARNING) << "liaoxin TabletColumn::init_from_pb column type=" << column.type();
+    LOG(WARNING) << "liaoxin TabletColumn::init_from_pb type=" << TabletColumn::get_string_by_field_type(_type);
     _is_key = column.is_key();
     _is_nullable = column.is_nullable();
 
@@ -392,6 +417,7 @@ void TabletColumn::add_sub_column(TabletColumn& sub_column) {
 }
 
 void TabletSchema::init_from_pb(const TabletSchemaPB& schema) {
+    LOG(WARNING) << "liaoxin TabletSchema::init_from_pb ";
     _keys_type = schema.keys_type();
     _num_columns = 0;
     _num_key_columns = 0;
