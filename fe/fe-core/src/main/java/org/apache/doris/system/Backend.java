@@ -588,7 +588,7 @@ public class Backend implements Writable {
     @Override
     public String toString() {
         return "Backend [id=" + id + ", host=" + host + ", heartbeatPort=" + heartbeatPort + ", alive=" + isAlive.get()
-                + ", tag: " + tag + "]";
+                + ", tag: " + tag + ", schedule: " + isScheduleAvailable() + ", load: " + isLoadAvailable() + ", query: " + isQueryAvailable() + "]";
     }
 
     public String getOwnerClusterName() {

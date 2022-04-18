@@ -806,15 +806,39 @@ public class SystemInfoService {
                                                                boolean isCreate, String clusterName,
                                                                TStorageMedium storageMedium, Tag tag) {
         Stream<Backend> beStream = getClusterBackends(clusterName).stream();
+        {
+            Stream<Backend> tmp = getClusterBackends(clusterName).stream();
+            LOG.info("cmy get backends for cluster {}, size: {}", clusterName, tmp.count());
+        }
+
         if (storageMedium == null) {
             beStream = beStream.filter(v -> !v.diskExceedLimit());
+            {
+                Stream<Backend> tmp = getClusterBackends(clusterName).stream().filter(v -> !v.diskExceedLimit());
+                LOG.info("cmy get backends for storageMedium null, size: {}", tmp.count());
+            }
         } else {
             beStream = beStream.filter(v -> !v.diskExceedLimitByStorageMedium(storageMedium));
+            {
+                Stream<Backend> tmp = getClusterBackends(clusterName).stream().filter(v -> !v.diskExceedLimitByStorageMedium(storageMedium));
+                LOG.info("cmy get backends for storageMedium {}, size: {}", storageMedium.name(), tmp.count());
+            }
         }
         if (tag != null) {
             beStream = beStream.filter(v -> v.getTag().equals(tag));
+            {
+                Stream<Backend> tmp = getClusterBackends(clusterName).stream();
+                if (storageMedium == null) {
+                    tmp = tmp.filter(v -> !v.diskExceedLimit());
+                } else {
+                    tmp = tmp.filter(v -> !v.diskExceedLimitByStorageMedium(storageMedium));
+                }
+                tmp = tmp.filter(v -> v.getTag().equals(tag));
+                LOG.info("cmy get backends for tag {}, size: {}", tag.toKey(), tmp.count());
+            }
         }
         final List<Backend> backends = beStream.collect(Collectors.toList());
+        LOG.info("cmy get backends list: {}", backends);
         return seqChooseBackendIds(backendNum, beAvailablePredicate, isCreate, clusterName, backends);
     }
 
