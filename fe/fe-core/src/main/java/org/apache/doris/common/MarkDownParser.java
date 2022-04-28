@@ -27,27 +27,23 @@ import java.util.Map;
 // Example:
 // file content is below:
 // 
-// # head1
-// ## head2_1
+// ## head1
+// ### head2_1
 // some lines
-// ## head2_2
+// ### head2_2
 // some other lines
 //
 // will be parsed to map like {"head1" : {"head2_1":"some lines", "head2_2" : "some other lines"}}
 // Note: It is allowed to have more than one topic in a file
 // Note: the top level header is ##
 public class MarkDownParser {
-    private static enum ParseState {
+    private enum ParseState {
         START,
         PARSED_H1,
         PARSED_H2
     }
 
     private static final byte SINGLE_POUND_SIGN = '#';
-    private static final String LEVEL_1 = "#";
-    private static final String LEVEL_2 = "##";
-    private static final String LEVEL_3 = "###";
-    private static final String LEVEL_4 = "####";
 
     private Map<String, Map<String, String>> documents;
     private List<String> lines;
@@ -75,7 +71,7 @@ public class MarkDownParser {
             }
             switch (state) {
                 case START:
-                    if (headLevel == 1) {
+                    if (headLevel == 2) {
                         head = keyValue.getKey();
                         keyValues = Maps.newTreeMap(String.CASE_INSENSITIVE_ORDER);
                         state = ParseState.PARSED_H1;
@@ -85,12 +81,12 @@ public class MarkDownParser {
                     }
                     break;
                 case PARSED_H1:
-                    if (headLevel == 1) {
+                    if (headLevel == 2) {
                         // Empty document, step over, do nothing
                         documents.put(head, keyValues);
                         head = keyValue.getKey();
                         keyValues = Maps.newTreeMap(String.CASE_INSENSITIVE_ORDER);
-                    } else if (headLevel == 2) {
+                    } else if (headLevel == 3) {
                         keyValues.put(keyValue.getKey(), keyValue.getValue());
                         state = ParseState.PARSED_H2;
                     } else {
@@ -98,12 +94,12 @@ public class MarkDownParser {
                     }
                     break;
                 case PARSED_H2:
-                    if (headLevel == 1) {
+                    if (headLevel == 2) {
                         // One document read over.
                         documents.put(head, keyValues);
                         head = keyValue.getKey();
                         keyValues = Maps.newTreeMap(String.CASE_INSENSITIVE_ORDER);
-                    } else if (headLevel == 2) {
+                    } else if (headLevel == 3) {
                         keyValues.put(keyValue.getKey(), keyValue.getValue());
                     } else {
                         //Ignore headlevel greater than 2 instead of throwing a exception
@@ -124,9 +120,10 @@ public class MarkDownParser {
         return documents;
     }
 
+    // parse level 2(##) and level 3(###)
     private Map.Entry<String, String> parseOneItem() {
-        // 1. Find the first line starts with ##, skip content before it.
-        while (nextToRead < lines.size() && !lines.get(nextToRead).startsWith(LEVEL_2)) {
+        // 1. Find the first heading line (start with ##)
+        while (nextToRead < lines.size() && !lines.get(nextToRead).startsWith("##")) {
             nextToRead++;
         }
         if (nextToRead >= lines.size()) {
@@ -138,17 +135,19 @@ public class MarkDownParser {
         while (headLevel < key.length() && key.charAt(headLevel) == SINGLE_POUND_SIGN) {
             headLevel++;
         }
-        // 3. Save all lines within this level
+        // 3. Save all lines within this level until we met next ## or ###
         StringBuilder sb = new StringBuilder();
         while (nextToRead < lines.size()) {
-            if (!lines.get(nextToRead).startsWith(LEVEL_2)) {
+            if (!lines.get(nextToRead).startsWith("##")) {
+                // content
                 sb.append(lines.get(nextToRead)).append('\n');
                 nextToRead++;
-            } else if (lines.get(nextToRead).startsWith(LEVEL_4)) {
-                // Ignore headlevel greater than 3
-                sb.append(lines.get(nextToRead).replaceAll("#","")).append('\n');
+            } else if (lines.get(nextToRead).startsWith("####")) {
+                // Ignore head level greater than 3, treat them as normal content
+                sb.append(lines.get(nextToRead)).append('\n');
                 nextToRead++;
             } else {
+                // break if we meet next
                 break;
             }
         }
