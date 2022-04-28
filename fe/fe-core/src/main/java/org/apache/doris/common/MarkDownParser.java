@@ -35,12 +35,19 @@ import java.util.Map;
 //
 // will be parsed to map like {"head1" : {"head2_1":"some lines", "head2_2" : "some other lines"}}
 // Note: It is allowed to have more than one topic in a file
+// Note: the top level header is ##
 public class MarkDownParser {
     private static enum ParseState {
         START,
         PARSED_H1,
         PARSED_H2
     }
+
+    private static final byte SINGLE_POUND_SIGN = '#';
+    private static final String LEVEL_1 = "#";
+    private static final String LEVEL_2 = "##";
+    private static final String LEVEL_3 = "###";
+    private static final String LEVEL_4 = "####";
 
     private Map<String, Map<String, String>> documents;
     private List<String> lines;
@@ -118,29 +125,30 @@ public class MarkDownParser {
     }
 
     private Map.Entry<String, String> parseOneItem() {
-        while (nextToRead < lines.size() && !lines.get(nextToRead).startsWith("#")) {
+        // 1. Find the first line starts with ##, skip content before it.
+        while (nextToRead < lines.size() && !lines.get(nextToRead).startsWith(LEVEL_2)) {
             nextToRead++;
         }
         if (nextToRead >= lines.size()) {
             return null;
         }
+        // 2. Get the level of this key
         String key = lines.get(nextToRead++);
         headLevel = 0;
-        while (headLevel < key.length() && key.charAt(headLevel) == '#') {
+        while (headLevel < key.length() && key.charAt(headLevel) == SINGLE_POUND_SIGN) {
             headLevel++;
         }
+        // 3. Save all lines within this level
         StringBuilder sb = new StringBuilder();
         while (nextToRead < lines.size()) {
-            if (!lines.get(nextToRead).startsWith("#")) {
+            if (!lines.get(nextToRead).startsWith(LEVEL_2)) {
                 sb.append(lines.get(nextToRead)).append('\n');
                 nextToRead++;
-            }
-            // Ignore headlevel greater than 2
-            else if (lines.get(nextToRead).startsWith("###")) {
+            } else if (lines.get(nextToRead).startsWith(LEVEL_4)) {
+                // Ignore headlevel greater than 3
                 sb.append(lines.get(nextToRead).replaceAll("#","")).append('\n');
                 nextToRead++;
-            } 
-            else {
+            } else {
                 break;
             }
         }
