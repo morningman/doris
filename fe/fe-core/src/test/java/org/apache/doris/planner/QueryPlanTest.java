@@ -2152,7 +2152,37 @@ public class QueryPlanTest {
         sql = "explain select * from out_join_1 full join out_join_2 on out_join_1.k1 = out_join_2.k1 and 1=2;";
         explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, sql);
         Assert.assertFalse(explainString.contains("non-equal FULL OUTER JOIN is not supported"));
-
     }
 
+    @Test
+    public void testSubqueryPartitionPrune() throws Exception {
+        createTable("CREATE TABLE test.test_prune (\n" +
+                "  `day` date NOT NULL COMMENT \"\",\n" +
+                "  `game_code` varchar(50) NOT NULL,\n" +
+                "  `val` varchar(200)\n" +
+                ") ENGINE=OLAP\n" +
+                "UNIQUE KEY(`day`, `game_code`)\n" +
+                "PARTITION BY RANGE(`day`)\n" +
+                "(\n" +
+                "PARTITION p201905 VALUES [('2019-05-01'), ('2019-06-01')),\n" +
+                "PARTITION p201906 VALUES [('2019-06-01'), ('2019-07-01')),\n" +
+                "PARTITION p201907 VALUES [('2019-07-01'), ('2019-08-01')),\n" +
+                "PARTITION p201908 VALUES [('2019-08-01'), ('2019-09-01'))\n" +
+                ")\n" +
+                "DISTRIBUTED BY HASH(`game_code`) BUCKETS 4\n" +
+                "PROPERTIES (\n" +
+                "\"replication_num\" = \"1\"\n" +
+                ");");
+
+        String sql = "SELECT `day`, game_code, count(distinct value)\n" +
+                "from (SELECT game_code, day, count(distinct val) as value\n" +
+                "from test.test_prune dc  \n" +
+                "group by 1,2) dc  \n" +
+                "where\n" +
+                " game_code='mus'\n" +
+                "and day BETWEEN '2019-07-01' and '2019-07-01'\n" +
+                "group by 1,2;";
+        String explainString = UtFrameUtils.getSQLPlanOrErrorMsg(connectContext, sql);
+        System.out.println(explainString);
+    }
 }
