@@ -27,6 +27,7 @@ import org.apache.doris.analysis.PartitionNames;
 import org.apache.doris.analysis.Separator;
 import org.apache.doris.analysis.SqlParser;
 import org.apache.doris.analysis.SqlScanner;
+import org.apache.doris.analysis.UserIdentity;
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.catalog.Database;
 import org.apache.doris.catalog.OlapTable;
@@ -36,6 +37,7 @@ import org.apache.doris.common.Config;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.FeMetaVersion;
 import org.apache.doris.common.InternalErrorCode;
+import org.apache.doris.common.LoadException;
 import org.apache.doris.common.MetaNotFoundException;
 import org.apache.doris.common.Pair;
 import org.apache.doris.common.UserException;
@@ -49,6 +51,7 @@ import org.apache.doris.common.util.TimeUtils;
 import org.apache.doris.load.RoutineLoadDesc;
 import org.apache.doris.load.loadv2.LoadTask;
 import org.apache.doris.metric.MetricRepo;
+import org.apache.doris.mysql.privilege.UserProperty;
 import org.apache.doris.persist.AlterRoutineLoadJobOperationLog;
 import org.apache.doris.persist.RoutineLoadOperation;
 import org.apache.doris.planner.StreamLoadPlanner;
@@ -56,6 +59,7 @@ import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.OriginStatement;
 import org.apache.doris.qe.SessionVariable;
 import org.apache.doris.qe.SqlModeHelper;
+import org.apache.doris.resource.Tag;
 import org.apache.doris.task.LoadTaskInfo;
 import org.apache.doris.thrift.TExecPlanFragmentParams;
 import org.apache.doris.thrift.TFileFormatType;
@@ -72,6 +76,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -87,6 +92,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -229,6 +235,8 @@ public abstract class RoutineLoadJob extends AbstractTxnStateChangeCallback impl
     // this is the origin stmt of CreateRoutineLoadStmt, we use it to persist the RoutineLoadJob,
     // because we can not serialize the Expressions contained in job.
     protected OriginStatement origStmt;
+    // The user who submit this job.
+    protected UserIdentity userIdentity;
 
     protected ReentrantReadWriteLock lock = new ReentrantReadWriteLock(true);
     protected LoadTask.MergeType mergeType = LoadTask.MergeType.APPEND; // default is all data is load no delete
@@ -250,13 +258,15 @@ public abstract class RoutineLoadJob extends AbstractTxnStateChangeCallback impl
     }
 
     public RoutineLoadJob(Long id, String name, String clusterName,
-            long dbId, long tableId, LoadDataSourceType dataSourceType) {
+                          long dbId, long tableId, UserIdentity userInfo,
+                          LoadDataSourceType dataSourceType) {
         this(id, dataSourceType);
         this.name = name;
         this.clusterName = clusterName;
         this.dbId = dbId;
         this.tableId = tableId;
         this.authCode = 0;
+        this.userIdentity = userInfo;
 
         if (ConnectContext.get() != null) {
             SessionVariable var = ConnectContext.get().getSessionVariable();
@@ -1542,6 +1552,14 @@ public abstract class RoutineLoadJob extends AbstractTxnStateChangeCallback impl
             Text.writeString(out, entry.getKey());
             Text.writeString(out, entry.getValue());
         }
+
+        // Write a boolean first just for compatibility. Because there may be no userIdentity field in old version.
+        if (userIdentity != null) {
+            out.writeBoolean(true);
+            userIdentity.write(out);
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     public void readFields(DataInput in) throws IOException {
@@ -1606,6 +1624,16 @@ public abstract class RoutineLoadJob extends AbstractTxnStateChangeCallback impl
             sessionVariables.put(key, value);
         }
 
+        if (Catalog.getCurrentCatalogJournalVersion() >= FeMetaVersion.VERSION_110) {
+            if (in.readBoolean()) {
+                userIdentity = UserIdentity.read(in);
+                // must set is as analyzed, because when write the user info to meta image, it will be checked.
+                userIdentity.setIsAnalyzed();
+            } else {
+                userIdentity = null;
+            }
+        }
+
         // parse the origin stmt to get routine load desc
         SqlParser parser = new SqlParser(new SqlScanner(new StringReader(origStmt.originStmt),
                 Long.valueOf(sessionVariables.get(SessionVariable.SQL_MODE))));
@@ -1649,5 +1677,22 @@ public abstract class RoutineLoadJob extends AbstractTxnStateChangeCallback impl
             this.maxBatchSizeBytes = Long.valueOf(
                     jobProperties.remove(CreateRoutineLoadStmt.MAX_BATCH_SIZE_PROPERTY));
         }
+    }
+
+    /**
+     * Get available resource tag by user identity.
+     *
+     * @return available tag set. Or an empty set if no need to check resource tags.
+     * @throws LoadException
+     */
+    public Set<Tag> getResourceTags() throws LoadException {
+        Set<Tag> availTags = Sets.newHashSet();
+        if (userIdentity != null) {
+            availTags = Catalog.getCurrentCatalog().getAuth().getResourceTags(userIdentity.getQualifiedUser());
+            if (availTags == UserProperty.INVALID_RESOURCE_TAGS) {
+                throw new LoadException("No valid resource tag for user: " + userIdentity.getQualifiedUser());
+            }
+        }
+        return availTags;
     }
 }

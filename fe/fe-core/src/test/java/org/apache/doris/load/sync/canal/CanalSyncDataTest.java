@@ -56,10 +56,10 @@ import org.junit.Test;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-
 import mockit.Expectations;
 import mockit.Mock;
 import mockit.MockUp;
@@ -151,7 +151,7 @@ public class CanalSyncDataTest {
                 result = execPlanFragmentParams;
 
                 systemInfoService.seqChooseBackendIdsByStorageMediumAndTag(anyInt, (SystemInfoService.BeAvailablePredicate) any, anyBoolean, anyString,
-                        (TStorageMedium) any, (Tag) any);
+                        (TStorageMedium) any, (Set<Tag>) any);
                 minTimes = 0;
                 result = backendIds;
 

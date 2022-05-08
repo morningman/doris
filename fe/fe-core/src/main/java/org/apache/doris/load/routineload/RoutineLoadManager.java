@@ -42,6 +42,7 @@ import org.apache.doris.persist.AlterRoutineLoadJobOperationLog;
 import org.apache.doris.persist.RoutineLoadOperation;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.system.Backend;
+import org.apache.doris.system.SystemInfoService;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
@@ -408,13 +409,27 @@ public class RoutineLoadManager implements Writable {
         }
     }
 
-    // check if the specified BE is available for running task
-    // return true if it is available. return false if otherwise.
-    // throw exception if unrecoverable errors happen.
-    public long getAvailableBeForTask(long previousBeId, String clusterName) throws LoadException {
-        List<Long> beIdsInCluster = Catalog.getCurrentSystemInfo().getClusterBackendIds(clusterName, true);
-        if (beIdsInCluster == null) {
-            throw new LoadException("The " + clusterName + " has been deleted");
+    /**
+     * check if the specified BE is available for running task.
+     * return true if it is available. return false if otherwise.
+     *
+     * @param jobId
+     * @param previousBeId
+     * @param clusterName
+     * @return
+     * @throws LoadException if unrecoverable errors happen.
+     */
+    public long getAvailableBeForTask(long jobId, long previousBeId, String clusterName) throws LoadException {
+        RoutineLoadJob job = getJob(jobId);
+        if (job == null) {
+            throw new LoadException("The job " + jobId + " does not exist");
+        }
+
+        List<Long> beIdsInCluster = Catalog.getCurrentSystemInfo().getBackendIdsByFilters(
+                clusterName, new SystemInfoService.BeAvailablePredicate(false, false, true),
+                job.getResourceTags(), null);
+        if (beIdsInCluster.isEmpty()) {
+            throw new LoadException("No available backends");
         }
 
         // check if be has idle slot

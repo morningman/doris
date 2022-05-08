@@ -31,7 +31,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.List;
-
+import java.util.Set;
 import mockit.Delegate;
 import mockit.Expectations;
 import mockit.Mocked;
@@ -63,7 +63,7 @@ public class MultiLoadMgrTest {
         new Expectations() {
             {
                 systemInfoService.seqChooseBackendIdsByStorageMediumAndTag(anyInt, (SystemInfoService.BeAvailablePredicate) any,
-                        anyBoolean, anyString, (TStorageMedium) any, (Tag) any);
+                        anyBoolean, anyString, (TStorageMedium) any, (Set<Tag>) any);
                 minTimes = 0;
                 result = new Delegate() {
                     public synchronized List<Long> seqChooseBackendIdsByStorageMediumAndTag(

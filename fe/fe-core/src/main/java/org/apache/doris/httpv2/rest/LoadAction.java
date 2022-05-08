@@ -17,14 +17,18 @@
 
 package org.apache.doris.httpv2.rest;
 
+import org.apache.doris.analysis.UserIdentity;
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.cluster.ClusterNamespace;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.DdlException;
+import org.apache.doris.common.LoadException;
 import org.apache.doris.httpv2.entity.ResponseEntityBuilder;
 import org.apache.doris.httpv2.entity.RestBaseResult;
 import org.apache.doris.mysql.privilege.PrivPredicate;
+import org.apache.doris.mysql.privilege.UserProperty;
 import org.apache.doris.qe.ConnectContext;
+import org.apache.doris.resource.Tag;
 import org.apache.doris.service.ExecuteEnv;
 import org.apache.doris.system.Backend;
 import org.apache.doris.system.SystemInfoService;
@@ -41,12 +45,11 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.view.RedirectView;
 
-import java.util.List;
-
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
 import io.netty.handler.codec.http.HttpHeaderNames;
+import java.util.List;
+import java.util.Set;
 
 @RestController
 public class LoadAction extends RestBaseController {
@@ -128,8 +131,9 @@ public class LoadAction extends RestBaseController {
                 return new RestBaseResult("No label selected.");
             }
 
+            UserIdentity userIdentity = ConnectContext.get().getCurrentUserIdentity();
             // check auth
-            checkTblAuth(ConnectContext.get().getCurrentUserIdentity(), fullDbName, tableName, PrivPredicate.LOAD);
+            checkTblAuth(userIdentity, fullDbName, tableName, PrivPredicate.LOAD);
 
             TNetworkAddress redirectAddr;
             if (!isStreamLoad && !Strings.isNullOrEmpty(request.getParameter(SUB_LABEL_NAME_PARAM))) {
@@ -145,20 +149,7 @@ public class LoadAction extends RestBaseController {
                     return new RestBaseResult(e.getMessage());
                 }
             } else {
-                // Choose a backend sequentially.
-                SystemInfoService.BeAvailablePredicate beAvailablePredicate =
-                        new SystemInfoService.BeAvailablePredicate(false, false, true);
-                List<Long> backendIds = Catalog.getCurrentSystemInfo().seqChooseBackendIdsByStorageMediumAndTag(
-                        1, beAvailablePredicate, false, clusterName, null, null);
-                if (backendIds == null) {
-                    return new RestBaseResult(SystemInfoService.NO_BACKEND_LOAD_AVAILABLE_MSG);
-                }
-
-                Backend backend = Catalog.getCurrentSystemInfo().getBackend(backendIds.get(0));
-                if (backend == null) {
-                    return new RestBaseResult(SystemInfoService.NO_BACKEND_LOAD_AVAILABLE_MSG);
-                }
-
+                Backend backend = chooseRedirectBackend(userIdentity, clusterName);
                 redirectAddr = new TNetworkAddress(backend.getHost(), backend.getHttpPort());
             }
 
@@ -194,20 +185,8 @@ public class LoadAction extends RestBaseController {
                 return new RestBaseResult("No transaction operation(\'commit\' or \'abort\') selected.");
             }
 
-            // Choose a backend sequentially.
-            SystemInfoService.BeAvailablePredicate beAvailablePredicate =
-                    new SystemInfoService.BeAvailablePredicate(false, false, true);
-            List<Long> backendIds = Catalog.getCurrentSystemInfo().seqChooseBackendIdsByStorageMediumAndTag(
-                    1, beAvailablePredicate, false, clusterName, null, null);
-            if (backendIds == null) {
-                return new RestBaseResult(SystemInfoService.NO_BACKEND_LOAD_AVAILABLE_MSG);
-            }
-
-            Backend backend = Catalog.getCurrentSystemInfo().getBackend(backendIds.get(0));
-            if (backend == null) {
-                return new RestBaseResult(SystemInfoService.NO_BACKEND_LOAD_AVAILABLE_MSG);
-            }
-
+            UserIdentity userIdentity = ConnectContext.get().getCurrentUserIdentity();
+            Backend backend = chooseRedirectBackend(userIdentity, clusterName);
             TNetworkAddress redirectAddr = new TNetworkAddress(backend.getHost(), backend.getHttpPort());
 
             LOG.info("redirect stream load 2PC action to destination={}, db: {}, txn: {}, operation: {}",
@@ -219,5 +198,38 @@ public class LoadAction extends RestBaseController {
         } catch (Exception e) {
             return new RestBaseResult(e.getMessage());
         }
+    }
+
+    /**
+     * Choose a backend sequentially, need to check user's resource tag and clustername.
+     *
+     * @param userIdentity
+     * @param clusterName
+     * @return
+     * @throws LoadException
+     */
+    private Backend chooseRedirectBackend(UserIdentity userIdentity, String clusterName) throws LoadException {
+        // check user resource tag
+        boolean needCheckTag = false;
+        Set<Tag> availTags = Catalog.getCurrentCatalog().getAuth().getResourceTags(userIdentity.getQualifiedUser());
+        if (availTags == UserProperty.INVALID_RESOURCE_TAGS) {
+            throw new LoadException("No available resource for user: " + userIdentity);
+        }
+        if (!availTags.isEmpty()) {
+            needCheckTag = true;
+        }
+        SystemInfoService.BeAvailablePredicate beAvailablePredicate =
+                new SystemInfoService.BeAvailablePredicate(false, false, true);
+        List<Long> backendIds = Catalog.getCurrentSystemInfo().seqChooseBackendIdsByStorageMediumAndTag(
+                1, beAvailablePredicate, false, clusterName, null,
+                needCheckTag ? availTags : null);
+        if (backendIds == null) {
+            throw new LoadException(SystemInfoService.NO_BACKEND_LOAD_AVAILABLE_MSG);
+        }
+        Backend be = Catalog.getCurrentSystemInfo().getBackend(backendIds.get(0));
+        if (be == null) {
+            throw new LoadException(SystemInfoService.NO_BACKEND_LOAD_AVAILABLE_MSG);
+        }
+        return be;
     }
 }

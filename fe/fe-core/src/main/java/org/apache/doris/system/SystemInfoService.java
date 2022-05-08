@@ -77,9 +77,7 @@ public class SystemInfoService {
 
     public static class BeAvailablePredicate {
         private boolean scheduleAvailable;
-
         private boolean queryAvailable;
-
         private boolean loadAvailable;
 
         public BeAvailablePredicate(boolean scheduleAvailable, boolean queryAvailable, boolean loadAvailable) {
@@ -781,7 +779,8 @@ public class SystemInfoService {
 
     // Find enough backend to allocate replica of a tablet.
     // filters include: tag, cluster, storage medium
-    public Map<Tag, List<Long>> chooseBackendIdByFilters(ReplicaAllocation replicaAlloc, String clusterName, TStorageMedium storageMedium)
+    public Map<Tag, List<Long>> getBackendIdsForReplicaCreation(ReplicaAllocation replicaAlloc, String clusterName,
+                                                                TStorageMedium storageMedium)
             throws DdlException {
         Map<Tag, List<Long>> chosenBackendIds = Maps.newHashMap();
         Map<Tag, Short> allocMap = replicaAlloc.getAllocMap();
@@ -789,7 +788,7 @@ public class SystemInfoService {
         BeAvailablePredicate beAvailablePredicate = new BeAvailablePredicate(true, false, false);
         for (Map.Entry<Tag, Short> entry : allocMap.entrySet()) {
             List<Long> beIds = Catalog.getCurrentSystemInfo().seqChooseBackendIdsByStorageMediumAndTag(entry.getValue(),
-                    beAvailablePredicate, true, clusterName, storageMedium, entry.getKey());
+                    beAvailablePredicate, true, clusterName, storageMedium, Sets.newHashSet(entry.getKey()));
             if (beIds == null) {
                 throw new DdlException("Failed to find enough host with storage medium and tag("
                         + (storageMedium == null ? "NaN" : storageMedium) + "/" + entry.getKey()
@@ -802,17 +801,43 @@ public class SystemInfoService {
         return chosenBackendIds;
     }
 
+    /**
+     * @param clusterName
+     * @param beAvailablePredicate
+     * @param tags
+     * @param storageMedium
+     * @return
+     */
+    public List<Long> getBackendIdsByFilters(String clusterName,
+                                             BeAvailablePredicate beAvailablePredicate,
+                                             Set<Tag> tags, TStorageMedium storageMedium) {
+        // 1. filter by cluster
+        Stream<Backend> beStream = getClusterBackends(clusterName).stream();
+        // 2. filter by predicate
+        beStream = beStream.filter(beAvailablePredicate::isMatch);
+        // 3. filter by tags
+        if (tags != null) {
+            beStream = beStream.filter(v -> tags.contains(v.getTag()));
+        }
+        // 4. filter by storage medium
+        if (storageMedium != null) {
+            beStream = beStream.filter(v -> v.hasSpecifiedStorageMedium(storageMedium));
+        }
+
+        return beStream.map(b -> b.getId()).collect(Collectors.toList());
+    }
+
     public List<Long> seqChooseBackendIdsByStorageMediumAndTag(int backendNum, BeAvailablePredicate beAvailablePredicate,
                                                                boolean isCreate, String clusterName,
-                                                               TStorageMedium storageMedium, Tag tag) {
+                                                               TStorageMedium storageMedium, Set<Tag> tags) {
         Stream<Backend> beStream = getClusterBackends(clusterName).stream();
         if (storageMedium == null) {
             beStream = beStream.filter(v -> !v.diskExceedLimit());
         } else {
             beStream = beStream.filter(v -> !v.diskExceedLimitByStorageMedium(storageMedium));
         }
-        if (tag != null) {
-            beStream = beStream.filter(v -> v.getTag().equals(tag));
+        if (tags != null) {
+            beStream = beStream.filter(v -> tags.contains(v.getTag()));
         }
         final List<Backend> backends = beStream.collect(Collectors.toList());
         return seqChooseBackendIds(backendNum, beAvailablePredicate, isCreate, clusterName, backends);
