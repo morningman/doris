@@ -30,6 +30,9 @@ import org.apache.doris.analysis.SqlScanner;
 import org.apache.doris.catalog.Catalog;
 import org.apache.doris.catalog.Database;
 import org.apache.doris.catalog.OlapTable;
+import org.apache.doris.catalog.Partition;
+import org.apache.doris.catalog.PartitionInfo;
+import org.apache.doris.catalog.ReplicaAllocation;
 import org.apache.doris.catalog.Table;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.Config;
@@ -56,6 +59,7 @@ import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.OriginStatement;
 import org.apache.doris.qe.SessionVariable;
 import org.apache.doris.qe.SqlModeHelper;
+import org.apache.doris.resource.Tag;
 import org.apache.doris.task.LoadTaskInfo;
 import org.apache.doris.thrift.TExecPlanFragmentParams;
 import org.apache.doris.thrift.TFileFormatType;
@@ -72,6 +76,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -87,6 +92,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -1649,5 +1655,22 @@ public abstract class RoutineLoadJob extends AbstractTxnStateChangeCallback impl
             this.maxBatchSizeBytes = Long.valueOf(
                     jobProperties.remove(CreateRoutineLoadStmt.MAX_BATCH_SIZE_PROPERTY));
         }
+    }
+
+    public Set<Tag> getAvailTags() throws MetaNotFoundException {
+        Set<Tag> tags = Sets.newHashSet();
+        Database db = Catalog.getCurrentCatalog().getDbOrMetaException(dbId);
+        OlapTable tbl = db.getTableOrMetaException(tableId, Table.TableType.OLAP);
+        tbl.readLock();
+        try {
+            PartitionInfo partitionInfo = tbl.getPartitionInfo();
+            for (Partition partition : tbl.getPartitions()) {
+                ReplicaAllocation replicaAlloc = partitionInfo.getReplicaAllocation(partition.getId());
+                tags.addAll(replicaAlloc.getAllocMap().keySet());
+            }
+        } finally {
+            tbl.readUnlock();
+        }
+        return tags;
     }
 }

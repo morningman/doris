@@ -41,6 +41,7 @@ import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.persist.AlterRoutineLoadJobOperationLog;
 import org.apache.doris.persist.RoutineLoadOperation;
 import org.apache.doris.qe.ConnectContext;
+import org.apache.doris.resource.Tag;
 import org.apache.doris.system.Backend;
 
 import com.google.common.base.Preconditions;
@@ -411,8 +412,20 @@ public class RoutineLoadManager implements Writable {
     // check if the specified BE is available for running task
     // return true if it is available. return false if otherwise.
     // throw exception if unrecoverable errors happen.
-    public long getAvailableBeForTask(long previousBeId, String clusterName) throws LoadException {
-        List<Long> beIdsInCluster = Catalog.getCurrentSystemInfo().getClusterBackendIds(clusterName, true);
+    public long getAvailableBeForTask(long jobId, long previousBeId, String clusterName) throws LoadException {
+        RoutineLoadJob job = getJob(jobId);
+        if (job == null) {
+            throw new LoadException("job " + jobId + " does not exist");
+        }
+        Set<Tag> availTags;
+        try {
+            availTags = job.getAvailTags();
+        } catch (MetaNotFoundException e) {
+            throw new LoadException(e.getMessage());
+        }
+        
+        List<Long> beIdsInCluster =
+                Catalog.getCurrentSystemInfo().chooseBackendIdsForRoutineLoad(clusterName, availTags);
         if (beIdsInCluster == null) {
             throw new LoadException("The " + clusterName + " has been deleted");
         }

@@ -58,7 +58,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
 import mockit.Expectations;
 import mockit.Injectable;
 import mockit.Mock;
@@ -755,7 +754,7 @@ public class RoutineLoadManagerTest {
         RoutineLoadManager routineLoadManager = new RoutineLoadManager();
         Config.max_routine_load_task_num_per_be = 10;
         Deencapsulation.setField(routineLoadManager, "beIdToMaxConcurrentTasks", beIdToMaxConcurrentTasks);
-        Assert.assertEquals(1L, routineLoadManager.getAvailableBeForTask(1L, "default"));
+        Assert.assertEquals(1L, routineLoadManager.getAvailableBeForTask(-1, 1L, "default"));
     }
 
     @Test

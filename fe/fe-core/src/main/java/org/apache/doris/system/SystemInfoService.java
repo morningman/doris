@@ -1309,6 +1309,16 @@ public class SystemInfoService {
         List<Backend> bes = getClusterBackends(clusterName);
         return bes.stream().filter(b -> b.getTag().equals(tag)).collect(Collectors.toList());
     }
+
+    public List<Long> chooseBackendIdsForRoutineLoad(String clusterName, Set<Tag> tags) {
+        Stream<Backend> beStream = getClusterBackends(clusterName).stream();
+        if (!tags.isEmpty()) {
+            beStream = beStream.filter(v -> tags.contains(v.getTag()));
+        }
+        BeAvailablePredicate pred = new BeAvailablePredicate(false, false, true);
+        beStream = beStream.filter(pred::isMatch);
+        return beStream.map(b -> b.getId()).collect(Collectors.toList());
+    }
 }
 
 
