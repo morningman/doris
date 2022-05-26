@@ -1156,7 +1156,7 @@ public class SingleNodePlanner {
      * Returns a MergeNode that materializes the exprs of the constant selectStmt. Replaces the resultExprs of the
      * selectStmt with SlotRefs into the materialized tuple.
      */
-    private PlanNode createConstantSelectPlan(SelectStmt selectStmt, Analyzer analyzer) {
+    private PlanNode createConstantSelectPlan(SelectStmt selectStmt, Analyzer analyzer) throws UserException {
         Preconditions.checkState(selectStmt.getTableRefs().isEmpty());
         ArrayList<Expr> resultExprs = selectStmt.getResultExprs();
         // Create tuple descriptor for materialized tuple.
@@ -1345,9 +1345,14 @@ public class SingleNodePlanner {
                 }
                 unionNode.setTblRefIds(Lists.newArrayList(inlineViewRef.getId()));
                 unionNode.addConstExprList(selectStmt.getBaseTblResultExprs());
-                //set outputSmap to substitute literal in outputExpr 
-                unionNode.setOutputSmap(inlineViewRef.getSmap());
                 unionNode.init(analyzer);
+                //set outputSmap to substitute literal in outputExpr
+                unionNode.setWithoutTupleIsNullOutputSmap(inlineViewRef.getSmap());
+                if (analyzer.isOuterJoined(inlineViewRef.getId())) {
+                    List<Expr> nullableRhs = TupleIsNullPredicate.wrapExprs(
+                            inlineViewRef.getSmap().getRhs(), unionNode.getTupleIds(), analyzer);
+                    unionNode.setOutputSmap(new ExprSubstitutionMap(inlineViewRef.getSmap().getLhs(), nullableRhs));
+                }
                 return unionNode;
             }
         }
