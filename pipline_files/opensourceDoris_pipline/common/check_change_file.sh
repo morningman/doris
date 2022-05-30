@@ -1,7 +1,7 @@
 #!/bin/bash
 
-res=(`git diff --name-only HEAD~ HEAD`)
-file_nums=${#res[@]}
+#res=(`git diff --name-only HEAD~ HEAD`)
+#file_nums=${#res[@]}
 
 
 usage() {
@@ -10,14 +10,21 @@ Usage: $0 <options>
   Optional options:
 
     $0                                  check file changed api
-    $0 --is_modify_only_invoved_be           if changed code only invoved be, doc, fs_brocker, return 0; else return 2
-    $0 --is_modify_only_invoved_fe           if changed code only invoved fe doc, fs_brocker, return 0; else return 2
-    $0 --is_modify_only_invoved_doc          if changed code only invoved doc, fs_brocker, return 0; else return 2
+    $0 --is_modify_only_invoved_be pr_id          if pr changed code only invoved be, doc, fs_brocker, return 0; else return 2
+    $0 --is_modify_only_invoved_fe pr_id          if pr changed code only invoved fe doc, fs_brocker, return 0; else return 2
+    $0 --is_modify_only_invoved_doc pr_id         if pr changed code only invoved doc, fs_brocker, return 0; else return 2
   "
   exit 1
 }
 
+
 function check_all_change_files_is_under_doc() {
+
+    pr_id=$1
+    owner='apache'
+    repo='incubator-doris'
+    res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
+    file_nums=${#res[@]}
 
     doc_num=0
     for file in ${res[@]}
@@ -46,6 +53,13 @@ function check_all_change_files_is_under_doc() {
 }
 
 function check_all_change_files_is_under_be() {
+
+    pr_id=$1
+    owner='apache'
+    repo='incubator-doris'
+    res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
+    file_nums=${#res[@]}
+
     doc_num=0
     echo "START CHECK CODE IS ONLY RELATED BE OR NOT"
     for file in ${res[@]}
@@ -55,7 +69,7 @@ function check_all_change_files_is_under_be() {
         if [[ $file_dir == "be" || $file_dir == "docs" || $file_dir == "fs_brokers" ]];then
             let doc_num+=1
             continue
-        fi
+	fi
     done
     if [[ $doc_num -eq $file_nums ]];then
         echo "JUST MODIFY BE CODE, NO NEED RUN FE UT, PASSED!"
@@ -67,6 +81,13 @@ function check_all_change_files_is_under_be() {
 }
 
 function check_all_change_files_is_under_fe() {
+
+    pr_id=$1
+    owner='apache'
+    repo='incubator-doris'
+    res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
+    file_nums=${#res[@]}
+
     doc_num=0
     echo "START CHECK CODE IS ONLY RELATED FE OR NOT"
     for file in ${res[@]}
@@ -91,9 +112,9 @@ main() {
 
 if [ $# > 0 ]; then
     case "$1" in
-        --is_modify_only_invoved_be) check_all_change_files_is_under_be; shift ;;
-        --is_modify_only_invoved_fe) check_all_change_files_is_under_fe; shift ;;
-        --is_modify_only_doc) check_all_change_files_is_under_doc; shift ;;
+        --is_modify_only_invoved_be) check_all_change_files_is_under_be $2; shift ;;
+        --is_modify_only_invoved_fe) check_all_change_files_is_under_fe $2; shift ;;
+	--is_modify_only_doc) check_all_change_files_is_under_doc $2; shift ;;
         *) echo "ERROR"; usage; exit 1 ;;
     esac
 
