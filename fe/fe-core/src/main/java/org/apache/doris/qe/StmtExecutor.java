@@ -531,7 +531,7 @@ public class StmtExecutor implements ProfileWriter {
             }
             initProfile(plannerProfile, isLastWriteProfile);
             profile.computeTimeInChildProfile();
-            ProfileManager.getInstance().pushProfile(profile);
+            ProfileManager.getInstance().pushProfile(profile, isLastWriteProfile);
             isFinishedProfile = isLastWriteProfile;
         }
     }
