@@ -276,7 +276,7 @@ public class ExportExportingTask extends MasterTask {
         for (RuntimeProfile p : fragmentProfiles) {
             profile.addChild(p);
         }
-        ProfileManager.getInstance().pushProfile(profile);
+        ProfileManager.getInstance().pushProfile(profile, true);
     }
 
     private Status moveTmpFiles() {

@@ -328,7 +328,7 @@ public class BrokerLoadJob extends BulkLoadJob {
         // Add the summary profile to the first
         jobProfile.addFirstChild(summaryProfile);
         jobProfile.computeTimeInChildProfile();
-        ProfileManager.getInstance().pushProfile(jobProfile);
+        ProfileManager.getInstance().pushProfile(jobProfile, true);
     }
 
     private void updateLoadingStatus(BrokerLoadingTaskAttachment attachment) {

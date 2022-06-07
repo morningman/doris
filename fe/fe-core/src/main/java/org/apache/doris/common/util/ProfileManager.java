@@ -111,8 +111,8 @@ public class ProfileManager {
         queryIdDeque = new LinkedList<>();
         queryIdToProfileMap = new ConcurrentHashMap<>();
     }
-    
-    public ProfileElement createElement(RuntimeProfile profile) {
+
+    public ProfileElement createElement(RuntimeProfile profile, boolean isLastProfile) {
         ProfileElement element = new ProfileElement();
         RuntimeProfile summaryProfile = profile.getChildList().get(0).first;
         for (String header : PROFILE_HEADERS) {
@@ -120,24 +120,26 @@ public class ProfileManager {
         }
         element.profileContent = profile.toString();
 
-        MultiProfileTreeBuilder builder = new MultiProfileTreeBuilder(profile);
-        try {
-            builder.build();
-        } catch (Exception e) {
-            element.errMsg = e.getMessage();
-            LOG.debug("failed to build profile tree", e);
-            return element;
+        if (isLastProfile) {
+            MultiProfileTreeBuilder builder = new MultiProfileTreeBuilder(profile);
+            try {
+                builder.build();
+            } catch (Exception e) {
+                element.errMsg = e.getMessage();
+                LOG.debug("failed to build profile tree", e);
+                return element;
+            }
+            element.builder = builder;
         }
-        element.builder = builder;
         return element;
     }
-    
-    public void pushProfile(RuntimeProfile profile) {
+
+    public void pushProfile(RuntimeProfile profile, boolean isLastProfile) {
         if (profile == null) {
             return;
         }
-        
-        ProfileElement element = createElement(profile);
+
+        ProfileElement element = createElement(profile, isLastProfile);
         String queryId = element.infoStrings.get(ProfileManager.QUERY_ID);
         // check when push in, which can ensure every element in the list has QUERY_ID column,
         // so there is no need to check when remove element from list.
