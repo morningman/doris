@@ -45,7 +45,6 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -682,23 +681,26 @@ public class HashJoinNode extends PlanNode {
 
     @Override
     public String getNodeExplainString(String detailPrefix, TExplainLevel detailLevel) {
-        String distrModeStr =
-                (distrMode != DistributionMode.NONE) ? (" (" + distrMode.toString() + ")") : "";
-        StringBuilder output = new StringBuilder()
-                .append(detailPrefix).append("join op: ").append(joinOp.toString()).append(distrModeStr).append("\n");
+        String distrModeStr = "";
+        if (isColocate) {
+            distrModeStr = "COLOCATE[" + colocateReason + "]";
+        } else {
+            distrModeStr = distrMode.toString();
+        }
+        StringBuilder output =
+                new StringBuilder().append(detailPrefix).append("join op: ").append(joinOp.toString()).append("(")
+                        .append(distrModeStr).append(")\n");
 
         if (detailLevel == TExplainLevel.BRIEF) {
             return output.toString();
         }
 
-        output.append(detailPrefix).append("hash predicates:\n")
-                .append(detailPrefix).append("colocate: ").append(isColocate).append(isColocate ? "" : ", reason: " + colocateReason).append("\n");
-
         for (BinaryPredicate eqJoinPredicate : eqJoinConjuncts) {
             output.append(detailPrefix).append("equal join conjunct: ").append(eqJoinPredicate.toSql()).append("\n");
         }
         if (!otherJoinConjuncts.isEmpty()) {
-            output.append(detailPrefix).append("other join predicates: ").append(getExplainString(otherJoinConjuncts)).append("\n");
+            output.append(detailPrefix).append("other join predicates: ").append(getExplainString(otherJoinConjuncts))
+                    .append("\n");
         }
         if (!conjuncts.isEmpty()) {
             output.append(detailPrefix).append("other predicates: ").append(getExplainString(conjuncts)).append("\n");
@@ -707,8 +709,7 @@ public class HashJoinNode extends PlanNode {
             output.append(detailPrefix).append("runtime filters: ");
             output.append(getRuntimeFilterExplainString(true));
         }
-        output.append(detailPrefix).append(String.format(
-                "cardinality=%s", cardinality)).append("\n");
+        output.append(detailPrefix).append(String.format("cardinality=%s", cardinality)).append("\n");
         // todo unify in plan node
         if (outputSlotIds != null) {
             output.append(detailPrefix).append("output slot ids: ");
