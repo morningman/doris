@@ -22,7 +22,7 @@ function check_all_change_files_is_under_doc() {
 
     pr_id=$1
     owner='apache'
-    repo='incubator-doris'
+    repo='doris'
     res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
     file_nums=${#res[@]}
 
@@ -56,7 +56,7 @@ function check_all_change_files_is_under_be() {
 
     pr_id=$1
     owner='apache'
-    repo='incubator-doris'
+    repo='doris'
     res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
     file_nums=${#res[@]}
 
@@ -84,7 +84,7 @@ function check_all_change_files_is_under_fe() {
 
     pr_id=$1
     owner='apache'
-    repo='incubator-doris'
+    repo='doris'
     res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
     file_nums=${#res[@]}
 
