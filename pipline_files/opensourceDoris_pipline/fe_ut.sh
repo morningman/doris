@@ -13,8 +13,8 @@ fi
 
 work_file=/home/work/pipline/doris-test
 cp -r $work_file/pipline_files/common/* ./
-#skip build which trigered by file on docs/fs_broker
-sh check_change_file.sh
+#skip build which trigered by file on be/docs/fs_broker
+sh check_change_file.sh --is_modify_only_invoved_be %teamcity.pullRequest.number%
 if [[ $? == 0 ]];then
     exit 0
 fi
