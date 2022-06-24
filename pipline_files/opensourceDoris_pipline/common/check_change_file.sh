@@ -27,9 +27,12 @@ function check_all_change_files_is_under_doc() {
     file_nums=${#res[@]}
 
     doc_num=0
+    echo "START TO CHECK IF CHANGED CODE IS ONLY RELATED TO : docs, fs_brokers"
+    echo "file list:"
     for file in ${res[@]}
     do
         #check change file is on docs/fs_brokers or not
+        echo "$file"
         file_dir=$(echo $file|cut -d '/' -f 1)
         if [[ $file_dir == "docs" || $file_dir == "fs_brokers" ]];then
             let doc_num+=1
@@ -62,9 +65,11 @@ function check_all_change_files_is_under_be() {
 
     doc_num=0
     echo "START CHECK CODE IS ONLY RELATED BE OR NOT"
+    echo "file list:"
     for file in ${res[@]}
     do
         #check change file is on be or not
+        echo "$file"
         file_dir=$(echo $file|cut -d '/' -f 1)
         if [[ $file_dir == "be" || $file_dir == "docs" || $file_dir == "fs_brokers" ]];then
             let doc_num+=1
@@ -90,9 +95,11 @@ function check_all_change_files_is_under_fe() {
 
     doc_num=0
     echo "START CHECK CODE IS ONLY RELATED FE OR NOT"
+    echo "file list:"
     for file in ${res[@]}
     do
         #check change file is on be or not
+        echo "$file"
         file_dir=$(echo $file|cut -d '/' -f 1)
         if [[ $file_dir == "fe" || $file_dir == "docs" || $file_dir == "fs_brokers" ]];then
             let doc_num+=1
