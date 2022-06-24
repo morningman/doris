@@ -27,17 +27,20 @@ function check_all_change_files_is_under_doc() {
     file_nums=${#res[@]}
 
     doc_num=0
-    echo "START TO CHECK IF CHANGED CODE IS ONLY RELATED TO : docs, fs_brokers"
-    echo "file list:"
+    doc_sql_manual_num=0
     for file in ${res[@]}
     do
         #check change file is on docs/fs_brokers or not
-        echo "$file"
+        echo $file
         file_dir=$(echo $file|cut -d '/' -f 1)
-        if [[ $file_dir == "docs" || $file_dir == "fs_brokers" ]];then
+        if [[ $file_dir == "docs" ]];then
             let doc_num+=1
+        fi
+        if [[ "$file" =~ "docs/zh-CN/docs/sql-manual/" ]];then
+            let doc_sql_manual_num+=1
             continue
         fi
+
 
         #check change file is md/txt/doc file
         #file_type=$(echo $file|cut -d '.' -f 2)
@@ -46,11 +49,11 @@ function check_all_change_files_is_under_doc() {
         #fi
     done
 
-    if [[ $doc_num -eq $file_nums ]];then
+    if [[ $doc_num -eq $file_nums && $doc_sql_manual_num -eq 0 ]];then
         echo "JUST MODIFY DOCUMENT, NO COED CHSNGED, PASSED!"
         exit 0
     else
-        echo "CODES IS CHANGED, TRIGGER PIPLINE!"
+        echo "FILE UNDER docs/zh-CN/docs/sql-manual IS CHANGED, TRIGGER PIPLINE!"
         exit 2
     fi
 }
@@ -65,16 +68,15 @@ function check_all_change_files_is_under_be() {
 
     doc_num=0
     echo "START CHECK CODE IS ONLY RELATED BE OR NOT"
-    echo "file list:"
     for file in ${res[@]}
     do
-        #check change file is on be or not
         echo "$file"
+        #check change file is on be or not
         file_dir=$(echo $file|cut -d '/' -f 1)
         if [[ $file_dir == "be" || $file_dir == "docs" || $file_dir == "fs_brokers" ]];then
             let doc_num+=1
             continue
-	fi
+        fi
     done
     if [[ $doc_num -eq $file_nums ]];then
         echo "JUST MODIFY BE CODE, NO NEED RUN FE UT, PASSED!"
@@ -95,11 +97,10 @@ function check_all_change_files_is_under_fe() {
 
     doc_num=0
     echo "START CHECK CODE IS ONLY RELATED FE OR NOT"
-    echo "file list:"
     for file in ${res[@]}
     do
-        #check change file is on be or not
         echo "$file"
+        #check change file is on be or not
         file_dir=$(echo $file|cut -d '/' -f 1)
         if [[ $file_dir == "fe" || $file_dir == "docs" || $file_dir == "fs_brokers" ]];then
             let doc_num+=1
@@ -121,7 +122,7 @@ if [ $# > 0 ]; then
     case "$1" in
         --is_modify_only_invoved_be) check_all_change_files_is_under_be $2; shift ;;
         --is_modify_only_invoved_fe) check_all_change_files_is_under_fe $2; shift ;;
-	--is_modify_only_doc) check_all_change_files_is_under_doc $2; shift ;;
+        --is_modify_only_invoved_doc) check_all_change_files_is_under_doc $2; shift ;;
         *) echo "ERROR"; usage; exit 1 ;;
     esac
 
