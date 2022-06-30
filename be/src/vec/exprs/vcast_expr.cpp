@@ -76,10 +76,10 @@ doris::Status VCastExpr::execute(VExprContext* context, doris::vectorized::Block
     // for each child call execute
     int column_id = 0;
     _children[0]->execute(context, block, &column_id);
-
     size_t const_param_id = VExpr::insert_param(
             block, {_cast_param, _cast_param_data_type, _target_data_type_name}, block->rows());
 
+    if (block->get_by_position(column_id).column->is_nullable()) _data_type = make_nullable(_data_type);
     // call function
     size_t num_columns_without_result = block->columns();
     // prepare a column to save result
