@@ -1,10 +1,11 @@
+
 if [ $# -eq 0 ]; then
-        echo "$0 CLUSTER"
-        exit 1
+	echo "$0 CLUSTER"
+	exit 1
 fi
 
 CLUSTER=$1
-CLUSTER_DIR=/mnt/ssd01/cold_on_s3/$CLUSTER
+CLUSTER_DIR=/mnt/ssd01/selectdb-1.0/$CLUSTER
 STEPS=10
 # 1. create dirs
 echo " =============1/$STEPS create dirs=============="
@@ -21,6 +22,7 @@ parallel-ssh -h $CLUSTER/be_hosts -i "cd $CLUSTER_DIR/be && ./bin/stop_be.sh"
 
 # 3. backup be binary
 echo " =============3/$STEPS backup be binary=============="
+parallel-ssh -h $CLUSTER/be_hosts -i "cd $CLUSTER_DIR/be && mv lib/doris-be lib/doris-be.bak"
 parallel-ssh -h $CLUSTER/be_hosts -i "cd $CLUSTER_DIR/be && mv lib/palo_be lib/palo_be.bak"
 
 
@@ -48,7 +50,7 @@ for FE in `cat $CLUSTER/fe_master_host | awk -F '@' '{print $2}'`; do
     for _ in {1..60}; do
         if $MYSQL_CMD -e "select 1;" 2>&1 >/dev/null ; then
             FE_HOST=$FE
-                break
+	        break
         else
             sleep 1
         fi
@@ -61,8 +63,8 @@ EDIT_PORT=`grep edit_log_port $CLUSTER/conf/fe.conf | awk -F '=' '{print $2}' | 
 echo " =============8/$STEPS add fe follower=============="
 for FE in `cat $CLUSTER/fe_follower_hosts | awk -F '@' '{print $2}'`; do
     MYSQL_CMD="mysql -h$FE_MASTER_HOST -P$FE_PORT"
-        echo "add fe $FE:$EDIT_PORT"
-        $MYSQL_CMD -e "alter system add follower '$FE:$EDIT_PORT';" 2>&1 >/dev/null
+	echo "add fe $FE:$EDIT_PORT"
+	$MYSQL_CMD -e "alter system add follower '$FE:$EDIT_PORT';" 2>&1 >/dev/null
 done
 
 # 8. wait all fe  service started
@@ -75,7 +77,7 @@ for FE in `cat $CLUSTER/fe_hosts | awk -F '@' '{print $2}'`; do
     for _ in {1..60}; do
         if $MYSQL_CMD -e "select 1;" 2>&1 >/dev/null; then
             FE_HOST=$FE
-                break
+	        break
         else
             sleep 2
         fi
@@ -87,8 +89,8 @@ echo " =============10/$STEPS add be=============="
 BE_PORT=`grep heartbeat_service_port $CLUSTER/conf/be.conf | awk -F '=' '{print $2}' |  sed 's/[ ]*//g'`
 for BE in `cat $CLUSTER/be_hosts | awk -F '@' '{print $2}'`; do
     MYSQL_CMD="mysql -h$FE_MASTER_HOST -P$FE_PORT"
-        echo "add be $BE:$BE_PORT"
-        $MYSQL_CMD -e "alter system add backend '$BE:$BE_PORT';" 2>&1 >/dev/null
+	echo "add be $BE:$BE_PORT"
+	$MYSQL_CMD -e "alter system add backend '$BE:$BE_PORT';" 2>&1 >/dev/null
 done
 
 echo "==============DONE================"

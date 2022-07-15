@@ -1,11 +1,13 @@
 if [ $# -eq 0 ]; then
-        echo "$0 CLUSTER"
-        exit 1
+	echo "$0 CLUSTER"
+	exit 1
 fi
 
 CLUSTER=$1
-CLUSTER_DIR=/mnt/ssd01/cold_on_s3/$CLUSTER
+CLUSTER_DIR=/mnt/ssd01/selectdb-1.0/$CLUSTER
 STEPS=2
+
+set -x
 
 # 1. stop service
 echo " =============1/$STEPS stop services=============="
