@@ -25,10 +25,19 @@ if [[ $? == 0 ]]; then
     exit 0
 fi
 
+#check is there exist outdate docker,if exist, clear
+docker_name=doris-be-ut-%build.vcs.number%
+outdate_docker_num=$(docker ps -a --no-trunc|grep $docker_name|wc -l)
+if [ $outdate_docker_num -gt 1 ];then
+    docker stop $docker_name
+    docker rm $docker_name
+fi
+
 exit_flag=0
+ts=$(date "+%s")
 echo "START BUILD AND RUN BE UT"
-echo "docker run -i --rm --name doris-be-ut-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v %teamcity.build.checkoutDir%:/root/doris apache/incubator-doris:build-env-ldb-toolchain-latest /bin/bash -c \"cd /root/doris && sh run-be-ut.sh --clean --run -j 12\""
-docker run -i --rm --name doris-be-ut-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v %teamcity.build.checkoutDir%:/root/doris apache/incubator-doris:build-env-ldb-toolchain-latest /bin/bash -c "cd /root/doris && sh run-be-ut.sh --clean --run -j 12"
+echo "docker run -i --rm --name doris-be-ut-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v %teamcity.build.checkoutDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c \"cd /root/doris && sh run-be-ut.sh --clean --run -j 12\""
+docker run -i --rm --name doris-be-ut-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v %teamcity.build.checkoutDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c "cd /root/doris && sh run-be-ut.sh --clean --run -j 5"
 if [ $? -ne 0 ]; then
     echo "UT FAILED, PLZ CHECK!"
     exit_flag=-1
@@ -49,3 +58,4 @@ if [ -d %system.teamcity.build.checkoutDir%/be/ut_build_ASAN ]; then
 fi
 
 exit $exit_flag
+

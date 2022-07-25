@@ -39,7 +39,7 @@ done
 
 #fetch_branch=%teamcity.build.branch%/head
 #commit_id=%build.vcs.number%
-#gitcmd="timeout 180 git fetch https://github.com/apache/incubator-doris.git $fetch_branch && timeout 180 git checkout FETCH_HEAD && timeout 180 git checkout $commit_id"
+#gitcmd="timeout 180 git fetch https://github.com/apache/doris.git $fetch_branch && timeout 180 git checkout FETCH_HEAD && timeout 180 git checkout $commit_id"
 #eval $gitcmd
 
 #skip build which trigered by file under docs/zh-CN/docs/sql-manual/
@@ -51,19 +51,30 @@ fi
 echo "FINISH check!"
 echo
 #recoding itself build info
-echo "$build_id ${test_branch}_${source_branch}_${target_branch}_incubator-doris" >>$work_file/OpenSourceDorisBuild.log
+echo "$build_id ${test_branch}_${source_branch}_${target_branch}_doris" >>$work_file/OpenSourceDorisBuild.log
 
 res=$(git branch)
 echo $res
+echo "export DORIS_TOOLCHAIN=gcc" > %system.teamcity.build.workingDir%/custom_env.sh
+# echo "export BUILD_TYPE=ASAN" >> %system.teamcity.build.workingDir%/custom_env.sh
+echo "export BUILD_TYPE=ASAN" >> %system.teamcity.build.workingDir%/custom_env.sh
 
 #modify third party orgin
 #sed -i "s/export REPOSITORY_URL=https:\/\/doris-thirdparty-repo.bj.bcebos.com\/thirdparty/export REPOSITORY_URL=https:\/\/doris-thirdparty.obs.ap-southeast-1.myhuaweicloud.com\/thirdparty/g" thirdparty/vars.sh
 sed -i "s/export REPOSITORY_URL=https:\/\/doris-thirdparty-repo.bj.bcebos.com\/thirdparty/export REPOSITORY_URL=https:\/\/doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com\/thirdparty/g" thirdparty/vars.sh
 
+#check is there exist outdate docker,if exist, clear
+docker_name=doris-compile-%build.vcs.number%
+outdate_docker_num=$(docker ps -a --no-trunc|grep $docker_name|wc -l)
+if [ $outdate_docker_num -gt 1 ];then
+    docker stop $docker_name
+    docker rm $docker_name
+fi
+
 #compile output
-echo "docker run -i --rm --name doris-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v %system.teamcity.build.workingDir%:/root/doris apache/incubator-doris:build-env-ldb-toolchain-latest /bin/bash -c \"cd /root/doris && bash build.sh -j16 \"
+echo "docker run -i --rm --name doris-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/ccache -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c \"cd /root/doris && bash build.sh -j 16 \"
 "
-docker run -i --rm --name doris-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v %system.teamcity.build.workingDir%:/root/doris apache/incubator-doris:build-env-ldb-toolchain-latest /bin/bash -c "cd /root/doris && bash build.sh -j16 | tee build.log"
+docker run -i --rm --name doris-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/ccache -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c "cd /root/doris && bash build.sh -j 8 | tee build.log"
 
 succ_symble="BUILD SUCCESS"
 grep "$succ_symble" %system.teamcity.build.workingDir%/build.log
@@ -73,9 +84,9 @@ if [ $? != 0 ]; then
     pr_compile_path=%system.teamcity.build.workingDir%
     res=$(grep $pattern $pr_compile_path/build.log | wc -l)
     if [ $res -gt 0 ]; then
-        docker run -i --rm --name doris-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v %system.teamcity.build.workingDir%:/root/doris apache/incubator-doris:build-env-ldb-toolchain-latest /bin/bash -c "cd /root/doris/ui && rm -rf package-lock.json && rm -rf node_modules && npm cache clean --force && cd /root/doris && echo RETRY COMPILE >> build.log  && bash build.sh -j16 |tee build.log"
+        docker run -i --rm --name doris-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/ccache -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c "cd /root/doris/ui && rm -rf package-lock.json && rm -rf node_modules && npm cache clean --force && cd /root/doris && echo RETRY COMPILE >> build.log  && bash build.sh -j 8 |tee build.log"
     else
-        docker run -i --rm --name doris-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v %system.teamcity.build.workingDir%:/root/doris apache/incubator-doris:build-env-ldb-toolchain-latest /bin/bash -c "cd /root/doris && echo RETRY COMPILE >> build.log && bash build.sh -j16 | tee build.log"
+        docker run -i --rm --name doris-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/ccache -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c "cd /root/doris && echo RETRY COMPILE >> build.log && bash build.sh -j 8 | tee build.log"
     fi
 fi
 
@@ -106,7 +117,8 @@ while true; do
             echo "touch ${work_path}/.${cluster_name}"
             touch ${work_path}/.${cluster_name}
             echo $cluster_name
-            bash check_and_kill_deleted_proc.sh $cluster_name
+            be_port=$(grep be_port ${work_path}/$cluster_name/conf/be.conf |cut -d " " -f 3)
+            bash check_and_kill_deleted_proc.sh $cluster_name $be_port
             break
         fi
     done
@@ -128,6 +140,7 @@ cp -r $work_path/$cluster_name/conf/regression-conf.groovy ${case_center}/${clus
 cp -r %teamcity.build.checkoutDir%/run-regression-test.sh ${case_center}/${cluster_name}/
 #####################clear checkout dir##################
 rm -rf %teamcity.build.checkoutDir%/*
+sysctl -w vm.max_map_count=2000000
 
 #stop cluster
 cd $work_path && bash stop_cluster.sh $cluster_name
@@ -151,17 +164,29 @@ echo "------------clsuter status ok!------------------"
 #####################run regression cases###############
 cd ${case_center}/${cluster_name}
 rm -rf ${case_center}/${cluster_name}/output
-echo "./run-regression-test.sh --teamcity --clean --run -parallel 10"
+echo "./run-regression-test.sh --teamcity --clean --run -parallel 5 -suiteParallel 5 -actionParallel 10"
 JAVA_OPTS="-Dteamcity.enableStdErr=${enableStdErr}" ./run-regression-test.sh --teamcity --clean --run -parallel 10
+exit_flag=$?
 
+if [ $exit_flag -ne 0 ];then
+    echo
+    echo "some regression fail, stop regresion!"
+    echo
+fi
+
+echo
+echo
 #after run, sleep a while to check is there exist mem leak
 cd $work_path && bash stop_cluster_grace.sh $cluster_name
 
 #if exists case failed, backup fe, be and log
+echo 
+echo
 backup_path=/home/work/pipline/backup_center
 if [ -f $case_center/$cluster_name/output/regression-test/log/doris-regression-test.*.log ]; then
-    count=$(grep "Some suites failed" $case_center/$cluster_name/output/regression-test/log/doris-regression-test.*.log | wc -l)
-    if [ $count -gt 0 ]; then
+    fail_count=$(grep "Some suites failed" $case_center/$cluster_name/output/regression-test/log/doris-regression-test.*.log | wc -l)
+    succ_count=$(grep "All suites success" $case_center/$cluster_name/output/regression-test/log/doris-regression-test.*.log | wc -l)
+    if [ $succ_count -eq 0 ]; then
         echo "regression fail, backup log, conf and variables to cos"
         Backup_cluster_name=${pullrequestID}_%build.vcs.number%
         rm -rf $backup_path/$Backup_cluster_name
@@ -187,6 +212,7 @@ if [ -f $case_center/$cluster_name/output/regression-test/log/doris-regression-t
         cp -r $install_path/be/conf $backup_path/$Backup_cluster_name/be/
         echo "cp -r $install_path/be/log $backup_path/$Backup_cluster_name/be/"
         cp -r $install_path/be/log $backup_path/$Backup_cluster_name/be/
+        cp -r $case_center/$cluster_name/output/regression-test/log/doris-regression-test.*.log $backup_path/$Backup_cluster_name/
 
         #backup variables
         fe_ip=$(cat $work_path/$CLUSTER/fe_hosts | awk -F '@' '{print $2}')
@@ -203,6 +229,10 @@ if [ -f $case_center/$cluster_name/output/regression-test/log/doris-regression-t
         echo "run successful, no need backup"
     fi
 else
+    if [ ! -f ${case_center}/${cluster_name}/regression-test/framework/target/regression-test-1.0-SNAPSHOT.jar ];then
+        echo "maybe build regression fail. plz check"
+        #exit_flag=-1
+    fi
     echo "case not run successfully, no need backup"
 fi
 
@@ -214,3 +244,5 @@ if [ -f ${work_path}/.${cluster_name} ]; then
 else
     echo ${work_path}/.${cluster_name} "not exist, no need delete, but should check! "
 fi
+
+exit ${exit_flag}
