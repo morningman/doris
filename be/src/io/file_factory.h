@@ -40,23 +40,27 @@ public:
                                      const std::vector<TNetworkAddress>& broker_addresses,
                                      const std::map<std::string, std::string>& properties,
                                      const TBrokerRangeDesc& range, int64_t start_offset,
-                                     std::unique_ptr<FileReader>& file_reader);
+                                     std::unique_ptr<FileReader>& file_reader,
+                                     bool need_buffered_reader = true);
 
     static Status create_file_reader(TFileType::type type, ExecEnv* env, RuntimeProfile* profile,
                                      const std::vector<TNetworkAddress>& broker_addresses,
                                      const std::map<std::string, std::string>& properties,
                                      const TBrokerRangeDesc& range, int64_t start_offset,
-                                     std::shared_ptr<FileReader>& file_reader);
+                                     std::shared_ptr<FileReader>& file_reader,
+                                     bool need_buffered_reader = true);
 
     static Status create_file_reader(ExecEnv* env, RuntimeProfile* profile,
                                      const TFileScanRangeParams& params,
                                      const TFileRangeDesc& range,
-                                     std::unique_ptr<FileReader>& file_reader);
+                                     std::unique_ptr<FileReader>& file_reader,
+                                     bool need_buffered_reader = true);
 
     static Status create_file_reader(ExecEnv* env, RuntimeProfile* profile,
                                      const TFileScanRangeParams& params,
                                      const TFileRangeDesc& range,
-                                     std::shared_ptr<FileReader>& file_reader);
+                                     std::shared_ptr<FileReader>& file_reader,
+                                     bool need_buffered_reader = true);
 
     static TFileType::type convert_storage_type(TStorageBackendType::type type) {
         switch (type) {
@@ -81,11 +85,11 @@ private:
                                    const std::vector<TNetworkAddress>& broker_addresses,
                                    const std::map<std::string, std::string>& properties,
                                    const TBrokerRangeDesc& range, int64_t start_offset,
-                                   FileReader*& file_reader);
+                                   FileReader*& file_reader, bool need_buffered_reader);
 
     static Status _new_file_reader(ExecEnv* env, RuntimeProfile* profile,
                                    const TFileScanRangeParams& params, const TFileRangeDesc& range,
-                                   FileReader*& file_reader);
+                                   FileReader*& file_reader, bool need_buffered_reader);
 };
 
 } // namespace doris

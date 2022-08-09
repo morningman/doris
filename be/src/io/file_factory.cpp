@@ -62,21 +62,22 @@ doris::Status doris::FileFactory::_new_file_reader(
         doris::TFileType::type type, doris::ExecEnv* env, RuntimeProfile* profile,
         const std::vector<TNetworkAddress>& broker_addresses,
         const std::map<std::string, std::string>& properties, const TBrokerRangeDesc& range,
-        int64_t start_offset, FileReader*& file_reader) {
+        int64_t start_offset, FileReader*& file_reader, bool need_buffered_reader) {
+    FileReader* tmp_reader = nullptr;
     switch (type) {
     case TFileType::FILE_LOCAL: {
-        file_reader = new LocalFileReader(range.path, start_offset);
+        tmp_reader = new LocalFileReader(range.path, start_offset);
         break;
     }
     case TFileType::FILE_BROKER: {
-        file_reader = new BufferedReader(
+        tmp_reader = new BufferedReader(
                 profile,
                 new BrokerReader(env, broker_addresses, properties, range.path, start_offset,
                                  range.__isset.file_size ? range.file_size : 0));
         break;
     }
     case TFileType::FILE_S3: {
-        file_reader =
+        tmp_reader =
                 new BufferedReader(profile, new S3Reader(properties, range.path, start_offset));
         break;
     }
@@ -84,11 +85,16 @@ doris::Status doris::FileFactory::_new_file_reader(
         FileReader* hdfs_reader = nullptr;
         RETURN_IF_ERROR(HdfsReaderWriter::create_reader(range.hdfs_params, range.path, start_offset,
                                                         &hdfs_reader));
-        file_reader = new BufferedReader(profile, hdfs_reader);
+        tmp_reader = new BufferedReader(profile, hdfs_reader);
         break;
     }
     default:
         return Status::InternalError("UnSupport File Reader Type: " + std::to_string(type));
+    }
+    if (need_buffered_reader) {
+        file_reader = new BufferedReader(profile, tmp_reader);
+    } else {
+        file_reader = tmp_reader;
     }
 
     return Status::OK();
@@ -98,14 +104,14 @@ doris::Status doris::FileFactory::create_file_reader(
         doris::TFileType::type type, doris::ExecEnv* env, RuntimeProfile* profile,
         const std::vector<TNetworkAddress>& broker_addresses,
         const std::map<std::string, std::string>& properties, const doris::TBrokerRangeDesc& range,
-        int64_t start_offset, std::unique_ptr<FileReader>& file_reader) {
+        int64_t start_offset, std::unique_ptr<FileReader>& file_reader, bool need_buffered_reader) {
     if (type == TFileType::FILE_STREAM) {
         return Status::InternalError("UnSupport UniquePtr For FileStream type");
     }
 
     FileReader* file_reader_ptr;
     RETURN_IF_ERROR(_new_file_reader(type, env, profile, broker_addresses, properties, range,
-                                     start_offset, file_reader_ptr));
+                                     start_offset, file_reader_ptr, need_buffered_reader));
     file_reader.reset(file_reader_ptr);
 
     return Status::OK();
@@ -115,7 +121,7 @@ doris::Status doris::FileFactory::create_file_reader(
         doris::TFileType::type type, doris::ExecEnv* env, RuntimeProfile* profile,
         const std::vector<TNetworkAddress>& broker_addresses,
         const std::map<std::string, std::string>& properties, const doris::TBrokerRangeDesc& range,
-        int64_t start_offset, std::shared_ptr<FileReader>& file_reader) {
+        int64_t start_offset, std::shared_ptr<FileReader>& file_reader, bool need_buffered_reader) {
     if (type == TFileType::FILE_STREAM) {
         file_reader = env->load_stream_mgr()->get(range.load_id);
         if (!file_reader) {
@@ -125,7 +131,7 @@ doris::Status doris::FileFactory::create_file_reader(
     } else {
         FileReader* file_reader_ptr;
         RETURN_IF_ERROR(_new_file_reader(type, env, profile, broker_addresses, properties, range,
-                                         start_offset, file_reader_ptr));
+                                         start_offset, file_reader_ptr, need_buffered_reader));
         file_reader.reset(file_reader_ptr);
     }
     return Status::OK();
@@ -134,28 +140,33 @@ doris::Status doris::FileFactory::create_file_reader(
 doris::Status doris::FileFactory::_new_file_reader(doris::ExecEnv* env, RuntimeProfile* profile,
                                                    const TFileScanRangeParams& params,
                                                    const doris::TFileRangeDesc& range,
-                                                   FileReader*& file_reader_ptr) {
+                                                   FileReader*& file_reader_ptr,
+                                                   bool need_buffered_reader) {
     doris::TFileType::type type = params.file_type;
 
     if (type == TFileType::FILE_STREAM) {
         return Status::InternalError("UnSupport UniquePtr For FileStream type");
     }
 
+    FileReader* tmp_reader = nullptr;
     switch (type) {
     case TFileType::FILE_S3: {
-        file_reader_ptr = new BufferedReader(
-                profile, new S3Reader(params.properties, range.path, range.start_offset));
+        tmp_reader = new S3Reader(params.properties, range.path, range.start_offset);
         break;
     }
     case TFileType::FILE_HDFS: {
-        FileReader* hdfs_reader = nullptr;
         RETURN_IF_ERROR(HdfsReaderWriter::create_reader(params.hdfs_params, range.path,
-                                                        range.start_offset, &hdfs_reader));
-        file_reader_ptr = new BufferedReader(profile, hdfs_reader);
+                                                        range.start_offset, &tmp_reader));
         break;
     }
     default:
         return Status::InternalError("UnSupport File Reader Type: " + std::to_string(type));
+    }
+
+    if (need_buffered_reader) {
+        file_reader_ptr = new BufferedReader(profile, tmp_reader);
+    } else {
+        file_reader_ptr = tmp_reader;
     }
 
     return Status::OK();
@@ -164,9 +175,11 @@ doris::Status doris::FileFactory::_new_file_reader(doris::ExecEnv* env, RuntimeP
 doris::Status doris::FileFactory::create_file_reader(doris::ExecEnv* env, RuntimeProfile* profile,
                                                      const TFileScanRangeParams& params,
                                                      const doris::TFileRangeDesc& range,
-                                                     std::shared_ptr<FileReader>& file_reader) {
+                                                     std::shared_ptr<FileReader>& file_reader,
+                                                     bool need_buffered_reader) {
     FileReader* file_reader_ptr;
-    RETURN_IF_ERROR(_new_file_reader(env, profile, params, range, file_reader_ptr));
+    RETURN_IF_ERROR(
+            _new_file_reader(env, profile, params, range, file_reader_ptr, need_buffered_reader));
     file_reader.reset(file_reader_ptr);
 
     return Status::OK();
@@ -175,9 +188,11 @@ doris::Status doris::FileFactory::create_file_reader(doris::ExecEnv* env, Runtim
 doris::Status doris::FileFactory::create_file_reader(doris::ExecEnv* env, RuntimeProfile* profile,
                                                      const TFileScanRangeParams& params,
                                                      const doris::TFileRangeDesc& range,
-                                                     std::unique_ptr<FileReader>& file_reader) {
+                                                     std::unique_ptr<FileReader>& file_reader,
+                                                     bool need_buffered_reader) {
     FileReader* file_reader_ptr;
-    RETURN_IF_ERROR(_new_file_reader(env, profile, params, range, file_reader_ptr));
+    RETURN_IF_ERROR(
+            _new_file_reader(env, profile, params, range, file_reader_ptr, need_buffered_reader));
     file_reader.reset(file_reader_ptr);
 
     return Status::OK();

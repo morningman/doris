@@ -62,10 +62,11 @@ Status VArrowScanner::_open_next_reader() {
             return Status::OK();
         }
         const TBrokerRangeDesc& range = _ranges[_next_range++];
+        // Don't use BufferedReader, because it is not thread safe
         std::unique_ptr<FileReader> file_reader;
         RETURN_IF_ERROR(FileFactory::create_file_reader(
                 range.file_type, _state->exec_env(), _profile, _broker_addresses,
-                _params.properties, range, range.start_offset, file_reader));
+                _params.properties, range, range.start_offset, file_reader, false));
         RETURN_IF_ERROR(file_reader->open());
         if (file_reader->size() == 0) {
             file_reader->close();

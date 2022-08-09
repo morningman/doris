@@ -58,22 +58,28 @@ struct Statistics {
     int64_t total_bytes = 0;
 };
 
+// ATTN: this file should be thread-safety
 class ArrowFile : public arrow::io::RandomAccessFile {
 public:
     ArrowFile(FileReader* file);
     virtual ~ArrowFile();
-    arrow::Result<int64_t> Read(int64_t nbytes, void* buffer) override;
-    arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override;
-    arrow::Result<int64_t> GetSize() override;
     arrow::Status Seek(int64_t position) override;
+    arrow::Result<int64_t> Read(int64_t nbytes, void* buffer) override;
     arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nbytes) override;
+
+    arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override;
+    arrow::Result<std::shared_ptr<arrow::Buffer>> ReadAt(int64_t position, int64_t nbytes) override;
+
+    arrow::Result<int64_t> GetSize() override;
     arrow::Result<int64_t> Tell() const override;
     arrow::Status Close() override;
     bool closed() const override;
 
 private:
+    std::mutex _lock;
     FileReader* _file;
     int64_t _pos = 0;
+    bool _is_closed = false;
 };
 
 // base of arrow reader
