@@ -32,6 +32,7 @@
 #include "runtime/tuple.h"
 #include "util/string_util.h"
 #include "util/thrift_util.h"
+#include "util/stack_util.h"
 
 namespace doris {
 
@@ -56,8 +57,10 @@ ArrowReaderWrap::~ArrowReaderWrap() {
 void ArrowReaderWrap::close() {
     _closed = true;
     _queue_writer_cond.notify_one();
+    LOG(INFO) << "cmy ArrowReaderWrap::close before: " << _thread.joinable() << ", " << get_stack_trace(); 
     if (_thread.joinable()) {
         _thread.join();
+        LOG(INFO) << "cmy ArrowReaderWrap::close after" << get_stack_trace(); 
     }
     arrow::Status st = _arrow_file->Close();
     if (!st.ok()) {
@@ -142,8 +145,10 @@ void ArrowReaderWrap::prefetch_batch() {
             continue;
         }
 
+        LOG(INFO) << "cmy read before";
         arrow::RecordBatchVector batches;
         read_batches(batches, current_group);
+        LOG(INFO) << "cmy read after";
         if (!_status.ok()) {
             _closed = true;
             return;
