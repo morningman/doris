@@ -1,10 +1,12 @@
+source deploy.conf
+
 if [ $# -eq 0 ]; then
     echo "$0 CLUSTER"
     exit 1
 fi
 
 CLUSTER=$1
-CLUSTER_DIR=/mnt/ssd01/selectdb-1.0/$CLUSTER
+CLUSTER_DIR=$cluster_dir_prefix/$CLUSTER
 
 echo " ============= stop service=============="
 

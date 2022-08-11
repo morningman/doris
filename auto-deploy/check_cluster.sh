@@ -1,4 +1,6 @@
-for CLUSTER in VEC_ASAN VEC_DEBUG VEC_RELEASE VEC_UBSAN; do
+source deploy.conf
+
+for CLUSTER in $clusters; do
     for FE in `cat $CLUSTER/fe_hosts | awk -F '@' '{print$2}'`; do
         PORT=`cat $CLUSTER/conf/fe.conf | grep query_port | awk -F '=' '{print$2}'`
         echo "$CLUSTER $FE:$PORT"

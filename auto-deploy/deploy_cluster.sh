@@ -1,3 +1,4 @@
+source deploy.conf
 
 if [ $# -eq 0 ]; then
 	echo "$0 CLUSTER"
@@ -5,7 +6,7 @@ if [ $# -eq 0 ]; then
 fi
 
 CLUSTER=$1
-CLUSTER_DIR=/mnt/ssd01/selectdb-1.0/$CLUSTER
+CLUSTER_DIR=$cluster_dir_prefix/$CLUSTER
 STEPS=10
 # 1. create dirs
 echo " =============1/$STEPS create dirs=============="

@@ -1,14 +1,16 @@
 #!/bin/bash
+source deploy.conf
+
 CLUSTER=$1
 
-clusters=("VEC_ASAN" "VEC_DEBUG" "VEC_RELEASE" "VEC_UBSAN")
+cluster_arr=($clusters)
 if [ -z $CLUSTER ]; then
     echo "PLZ giving a regression cluster name"
-    echo "U can choose one of cluster: ""${clusters[@]}"
+    echo "U can choose one of cluster: ""${cluster_arr[@]}"
 else
-    if [[ ! "${clusters[@]}" =~ "$CLUSTER" ]];then
+    if [[ ! "${cluster_arr[@]}" =~ "$CLUSTER" ]];then
         echo "PLZ check cluster name"
-        echo "U can choose one of cluster: ""${clusters[@]}"
+        echo "U can choose one of cluster: ""${cluster_arr[@]}"
         exit -1
     fi
 
