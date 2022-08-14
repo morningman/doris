@@ -28,7 +28,6 @@ import org.apache.doris.mysql.privilege.PrivPredicate;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -130,6 +129,15 @@ public class ConnectScheduler {
 
     public ConnectContext getContext(int connectionId) {
         return connectionMap.get(connectionId);
+    }
+
+    public void cancelQuery(String queryId) {
+        for (ConnectContext ctx : connectionMap.values()) {
+            if (ctx.queryId().equals(queryId)) {
+                ctx.cancelQuery();
+                break;
+            }
+        }
     }
 
     public int getConnectionNum() {
