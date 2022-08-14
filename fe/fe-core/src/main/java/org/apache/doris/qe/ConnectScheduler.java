@@ -21,10 +21,12 @@ import org.apache.doris.catalog.Catalog;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ThreadPoolManager;
+import org.apache.doris.common.util.DebugUtil;
 import org.apache.doris.ldap.LdapAuthenticate;
 import org.apache.doris.mysql.MysqlProto;
 import org.apache.doris.mysql.nio.NConnectContext;
 import org.apache.doris.mysql.privilege.PrivPredicate;
+import org.apache.doris.thrift.TUniqueId;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -133,7 +135,8 @@ public class ConnectScheduler {
 
     public void cancelQuery(String queryId) {
         for (ConnectContext ctx : connectionMap.values()) {
-            if (ctx.queryId().equals(queryId)) {
+            TUniqueId qid = ctx.queryId();
+            if (qid != null && DebugUtil.printId(qid).equals(queryId)) {
                 ctx.cancelQuery();
                 break;
             }
