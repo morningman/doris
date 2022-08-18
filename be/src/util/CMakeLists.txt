@@ -77,10 +77,8 @@ set(UTIL_FILES
   cidr.cpp
   core_local.cpp
   uid_util.cpp
-  encryption_util.cpp
   string_util.cpp
   md5.cpp
-  sm3.cpp
   thrift_rpc_helper.cpp
   faststring.cc
   slice.cpp

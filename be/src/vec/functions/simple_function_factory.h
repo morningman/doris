@@ -75,7 +75,6 @@ void register_function_least_greast(SimpleFunctionFactory& factory);
 void register_function_fake(SimpleFunctionFactory& factory);
 void register_geo_functions(SimpleFunctionFactory& factory);
 
-void register_function_encryption(SimpleFunctionFactory& factory);
 void register_function_regexp_extract(SimpleFunctionFactory& factory);
 void register_function_hex_variadic(SimpleFunctionFactory& factory);
 class SimpleFunctionFactory {
@@ -198,7 +197,6 @@ public:
             register_function_convert_tz(instance);
             register_function_least_greast(instance);
             register_function_fake(instance);
-            register_function_encryption(instance);
             register_function_regexp_extract(instance);
             register_function_hex_variadic(instance);
             register_geo_functions(instance);

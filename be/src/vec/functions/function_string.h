@@ -30,7 +30,6 @@
 #include "runtime/string_value.hpp"
 #include "udf/udf.h"
 #include "util/md5.h"
-#include "util/sm3.h"
 #include "util/url_parser.h"
 #include "vec/columns/column_decimal.h"
 #include "vec/columns/column_nullable.h"
@@ -922,11 +921,6 @@ public:
                 ColumnNullable::create(std::move(res), std::move(null_map));
         return Status::OK();
     }
-};
-
-struct SM3Sum {
-    static constexpr auto name = "sm3sum";
-    using ObjectData = SM3Digest;
 };
 
 struct MD5Sum {

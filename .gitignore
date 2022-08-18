@@ -14,6 +14,8 @@ gensrc/build
 fe/fe-core/target
 thirdparty/src
 thirdparty/installed
+thirdparty/src.bak
+thirdparty/installed.bak
 *.so.tmp
 .DS_Store
 *.iml
