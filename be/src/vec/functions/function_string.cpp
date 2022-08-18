@@ -24,7 +24,6 @@
 #include <string_view>
 
 #include "runtime/string_search.hpp"
-#include "util/encryption_util.h"
 #include "util/simd/vstring_function.h"
 #include "util/url_coding.h"
 #include "vec/common/pod_array_fwd.h"
@@ -667,7 +666,6 @@ void register_function_string(SimpleFunctionFactory& factory) {
     factory.register_function<FunctionMoneyFormat<MoneyFormatInt64Impl>>();
     factory.register_function<FunctionMoneyFormat<MoneyFormatInt128Impl>>();
     factory.register_function<FunctionMoneyFormat<MoneyFormatDecimalImpl>>();
-    factory.register_function<FunctionStringMd5AndSM3<SM3Sum>>();
     factory.register_function<FunctionReplace>();
 
     factory.register_alias(FunctionLeft::name, "strleft");
@@ -677,7 +675,6 @@ void register_function_string(SimpleFunctionFactory& factory) {
     factory.register_alias(FunctionToUpper::name, "ucase");
     factory.register_alias(FunctionStringMd5AndSM3<MD5Sum>::name, "md5");
     factory.register_alias(FunctionStringUTF8Length::name, "character_length");
-    factory.register_alias(FunctionStringMd5AndSM3<SM3Sum>::name, "sm3");
 }
 
 } // namespace doris::vectorized

@@ -27,7 +27,6 @@
 #include "exprs/cast_functions.h"
 #include "exprs/compound_predicate.h"
 #include "exprs/decimalv2_operators.h"
-#include "exprs/encryption_functions.h"
 #include "exprs/es_functions.h"
 #include "exprs/grouping_sets_functions.h"
 #include "exprs/hash_functions.h"
@@ -252,7 +251,6 @@ void Daemon::init(int argc, char** argv, const std::vector<StorePath>& paths) {
     CastFunctions::init();
     InPredicate::init();
     MathFunctions::init();
-    EncryptionFunctions::init();
     TimestampFunctions::init();
     DecimalV2Operators::init();
     TimeOperators::init();

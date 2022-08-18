@@ -263,11 +263,8 @@ build_openssl() {
     LDFLAGS="-L${TP_LIB_DIR}" \
     CFLAGS="-fPIC" \
     LIBDIR="lib" \
-    ./Configure --prefix=$TP_INSTALL_DIR --with-rand-seed=devrandom -shared ${OPENSSL_PLATFORM}
-    # NOTE(amos): Never use '&&' to concat commands as it will eat error code
-    # See https://mywiki.wooledge.org/BashFAQ/105 for more detail.
-    make -j $PARALLEL
-    make install_sw
+    ./Configure --prefix=$TP_INSTALL_DIR -zlib -shared ${OPENSSL_PLATFORM}
+    make -j $PARALLEL && make install_sw
     # NOTE(zc): remove this dynamic library files to make libcurl static link.
     # If I don't remove this files, I don't known how to make libcurl link static library
     if [ -f $TP_INSTALL_DIR/lib64/libcrypto.so ]; then
