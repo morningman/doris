@@ -79,6 +79,9 @@ Status NodeChannel::init(RuntimeState* state) {
 
     _node_info = *node;
 
+    _load_info = "load_id=" + print_id(_parent->_load_id) +
+                 ", txn_id=" + std::to_string(_parent->_txn_id);
+
     _row_desc.reset(new RowDescriptor(_tuple_desc, false));
     _batch_size = state->batch_size();
     _cur_batch.reset(new RowBatch(*_row_desc, _batch_size, _parent->_mem_tracker.get()));
@@ -87,7 +90,7 @@ Status NodeChannel::init(RuntimeState* state) {
                                                                         _node_info.brpc_port);
     if (_stub == nullptr) {
         LOG(WARNING) << "Get rpc stub failed, host=" << _node_info.host
-                     << ", port=" << _node_info.brpc_port;
+                     << ", port=" << _node_info.brpc_port << ", " << channel_info();
         _cancelled = true;
         return Status::InternalError("get rpc stub failed");
     }
@@ -103,8 +106,6 @@ Status NodeChannel::init(RuntimeState* state) {
     _timeout_watch.start();
     _max_pending_batches_bytes = _parent->_load_mem_limit / 20; //TODO: session variable percent
 
-    _load_info = "load_id=" + print_id(_parent->_load_id) +
-                 ", txn_id=" + std::to_string(_parent->_txn_id);
     _name = fmt::format("NodeChannel[{}-{}]", _index_channel->_index_id, _node_id);
     return Status::OK();
 }
@@ -143,7 +144,7 @@ void NodeChannel::open() {
 }
 
 void NodeChannel::_cancel_with_msg(const std::string& msg) {
-    LOG(WARNING) << msg;
+    LOG(WARNING) << channel_info() << ", " << msg;
     {
         std::lock_guard<SpinLock> l(_cancel_msg_lock);
         if (_cancel_msg == "") {
@@ -165,8 +166,10 @@ Status NodeChannel::open_wait() {
         ss << "failed to open tablet writer, error=" << berror(_open_closure->cntl.ErrorCode())
            << ", error_text=" << _open_closure->cntl.ErrorText();
         _cancelled = true;
-        LOG(WARNING) << ss.str();
-        return Status::InternalError(ss.str());
+        LOG(WARNING) << ss.str() << " " << channel_info();
+        return Status::InternalError("failed to open tablet writer, error={}, error_text={}",
+                                     berror(_open_closure->cntl.ErrorCode()),
+                                     _open_closure->cntl.ErrorText());
     }
     Status status(_open_closure->result.status());
     if (_open_closure->unref()) {
