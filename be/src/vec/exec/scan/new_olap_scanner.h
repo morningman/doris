@@ -20,6 +20,7 @@
 #include "exec/olap_utils.h"
 #include "exprs/bloomfilter_predicate.h"
 #include "exprs/function_filter.h"
+#include "olap/reader.h"
 #include "vec/exec/scan/vscanner.h"
 
 namespace doris {
@@ -32,12 +33,10 @@ class NewOlapScanNode;
 
 class NewOlapScanner : public VScanner {
 public:
-    NewOlapScanner(RuntimeState* state, NewOlapScanNode* parent, bool aggregation,
+    NewOlapScanner(RuntimeState* state, NewOlapScanNode* parent, int64_t limit, bool aggregation,
                    bool need_agg_finalize, const TPaloScanRange& scan_range, MemTracker* tracker);
 
     Status open(RuntimeState* state) override;
-
-    Status get_block(RuntimeState* state, Block* block, bool* eos) override;
 
     Status close(RuntimeState* state) override;
 
@@ -47,6 +46,34 @@ public:
                    const std::vector<std::pair<string, std::shared_ptr<IBloomFilterFuncBase>>>&
                            bloom_filters,
                    const std::vector<FunctionFilter>& function_filters);
+
+protected:
+    Status _get_block_impl(RuntimeState* state, Block* block, bool* eos) override;
+
+private:
+    void _update_counter();
+
+    Status _init_tablet_reader_params(
+            const std::vector<OlapScanRange*>& key_ranges, const std::vector<TCondition>& filters,
+            const std::vector<std::pair<string, std::shared_ptr<IBloomFilterFuncBase>>>& bloom_filters,
+            const std::vector<FunctionFilter>& function_filters);
+
+    Status _init_return_columns(bool need_seq_col);
+
+private:
+    bool _aggregation;
+    bool _need_agg_finalize;
+
+    TabletSchemaSPtr _tablet_schema;
+    TabletSharedPtr _tablet;
+    int64_t _version;
+
+    TabletReader::ReaderParams _tablet_reader_params;
+    std::unique_ptr<TabletReader> _tablet_reader;
+
+    std::vector<uint32_t> _return_columns;
+    std::unordered_set<uint32_t> _tablet_columns_convert_to_null_set;
+
 };
 } // namespace vectorized
 } // namespace doris

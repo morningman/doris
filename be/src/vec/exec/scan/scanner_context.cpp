@@ -27,6 +27,7 @@
 namespace doris::vectorized {
 
 Status ScannerContext::init() {
+    _real_tuple_desc = _input_tuple_desc != nullptr ? _input_tuple_desc : _output_tuple_desc;
     // 1. Calculate how many blocks need to be preallocated.
     // The calculation logic is as follows:
     //  1. Assuming that at most M rows can be scanned in one scan(config::doris_scanner_row_num),
@@ -43,8 +44,10 @@ Status ScannerContext::init() {
             std::min((int32_t)_scanners.size(), config::doris_scanner_thread_pool_thread_num) *
             _block_per_scanner;
 
+    // The free blocks is used for final output block of scanners.
+    // So use _output_tuple_desc;
     for (int i = 0; i < pre_alloc_block_count; ++i) {
-        auto block = new vectorized::Block(src_tuple_desc->slots(), real_block_size);
+        auto block = new vectorized::Block(_output_tuple_desc->slots(), real_block_size);
         _free_blocks.emplace_back(block);
     }
 
@@ -77,7 +80,8 @@ vectorized::Block* ScannerContext::get_free_block(bool* get_free_block) {
         }
     }
     *get_free_block = false;
-    return new vectorized::Block(src_tuple_desc->slots(), _state->batch_size());
+    
+    return new vectorized::Block(_real_tuple_desc->slots(), _state->batch_size());
 }
 
 void ScannerContext::return_free_block(vectorized::Block* block) {

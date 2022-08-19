@@ -77,7 +77,8 @@ Status VScanNode::prepare(RuntimeState* state) {
 
     RETURN_IF_ERROR(_init_profile());
 
-    _src_tuple_desc = state->desc_tbl().get_tuple_descriptor(_src_tuple_id);
+    _input_tuple_desc = state->desc_tbl().get_tuple_descriptor(_input_tuple_id);
+    _output_tuple_desc = state->desc_tbl().get_tuple_descriptor(_output_tuple_id);
 
     // init profile for runtime filter
     for (auto& rf_ctx : _runtime_filter_ctxs) {
@@ -130,7 +131,7 @@ Status VScanNode::get_next(RuntimeState* state, vectorized::Block* block, bool* 
 }
 
 Status VScanNode::_start_scanners(const std::list<VScanner*>& scanners) {
-    _scanner_ctx.reset(new ScannerContext(_state, _src_tuple_desc, _dst_tuple_desc, scanners,
+    _scanner_ctx.reset(new ScannerContext(_state, _input_tuple_desc, _output_tuple_desc, scanners,
                                           limit(), _state->query_options().mem_limit / 20));
     RETURN_IF_ERROR(_scanner_ctx->init());
     RETURN_IF_ERROR(_state->exec_env()->scanner_scheduler()->submit(_scanner_ctx.get()));
@@ -248,7 +249,8 @@ Status VScanNode::close(RuntimeState* state) {
 }
 
 Status VScanNode::_normalize_conjuncts() {
-    std::vector<SlotDescriptor*> slots = _src_tuple_desc->slots();
+    // The conjuncts is always on output tuple, so use _output_tuple_desc;
+    std::vector<SlotDescriptor*> slots = _output_tuple_desc->slots();
 
     for (int slot_idx = 0; slot_idx < slots.size(); ++slot_idx) {
         switch (slots[slot_idx]->type().type) {

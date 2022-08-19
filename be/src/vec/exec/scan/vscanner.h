@@ -29,15 +29,36 @@ class VScanNode;
 
 class VScanner {
 public:
-    VScanner(RuntimeState* state, VScanNode* parent);
+    VScanner(RuntimeState* state, VScanNode* parent, int64_t limit, MemTracker* mem_tracker);
 
     virtual ~VScanner() {}
 
     virtual Status open(RuntimeState* state) { return Status::OK(); }
 
-    virtual Status get_block(RuntimeState* state, vectorized::Block* block, bool* eos) = 0;
+    Status get_block(RuntimeState* state, Block* block, bool* eos);
 
-    virtual Status close(RuntimeState* state) { return Status::OK(); }
+    virtual Status close(RuntimeState* state);
+
+    // Subclass must implement this to return the current rows read
+    virtual int64_t raw_rows_read() { return 0; }
+
+protected:
+
+    // Subclass should implement this to return data.
+    virtual Status _get_block_impl(RuntimeState* state, Block* block, bool* eof) = 0;
+
+    // Init the input block if _input_tuple_desc is set.
+    // Otherwise, use output_block directly.
+    void _init_input_block(Block* output_block);
+
+    // Use prefilters to filter input block
+    Status _filter_input_block(Block* block);
+
+    // Convert input block to output block, if needed.
+    Status _convert_to_output_block(Block* output_block);
+
+    // Filter the output block finally.
+    Status _filter_output_block(Block* block);
 
 public:
     VScanNode* get_parent() { return _parent; }
@@ -54,7 +75,6 @@ public:
     bool is_open() { return _is_open; }
     void set_opened() { _is_open = true; }
 
-    int64_t raw_rows_read() { return 0; }
 
     int queue_id() { return _state->exec_env()->store_path_to_index("xxx"); }
 
@@ -70,7 +90,7 @@ public:
 
     VExprContext** vconjunct_ctx_ptr() { return &_vconjunct_ctx; }
 
-private:
+protected:
     void _discard_conjuncts() {
         if (_vconjunct_ctx) {
             _vconjunct_ctx->mark_as_stale();
@@ -79,11 +99,26 @@ private:
         }
     }
 
-private:
+protected:
     RuntimeState* _state;
     VScanNode* _parent;
+    // Set if scan node has sort limit info
+    int64_t _limit = -1;
+    MemTracker* _mem_tracker;
+
+    const TupleDescriptor* _input_tuple_desc;
+    const TupleDescriptor* _output_tuple_desc;
+    const TupleDescriptor* _real_tuple_desc;
+
+    // If _input_tuple_desc is set, the scanner will read data into
+    // this _input_block first, then convert to the output block.
+    Block _input_block;
+    // If _input_tuple_desc is set, this will point to _input_block,
+    // otherwise, it will point to the output block.
+    Block* _input_block_ptr;
 
     bool _is_open = false;
+    bool _is_closed = false;
     bool _need_to_close = false;
     Status _status;
 
@@ -98,6 +133,10 @@ private:
     // The old _vconjunct_ctx will be temporarily placed in _stale_vexpr_ctxs
     // and will be destroyed at the end.
     std::vector<VExprContext*> _stale_vexpr_ctxs;
+
+    int64_t _num_rows_read = 0;
+    int64_t _raw_rows_read = 0;
+    int64_t _num_rows_return = 0;
 };
 
 } // namespace doris::vectorized

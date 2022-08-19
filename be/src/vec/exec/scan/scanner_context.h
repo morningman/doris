@@ -45,12 +45,12 @@ class VScanner;
 // and submits the Scanners to the scanner thread pool for data scanning.
 class ScannerContext {
 public:
-    ScannerContext(RuntimeState* state_, const TupleDescriptor* src_tuple_desc_,
-                   const TupleDescriptor* dst_tuple_desc_, const std::list<VScanner*>& scanners_,
+    ScannerContext(RuntimeState* state_, const TupleDescriptor* input_tuple_desc,
+                   const TupleDescriptor* output_tuple_desc, const std::list<VScanner*>& scanners_,
                    int64_t limit_, int64_t max_bytes_in_blocks_queue_)
             : _state(state_),
-              src_tuple_desc(src_tuple_desc_),
-              dst_tuple_desc(dst_tuple_desc_),
+              _input_tuple_desc(input_tuple_desc),
+              _output_tuple_desc(output_tuple_desc),
               _process_status(Status::OK()),
               limit(limit_),
               _max_bytes_in_queue(max_bytes_in_blocks_queue_),
@@ -126,8 +126,11 @@ private:
     RuntimeState* _state;
 
     // the comment of same fields in VScanNode
-    const TupleDescriptor* src_tuple_desc;
-    const TupleDescriptor* dst_tuple_desc;
+    const TupleDescriptor* _input_tuple_desc;
+    const TupleDescriptor* _output_tuple_desc;
+    // If _input_tuple_desc is not null, _real_tuple_desc point to _input_tuple_desc,
+    // otherwise, _real_tuple_desc point to _output_tuple_desc
+    const TupleDescriptor* _real_tuple_desc;
 
     // _transfer_lock is used to protect the critical section
     // where the ScanNode and ScannerScheduler interact.

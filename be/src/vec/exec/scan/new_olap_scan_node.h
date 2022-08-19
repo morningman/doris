@@ -21,9 +21,11 @@
 
 namespace doris::vectorized {
 
+class NewOlapScanner;
 class NewOlapScanNode : public VScanNode {
 public:
     NewOlapScanNode(ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs);
+    friend class NewOlapScanner;
 
     Status prepare(RuntimeState* state) override;
 

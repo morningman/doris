@@ -28,7 +28,10 @@ namespace doris::vectorized {
 NewOlapScanNode::NewOlapScanNode(ObjectPool* pool, const TPlanNode& tnode,
                                  const DescriptorTbl& descs)
         : VScanNode(pool, tnode, descs), _olap_scan_node(tnode.olap_scan_node) {
-    _src_tuple_id = tnode.olap_scan_node.tuple_id;
+    _output_tuple_id = tnode.olap_scan_node.tuple_id;
+    if (_olap_scan_node.__isset.sort_info && _olap_scan_node.__isset.sort_limit) {
+        _limit_per_scanner = _olap_scan_node.sort_limit;
+    }
 }
 
 Status NewOlapScanNode::prepare(RuntimeState* state) {
@@ -261,7 +264,7 @@ Status NewOlapScanNode::_init_scanners(std::list<VScanner*>* scanners) {
             }
 
             NewOlapScanner* scanner =
-                    new NewOlapScanner(_state, this, _olap_scan_node.is_preaggregation,
+                    new NewOlapScanner(_state, this, _limit_per_scanner, _olap_scan_node.is_preaggregation,
                                        _need_agg_finalize, *scan_range, _scanner_mem_tracker.get());
             // add scanner to pool before doing prepare.
             // so that scanner can be automatically deconstructed if prepare failed.

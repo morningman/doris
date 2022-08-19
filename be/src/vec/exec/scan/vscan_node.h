@@ -35,6 +35,7 @@ class VScanNode : public ExecNode {
 public:
     VScanNode(ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs)
             : ExecNode(pool, tnode, descs) {}
+    friend class NewOlapScanner;
 
     Status init(const TPlanNode& tnode, RuntimeState* state = nullptr) override;
 
@@ -64,6 +65,11 @@ public:
     Status clone_vconjunct_ctx(VExprContext** _vconjunct_ctx);
 
     int runtime_filter_num() const { return (int)_runtime_filter_ctxs.size(); }
+
+    TupleId input_tuple_id() const { return _input_tuple_id; }
+    TupleId output_tuple_id() const { return _output_tuple_id; }
+    const TupleDescriptor* input_tuple_desc() const { return _input_tuple_desc; }
+    const TupleDescriptor* output_tuple_desc() const { return _output_tuple_desc; }
 
 protected:
     // Different data sources register different profiles by implementing this method
@@ -120,12 +126,12 @@ protected:
 
 protected:
     RuntimeState* _state;
-    // For load scan node, there should be both src and dst tuple descriptor.
-    // For query scan node, there is only src_tuple_desc.
-    TupleId _src_tuple_id;
-    TupleId _dst_tuple_id;
-    const TupleDescriptor* _src_tuple_desc;
-    const TupleDescriptor* _dst_tuple_desc;
+    // For load scan node, there should be both input and output tuple descriptor.
+    // For query scan node, there is only output_tuple_desc.
+    TupleId _input_tuple_id;
+    TupleId _output_tuple_id;
+    const TupleDescriptor* _input_tuple_desc;
+    const TupleDescriptor* _output_tuple_desc;
 
     // These two values are from query_options
     int _max_scan_key_num;
@@ -181,6 +187,9 @@ protected:
     // Every time vconjunct_ctx_ptr is updated, the old ctx will be stored in this vector
     // so that it will be destroyed uniformly at the end of the query.
     std::vector<std::unique_ptr<VExprContext*>> _stale_vexpr_ctxs;
+
+    // If sort info is set, push limit to each scanner;
+    int64_t _limit_per_scanner = -1;
 
 private:
     // Register and get all runtime filters at Init phase.
