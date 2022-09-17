@@ -73,6 +73,7 @@ Status VFileScanner::_get_block_impl(RuntimeState* state, Block* block, bool* eo
     }
     if (!_scanner_eof) {
         _cur_reader->get_next_block(block, &_cur_reader_eof);
+		LOG(INFO) << "cmy get_next_block size: " << block->rows() << ", _cur_reader_eof: " << _cur_reader_eof;
     }
 
     if (block->rows() > 0) {
@@ -87,6 +88,7 @@ Status VFileScanner::_get_block_impl(RuntimeState* state, Block* block, bool* eo
 }
 
 Status VFileScanner::_fill_columns_from_path(vectorized::Block* _block, size_t rows) {
+	LOG(INFO) << "cmy fill column from path size: " << _partition_slot_descs.size();
     const TFileRangeDesc& range = _ranges.at(_next_range - 1);
     if (range.__isset.columns_from_path && !_partition_slot_descs.empty()) {
         for (const auto& slot_desc : _partition_slot_descs) {
@@ -121,6 +123,7 @@ Status VFileScanner::_get_next_reader() {
     while (true) {
         if (_next_range >= _ranges.size()) {
             _scanner_eof = true;
+			LOG(INFO) << "cmy scanner eof: true"; 
             return Status::OK();
         }
         const TFileRangeDesc& range = _ranges[_next_range++];
@@ -129,6 +132,7 @@ Status VFileScanner::_get_next_reader() {
         RETURN_IF_ERROR(FileFactory::create_file_reader(_state->exec_env(), _profile, _params,
                                                         range, file_reader));
         RETURN_IF_ERROR(file_reader->open());
+		LOG(INFO) << "cmy create file reader, size: " << file_reader->size();
         if (file_reader->size() == 0) {
             file_reader->close();
             continue;

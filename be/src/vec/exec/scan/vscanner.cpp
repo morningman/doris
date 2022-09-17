@@ -47,6 +47,7 @@ Status VScanner::get_block(RuntimeState* state, Block* block, bool* eof) {
         }
     }
 
+	LOG(INFO) << "cmy output desc: " << _output_tuple_desc->slots().size();
     _init_input_block(block);
     {
         do {

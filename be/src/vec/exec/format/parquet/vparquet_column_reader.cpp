@@ -102,6 +102,7 @@ Status ScalarColumnReader::read_column_data(ColumnPtr& doris_column, DataTypePtr
     size_t read_values = _chunk_reader->remaining_num_values() < batch_size
                                  ? _chunk_reader->remaining_num_values()
                                  : batch_size;
+	LOG(INFO) << "cmy read_values: " << read_values << ", _chunk_reader->remaining_num_values(): " << _chunk_reader->remaining_num_values() << ", max def: " << _chunk_reader->max_def_level();
     // get definition levels, and generate null values
     _reserve_def_levels_buf(read_values);
     level_t* definitions = _def_levels_buf.get();
@@ -111,6 +112,7 @@ Status ScalarColumnReader::read_column_data(ColumnPtr& doris_column, DataTypePtr
         _chunk_reader->get_def_levels(definitions, read_values);
     }
     // fill NullMap
+	// TODO cmy why must nullable?
     CHECK(doris_column->is_nullable());
     auto* nullable_column = reinterpret_cast<vectorized::ColumnNullable*>(
             (*std::move(doris_column)).mutate().get());
@@ -126,6 +128,7 @@ Status ScalarColumnReader::read_column_data(ColumnPtr& doris_column, DataTypePtr
         // column with null values
         level_t level_type = definitions[0];
         int num_values = 1;
+		int tmp = 0;
         for (int i = 1; i < read_values; ++i) {
             if (definitions[i] != level_type) {
                 if (level_type == 0) {
@@ -137,6 +140,7 @@ Status ScalarColumnReader::read_column_data(ColumnPtr& doris_column, DataTypePtr
                 level_type = definitions[i];
                 num_values = 1;
             } else {
+				++tmp;
                 num_values++;
             }
         }
@@ -146,6 +150,7 @@ Status ScalarColumnReader::read_column_data(ColumnPtr& doris_column, DataTypePtr
         } else {
             RETURN_IF_ERROR(_chunk_reader->decode_values(data_column, type, num_values));
         }
+		LOG(INFO) << "cmy tmp: " << tmp << ", level_type: " << level_type << ", data_column size: " << data_column->size() << ", doris_column size: " << doris_column->size();
     }
     *read_rows = read_values;
     if (_chunk_reader->remaining_num_values() == 0 && !_chunk_reader->has_next_page()) {

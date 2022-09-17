@@ -78,6 +78,7 @@ Status RowGroupReader::next_batch(Block* block, size_t batch_size, bool* _batch_
                     column_ptr, column_type, batch_size - col_read_rows, &loop_rows, &col_eof));
             col_read_rows += loop_rows;
         }
+		LOG(INFO) << "cmy _column_readers: " << col_read_rows << ", batch_read_rows: " << batch_read_rows << ", has_eof: " << has_eof << ", block size: " << block->rows() << ", " << block->columns();
         if (col_idx > 0 && (has_eof ^ col_eof)) {
             return Status::Corruption("The number of rows are not equal among parquet columns");
         }

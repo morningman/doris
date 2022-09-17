@@ -93,6 +93,7 @@ Status NewFileScanNode::_init_scanners(std::list<VScanner*>* scanners) {
                 (VScanner*)_create_scanner(scan_range.scan_range.ext_scan_range.file_scan_range);
         scanners->push_back(scanner);
     }
+	LOG(INFO) << "cmy init scanners: " << _scan_ranges.size();
 
     return Status::OK();
 }
@@ -100,6 +101,7 @@ Status NewFileScanNode::_init_scanners(std::list<VScanner*>* scanners) {
 VScanner* NewFileScanNode::_create_scanner(const TFileScanRange& scan_range) {
     VScanner* scanner = nullptr;
     if (config::enable_new_file_scanner) {
+		LOG(INFO) << "cmy new FileScanner";
         scanner = new VFileScanner(_state, this, _limit_per_scanner, scan_range, _scanner_mem_tracker.get(),
                                    runtime_profile(), _pre_filter_texprs, scan_range.params.format_type);
         ((VFileScanner*)scanner)->prepare(_vconjunct_ctx_ptr.get());

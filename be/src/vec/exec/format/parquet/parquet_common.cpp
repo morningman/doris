@@ -170,6 +170,7 @@ Status FixLengthDecoder::_decode_short_int(MutableColumnPtr& doris_column, size_
 
 Status FixLengthDecoder::decode_values(MutableColumnPtr& doris_column, DataTypePtr& data_type,
                                        size_t num_values) {
+	LOG(INFO) << "cmy FixLengthDecoder has dict: " << _has_dict;
     if (_has_dict) {
         _indexes.resize(num_values);
         _index_batch_decoder->GetBatch(&_indexes[0], num_values);

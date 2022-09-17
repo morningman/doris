@@ -210,6 +210,7 @@ Status FixLengthDecoder::_decode_numeric(MutableColumnPtr& doris_column, size_t 
             char* buf_start = _FIXED_GET_DATA_OFFSET(i);
             doris_column->insert_data(buf_start, _type_length);
         }
+		LOG(INFO) << "cmy FixLengthDecoder::_decode_numeric num_values: " << num_values << ", after: " << doris_column->size();
     } else {
         auto& column_data = static_cast<ColumnVector<Numeric>&>(*doris_column).get_data();
         const auto* raw_data = reinterpret_cast<const Numeric*>(_data->data + _offset);
