@@ -53,7 +53,7 @@ Status ScannerContext::init() {
     }
 
     // 2. Calculate max concurrency
-    _max_thread_num = config::doris_scanner_thread_pool_thread_num;
+    _max_thread_num = config::doris_scanner_queue_size;
     if (config::doris_scanner_row_num > _state->batch_size()) {
         _max_thread_num /= config::doris_scanner_row_num / _state->batch_size();
         if (_max_thread_num <= 0) {
