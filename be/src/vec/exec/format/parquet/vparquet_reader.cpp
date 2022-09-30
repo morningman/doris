@@ -150,18 +150,6 @@ Status ParquetReader::_init_read_columns() {
     return Status::OK();
 }
 
-std::unordered_map<std::string, TypeDescriptor> ParquetReader::get_name_to_type() {
-    std::unordered_map<std::string, TypeDescriptor> map;
-    auto schema_desc = _file_metadata->schema();
-    std::unordered_set<std::string> column_names;
-    schema_desc.get_column_names(&column_names);
-    for (auto name : column_names) {
-        auto field = schema_desc.get_column(name);
-        map.emplace(name, field->type);
-    }
-    return map;
-}
-
 Status ParquetReader::get_columns(std::unordered_map<std::string, TypeDescriptor>* name_to_type,
                                   std::unordered_set<std::string>* missing_cols) {
     auto schema_desc = _file_metadata->schema();
