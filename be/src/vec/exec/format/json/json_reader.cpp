@@ -18,6 +18,7 @@
 #include "json_reader.h"
 
 #include "io/file_reader.h"
+#include "src/exec/line_reader.h"
 #include "vec/core/block.h"
 
 namespace doris::vectorized {
@@ -108,7 +109,7 @@ Status GenericJsonReader::get_next_block(Block* block, bool* eof) {
     // Get one line
     while (columns[0]->size() < batch_size && !_scanner_eof) {
         if (_cur_file_reader == nullptr || _cur_reader_eof) {
-            RETURN_IF_ERROR(open_next_reader());
+            // RETURN_IF_ERROR(open_next_reader());
             // If there isn't any more reader, break this
             if (_scanner_eof) {
                 break;
@@ -124,34 +125,21 @@ Status GenericJsonReader::get_next_block(Block* block, bool* eof) {
         }
 
         bool is_empty_row = false;
-        if constexpr (std::is_same_v<JsonReader, VSIMDJsonReader>) {
-            RETURN_IF_ERROR(_cur_vjson_reader->read_json_column(_src_block, _src_slot_descs,
-                                                                &is_empty_row, &_cur_reader_eof));
-        } else {
-            RETURN_IF_ERROR(_cur_vjson_reader->read_json_column(columns, _src_slot_descs,
-                                                                &is_empty_row, &_cur_reader_eof));
-        }
+        RETURN_IF_ERROR((*_vhandle_json_callback)(columns, _src_slot_descs, &is_empty_row,
+                                                  &_cur_reader_eof));
         if (is_empty_row) {
             // Read empty row, just continue
             continue;
         }
     }
 
-    COUNTER_UPDATE(_rows_read_counter, columns[0]->size());
-    SCOPED_TIMER(_materialize_timer);
-
-    return _fill_dest_block(output_block, eof);
+    // COUNTER_UPDATE(_rows_read_counter, columns[0]->size());
+    // SCOPED_TIMER(_materialize_timer);
 }
 
-Status VJsonReader::read_json_column(std::vector<MutableColumnPtr>& columns,
-                                     const std::vector<SlotDescriptor*>& slot_descs,
-                                     bool* is_empty_row, bool* eof) {
-    return (this->*_vhandle_json_callback)(columns, slot_descs, is_empty_row, eof);
-}
-
-Status VJsonReader::_vhandle_simple_json(std::vector<MutableColumnPtr>& columns,
-                                         const std::vector<SlotDescriptor*>& slot_descs,
-                                         bool* is_empty_row, bool* eof) {
+Status GenericJsonReader::_vhandle_simple_json(std::vector<MutableColumnPtr>& columns,
+                                               const std::vector<SlotDescriptor*>& slot_descs,
+                                               bool* is_empty_row, bool* eof) {
     do {
         bool valid = false;
         if (_next_line >= _total_lines) { // parse json and generic document
@@ -164,7 +152,7 @@ Status VJsonReader::_vhandle_simple_json(std::vector<MutableColumnPtr>& columns,
                 return Status::OK();
             }
             _name_map.clear();
-            rapidjson::Value* objectValue = nullptr;
+            rapidjson::Value* objectValue;
             if (_json_doc->IsArray()) {
                 _total_lines = _json_doc->Size();
                 if (_total_lines == 0) {
@@ -373,9 +361,9 @@ Status VJsonReader::_write_data_to_column(rapidjson::Value::ConstValueIterator v
     return Status::OK();
 }
 
-Status VJsonReader::_vhandle_flat_array_complex_json(std::vector<MutableColumnPtr>& columns,
-                                                     const std::vector<SlotDescriptor*>& slot_descs,
-                                                     bool* is_empty_row, bool* eof) {
+Status GenericJsonReader::_vhandle_flat_array_complex_json(
+        std::vector<MutableColumnPtr>& columns, const std::vector<SlotDescriptor*>& slot_descs,
+        bool* is_empty_row, bool* eof) {
     do {
         if (_next_line >= _total_lines) {
             Status st = _parse_json(is_empty_row, eof);
@@ -496,11 +484,9 @@ Status VJsonReader::_write_columns_by_jsonpath(rapidjson::Value& objectValue,
     return Status::OK();
 }
 
-Status VJsonReader::_parse_json(bool* is_empty_row, bool* eof) {
+Status GenericJsonReader::_parse_json(bool* is_empty_row, bool* eof) {
     size_t size = 0;
-    Status st = JsonReader::_parse_json_doc(&size, eof);
-    // terminate if encounter other errors
-    RETURN_IF_ERROR(st);
+    RETURN_IF_ERROR(_parse_json_doc(&size, eof));
 
     // read all data, then return
     if (size == 0 || *eof) {
@@ -508,7 +494,8 @@ Status VJsonReader::_parse_json(bool* is_empty_row, bool* eof) {
         return Status::OK();
     }
 
-    if (!_parsed_jsonpaths.empty() && _strip_outer_array) {
+    // TODO: why???
+    if (!_parsed_json_paths.empty() && _strip_outer_array) {
         _total_lines = _json_doc->Size();
         _next_line = 0;
 
@@ -518,6 +505,130 @@ Status VJsonReader::_parse_json(bool* is_empty_row, bool* eof) {
         }
     }
     return Status::OK();
+}
+
+// read one json string from line reader or file reader and parse it to json doc.
+// return Status::DataQualityError() if data has quality error.
+// return other error if encounter other problems.
+// return Status::OK() if parse succeed or reach EOF.
+Status GenericJsonReader::_parse_json_doc(size_t* size, bool* eof) {
+    // read a whole message
+    SCOPED_TIMER(_file_read_timer);
+    const uint8_t* json_str = nullptr;
+    std::unique_ptr<uint8_t[]> json_str_ptr;
+    if (_line_reader != nullptr) {
+        RETURN_IF_ERROR(_line_reader->read_line(&json_str, size, eof));
+    } else {
+        int64_t length = 0;
+        RETURN_IF_ERROR(_file_reader->read_one_message(&json_str_ptr, &length));
+        json_str = json_str_ptr.get();
+        *size = length;
+        if (length == 0) {
+            *eof = true;
+        }
+    }
+
+    _bytes_read_counter += *size;
+    if (*eof) {
+        return Status::OK();
+    }
+
+    bool has_parse_error = false;
+    // parse jsondata to JsonDoc
+
+    // As the issue: https://github.com/Tencent/rapidjson/issues/1458
+    // Now, rapidjson only support uint64_t, So lagreint load cause bug. We use kParseNumbersAsStringsFlag.
+    if (_num_as_string) {
+        has_parse_error =
+                _origin_json_doc
+                        .Parse<rapidjson::kParseNumbersAsStringsFlag>((char*)json_str, *size)
+                        .HasParseError();
+    } else {
+        has_parse_error = _origin_json_doc.Parse((char*)json_str, *size).HasParseError();
+    }
+
+    if (has_parse_error) {
+        fmt::memory_buffer error_msg;
+        fmt::format_to(error_msg, "Parse json data for JsonDoc failed. code: {}, error info: {}",
+                       _origin_json_doc.GetParseError(),
+                       rapidjson::GetParseError_En(_origin_json_doc.GetParseError()));
+        RETURN_IF_ERROR(_state->append_error_msg_to_file(
+                [&]() -> std::string { return std::string((char*)json_str, *size); },
+                [&]() -> std::string { return fmt::to_string(error_msg); }, _scanner_eof));
+        _counter->num_rows_filtered++;
+        if (*_scanner_eof) {
+            // Case A: if _scanner_eof is set to true in "append_error_msg_to_file", which means
+            // we meet enough invalid rows and the scanner should be stopped.
+            // So we set eof to true and return OK, the caller will stop the process as we meet the end of file.
+            *eof = true;
+            return Status::OK();
+        }
+        return Status::DataQualityError(fmt::to_string(error_msg));
+    }
+
+    // set json root
+    if (_parsed_json_root.size() != 0) {
+        _json_doc = JsonFunctions::get_json_object_from_parsed_json(
+                _parsed_json_root, &_origin_json_doc, _origin_json_doc.GetAllocator());
+        if (_json_doc == nullptr) {
+            fmt::memory_buffer error_msg;
+            fmt::format_to(error_msg, "{}", "JSON Root not found.");
+            RETURN_IF_ERROR(_state->append_error_msg_to_file(
+                    [&]() -> std::string { return _print_json_value(_origin_json_doc); },
+                    [&]() -> std::string { return fmt::to_string(error_msg); }, _scanner_eof));
+            _counter->num_rows_filtered++;
+            if (*_scanner_eof) {
+                // Same as Case A
+                *eof = true;
+                return Status::OK();
+            }
+            return Status::DataQualityError(fmt::to_string(error_msg));
+        }
+    } else {
+        _json_doc = &_origin_json_doc;
+    }
+
+    if (_json_doc->IsArray() && !_strip_outer_array) {
+        fmt::memory_buffer error_msg;
+        fmt::format_to(error_msg, "{}",
+                       "JSON data is array-object, `strip_outer_array` must be TRUE.");
+        RETURN_IF_ERROR(_state->append_error_msg_to_file(
+                [&]() -> std::string { return _print_json_value(_origin_json_doc); },
+                [&]() -> std::string { return fmt::to_string(error_msg); }, _scanner_eof));
+        _counter->num_rows_filtered++;
+        if (*_scanner_eof) {
+            // Same as Case A
+            *eof = true;
+            return Status::OK();
+        }
+        return Status::DataQualityError(fmt::to_string(error_msg));
+    }
+
+    if (!_json_doc->IsArray() && _strip_outer_array) {
+        fmt::memory_buffer error_msg;
+        fmt::format_to(error_msg, "{}",
+                       "JSON data is not an array-object, `strip_outer_array` must be FALSE.");
+        RETURN_IF_ERROR(_state->append_error_msg_to_file(
+                [&]() -> std::string { return _print_json_value(_origin_json_doc); },
+                [&]() -> std::string { return fmt::to_string(error_msg); }, _scanner_eof));
+        _counter->num_rows_filtered++;
+        if (*_scanner_eof) {
+            // Same as Case A
+            *eof = true;
+            return Status::OK();
+        }
+        return Status::DataQualityError(fmt::to_string(error_msg));
+    }
+
+    return Status::OK();
+}
+
+std::string GenericJsonReader::_print_json_value(const rapidjson::Value& value) {
+    rapidjson::StringBuffer buffer;
+    buffer.Clear();
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    value.Accept(writer);
+    return std::string(buffer.GetString());
 }
 
 Status VJsonReader::_append_error_msg(const rapidjson::Value& objectValue, std::string error_msg,

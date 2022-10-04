@@ -41,11 +41,9 @@ public:
     virtual Status get_columns(std::unordered_map<std::string, TypeDescriptor>* name_to_type,
                                std::unordered_set<std::string>* missing_cols) override;
 
-    Status read_json_column(std::vector<MutableColumnPtr>& columns,
-                            const std::vector<SlotDescriptor*>& slot_descs, bool* is_empty_row,
-                            bool* eof);
-
 private:
+    Status _parse_json_doc(size_t* size, bool* eof);
+
     Status _parse_jsonpath_and_json_root(const std::string& jsonpath, const std::string& json_root);
 
     Status _generate_json_paths(const std::string& jsonpath,
@@ -80,18 +78,37 @@ private:
 
     Status _parse_json(bool* is_empty_row, bool* eof);
 
+    std::string _print_json_value(const rapidjson::Value& value);
+
     Status _append_error_msg(const rapidjson::Value& objectValue, std::string error_msg,
                              std::string col_name, bool* valid);
 
 private:
+    std::string _jsonpath;
+    std::string _jsonpath_file;
+
+    std::string _line_delimiter;
+    int _line_delimiter_length;
+
+    // Reader
+    std::shared_ptr<FileReader> _cur_file_reader;
+    LineReader* _cur_line_reader;
+    JsonReader* _cur_json_reader;
+    bool _cur_reader_eof;
+    bool _read_json_by_line;
+
+    // When we fetch range doesn't start from 0,
+    // we will read to one ahead, and skip the first line
+    bool _skip_next_line;
+
     int _next_line;
     int _total_lines;
     RuntimeState* _state;
     ScannerCounter* _counter;
     RuntimeProfile* _profile;
-    FileReader* _cur_file_reader;
+    FileReader* _file_reader;
     // line reader is valid only when "read_json_by_line" is true
-    LineReader* _cur_line_reader;
+    LineReader* _line_reader;
     bool _closed;
     bool _strip_outer_array;
     bool _num_as_string;
