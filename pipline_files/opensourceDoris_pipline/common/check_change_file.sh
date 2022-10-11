@@ -4,7 +4,10 @@
 #file_nums=${#res[@]}
 owner=apache
 repo=doris
-GITHUB_TOKEN=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
+#GITHUB_TOKEN=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
+GITHUB_TOKEN=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
+
+ERROR_1="github token outdate, need update"
 
 usage() {
   echo "
@@ -30,6 +33,10 @@ function get_all_change_files(){
     do
         #echo "curl --header 'authorization: Bearer ${GITHUB_TOKEN}' https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files?per_page=$per_page\&page=$page"
         res=($(curl --header "authorization: Bearer ${GITHUB_TOKEN}" https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files?per_page=$per_page\&page=$page|jq -r '.[]|select(.status = "removed")| .filename'))
+	if [ "check$?" != "check0" ];then
+	    echo "${ERROR_1}"
+            exit 1
+        fi
         res_len=${#res[@]}
         #echo "================"$res_len
         if [ ${res_len} -ne 0 ];then
@@ -52,6 +59,10 @@ function check_removed_change_file(){
     repo='doris'
     #res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status = "removed")| .filename'))
     res=($(get_all_change_files $pr_id))
+    if [[ "${ERROR_1}" == "${res[@]}" ]];then
+        echo "${ERROR_1}"
+        return 2
+    fi
     file_nums=${#res[@]}
     is_code_change_flag=false
     module_file=0
@@ -87,6 +98,10 @@ function check_all_change_files_is_under_doc() {
     repo='doris'
     #res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
     res=($(get_all_change_files $pr_id))
+    if [[ "${ERROR_1}" == "${res[@]}" ]];then
+        echo "${ERROR_1}"
+        return 2
+    fi
     #echo "======this pr change file is:======="
     #echo "${res[@]}"
     #echo
@@ -136,6 +151,10 @@ function check_all_change_files_is_under_be() {
     repo='doris'
     #res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
     res=($(get_all_change_files $pr_id))
+    if [[ "${ERROR_1}" == "${res[@]}" ]];then
+        echo "${ERROR_1}"
+	return 2
+    fi
     file_nums=${#res[@]}
     #echo "======this pr change file is:======= \n"
     #echo "${res[@]}"
@@ -169,6 +188,10 @@ function check_all_change_files_is_under_fe() {
     repo='doris'
     #res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
     res=($(get_all_change_files $pr_id))
+    if [[ "${ERROR_1}" == "${res[@]}" ]];then
+        echo "${ERROR_1}"
+        return 2
+    fi
     file_nums=${#res[@]}
     #echo "======this pr change file is:======= \n"
     #echo "${res[@]}"
