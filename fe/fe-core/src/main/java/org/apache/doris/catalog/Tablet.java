@@ -27,6 +27,7 @@ import org.apache.doris.resource.Tag;
 import org.apache.doris.system.Backend;
 import org.apache.doris.system.SystemInfoService;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -482,6 +483,11 @@ public class Tablet extends MetaObject implements Writable {
             // 3. aliveBackendsNum >= replicationNum: make sure after deleting,
             //    there will be at least one backend for new replica.
             // 4. replicationNum > 1: if replication num is set to 1, do not delete any replica, for safety reason
+            List<String> debugStr = Lists.newArrayList();
+            for (Replica tmp : replicas) {
+                debugStr.add(tmp.toString());
+            }
+            LOG.info("force redundant for tablet {}, replicas: {}", id, Joiner.on(", ").join(debugStr));
             return Pair.of(TabletStatus.FORCE_REDUNDANT, TabletSchedCtx.Priority.VERY_HIGH);
         } else if (alive < (replicationNum / 2) + 1) {
             return Pair.of(TabletStatus.REPLICA_MISSING, TabletSchedCtx.Priority.HIGH);
@@ -514,6 +520,11 @@ public class Tablet extends MetaObject implements Writable {
             if (replicaBeIds.containsAll(availableBeIds)
                     && availableBeIds.size() >= replicationNum
                     && replicationNum > 1) { // No BE can be choose to create a new replica
+                List<String> debugStr = Lists.newArrayList();
+                for (Replica tmp : replicas) {
+                    debugStr.add(tmp.toString());
+                }
+                LOG.info("force 2 redundant for tablet {}, replicas: {}", id, Joiner.on(", ").join(debugStr));
                 return Pair.of(TabletStatus.FORCE_REDUNDANT,
                         stable < (replicationNum / 2) + 1
                                 ? TabletSchedCtx.Priority.NORMAL : TabletSchedCtx.Priority.LOW);

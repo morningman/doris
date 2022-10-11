@@ -63,6 +63,7 @@ Status EnginePublishVersionTask::finish() {
 
     // each partition
     std::atomic<int64_t> total_task_num(0);
+    int total = 0;
     for (auto& par_ver_info : _publish_version_req.partition_version_infos) {
         int64_t partition_id = par_ver_info.partition_id;
         // get all partition related tablets and check whether the tablet have the related version
@@ -138,6 +139,7 @@ Status EnginePublishVersionTask::finish() {
                     continue;
                 }
             }
+            total++;
             total_task_num.fetch_add(1);
             auto tablet_publish_txn_ptr = std::make_shared<TabletPublishTxnTask>(
                     this, tablet, rowset, partition_id, transaction_id, version, tablet_info,
@@ -181,7 +183,7 @@ Status EnginePublishVersionTask::finish() {
     }
 
     LOG(INFO) << "finish to publish version on transaction."
-              << "transaction_id=" << transaction_id
+              << "transaction_id=" << transaction_id << ", published num=" << total
               << ", error_tablet_size=" << _error_tablet_ids->size() << ", res=" << res.to_string();
     return res;
 }

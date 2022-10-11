@@ -946,7 +946,7 @@ public class DatabaseTransactionMgr {
     protected void unprotectedPreCommitTransaction2PC(TransactionState transactionState, Set<Long> errorReplicaIds,
                                                 Map<Long, Set<Long>> tableToPartition, Set<Long> totalInvolvedBackends,
                                                 Database db) {
-        // transaction state is modified during check if the transaction could committed
+        // transaction state is modified during check if the transaction could be committed
         if (transactionState.getTransactionStatus() != TransactionStatus.PREPARE) {
             return;
         }
@@ -1006,9 +1006,9 @@ public class DatabaseTransactionMgr {
     }
 
     protected void unprotectedCommitTransaction2PC(TransactionState transactionState, Database db) {
-        // transaction state is modified during check if the transaction could committed
+        // transaction state is modified during check if the transaction could be committed
         if (transactionState.getTransactionStatus() != TransactionStatus.PRECOMMITTED) {
-            LOG.warn("Unknow exception. state of transaction [{}] changed, failed to commit transaction",
+            LOG.warn("Unknown exception. state of transaction [{}] changed, failed to commit transaction",
                     transactionState.getTransactionId());
             return;
         }
