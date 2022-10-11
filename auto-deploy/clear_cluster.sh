@@ -1,12 +1,12 @@
-source deploy.conf
-
-if [ $# -eq 0 ]; then
-	echo "$0 CLUSTER"
+if [ $# -lt 2 ]; then
+	echo "$0 CONF_FILE CLUSTER"
 	exit 1
 fi
 
-CLUSTER=$1
-CLUSTER_DIR=$cluster_dir_prefix/$CLUSTER
+source $1
+
+CLUSTER=$2
+CLUSTER_DIR=$cluster_dir_prefix
 STEPS=2
 
 set -x
