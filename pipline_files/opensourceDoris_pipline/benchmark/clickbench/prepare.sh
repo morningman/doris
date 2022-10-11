@@ -28,7 +28,7 @@ cp -r \
     "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/common/* \
     "$checkout_dir"/
 cp -r \
-    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/get*.sh \
+    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/*.sh \
     "$checkout_dir"/
 
 #############
@@ -47,4 +47,4 @@ if ! java --version; then
 fi
 if ! mysql --version; then sudo yum install -y mysql; fi
 
-bash install-coscli.sh
+bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-coscli.sh
