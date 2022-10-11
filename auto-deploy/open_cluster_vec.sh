@@ -1,7 +1,7 @@
 #!/bin/bash
-source deploy.conf
+source $1
 
-CLUSTER=$1
+CLUSTER=$2
 
 cluster_arr=($clusters)
 if [ -z $CLUSTER ]; then
