@@ -13,6 +13,11 @@ cd -
 cd /home/work/teamcity/TeamCity/piplineWork/beUt/
 find /home/work/teamcity/TeamCity/piplineWork/beUt/ -maxdepth 1 -mindepth 1 -mmin +${existsTime} -type d -name "*_*" -exec rm -rf {} \;
 cd -
+cd /mnt/ssd01/teamcity/TeamCity/piplineWork/Compile/
+find /mnt/ssd01/teamcity/TeamCity/piplineWork/Compile/ -maxdepth 1 -mindepth 1 -mmin +${existsTime} -type d -name "*_*" -exec rm -rf {} \;
+cd -
+cd /mnt/ssd01/teamcity/TeamCity/piplineWork/beUt/
+find /mnt/ssd01/teamcity/TeamCity/piplineWork/beUt/ -maxdepth 1 -mindepth 1 -mmin +${existsTime} -type d -name "*_*" -exec rm -rf {} \;
 #target_path=/home/work/teamcity/TeamCity/compile
 #disk_usage_throttle=150
 

@@ -1,10 +1,16 @@
 #!/bin/bash
 #Teamcity simple api
+source teamcity_common.sh
 
-TOKEN="eyJ0eXAiOiAiVENWMiJ9.bW1DcHJpRWNCSktnREhLaHd5Y1lndmpycnJ3.NmEwM2E3YTEtMTVmYy00NGU0LWI1OTAtMzU3MzljODE0Njdk"
-TEAMCITY_SERVER="http://43.129.232.36:8111"
+<<'COMMENT'
+zcp_TOKEN="eyJ0eXAiOiAiVENWMiJ9.bW1DcHJpRWNCSktnREhLaHd5Y1lndmpycnJ3.NmEwM2E3YTEtMTVmYy00NGU0LWI1OTAtMzU3MzljODE0Njdk"
+#TOKEN="eyJ0eXAiOiAiVENWMiJ9.SmFOcnhYZ1FpdjRyMl9HSUlkQ2M5R2VMZ2FV.NzZjNTlmNDUtOWE4NC00Zjk3LThkMGMtZDZlZTEzODFiYmI0"
+TOKEN="eyJ0eXAiOiAiVENWMiJ9.ckhoYmFHUGswVkN0di1fbGFENThnSUN2RVk0.ODhiZjdlNzctZmZiNy00MzNiLWE4ZTQtZWNmNjQ1NDQ2Y2Zj"
+zcp_TEAMCITY_SERVER="http://43.129.232.36:8111"
+TEAMCITY_SERVER="http://43.132.222.7:8111"
 HEADER="--header"
 AUTHORIZATION="Authorization: Bearer"
+JSON_HEADER="--header \"Accept: application/json\""
 
 usage() {
   echo "
@@ -16,6 +22,7 @@ Usage: $0 <options>
      --show_build_state build_id        show a specific build state (finished/queued/running)
      --show_latest_builds               show 100 latest builds
      --show_queued_builds               show all queued builds
+     --get_all_builds_of_pr_id pr_id    get all pr builds
 
   Eg.
     $0                                  teamcity api
@@ -25,6 +32,7 @@ Usage: $0 <options>
     $0 --show_build_state 306           show 306 build state
     $0 --show_latest_builds             show 100 latest builds
     $0 --show_queued_builds             show all queued builds
+    $0 --get_all_builds_of_pr_id 9151   get all 9151 builds
   "
   exit 1
 }
@@ -101,6 +109,13 @@ show_build_status() {
     echo $state
 }
 
+get_all_builds() {
+    branch=$1
+    cmd="app/rest/builds?locator=branch:$branch"
+    url="curl -s $HEADER \"$AUTHORIZATION $TOKEN\" $TEAMCITY_SERVER/$cmd"
+    res=`eval $url`
+}
+
 get_latest_builds() {
     cmd="app/rest/builds"
     url="curl -s $HEADER \"$AUTHORIZATION $TOKEN\" $TEAMCITY_SERVER/$cmd"
@@ -110,7 +125,7 @@ get_latest_builds() {
 
 get_queued_builds() {
     cmd="app/rest/buildQueue"
-    url="curl -s $HEADER \"$AUTHORIZATION $TOKEN\" $TEAMCITY_SERVER/$cmd"
+    url="curl -s $HEADER \"$AUTHORIZATION $TOKEN\" $JSON_HEADER $TEAMCITY_SERVER/$cmd"
     #echo $url
     res=`eval $url`
     #a=$(echo $res|grep -oP 'build id=.*'|head -1)
@@ -122,6 +137,7 @@ get_queued_builds() {
     #    a=$(echo $a|awk -F 'build id="' '{print $2}')
     #done
 }
+COMMENT
 
 
 main() {
@@ -134,7 +150,8 @@ if [ $# > 0 ]; then
         --show_build_status) build_id=$2; res=$(show_build_status $build_id); echo $res; shift ;;
         --show_latest_builds) get_latest_builds; shift ;;
         --show_queued_builds) get_queued_builds; shift ;;
-        --help) usage; shift ;;
+        --get_all_builds_of_pr_id) get_all_builds $2; shift ;;
+	--help) usage; shift ;;
         *) echo "ERROR"; exit 1 ;;
     esac
 

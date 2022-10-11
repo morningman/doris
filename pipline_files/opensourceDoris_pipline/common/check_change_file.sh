@@ -87,9 +87,9 @@ function check_all_change_files_is_under_doc() {
     repo='doris'
     #res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
     res=($(get_all_change_files $pr_id))
-    echo "======this pr change file is:======="
-    echo "${res[@]}"
-    echo
+    #echo "======this pr change file is:======="
+    #echo "${res[@]}"
+    #echo
 
     file_nums=${#res[@]}
 
@@ -137,9 +137,9 @@ function check_all_change_files_is_under_be() {
     #res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
     res=($(get_all_change_files $pr_id))
     file_nums=${#res[@]}
-    echo "======this pr change file is:======= \n"
-    echo "${res[@]}"
-    echo
+    #echo "======this pr change file is:======= \n"
+    #echo "${res[@]}"
+    #echo
 
     doc_num=0
     echo "START CHECK CODE IS ONLY RELATED BE OR NOT"
@@ -170,9 +170,9 @@ function check_all_change_files_is_under_fe() {
     #res=($(curl https://api.github.com/repos/${owner}/${repo}/pulls/${pr_id}/files|jq -r '.[]|select(.status != "removed")| .filename'))
     res=($(get_all_change_files $pr_id))
     file_nums=${#res[@]}
-    echo "======this pr change file is:======= \n"
-    echo "${res[@]}"
-    echo
+    #echo "======this pr change file is:======= \n"
+    #echo "${res[@]}"
+    #echo
 
     doc_num=0
     echo "START CHECK CODE IS ONLY RELATED FE OR NOT"
