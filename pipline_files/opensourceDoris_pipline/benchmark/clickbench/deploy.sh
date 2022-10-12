@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-
+teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
 
 if [[ ! -d output ]]; then echo "Can't find output dir, are you sure compiled?"; fi
 
