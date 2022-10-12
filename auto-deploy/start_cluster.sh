@@ -1,9 +1,9 @@
-source $1
-
 if [ $# -lt 2 ]; then
 	echo "$0 CONF_FILE CLUSTER"
 	exit 1
 fi
+
+source $1
 
 CLUSTER=$2
 CLUSTER_DIR=$cluster_dir_prefix

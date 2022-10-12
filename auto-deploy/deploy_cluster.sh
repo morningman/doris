@@ -39,7 +39,7 @@ parallel-scp -h $CLUSTER/be_hosts -r $CLUSTER/conf/be.conf $CLUSTER_DIR/be/conf/
 
 # 6. start service
 echo " =============6/$STEPS start service=============="
-./start_cluster.sh $1
+./start_cluster.sh $1 $2
 
 # 7. wait fe master service
 FE_PORT=`grep query_port $CLUSTER/conf/fe.conf | awk -F '=' '{print $2}' | sed 's/[ ]*//g'`
