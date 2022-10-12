@@ -103,7 +103,8 @@ if [ ! -d output ]; then
     echo -e "\e[1;31m BUILD FAIL, NO OUTPUT \e[40;37m"
     echo "clean working dir"
     cd "$teamcity_build_checkoutDir"
-    sudo rm -rf !(build.log)
+    # sudo rm -rf !(build.log) #TODO unsupport???
+    ls | grep -v 'build.log' | xargs rm -rf
     exit 1
 fi
 
