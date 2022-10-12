@@ -6,7 +6,7 @@ if [[ ! -d "${data_home}" ]]; then mkdir -p "${data_home}"; fi
 
 if ! mysql -h127.0.0.1 -P9030 -uroot -e'select @@version_comment'; then echo "Can't connect to doris..."; fi
 
-# Setup cluster
+echo "####create database and table"
 mysql -h127.0.0.1 -P9030 -uroot -e "CREATE DATABASE hits"
 sleep 10
 mysql -h127.0.0.1 -P9030 -uroot hits -e"
@@ -122,7 +122,7 @@ DISTRIBUTED BY HASH(UserID) BUCKETS 16
 PROPERTIES ( \"replication_num\"=\"1\");
 "
 
-# Load data
+echo "####load data"
 if [[ ! -f "${data_home}"/hits.tsv.gz ]] && [[ ! -f "${data_home}"/hits.tsv ]]; then
     cd "${data_home}"
     wget --continue 'https://datasets.clickhouse.com/hits_compatible/hits.tsv.gz'
@@ -153,6 +153,7 @@ echo '-------------------------------------------------------------'
 bash get-segment-file-info.sh
 echo '-------------------------------------------------------------'
 
+echo "####run queries"
 TRIES=3
 QUERY_NUM=1
 touch result.csv
@@ -172,3 +173,4 @@ while read -r query; do
     QUERY_NUM=$((QUERY_NUM + 1))
 done <queries.sql
 IFS=$OLD_IFS
+echo "####run queries done."

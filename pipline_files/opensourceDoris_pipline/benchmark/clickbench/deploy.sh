@@ -1,17 +1,21 @@
 #!/bin/bash
 set -ex
 
-curdir=%teamcity.build.checkoutDir%
-if [[ ! -d output ]]; then echo "Can't find output dir, are you sure compiled?";fi
+teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
 
-DORIS_HOME="$curdir/output/"
+if [[ ! -d output ]]; then echo "Can't find output dir, are you sure compiled?"; fi
+
+DORIS_HOME="$teamcity_build_checkoutDir/output/"
 echo "$DORIS_HOME" >doris_home
 
 IPADDR=$(hostname -i)
 
-sed -i 's/-XX:OnOutOfMemoryError/ -Dnetworkaddress.cache.ttl=100000 -XX:OnOutOfMemoryError/g' "$DORIS_HOME"/fe/bin/start_fe.sh
+echo "####change start fe config, longer time of networkaddress.cache.ttl"
+sed -i 's/-XX:OnOutOfMemoryError/ -Dnetworkaddress.cache.ttl=100000 -XX:OnOutOfMemoryError/g' \
+    "$DORIS_HOME"/fe/bin/start_fe.sh
 tail -n 10 "$DORIS_HOME"/fe/bin/start_fe.sh
 
+echo "####optimize doris config"
 echo "
 stream_load_default_timeout_second=3600
 priority_networks = ${IPADDR}/24

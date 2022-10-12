@@ -1,11 +1,13 @@
 #!/bin/bash
 set -ex
 
-pipeline_home=${HOME}/teamcity/
 checkout_dir=%teamcity.build.checkoutDir%
+teamcity_agent_work_dir=%teamcity.agent.work.dir%
+
+pipeline_home=${HOME}/teamcity/
 skip_pipeline=${skip_pipeline:=false}
 
-echo 'check if skip'
+echo '####check if skip'
 if [[ "${skip_pipeline}" == "true" ]]; then
     echo "skip build pipline"
     exit 0
@@ -13,9 +15,7 @@ else
     echo "no skip"
 fi
 
-echo '====prepare===='
-
-echo 'update scripts from git@github.com:selectdb/selectdb-qa.git'
+echo '####update scripts from git@github.com:selectdb/selectdb-qa.git'
 cd "${pipeline_home}"
 if [[ ! -d "${pipeline_home}/selectdb-qa" ]]; then
     git clone git@github.com:selectdb/selectdb-qa.git
@@ -24,14 +24,16 @@ qa_home="${pipeline_home}/selectdb-qa"
 cd "${qa_home}" && git stash && git checkout main && git pull && cd -
 
 #TODO maybe same file name, prefer to add pr id as suffix
+echo '####cp scripts to checkout dir'
 cp -r \
     "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/common/* \
     "$checkout_dir"/
 cp -r \
-    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/*.sh \
+    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/* \
     "$checkout_dir"/
 
 #############
+echo '####check if utils ready, include: curl jq java mysql coscli'
 if [[ ! -f /etc/ssl/certs/ca-certificates.crt ]]; then
     sudo ln -s /etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
 fi
@@ -49,7 +51,9 @@ if ! mysql --version; then sudo yum install -y mysql; fi
 
 bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-coscli.sh
 
-sudo rm -rf %teamcity.agent.work.dir%/.old/*
+#TODO why .old dir still exists after set clean rules in Build Features ? wrong clean rules?
+echo "####remove old checkout"
+sudo rm -rf "${teamcity_agent_work_dir}"/.old/*
 
 set +e
 bash kill-doris-cluster.sh

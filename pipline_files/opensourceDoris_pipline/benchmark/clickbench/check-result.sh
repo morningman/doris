@@ -1,11 +1,10 @@
 #!/bin/bash
 # set -x
 
-DORIS_HOME=$(cat doris_home)
-
 set +e
 # ./kill-doris-cluster.sh
 
+# DORIS_HOME=$(cat doris_home)
 # # Start Frontend
 # "$DORIS_HOME"/fe/bin/start_fe.sh --daemon
 
@@ -27,7 +26,7 @@ done <queries-sort.sql
 cd ../query-result-target/ || exit
 for i in {1..43}; do
     echo
-    echo "query$i"
+    echo "use diff command to check query$i"
     sed -n '2,$p' "../doris/doris-result/doris-q$i.result" >"../doris/doris-result/doris-q$i.result2"
     # echo "diff -w \"ck-q$i.result\" \"../doris/doris-result/doris-q$i.result2\""
     diff -w "ck-q$i.result" "../doris/doris-result/doris-q$i.result2"
