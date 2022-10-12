@@ -4,7 +4,7 @@ set -ex
 data_home=${HOME}/teamcity/data/
 if [[ ! -d "${data_home}" ]]; then mkdir -p "${data_home}"; fi
 
-if ! mysql -h127.0.0.1 -P9030 -uroot; then echo "Can't connect to doris..."; fi
+if ! mysql -h127.0.0.1 -P9030 -uroot -e'select @@version_comment'; then echo "Can't connect to doris..."; fi
 
 # Setup cluster
 mysql -h127.0.0.1 -P9030 -uroot -e "CREATE DATABASE hits"

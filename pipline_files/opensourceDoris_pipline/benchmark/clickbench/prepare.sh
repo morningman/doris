@@ -50,3 +50,7 @@ if ! mysql --version; then sudo yum install -y mysql; fi
 bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-coscli.sh
 
 sudo rm -rf %teamcity.agent.work.dir%/.old/*
+
+set +e
+bash kill-doris-cluster.sh
+set -e

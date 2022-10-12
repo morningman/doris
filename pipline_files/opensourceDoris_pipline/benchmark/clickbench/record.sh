@@ -24,3 +24,7 @@ coscli cp \
 echo '============================================================='
 echo https://doris-community-test-1308700295.cos.ap-hongkong.myqcloud.com/tmp/"clickbench_pr_${build_id}.html"
 echo '============================================================='
+
+set +e
+bash kill-doris-cluster.sh
+set -e
