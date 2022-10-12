@@ -108,3 +108,5 @@ if [ ! -d output ]; then
 fi
 
 sudo chown -R "$USER":"$USER" output/
+
+echo "####compile DONE."

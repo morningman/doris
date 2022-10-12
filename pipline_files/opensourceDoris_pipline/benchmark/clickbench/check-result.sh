@@ -23,12 +23,9 @@ while read -r query; do
     QUERY_NUM=$((QUERY_NUM + 1))
 done <queries-sort.sql
 
-cd ../query-result-target/ || exit
 for i in {1..43}; do
     echo
-    echo "use diff command to check query$i"
-    sed -n '2,$p' "../doris/doris-result/doris-q$i.result" >"../doris/doris-result/doris-q$i.result2"
-    # echo "diff -w \"ck-q$i.result\" \"../doris/doris-result/doris-q$i.result2\""
-    diff -w "ck-q$i.result" "../doris/doris-result/doris-q$i.result2"
-    # read a
+    echo "####use diff command to check query$i"
+    sed -n '2,$p' "doris-result/doris-q$i.result" >"doris-result/doris-q$i.result2"
+    diff -w "query-result-target/ck-q$i.result" "doris-result/doris-q$i.result2"
 done

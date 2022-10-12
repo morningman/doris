@@ -2,8 +2,8 @@
 set -ex
 
 if coscli --version; then
-    coscli --version
-    exit
+  coscli --version
+  exit
 fi
 
 wget https://github.com/tencentyun/coscli/releases/download/v0.12.0-beta/coscli-linux
@@ -27,7 +27,8 @@ cos:
 
 #TODO, not effect?
 echo "
-export PATH=$(pwd)/coscli:\$PATH
+export PATH=$(pwd):\$PATH
 " >>~/.bashrc
 
+# shellcheck source=/dev/null
 source ~/.bashrc

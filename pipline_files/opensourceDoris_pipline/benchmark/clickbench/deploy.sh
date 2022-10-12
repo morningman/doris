@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
+
 
 if [[ ! -d output ]]; then echo "Can't find output dir, are you sure compiled?"; fi
 
@@ -83,3 +83,5 @@ for session_variable in ${opt_session_variables}; do
     mysql -h 127.0.0.1 -P9030 -uroot -e "SET GLOBAL ${session_variable}"
 done
 mysql -h 127.0.0.1 -P9030 -uroot -e 'show variables' | grep 'load_mem_limit\|exec_mem_limit\|parallel_fragment_exec_instance_num\|enable_single_distinct_column_opt\|enable_function_pushdown\|enable_local_exchange'
+
+echo "####deploy DONE."

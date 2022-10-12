@@ -1,7 +1,11 @@
 #!/bin/bash
 set -ex
 
+teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
+
+DORIS_HOME="$teamcity_build_checkoutDir/output/"
 data_home=${HOME}/teamcity/data/
+
 if [[ ! -d "${data_home}" ]]; then mkdir -p "${data_home}"; fi
 
 if ! mysql -h127.0.0.1 -P9030 -uroot -e'select @@version_comment'; then echo "Can't connect to doris..."; fi
@@ -173,4 +177,10 @@ while read -r query; do
     QUERY_NUM=$((QUERY_NUM + 1))
 done <queries.sql
 IFS=$OLD_IFS
-echo "####run queries done."
+
+echo "####check query result"
+set +e
+bash check-result.sh
+set -e
+
+echo "####run queries DONE."

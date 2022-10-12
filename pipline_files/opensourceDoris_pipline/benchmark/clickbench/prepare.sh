@@ -58,3 +58,5 @@ sudo rm -rf "${teamcity_agent_work_dir}"/.old/*
 set +e
 bash kill-doris-cluster.sh
 set -e
+
+echo "####prepare DONE."
