@@ -39,7 +39,7 @@ git branch
 
 echo -e "
 export DORIS_TOOLCHAIN=gcc
-export BUILD_TYPE=ASAN
+export BUILD_TYPE=release
 " >%system.teamcity.build.workingDir%/custom_env.sh
 sed -i "s/export REPOSITORY_URL=https:\/\/doris-thirdparty-repo.bj.bcebos.com\/thirdparty/export REPOSITORY_URL=https:\/\/doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com\/thirdparty/g" thirdparty/vars.sh
 
@@ -67,6 +67,8 @@ if [ ! -d output ]; then
     echo -e "\e[1;31m BUILD FAIL, NO OUTPUT \e[40;37m"
     echo "clean working dir"
     cd %system.teamcity.build.workingDir%
-    ls | grep -v build.log | xargs rm -rf
+    sudo rm -rf !(build.log)
     exit 1
 fi
+
+sudo chown -R "$USER":"$USER" output/
