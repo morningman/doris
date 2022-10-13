@@ -5,16 +5,16 @@ set -ex
 source ~/.bashrc
 
 if ccache --version; then
-  ccache --version
+  ccache -s
   exit
 fi
 
 sudo yum install -y ccache
 ccache --version
 
-echo "
-export CCACHE_DIR=$(pwd)/.ccache
-" >>~/.bashrc
+# echo "
+# export CCACHE_DIR=$(pwd)/.ccache
+# " >>~/.bashrc
 
 # shellcheck source=/dev/null
 source ~/.bashrc
