@@ -11,10 +11,10 @@ if [[ ! -d "${data_home}" ]]; then mkdir -p "${data_home}"; fi
 if ! mysql -h127.0.0.1 -P9030 -uroot -e'select @@version_comment'; then echo "Can't connect to doris..."; fi
 
 echo "####create database and table"
-mysql -h127.0.0.1 -P9030 -uroot -e "CREATE DATABASE hits"
+mysql -h127.0.0.1 -P9030 -uroot -e "CREATE DATABASE IF NOT EXISTS hits"
 sleep 10
 mysql -h127.0.0.1 -P9030 -uroot hits -e"
-CREATE TABLE hits (
+CREATE TABLE IF NOT EXISTS  hits (
     CounterID INT NOT NULL, 
     EventDate DateV2 NOT NULL, 
     UserID BIGINT NOT NULL, 
@@ -133,9 +133,10 @@ if [[ ! -f "${data_home}"/hits.tsv.gz ]] && [[ ! -f "${data_home}"/hits.tsv ]]; 
     gzip -d hits.tsv.gz
     cd -
 fi
-date
-START=$(date +%s)
-for i in hits*.tsv; do
+row_count=$(mysql -h127.0.0.1 -P9030 -uroot -e "select count(*) from hits.hits" | sed -n '2p')
+if [[ $row_count != 99997497 ]]; then
+    date
+    START=$(date +%s)
     echo "start loading ${i} ..."
     curl --location-trusted \
         -u root: \
@@ -143,12 +144,12 @@ for i in hits*.tsv; do
         -H "label:hits_${START}" \
         -H "columns: WatchID,JavaEnable,Title,GoodEvent,EventTime,EventDate,CounterID,ClientIP,RegionID,UserID,CounterClass,OS,UserAgent,URL,Referer,IsRefresh,RefererCategoryID,RefererRegionID,URLCategoryID,URLRegionID,ResolutionWidth,ResolutionHeight,ResolutionDepth,FlashMajor,FlashMinor,FlashMinor2,NetMajor,NetMinor,UserAgentMajor,UserAgentMinor,CookieEnable,JavascriptEnable,IsMobile,MobilePhone,MobilePhoneModel,Params,IPNetworkID,TraficSourceID,SearchEngineID,SearchPhrase,AdvEngineID,IsArtifical,WindowClientWidth,WindowClientHeight,ClientTimeZone,ClientEventTime,SilverlightVersion1,SilverlightVersion2,SilverlightVersion3,SilverlightVersion4,PageCharset,CodeVersion,IsLink,IsDownload,IsNotBounce,FUniqID,OriginalURL,HID,IsOldCounter,IsEvent,IsParameter,DontCountHits,WithHash,HitColor,LocalEventTime,Age,Sex,Income,Interests,Robotness,RemoteIP,WindowName,OpenerName,HistoryLength,BrowserLanguage,BrowserCountry,SocialNetwork,SocialAction,HTTPError,SendTiming,DNSTiming,ConnectTiming,ResponseStartTiming,ResponseEndTiming,FetchTiming,SocialSourceNetworkID,SocialSourcePage,ParamPrice,ParamOrderID,ParamCurrency,ParamCurrencyID,OpenstatServiceName,OpenstatCampaignID,OpenstatAdID,OpenstatSourceID,UTMSource,UTMMedium,UTMCampaign,UTMContent,UTMTerm,FromTag,HasGCLID,RefererHash,URLHash,CLID" \
         http://localhost:8030/api/hits/hits/_stream_load
-done
-END=$(date +%s)
-LOADTIME=$(echo "$END - $START" | bc)
-echo "Load data costs $LOADTIME seconds"
-echo "$LOADTIME" >loadtime
-date
+    END=$(date +%s)
+    LOADTIME=$(echo "$END - $START" | bc)
+    echo "Load data costs $LOADTIME seconds"
+    echo "$LOADTIME" >loadtime
+    date
+fi
 du -bs "$DORIS_HOME"/be/storage/ | cut -f1 | tee storage_size
 mysql -h127.0.0.1 -P9030 -uroot hits -e "SELECT count(*) FROM hits"
 date
