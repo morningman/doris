@@ -180,7 +180,18 @@ IFS=$OLD_IFS
 
 echo "####check query result"
 set +e
-bash check-result.sh
-set -e
-
-echo "####run queries DONE."
+if bash check-result.sh; then
+    echo -e "\033[32m
+########################
+check query result, PASS
+########################
+\033[0m"
+    exit 0
+else
+    echo -e "\033[31m
+########################
+check query result, FAIL
+########################
+\033[0m"
+    exit 1
+fi

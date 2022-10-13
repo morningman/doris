@@ -14,18 +14,21 @@ set +e
 
 # sleep 30
 
-if [[ ! -d doris-result ]]; then mkdir doris-result; fi
+if [[ ! -d query-result-actual ]]; then mkdir query-result-actual; fi
 
 QUERY_NUM=1
 while read -r query; do
     echo "$query"
-    mysql -h:: -P9030 -uroot -Dhits -e"$query" >doris-result/doris-q${QUERY_NUM}.result
+    mysql -h:: -P9030 -uroot -Dhits -e"$query" >query-result-actual/doris-q${QUERY_NUM}.result
     QUERY_NUM=$((QUERY_NUM + 1))
 done <queries-sort.sql
 
+is_ok=true
 for i in {1..43}; do
-    echo
     echo "####use diff command to check query$i"
-    sed -n '2,$p' "doris-result/doris-q$i.result" >"doris-result/doris-q$i.result2"
-    diff -w "query-result-target/ck-q$i.result" "doris-result/doris-q$i.result2"
+    if ! diff -w "query-result-target/doris-q$i.result" "query-result-actual/doris-q$i.result"; then
+        is_ok=false
+    fi
 done
+
+if $is_ok; then exit 0; else exit 1; fi
