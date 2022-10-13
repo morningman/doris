@@ -1,4 +1,9 @@
 #!/bin/bash
+###################################################################
+# Amazon EC2
+# Amazon Machine Image(AMI) Description: 
+#     Amazon Linux 2 Kernel 5.10 AMI 2.0.20220912.1 x86_64 HVM gp2
+###################################################################
 set -ex
 
 checkout_dir=%teamcity.build.checkoutDir%

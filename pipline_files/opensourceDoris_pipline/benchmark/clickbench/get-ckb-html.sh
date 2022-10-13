@@ -2,7 +2,11 @@
 
 doris_result=$(bash get-result-json.sh)
 # replace [ to \[, replace ] to \]
-doris_result_for_sed=$(echo $doris_result | sed 's/\[/\\\[/g' | sed 's/\]/\\\]/g')
+# note:
+#     on GNU bash, version 4.2.46(2)-release (x86_64-koji-linux-gnu): echo $(echo '[0.4]') -> 0
+#     on GNU bash, version 5.0.17(1)-release (x86_64-pc-linux-gnu): echo $(echo '[0.4]') -> [0.4]
+# I don't know why, but use xargs can get around it...
+doris_result_for_sed=$(echo "$doris_result" | sed 's/\[/\\\[/g' | sed 's/\]/\\\]/g' | xargs)
 
 rm 'index.html'
 wget --continue 'https://benchmark.clickhouse.com/'
