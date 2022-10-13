@@ -1,8 +1,9 @@
 #!/bin/bash
-set -ex
 
 # shellcheck source=/dev/null
 source ~/.bashrc
+
+set -ex
 
 if coscli --version; then
   coscli --version

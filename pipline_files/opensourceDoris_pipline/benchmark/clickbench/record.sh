@@ -15,8 +15,10 @@ bash get-ckb-html.sh | tee "clickbench_pr_${build_id}.html"
 echo '-------------------------------------------------------------'
 
 echo "####upload clickbench.html to cos"
+set +x
 # shellcheck source=/dev/null
 source ~/.bashrc
+set -x
 coscli cp \
     "clickbench_pr_${build_id}.html" \
     cos://doris-community-test-1308700295/tmp/"clickbench_pr_${build_id}.html"
