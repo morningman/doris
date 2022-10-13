@@ -6,7 +6,7 @@
 ###################################################################
 set -ex
 
-checkout_dir=%teamcity.build.checkoutDir%
+teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
 teamcity_agent_work_dir=%teamcity.agent.work.dir%
 
 pipeline_home=${HOME}/teamcity/
@@ -32,13 +32,13 @@ cd "${qa_home}" && git stash && git checkout main && git pull && cd -
 echo '####cp scripts to checkout dir'
 cp -r \
     "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/common/* \
-    "$checkout_dir"/
+    "$teamcity_build_checkoutDir"/
 cp -r \
     "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/* \
-    "$checkout_dir"/
+    "$teamcity_build_checkoutDir"/
 
 #############
-echo '####check if utils ready, include: curl jq java mysql coscli'
+echo '####check if utils ready, include: curl jq java mysql coscli ccache'
 if [[ ! -f /etc/ssl/certs/ca-certificates.crt ]]; then
     sudo ln -s /etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
 fi
@@ -53,7 +53,6 @@ if ! java --version; then
     export PATH=$JAVA_HOME/bin:$PATH
 fi
 if ! mysql --version; then sudo yum install -y mysql; fi
-
 bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-coscli.sh
 bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-ccache.sh
 
@@ -62,7 +61,7 @@ echo "####remove old checkout"
 sudo rm -rf "${teamcity_agent_work_dir}"/.old/*
 
 set +e
-bash kill-doris-cluster.sh
+bash "$teamcity_build_checkoutDir"/kill-doris-cluster.sh
 set -e
 
 echo "####prepare DONE."
