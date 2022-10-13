@@ -9,6 +9,7 @@ build_id=%teamcity.build.id%
 build_vcs_number=%build.vcs.number%
 
 teamcity_home=${HOME}/teamcity/
+ccache_dir=$(ccache -s | grep 'cache directory' | awk '{print $3}')
 
 echo "####check if old build of same pr still running, cancel it if so"
 build_record_item=${teamcity_pullRequest_number}_${teamcity_pullRequest_source_branch}_${teamcity_pullRequest_target_branch}_doris
@@ -68,7 +69,8 @@ echo "sudo docker run -i --rm \\
     -v /etc/localtime:/etc/localtime:ro \\
     -v $HOME/.m2:/root/.m2 \\
     -v $HOME/.npm:/root/.npm \\
-    -v ${git_storage_path}:/root/git \\
+    -v $ccache_dir:/root/.ccache \\
+    -v $git_storage_path:/root/git \\
     -v $teamcity_build_checkoutDir:/root/doris \\
     apache/doris:build-env-ldb-toolchain-latest \\
     /bin/bash -c \"mkdir -p ${git_storage_path} \\
@@ -84,7 +86,8 @@ sudo docker run -i --rm \
     -v /etc/localtime:/etc/localtime:ro \
     -v "$HOME"/.m2:/root/.m2 \
     -v "$HOME"/.npm:/root/.npm \
-    -v "${git_storage_path}":/root/git \
+    -v "$ccache_dir":/root/.ccache \
+    -v "$git_storage_path":/root/git \
     -v "$teamcity_build_checkoutDir":/root/doris \
     apache/doris:build-env-ldb-toolchain-latest \
     /bin/bash -c "

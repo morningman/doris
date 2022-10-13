@@ -1,7 +1,7 @@
 #!/bin/bash
 ###################################################################
 # Amazon EC2
-# Amazon Machine Image(AMI) Description: 
+# Amazon Machine Image(AMI) Description:
 #     Amazon Linux 2 Kernel 5.10 AMI 2.0.20220912.1 x86_64 HVM gp2
 ###################################################################
 set -ex
@@ -55,6 +55,7 @@ fi
 if ! mysql --version; then sudo yum install -y mysql; fi
 
 bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-coscli.sh
+bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-ccache.sh
 
 #TODO why .old dir still exists after set clean rules in Build Features ? wrong clean rules?
 echo "####remove old checkout"
