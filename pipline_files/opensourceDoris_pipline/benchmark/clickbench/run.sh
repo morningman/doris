@@ -182,17 +182,21 @@ IFS=$OLD_IFS
 echo "####check query result"
 set +e
 if bash check-result.sh; then
-    echo -e "\033[32m
+    echo -e "
+\033[32m
 ########################
 check query result, PASS
 ########################
 \033[0m"
+echo "####load and run, DONE."
     exit 0
 else
-    echo -e "\033[31m
+    echo -e "
+\033[31m
 ########################
 check query result, FAIL
 ########################
 \033[0m"
+echo "####load and run, DONE."
     exit 1
 fi
