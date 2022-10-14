@@ -40,8 +40,8 @@ parallel_fragment_exec_instance_num=16;
 enable_single_distinct_column_opt=true;
 enable_function_pushdown=true;
 enable_local_exchange=true;
-load_mem_limit=34359738368;
 "
+# load_mem_limit=34359738368;
 
 # Start Frontend
 "$DORIS_HOME"/fe/bin/start_fe.sh --daemon
