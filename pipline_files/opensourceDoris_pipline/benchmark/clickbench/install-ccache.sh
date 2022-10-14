@@ -20,5 +20,5 @@ ccache --version
 # shellcheck source=/dev/null
 source ~/.bashrc
 
-ccache -M 10G
+ccache -M 100G
 ccache -s
