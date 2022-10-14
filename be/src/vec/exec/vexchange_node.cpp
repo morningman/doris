@@ -22,6 +22,9 @@
 #include "runtime/thread_context.h"
 #include "vec/runtime/vdata_stream_mgr.h"
 #include "vec/runtime/vdata_stream_recvr.h"
+#include "pipeline/pipeline.h"
+#include "pipeline/pipeline_fragment_context.h"
+#include "pipeline/exec/exchange_source_operator.h"
 
 namespace doris::vectorized {
 VExchangeNode::VExchangeNode(ObjectPool* pool, const TPlanNode& tnode, const DescriptorTbl& descs)
@@ -111,6 +114,14 @@ Status VExchangeNode::close(RuntimeState* state) {
     if (_is_merging) _vsort_exec_exprs.close(state);
 
     return ExecNode::close(state);
+}
+
+Status VExchangeNode::constr_pipeline(pipeline::PipelineFragmentContext *fragment_context,
+                                        pipeline::Pipeline *current_pipeline) {
+    pipeline::OperatorTemplatePtr operator_t = std::make_shared<pipeline::ExchangeSourceOperatorTemplate>(
+            fragment_context->next_operator_template_id(), "ExchangeOpeartorT", this);
+    RETURN_IF_ERROR(current_pipeline->set_source(operator_t));
+    return Status::OK();
 }
 
 } // namespace doris::vectorized
