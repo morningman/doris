@@ -4,7 +4,10 @@ set -ex
 teamcity_pullRequest_number=%teamcity.pullRequest.number%
 build_id=%teamcity.build.id%
 
-ts=$(date '+%Y%m%d%H%M%S')
+# ts=$(date '+%Y%m%d%H%M%S')
+# this script will be called by Teamcity who will replace %var%
+# use %% instead
+ts=$(date '+%%Y%%m%%d%%H%%M%%S')
 html_file_name="${ts}_clickbench_pr_${build_id}.html"
 
 echo '-------------------------------------------------------------'
