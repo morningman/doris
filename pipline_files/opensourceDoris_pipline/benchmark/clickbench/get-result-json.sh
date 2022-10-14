@@ -3,7 +3,7 @@
 # set -x
 
 echo -e "{
-    \"system\": \"SelectDB-2.0.0\",
+    \"system\": \"Doris_$(date '+%Y-%m-%d_%H:%M:%S')_$BUILD_VCS_NUMBER\",
     \"date\": \"$(date '+%Y-%m-%d')\",
     \"machine\": \"$(sudo dmidecode -s system-product-name), 500gb gp2\",
     \"cluster_size\": 1,
