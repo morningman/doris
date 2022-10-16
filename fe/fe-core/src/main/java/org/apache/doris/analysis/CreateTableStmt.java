@@ -328,6 +328,9 @@ public class CreateTableStmt extends DdlStmt {
                         if (columnDef.getType().getPrimitiveType() == PrimitiveType.JSONB) {
                             break;
                         }
+                        if (columnDef.getType().isCollectionType()) {
+                            break;
+                        }
                         if (columnDef.getType().getPrimitiveType() == PrimitiveType.VARCHAR) {
                             keysColumnNames.add(columnDef.getName());
                             break;

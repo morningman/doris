@@ -598,5 +598,13 @@ public class CreateTableTest {
                             + "\"replication_allocation\" = \"tag.location.default: 1\"\n"
                             + ");");
                 });
+
+        ExceptionChecker.expectThrowsNoException(() -> {
+            createTable("create table test.table5(\n"
+                    + "\tk1 int,\n"
+                    + "\tv1 array<int>\n"
+                    + ") distributed by hash(k1) buckets 1\n"
+                    + "properties(\"replication_num\" = \"1\");");
+        });
     }
 }
