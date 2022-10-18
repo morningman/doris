@@ -668,6 +668,15 @@ function renderSummary(filtered_data) {
     const min_load_time = Math.min(...filtered_data.map(elem => elem.load_time).filter(x => x));
     const min_data_size = Math.min(...filtered_data.map(elem => elem.data_size).filter(x => x));
 
+    const total_times = filtered_data.map(elem => {
+        const fallback_timing = missing_result_penalty * Math.max(missing_result_time, ...elem.result.map(timings => selectRun(timings)));
+        let curr_total_time = 0;
+        for (let i = 0; i < num_queries; ++i) {
+            curr_total_time += selectRun(elem.result[i]) ?? fallback_timing;
+        }
+        return curr_total_time;
+    });
+
     let summaries;
     if (selectors.metric == 'load') {
         summaries = filtered_data.map(elem => elem.load_time / min_load_time);
@@ -676,14 +685,7 @@ function renderSummary(filtered_data) {
         summaries = filtered_data.map(elem => elem.data_size / min_data_size);
         document.getElementById('time-or-size').innerText = 'Relative size';
     } else if (selectors.metric == 'cold-sum' || selectors.metric == 'hot-sum') {
-        summaries = filtered_data.map(elem => {
-            const fallback_timing = missing_result_penalty * Math.max(missing_result_time, ...elem.result.map(timings => selectRun(timings)));
-            let curr_total_time = 0;
-            for (let i = 0; i< num_queries; ++i) {
-                curr_total_time += selectRun(elem.result[i]) ?? fallback_timing;
-            }
-            return curr_total_time;
-        });
+        summaries = total_times
         document.getElementById('time-or-size').innerText = 'Total time';
     } else {
         summaries = filtered_data.map(elem => {
@@ -767,7 +769,7 @@ function renderSummary(filtered_data) {
         table.appendChild(tr);
     });
 
-    return [sorted_indices, baseline_data];
+    return [sorted_indices, baseline_data, total_times];
 }
 
 function colorize(elem, ratio) {
@@ -844,7 +846,7 @@ function render() {
         filtered_data = [...filtered_data, ...additional_data_size_points];
     }
 
-    let [sorted_indices, baseline_data] = renderSummary(filtered_data);
+    let [sorted_indices, baseline_data, total_times] = renderSummary(filtered_data);
     sorted_indices = sorted_indices.filter(idx => !filtered_data[idx].fake);
 
     /// Generate details
@@ -936,14 +938,13 @@ function render() {
         td_title.appendChild(document.createTextNode('Total query time: '));
         tr.appendChild(td_title);
 
-        const baseline_total_time = sorted_indices[0];
+        const baseline_total_time = total_times[sorted_indices[0]]; 
         sorted_indices.map(idx => {
-            let curr_total_time = 0;
-            for (let i = 0; i < filtered_data[idx].result.length; i++) { curr_total_time += selectRun(filtered_data[idx].result[i]) };
+            let curr_total_time = total_times[idx];
             const ratio = curr_total_time / baseline_total_time
 
             let td = document.createElement('td');
-            td.appendChild(document.createTextNode(`${curr_total_time.toFixed(2)}s `));
+            td.appendChild(document.createTextNode(`${curr_total_time.toFixed(2)}s (x${ratio.toFixed(2)})`));
 
             colorize(td, ratio);
             tr.appendChild(td);
