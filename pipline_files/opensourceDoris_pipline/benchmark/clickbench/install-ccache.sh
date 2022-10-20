@@ -10,6 +10,10 @@ ccache_download_url=https://github.com/ccache/ccache/releases/download/v4.7/ccac
 
 if ccache --version; then
   ccache -s
+  set +e
+  # for version 4.7
+  ccache -sv
+  set -e
   exit
 fi
 
