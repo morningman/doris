@@ -58,7 +58,9 @@ if ! java --version; then
 fi
 if ! mysql --version; then sudo yum install -y mysql; fi
 bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-coscli.sh
+set +e
 bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-ccache.sh
+set -e
 
 #TODO why .old dir still exists after set clean rules in Build Features ? wrong clean rules?
 echo "####remove old checkout"
