@@ -31,6 +31,8 @@ mem_limit=95%
 write_buffer_size=1609715200
 load_process_max_memory_limit_percent=90
 disable_auto_compaction=true
+disable_storage_page_cache=false
+disable_chunk_allocator=false
 priority_networks = ${IPADDR}/24
 " >"$DORIS_HOME"/be/conf/be_custom.conf
 
@@ -41,7 +43,6 @@ enable_single_distinct_column_opt=true;
 enable_function_pushdown=true;
 enable_local_exchange=true;
 "
-# load_mem_limit=34359738368;
 
 # Start Frontend
 "$DORIS_HOME"/fe/bin/start_fe.sh --daemon
