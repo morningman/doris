@@ -11,6 +11,8 @@ teamcity_agent_work_dir=%teamcity.agent.work.dir%
 
 pipeline_home=${HOME}/teamcity/
 skip_pipeline=${skip_pipeline:=false}
+username=${github_username:=hello-stephen}
+password=${github_password:=fake-password}
 
 echo '####check if skip'
 if [[ "${skip_pipeline}" == "true" ]]; then
@@ -23,7 +25,9 @@ fi
 echo '####update scripts from git@github.com:selectdb/selectdb-qa.git'
 cd "${pipeline_home}"
 if [[ ! -d "${pipeline_home}/selectdb-qa" ]]; then
-    git clone git@github.com:selectdb/selectdb-qa.git
+    if ! git clone git@github.com:selectdb/selectdb-qa.git; then
+        git clone https://${username}:${password}@github.com/selectdb/selectdb-qa.git
+    fi
 fi
 qa_home="${pipeline_home}/selectdb-qa"
 cd "${qa_home}" && git stash && git checkout main && git pull && cd -
