@@ -69,11 +69,10 @@ git_storage_path=$(grep storage .git/config | rev | cut -d ' ' -f 1 | rev | awk 
 echo "sudo docker run -i --rm \\
     --name doris-clickbench-compile-$build_vcs_number \\
     -e TZ=Asia/Shanghai \\
-    -e CCACHE_DIR=$CCACHE_DIR \\
     -v /etc/localtime:/etc/localtime:ro \\
     -v $HOME/.m2:/root/.m2 \\
     -v $HOME/.npm:/root/.npm \\
-    -v $CCACHE_DIR:$CCACHE_DIR \\
+    -v $CCACHE_DIR:/root/.ccache \\
     -v $git_storage_path:/root/git \\
     -v $teamcity_build_checkoutDir:/root/doris \\
     apache/doris:build-env-ldb-toolchain-latest \\
@@ -87,11 +86,10 @@ echo "sudo docker run -i --rm \\
 sudo docker run -i --rm \
     --name doris-clickbench-compile-$build_vcs_number \
     -e TZ=Asia/Shanghai \
-    -e CCACHE_DIR="$CCACHE_DIR" \
     -v /etc/localtime:/etc/localtime:ro \
     -v "$HOME"/.m2:/root/.m2 \
     -v "$HOME"/.npm:/root/.npm \
-    -v "$CCACHE_DIR":"$CCACHE_DIR" \
+    -v "$CCACHE_DIR":/root/.ccache \
     -v "$git_storage_path":/root/git \
     -v "$teamcity_build_checkoutDir":/root/doris \
     apache/doris:build-env-ldb-toolchain-latest \

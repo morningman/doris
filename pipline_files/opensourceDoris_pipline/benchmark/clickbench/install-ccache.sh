@@ -11,7 +11,7 @@ ccache_download_url=https://github.com/ccache/ccache/releases/download/v4.7/ccac
 
 if ccache --version; then
   # -v for version 4.7
-  ccache -sv 2>>/dev/null || ccache -s
+  ccache -vs 2>>/dev/null || ccache -s
   exit
 fi
 
@@ -40,4 +40,4 @@ set -x
 ccache --version
 
 ccache -M 100G
-ccache -sv 2>>/dev/null || ccache -s
+ccache -vs 2>>/dev/null || ccache -s
