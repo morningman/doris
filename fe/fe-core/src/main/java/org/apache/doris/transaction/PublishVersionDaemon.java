@@ -110,7 +110,7 @@ public class PublishVersionDaemon extends MasterDaemon {
             }
             Set<Long> publishBackends = transactionState.getPublishVersionTasks().keySet();
             // public version tasks are not persisted in catalog, so publishBackends may be empty.
-            // so we have to try publish to all backends;
+            // so we have to try publishing to all backends;
             if (publishBackends.isEmpty()) {
                 // could not just add to it, should new a new object, or the back map will destroyed
                 publishBackends = Sets.newHashSet();

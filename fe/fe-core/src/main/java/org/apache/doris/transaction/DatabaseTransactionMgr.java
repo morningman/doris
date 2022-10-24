@@ -406,17 +406,24 @@ public class DatabaseTransactionMgr {
         Map<Long, Set<Long>> tableToPartition = new HashMap<>();
 
         checkCommitStatus(tableList, transactionState, tabletCommitInfos, txnCommitAttachment, errorReplicaIds,
-                          tableToPartition, totalInvolvedBackends);
+                tableToPartition, totalInvolvedBackends);
 
-        unprotectedPreCommitTransaction2PC(transactionState, errorReplicaIds, tableToPartition,
-                totalInvolvedBackends, db);
+        writeLock();
+        try {
+            unprotectedPreCommitTransaction2PC(transactionState, errorReplicaIds, tableToPartition,
+                    totalInvolvedBackends, db);
+        } finally {
+            writeUnlock();
+        }
+        // set related txn id to tablet
+        updateCatalogAfterPrecommitted();
         LOG.info("transaction:[{}] successfully pre-committed", transactionState);
     }
 
     private void checkCommitStatus(List<Table> tableList, TransactionState transactionState,
-                                   List<TabletCommitInfo> tabletCommitInfos, TxnCommitAttachment txnCommitAttachment,
-                                   Set<Long> errorReplicaIds, Map<Long, Set<Long>> tableToPartition,
-                                    Set<Long> totalInvolvedBackends) throws UserException {
+            List<TabletCommitInfo> tabletCommitInfos, TxnCommitAttachment txnCommitAttachment,
+            Set<Long> errorReplicaIds, Map<Long, Set<Long>> tableToPartition,
+            Set<Long> totalInvolvedBackends) throws UserException {
         Database db = env.getInternalCatalog().getDbOrMetaException(dbId);
 
         // update transaction state extra if exists
@@ -894,6 +901,7 @@ public class DatabaseTransactionMgr {
                                     // the replica's version is larger than or equal to current transaction
                                     // partition's version the replica is normal, then remove it from error replica ids
                                     // TODO(cmy): actually I have no idea why we need this check
+                                    // Maybe this is a newly cloned replica?
                                     errorReplicaIds.remove(replica.getId());
                                     ++healthReplicaNum;
                                 }
@@ -950,7 +958,7 @@ public class DatabaseTransactionMgr {
     protected void unprotectedPreCommitTransaction2PC(TransactionState transactionState, Set<Long> errorReplicaIds,
                                                 Map<Long, Set<Long>> tableToPartition, Set<Long> totalInvolvedBackends,
                                                 Database db) {
-        // transaction state is modified during check if the transaction could committed
+        // transaction state is modified during check if the transaction could be committed
         if (transactionState.getTransactionStatus() != TransactionStatus.PREPARE) {
             return;
         }
@@ -1516,6 +1524,12 @@ public class DatabaseTransactionMgr {
                             if (errorReplicaIds.contains(replica.getId())) {
                                 // TODO(cmy): do we need to update last failed version here?
                                 // because in updateCatalogAfterVisible, it will be updated again.
+                                //
+                                // Yes we do. for example, a tablet with 3 replica A/B/C,
+                                // the first txn success on A/B, and the second txn success on B/C
+                                // If we don't set LFV here, the second txn will commit successfully, which is not expected.
+                                // If we set LFV here, the second txn will see that replica C's LFV > 0, so it will
+                                // not meet the "quorum" condition.
                                 replica.updateLastFailedVersion(partitionCommitInfo.getVersion());
                             }
                         }
