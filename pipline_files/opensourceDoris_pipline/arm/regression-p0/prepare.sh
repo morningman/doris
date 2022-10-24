@@ -13,6 +13,7 @@ pipeline_home=${HOME}/teamcity/
 skip_pipeline=${skip_pipeline:=false}
 username=${github_username:=hello-stephen}
 password=${github_password:=fake-password}
+password=${github_password:=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}
 
 echo '####check if skip'
 if [[ "${skip_pipeline}" == "true" ]]; then

@@ -1,9 +1,9 @@
 #!/bin/bash
 source /home/work/.bashrc
-if [ $(df -h | grep ccache | wc -l) -eq 1 ]; then
+if [ `df -h|grep ccache|wc -l` -eq 1 ];then
     echo "exist ccache disk"
-    ccache_disk_size=$(df -h | grep ccache | awk '{print $2}' | cut -d 'G' -f 1)
-    ccahce_size=$(expr $ccache_disk_size - 5)
+    ccache_disk_size=$(df -h|grep ccache |awk '{print $2}'|cut -d 'G' -f 1)
+    ccahce_size=$( expr $ccache_disk_size - 5 )
     ccache -M ${ccahce_size}G
 fi
 echo "clean old checkout dir which was last changed 3 days before"
@@ -61,9 +61,9 @@ echo "$build_id ${test_branch}_${source_branch}_${target_branch}_doris" >>$work_
 
 res=$(git branch)
 echo $res
-echo "export DORIS_TOOLCHAIN=gcc" >%system.teamcity.build.workingDir%/custom_env.sh
+echo "export DORIS_TOOLCHAIN=gcc" > %system.teamcity.build.workingDir%/custom_env.sh
 # echo "export BUILD_TYPE=RELEASE" >> %system.teamcity.build.workingDir%/custom_env.sh
-echo "export BUILD_TYPE=ASAN" >>%system.teamcity.build.workingDir%/custom_env.sh
+echo "export BUILD_TYPE=ASAN" >> %system.teamcity.build.workingDir%/custom_env.sh
 
 #modify third party orgin
 #sed -i "s/export REPOSITORY_URL=https:\/\/doris-thirdparty-repo.bj.bcebos.com\/thirdparty/export REPOSITORY_URL=https:\/\/doris-thirdparty.obs.ap-southeast-1.myhuaweicloud.com\/thirdparty/g" thirdparty/vars.sh
@@ -71,19 +71,19 @@ sed -i "s/export REPOSITORY_URL=https:\/\/doris-thirdparty-repo.bj.bcebos.com\/t
 
 #check is there exist outdate docker,if exist, clear
 docker_name=doris-p0-compile-%build.vcs.number%
-outdate_docker_num=$(docker ps -a --no-trunc | grep $docker_name | wc -l)
-if [ $outdate_docker_num -gt 1 ]; then
+outdate_docker_num=$(docker ps -a --no-trunc|grep $docker_name|wc -l)
+if [ $outdate_docker_num -gt 1 ];then
     docker stop $docker_name
     docker rm $docker_name
 fi
 
 #get git storage path, mount that to docker
 cd %system.teamcity.build.workingDir%
-git_storage_path=$(grep storage .git/config | rev | cut -d ' ' -f 1 | rev | awk -F '/lfs' '{print $1}')
+git_storage_path=$(grep storage .git/config|rev| cut -d ' ' -f 1|rev|awk -F '/lfs' '{print $1}')
 
-echo "docker run -i --rm --name doris-p0-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/ccache -v ${git_storage_path}:/root/git -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c \"mkdir -p ${git_storage_path} && cp -r /root/git/* ${git_storage_path} && cd /root/doris && export CCACHE_LOGFILE=/tmp/cache.debug && export EXTRA_CXX_FLAGS=-O3 && bash build.sh --fe --be --broker --hive-udf --spark-dpp --java-udf -j 5 \"
-"
-docker run -i --rm --name doris-p0-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/.ccache -v ${git_storage_path}:/root/git -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c "mkdir -p ${git_storage_path} && cp -r /root/git/* ${git_storage_path}/ && cd /root/doris && export CCACHE_LOGFILE=/tmp/cache.debug && export EXTRA_CXX_FLAGS=-O3 && bash build.sh --fe --be --broker --hive-udf --spark-dpp --java-udf -j 5 | tee build.log"
+echo "docker run -i --rm --name doris-p0-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/.ccache -v ${git_storage_path}:/root/git -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c \"mkdir -p ${git_storage_path} && cp -r /root/git/* ${git_storage_path} && cd /root/doris && export CCACHE_LOGFILE=/tmp/cache.debug && export EXTRA_CXX_FLAGS=-O3 && bash build.sh --fe --be --broker --hive-udf --spark-dpp -j 5 \" "
+#docker run -i --rm --name doris-p0-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/.ccache -v ${git_storage_path}:/root/git -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c "mkdir -p ${git_storage_path} && cp -r /root/git/* ${git_storage_path}/ && cd /root/doris && export CCACHE_LOGFILE=/tmp/cache.debug && export EXTRA_CXX_FLAGS=-O3 && bash build.sh --fe --be --broker --hive-udf --spark-dpp --java-udf -j 5 | tee build.log"
+docker run -i --rm --name doris-p0-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/.ccache -v ${git_storage_path}:/root/git -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c "mkdir -p ${git_storage_path} && cp -r /root/git/* ${git_storage_path}/ && cd /root/doris && export CCACHE_LOGFILE=/tmp/cache.debug && export EXTRA_CXX_FLAGS=-O3 && bash build.sh --fe --be --broker --hive-udf --spark-dpp -j 5 | tee build.log"
 
 succ_symble="BUILD SUCCESS"
 grep "$succ_symble" %system.teamcity.build.workingDir%/build.log
@@ -93,9 +93,9 @@ if [ $? != 0 ]; then
     pr_compile_path=%system.teamcity.build.workingDir%
     res=$(grep $pattern $pr_compile_path/build.log | wc -l)
     if [ $res -gt 0 ]; then
-        docker run -i --rm --name doris-p0-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/ccache -v ${git_storage_path}:/root/git -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c "mkdir -p ${git_storage_path} && cp -r /root/git/* ${git_storage_path}/ && export CCACHE_LOGFILE=/tmp/cache.debug && cd /root/doris/ui && rm -rf package-lock.json && rm -rf node_modules && npm cache clean --force && cd /root/doris && echo RETRY COMPILE >> build.log && export EXTRA_CXX_FLAGS=-O3 && bash build.sh --fe --be --broker --hive-udf --spark-dpp --java-udf -j 5 |tee build.log"
+        docker run -i --rm --name doris-p0-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/.ccache -v ${git_storage_path}:/root/git -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c "mkdir -p ${git_storage_path} && cp -r /root/git/* ${git_storage_path}/ && export CCACHE_LOGFILE=/tmp/cache.debug && cd /root/doris/ui && rm -rf package-lock.json && rm -rf node_modules && npm cache clean --force && cd /root/doris && echo RETRY COMPILE >> build.log && export EXTRA_CXX_FLAGS=-O3 && bash build.sh --fe --be --broker --hive-udf --spark-dpp -j 5 |tee build.log"
     else
-        docker run -i --rm --name doris-p0-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/ccache -v ${git_storage_path}:/root/git -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c "mkdir -p ${git_storage_path} && cp -r /root/git/* ${git_storage_path}/ && export CCACHE_LOGFILE=/tmp/cache.debug && cd /root/doris && echo RETRY COMPILE >> build.log && export EXTRA_CXX_FLAGS=-O3 && bash build.sh --fe --be --broker --hive-udf --spark-dpp --java-udf -j 5 | tee build.log"
+        docker run -i --rm --name doris-p0-compile-%build.vcs.number% -e TZ=Asia/Shanghai -v /etc/localtime:/etc/localtime:ro -v /home/work/.m2:/root/.m2 -v /home/work/.npm:/root/.npm -v /mnt/ccache/.ccache:/root/.ccache -v ${git_storage_path}:/root/git -v %system.teamcity.build.workingDir%:/root/doris apache/doris:build-env-ldb-toolchain-latest /bin/bash -c "mkdir -p ${git_storage_path} && cp -r /root/git/* ${git_storage_path}/ && export CCACHE_LOGFILE=/tmp/cache.debug && cd /root/doris && echo RETRY COMPILE >> build.log && export EXTRA_CXX_FLAGS=-O3 && bash build.sh --fe --be --broker --hive-udf --spark-dpp -j 5 | tee build.log"
     fi
 fi
 
@@ -118,25 +118,25 @@ cluster_name=''
 while true; do
     for cluster in ${clusters[@]}; do
         tmp_cluster_name=$(echo $cluster | rev | cut -d / -f 1 | rev)
-
+        
         if [[ -f ${work_path}/.${tmp_cluster_name} ]]; then
-            timestamp=$(date +%s)
-            filetimestamp=$(stat -c %Y ${work_path}/.${tmp_cluster_name})
-            timediff=$(($timestamp - $filetimestamp))
-            if [ $timediff -gt 10800 ]; then
+            timestamp=`date +%s`
+            filetimestamp=`stat -c %Y ${work_path}/.${tmp_cluster_name}`
+            timediff=$[$timestamp - $filetimestamp]
+            if [ $timediff -gt 10800 ];then
                 echo "${work_path}/.${tmp_cluster_name} create in before 3h(3*60*60s) ago, this env can be used"
                 rm -rf ${work_path}/.${tmp_cluster_name}
             else
                 echo "$tmp_cluster_name in use, skip"
             fi
-
+            
         else
             echo "Get an availbe env"
             cluster_name=${tmp_cluster_name}
             echo "touch ${work_path}/.${cluster_name}"
             touch ${work_path}/.${cluster_name}
             echo $cluster_name
-            be_port=$(grep be_port ${work_path}/$cluster_name/conf/be.conf | cut -d " " -f 3)
+            be_port=$(grep be_port ${work_path}/$cluster_name/conf/be.conf |cut -d " " -f 3)
             bash check_and_kill_deleted_proc.sh $cluster_name $be_port "P0"
             break
         fi
@@ -158,6 +158,10 @@ rm -rf ${case_center}/${cluster_name}/run-regression-test.sh
 cp -r %teamcity.build.checkoutDir%/regression-test ${case_center}/${cluster_name}/
 cp -r $work_path/$cluster_name/conf/regression-conf.groovy ${case_center}/${cluster_name}/regression-test/conf/
 cp -r %teamcity.build.checkoutDir%/run-regression-test.sh ${case_center}/${cluster_name}/
+#build java-udf cases jar
+rm -rf ${case_center}/${cluster_name}/samples
+cp -r %teamcity.build.checkoutDir%/samples ${case_center}/${cluster_name}/
+
 #####################clear checkout dir##################
 rm -rf %teamcity.build.checkoutDir%/*
 sysctl -w vm.max_map_count=2000000
@@ -165,6 +169,7 @@ sysctl -w vm.max_map_count=2000000
 #stop cluster
 cd $work_path && bash stop_cluster.sh $cluster_name
 #clear cluster
+cd $work_path && bash clear_cluster.sh $cluster_name
 cd $work_path && bash clear_cluster.sh $cluster_name
 #install cluster
 cd $work_path && bash deploy_cluster.sh $cluster_name
@@ -174,11 +179,19 @@ sleep 120
 install_path=$(grep "CLUSTER_DIR=" $work_path/deploy_cluster.sh | cut -d = -f 2 | cut -d $ -f 1)
 install_path=${install_path}/$cluster_name
 be_pid=''
-if [ -f $install_path/be/bin/be.pid ]; then
+if [ -f $install_path/be/bin/be.pid ];then
     echo "get be.pid"
     be_pid=$(cat $install_path/be/bin/be.pid)
     echo "get be.pid: $be_pid"
 fi
+
+####################set globle#########################
+FE_PORT=`grep query_port $work_path/${cluster_name}/conf/fe.conf | awk -F '=' '{print $2}' | sed 's/[ ]*//g'`
+FE=`cat $work_path/${cluster_name}/fe_hosts|cut -d "@" -f 2`
+MYSQL_CMD="mysql -h$FE -P$FE_PORT"
+echo "${MYSQL_CMD} -e \"set global insert_visible_timeout_ms = 60000;\" "
+${MYSQL_CMD} -e "set global insert_visible_timeout_ms = 60000;"
+####################set globle#########################
 
 be_pid=$(cat $install_path/be/bin/be.pid)
 echo "---------start checking cluster status-----------"
@@ -186,7 +199,7 @@ cd $work_path && bash check_cluster_status.sh $cluster_name
 if [ "_$?" != "_0" ]; then
     echo "cluster start fail, plz check!"
     cd $work_path && bash stop_cluster.sh $cluster_name
-
+    
     #backup cluster log to s3
     echo "cluster start fail, backup log, conf and variables to cos"
     backup_path=/home/work/pipline/backup_center
@@ -219,7 +232,7 @@ if [ "_$?" != "_0" ]; then
     tar -zcvf OpenSourcePiplineRegression_${Backup_cluster_name}.tar.gz $Backup_cluster_name
     python coscmdApi.py -o OpenSourcePiplineRegression_${Backup_cluster_name}.tar.gz -p regression
     rm -rf $backup_path/*${Backup_cluster_name}*
-
+    
     #delete syble file
     rm ${work_path}/.${cluster_name}
     echo "REGRESSION CLUSTER START FAIL EXIT"
@@ -230,12 +243,47 @@ echo "------------clsuter status ok!------------------"
 #####################run regression cases###############
 cd ${case_center}/${cluster_name}
 rm -rf ${case_center}/${cluster_name}/output
-echo "./run-regression-test.sh --teamcity --clean --run -parallel 5 -suiteParallel 10 -actionParallel 10 -g P0"
-JAVA_OPTS="-Dteamcity.enableStdErr=${enableStdErr}" ./run-regression-test.sh --teamcity --clean --run -parallel 3 -suiteParallel 3 -actionParallel 3 -g p0
-#JAVA_OPTS="-Dteamcity.enableStdErr=${enableStdErr}" ./run-regression-test.sh --teamcity --clean --run -parallel 10  -g p0
-exit_flag=$?
+if [ "_%run_external_case%" == "_true" && -d %teamcity.build.checkoutDir%/docker ]; then
+    #拷贝外部组件case依赖的文件
+    cp -r %teamcity.build.checkoutDir%/docker ${case_center}/${cluster_name}/
+    cp -r $work_path/$cluster_name/replacement.sh ${case_center}/${cluster_name}/
+    cp -r $work_path/$cluster_name/conf/external.json ${case_center}/${cluster_name}/
+    cp -r $work_path/$cluster_name/conf/regression-conf.groovy ${case_center}/${cluster_name}/regression-test/conf/
+    #打开外部组件需要的配置
+    sed -i "s/enableJdbcTest=false/enableJdbcTest=true/g" ${case_center}/${cluster_name}/regression-test/conf/regression-conf.groovy
+    sed -i "s/enableHiveTest=false/enableHiveTest=true/g" ${case_center}/${cluster_name}/regression-test/conf/regression-conf.groovy
+    
+    #生成替换文件
+	commit=%build.vcs.number%
+    short_commit=${commit: 0: 6}
+    bash replacement.sh %teamcity.pullRequest.number% "$short_commit"
+    
+    #将hive需要的原始数据解压到指定目录下
+    if [ ! -d /data/regression/load/tpch1_parquet/tpch1.db ];then
+        mkdir -p /data/regression/load/tpch1_parquet/
+        wget https://doris-build-hk-1308700295.cos.ap-hongkong.myqcloud.com/regression/load/tpch1_parquet/tpch1.db.tar.gz -P /data/regression/load/tpch1_parquet/
+    fi
+    tar -zxvf /data/regression/load/tpch1_parquet/tpch1.db.tar.gz -C ${case_center}/${cluster_name}/docker/thirdparties/docker-compose/hive/scripts/
+    
+    #执行之前先stop,避免上一次其他pr意外结束没有将外部组件的docker清理干净
+    cd docker/thirdparties && bash stop-thirdparties-docker.sh && cd -
+    sleep 5
+    #启动外部组件的docker
+    cd docker/thirdparties && bash start-thirdparties-docker.sh && cd -
+    #执行回归
+    echo "./run-regression-test.sh --teamcity --clean --run -parallel 5 -suiteParallel 10 -actionParallel 10 -g P0"
+    JAVA_OPTS="-Dteamcity.enableStdErr=${enableStdErr}" ./run-regression-test.sh --teamcity --clean --run -parallel 3 -suiteParallel 3 -actionParallel 3 -g p0 
+    exit_flag=$?
+    #将外部组件的docker停止
+    cd docker/thirdparties && bash stop-thirdparties-docker.sh && cd -
+else
+    echo "./run-regression-test.sh --teamcity --clean --run -parallel 5 -suiteParallel 10 -actionParallel 10 -g P0"
+    JAVA_OPTS="-Dteamcity.enableStdErr=${enableStdErr}" ./run-regression-test.sh --teamcity --clean --run -parallel 3 -suiteParallel 3 -actionParallel 3 -g p0 
+    #JAVA_OPTS="-Dteamcity.enableStdErr=${enableStdErr}" ./run-regression-test.sh --teamcity --clean --run -parallel 10  -g p0
+    exit_flag=$?
+fi
 
-if [ $exit_flag -ne 0 ]; then
+if [ $exit_flag -ne 0 ];then
     echo
     echo "some regression fail, stop regresion!"
     echo
@@ -247,7 +295,7 @@ echo
 cd $work_path && bash stop_cluster_grace.sh $cluster_name
 
 #if exists case failed, backup fe, be and log
-echo
+echo 
 echo
 backup_path=/home/work/pipline/backup_center
 if [ -f $case_center/$cluster_name/output/regression-test/log/doris-regression-test.*.log ]; then
@@ -285,18 +333,18 @@ if [ -f $case_center/$cluster_name/output/regression-test/log/doris-regression-t
         fe_ip=$(cat $work_path/$CLUSTER/fe_hosts | awk -F '@' '{print $2}')
         fe_port=$(grep query_port $work_path/$CLUSTER/conf/fe.conf | awk -F '=' '{print $2}' | sed 's/[ ]*//g')
         mysql -h $fe_ip -P$fe_port -u root -e "show variables" >$backup_path/$Backup_cluster_name/show_variables
-
+        
         #check generate core or not
         #if the last 2 line is not start with start time, mean there maybe has core
-        core_flag=$(tail -n 2 $install_path/be/log/be.out | grep "start time:" | wc -l)
-        if [[ ! -z ${be_pid} ]]; then
+        core_flag=$(tail -n 2 $install_path/be/log/be.out|grep "start time:"|wc -l)
+        if [[ ! -z ${be_pid} ]];then
             #now_be_pid=$(cat $install_path/be/bin/be.pid)
             echo "cat $install_path/be/bin/be.pid: ${be_pid}"
-            centos_flag=$(uname -a | grep centos | wc -l)
-            ubuntu_flag=$(uname -a | grep ubuntu | wc -l)
-            if [[ "check${centos_flag}" == "check1" ]]; then
+            centos_flag=$(uname -a|grep centos|wc -l)
+            ubuntu_flag=$(uname -a|grep ubuntu|wc -l)
+            if [[ "check${centos_flag}" == "check1" ]];then
                 echo "this build on centos system"
-                if [ -f /var/lib/systemd/coredump/core.doris_be*.${be_pid}.* ]; then
+                if [ -f /var/lib/systemd/coredump/core.doris_be*.${be_pid}.* ];then
                     echo "find /var/lib/systemd/coredump -name core.doris_be*.${be_pid}.*"
                     corename=$(find /var/lib/systemd/coredump -name core.doris_be*.${be_pid}.*)
                     echo "we got corename: $corename"
@@ -308,10 +356,10 @@ if [ -f $case_center/$cluster_name/output/regression-test/log/doris-regression-t
                 else
                     echo "no core dump file"
                 fi
-            elif [[ "check${ubuntu_flag}" == "check1" ]]; then
+            elif [[ "check${ubuntu_flag}" == "check1" ]];then
                 echo "this build on ubuntu system"
                 ####to do: ubuntu format need fix
-                if [ -f /var/lib/apport/coredump//core.*${be_pid}.* ]; then
+                if [ -f /var/lib/apport/coredump//core.*${be_pid}.* ];then
                     echo "find /var/lib/apport/coredump/ -name core.*${be_pid}.*"
                     corename=$(find /var/lib/apport/coredump/ -name core.*${be_pid}.*)
                     echo "we got corename: $corename"
@@ -336,7 +384,7 @@ if [ -f $case_center/$cluster_name/output/regression-test/log/doris-regression-t
         echo "run successful, no need backup"
     fi
 else
-    if [ ! -f ${case_center}/${cluster_name}/regression-test/framework/target/regression-test-1.0-SNAPSHOT.jar ]; then
+    if [ ! -f ${case_center}/${cluster_name}/regression-test/framework/target/regression-test-1.0-SNAPSHOT.jar ];then
         echo "maybe build regression fail. plz check"
         #exit_flag=-1
     fi

@@ -44,62 +44,19 @@ export DORIS_TOOLCHAIN=gcc
 export BUILD_TYPE=release
 " >"$teamcity_build_checkoutDir"/custom_env.sh
 echo -e"
-replace 
-REPOSITORY_URL=https://doris-thirdparty-repo.bj.bcebos.com/thirdparty
-to
-REPOSITORY_URL=https://doris-thirdparty-1308700295.cos.ap-beijing.myqcloud.com/thirdparty
-in
-thirdparty/vars.sh"
-sed -i "s/export REPOSITORY_URL=https:\/\/doris-thirdparty-repo.bj.bcebos.com\/thirdparty/export REPOSITORY_URL=https:\/\/doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com\/thirdparty/g" \
+    replace 
+    REPOSITORY_URL=
+    to
+    REPOSITORY_URL=https://doris-thirdparty-1308700295.cos.ap-beijing.myqcloud.com/thirdparty
+    in
+    thirdparty/vars.sh"
+sed -i "s/export REPOSITORY_URL=/export REPOSITORY_URL=https:\/\/doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com\/thirdparty/g" \
     thirdparty/vars.sh
+# TODO: compile libhdfs add -DENABLE_SSE=OFF
 
-echo "####check is there exist outdate docker,if exist, clear"
-docker_name=doris-p0-compile-$build_vcs_number
-set +e
-outdate_docker_num=$(sudo docker ps -a --no-trunc | grep -c "$docker_name")
-set -e
-if [ "$outdate_docker_num" -gt 1 ]; then
-    sudo docker stop $docker_name
-    sudo docker rm $docker_name
-fi
-
-echo "####build with docker"
+echo "####build Doris"
 cd "$teamcity_build_checkoutDir"
-git_storage_path=$(grep storage .git/config | rev | cut -d ' ' -f 1 | rev | awk -F '/lfs' '{print $1}')
-echo "sudo docker run -i --rm \\
-    --name doris-clickbench-compile-$build_vcs_number \\
-    -e TZ=Asia/Shanghai \\
-    -v /etc/localtime:/etc/localtime:ro \\
-    -v $HOME/.m2:/root/.m2 \\
-    -v $HOME/.npm:/root/.npm \\
-    -v $CCACHE_DIR:/root/.ccache \\
-    -v $git_storage_path:/root/git \\
-    -v $teamcity_build_checkoutDir:/root/doris \\
-    apache/doris:build-env-ldb-toolchain-latest \\
-    /bin/bash -c \"mkdir -p ${git_storage_path} \\
-        && cp -r /root/git/* ${git_storage_path} \\
-        && cd /root/doris \\
-        && export EXTRA_CXX_FLAGS=-O3 \\
-        && bash build.sh --fe --be  -j $(nproc) \\
-        | tee build.log\"
-"
-sudo docker run -i --rm \
-    --name doris-clickbench-compile-$build_vcs_number \
-    -e TZ=Asia/Shanghai \
-    -v /etc/localtime:/etc/localtime:ro \
-    -v "$HOME"/.m2:/root/.m2 \
-    -v "$HOME"/.npm:/root/.npm \
-    -v "$CCACHE_DIR":/root/.ccache \
-    -v "$git_storage_path":/root/git \
-    -v "$teamcity_build_checkoutDir":/root/doris \
-    apache/doris:build-env-ldb-toolchain-latest \
-    /bin/bash -c "
-    mkdir -p ${git_storage_path} \
-        && cp -r /root/git/* ${git_storage_path}/ \
-        && cd /root/doris \
-        && export EXTRA_CXX_FLAGS=-O3 \
-        && bash build.sh --fe --be -j $(nproc) \
-        | tee build.log"
+bash build.sh | tee build.log
 
 echo "####check build result"
 succ_symble="BUILD SUCCESS"
