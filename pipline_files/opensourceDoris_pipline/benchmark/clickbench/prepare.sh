@@ -46,7 +46,7 @@ echo '####check if utils ready, include: curl jq java mysql coscli ccache'
 if [[ ! -f /etc/ssl/certs/ca-certificates.crt ]]; then
     sudo ln -s /etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
 fi
-if ! jp --version; then sudo yum install jq -y; fi
+if ! jq --version; then sudo yum install jq -y; fi
 if ! sudo docker --version; then
     sudo yum install -y docker
     sudo systemctl start docker
