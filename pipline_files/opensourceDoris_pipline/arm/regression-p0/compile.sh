@@ -6,7 +6,7 @@ teamcity_pullRequest_number=%teamcity.pullRequest.number%
 teamcity_pullRequest_source_branch=%teamcity.pullRequest.source.branch%
 teamcity_pullRequest_target_branch=%teamcity.pullRequest.target.branch%
 build_id=%teamcity.build.id%
-build_vcs_number=%build.vcs.number%
+# build_vcs_number=%build.vcs.number%
 
 teamcity_home=${HOME}/teamcity/
 # for ccache-3.7.7

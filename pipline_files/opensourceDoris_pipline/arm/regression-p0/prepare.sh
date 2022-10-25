@@ -77,8 +77,4 @@ cp -r \
 echo "####remove old checkout"
 sudo rm -rf "${teamcity_agent_work_dir}"/.old/*
 
-set +e
-bash "$teamcity_build_checkoutDir"/kill-doris-cluster.sh
-set -e
-
 echo "####prepare DONE."
