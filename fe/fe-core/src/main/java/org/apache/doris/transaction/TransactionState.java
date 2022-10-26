@@ -380,7 +380,6 @@ public class TransactionState implements Writable {
 
         // after status changed
         if (transactionStatus == TransactionStatus.VISIBLE) {
-            this.visibleLatch.countDown();
             if (MetricRepo.isInit) {
                 MetricRepo.COUNTER_TXN_SUCCESS.increase(1L);
             }
