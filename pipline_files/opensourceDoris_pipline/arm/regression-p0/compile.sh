@@ -1,14 +1,20 @@
 #!/bin/bash
+# shellcheck source=/dev/null
+source ~/.bashrc
+
 set -ex
 
+teamcity_agent_home_dir=%teamcity.agent.home.dir%
 teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
 teamcity_pullRequest_number=%teamcity.pullRequest.number%
 teamcity_pullRequest_source_branch=%teamcity.pullRequest.source.branch%
 teamcity_pullRequest_target_branch=%teamcity.pullRequest.target.branch%
 build_id=%teamcity.build.id%
-# build_vcs_number=%build.vcs.number%
 
+doris_thirdparty_dir="$teamcity_agent_home_dir/doris_thirdparty"
+rebuild_thirdparty=${rebuild_thirdparty:=false}
 teamcity_home=${HOME}/teamcity/
+
 # for ccache-3.7.7
 CCACHE_DIR=$(ccache -s | grep 'cache directory' | awk '{print $3}')
 # for ccache-4.7
@@ -38,25 +44,24 @@ echo "$build_id ${build_record_item}" >>"$teamcity_home"/OpenSourceDorisBuild.lo
 
 git branch
 
-echo "####config build"
+echo "####configure build"
 echo -e "
 export DORIS_TOOLCHAIN=gcc
 export BUILD_TYPE=release
+export REPOSITORY_URL='https://doris-thirdparty-1308700295.cos.ap-beijing.myqcloud.com/thirdparty'
+export DORIS_THIRDPARTY='$doris_thirdparty_dir'
 " >"$teamcity_build_checkoutDir"/custom_env.sh
-echo -e"
-    replace 
-    REPOSITORY_URL=
-    to
-    REPOSITORY_URL=https://doris-thirdparty-1308700295.cos.ap-beijing.myqcloud.com/thirdparty
-    in
-    thirdparty/vars.sh"
-sed -i "s/export REPOSITORY_URL=/export REPOSITORY_URL=https:\/\/doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com\/thirdparty/g" \
-    thirdparty/vars.sh
-# TODO: compile libhdfs add -DENABLE_SSE=OFF
+if [[ ! -d $doris_thirdparty_dir ]]; then mkdir -p "$doris_thirdparty_dir"; fi
+# update thirdparty
+cp -rf "$teamcity_build_checkoutDir"/thirdparty/* "$doris_thirdparty_dir"
+if [[ "${rebuild_thirdparty}" == "true" ]]; then
+    echo "rm -rf $doris_thirdparty_dir/* and rebuild doris thirdparty"
+    rm -rf "${doris_thirdparty_dir:?}"/*
+fi
 
 echo "####build Doris"
 cd "$teamcity_build_checkoutDir"
-bash build.sh | tee build.log
+bash build.sh -j"$(($(nproc) / 2))" | tee build.log
 
 echo "####check build result"
 succ_symble="BUILD SUCCESS"

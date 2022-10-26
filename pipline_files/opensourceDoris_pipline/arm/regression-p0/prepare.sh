@@ -7,13 +7,14 @@
 set -ex
 
 teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
+teamcity_build_checkoutDir='/root/teamcity/teamcity-agent-1/work/e0bc234628561cad'
 teamcity_agent_work_dir=%teamcity.agent.work.dir%
 
 pipeline_home=${HOME}/teamcity/
 skip_pipeline=${skip_pipeline:=false}
 username=${github_username:=hello-stephen}
 password=${github_password:=fake-password}
-password=${github_password:=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}
+# password=${github_password:=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}
 
 echo '####check if skip'
 if [[ "${skip_pipeline}" == "true" ]]; then
@@ -22,6 +23,26 @@ if [[ "${skip_pipeline}" == "true" ]]; then
 else
     echo "no skip"
 fi
+
+echo '####update scripts from git@github.com:selectdb/selectdb-qa.git'
+cd "${pipeline_home}"
+if [[ ! -d "${pipeline_home}/selectdb-qa" ]]; then
+    if ! git clone git@github.com:selectdb/selectdb-qa.git; then
+        git clone https://${username}:${password}@github.com/selectdb/selectdb-qa.git
+    fi
+fi
+qa_home="${pipeline_home}/selectdb-qa"
+cd "${qa_home}" && git stash && git checkout main && git pull && cd -
+
+#TODO maybe same file name, better to add pr id as suffix
+echo '####cp scripts to checkout dir'
+cd "$teamcity_build_checkoutDir"
+cp -r \
+    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/common/* \
+    "$teamcity_build_checkoutDir"/
+cp -r \
+    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/arm/regression-p0/* \
+    "$teamcity_build_checkoutDir"/
 
 echo "####check if utils ready, include: 
 byacc patch automake libtool make which file 
@@ -49,29 +70,10 @@ if [[ ! -f /etc/ssl/certs/ca-certificates.crt ]]; then
 fi
 if ! which jq; then sudo yum install jq -y; fi
 if ! which mysql; then sudo yum install -y mysql; fi
-bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-coscli.sh
 set +e
+# bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-coscli.sh
 bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-ccache.sh
 set -e
-
-echo '####update scripts from git@github.com:selectdb/selectdb-qa.git'
-cd "${pipeline_home}"
-if [[ ! -d "${pipeline_home}/selectdb-qa" ]]; then
-    if ! git clone git@github.com:selectdb/selectdb-qa.git; then
-        git clone https://${username}:${password}@github.com/selectdb/selectdb-qa.git
-    fi
-fi
-qa_home="${pipeline_home}/selectdb-qa"
-cd "${qa_home}" && git stash && git checkout main && git pull && cd -
-
-#TODO maybe same file name, better to add pr id as suffix
-echo '####cp scripts to checkout dir'
-cp -r \
-    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/common/* \
-    "$teamcity_build_checkoutDir"/
-cp -r \
-    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/arm/regression-p0/* \
-    "$teamcity_build_checkoutDir"/
 
 #TODO why .old dir still exists after set clean rules in Build Features ? wrong clean rules?
 echo "####remove old checkout"
