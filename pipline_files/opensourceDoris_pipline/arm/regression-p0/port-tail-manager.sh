@@ -7,6 +7,8 @@ teamcity_home=${HOME}/teamcity
 
 port_tail_file="${teamcity_home}/busy_ports"
 
+if [[ ! -f "$port_tail_file" ]]; then touch "$port_tail_file"; fi
+
 take_port_tail() {
     row_count=$(awk 'END{print NR}' "$port_tail_file")
     if [ "$row_count" = 10 ]; then

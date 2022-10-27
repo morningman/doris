@@ -1,7 +1,7 @@
 #!/bin/bash
-##################################
-# This work well on CentOS
-##################################
+###########################################
+# This work well on [Amazon Linux, CentOS]
+###########################################
 set -ex
 
 agent_download_url='https://doris-pipline-1308700295.cos.ap-hongkong.myqcloud.com/teamcity/buildAgentFull.zip'
@@ -14,19 +14,25 @@ serverUrl="http://${server_ip}:8111/"
 cd ~
 echo "Will install $agent_count_to_install teamcity agent in $HOME/teamcity, sleep 10..." && sleep 10
 
-# # install java
-# if ! java --version; then
-#     sudo yum install -y java-11-amazon-corretto.x86_64
-#     export JAVA_HOME="/usr/lib/jvm/java-11-openjdk/"
-#     export PATH=$JAVA_HOME/bin:$PATH
-#     echo "
-# export JAVA_HOME=$JAVA_HOME
-# export PATH=$JAVA_HOME/bin:\$PATH
-# " >>~/.bashrc
-#     # shellcheck source=/dev/null
-#     source ~/.bashrc
-# fi
+# install java on Amazon Linux
+if ! java --version; then
+    if sudo yum install -y java-11-amazon-corretto.x86_64; then
+        export JAVA_HOME="/usr/lib/jvm/java-11-openjdk/"
+        export PATH=$JAVA_HOME/bin:$PATH
 
+        echo "
+export JAVA_HOME=$JAVA_HOME
+export PATH=$JAVA_HOME/bin:\$PATH
+" >>~/.bashrc
+
+        set +x
+        # shellcheck source=/dev/null
+        source ~/.bashrc
+        set -x
+    fi
+fi
+
+# install java on CentOS
 if ! java --version; then
     if [[ "$java_version" == "11" ]]; then
         # java 11
