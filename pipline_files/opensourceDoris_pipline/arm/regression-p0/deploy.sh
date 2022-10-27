@@ -8,7 +8,8 @@ if [[ ! -d output ]]; then echo "Can't find output dir, are you sure compiled?";
 DORIS_HOME="$teamcity_build_checkoutDir/output/"
 echo "$DORIS_HOME" >doris_home
 
-IPADDR=$(hostname -i)
+IPADDR=$(ifconfig -a | grep inet | grep -v 127.0.0.1 | grep -v inet6 | awk '{print $2}' | sed -n '$p')
+IPADDR='127.0.0.1'
 
 port_tail=$(bash port-tail-manager.sh 'take')
 # FE port
@@ -62,7 +63,7 @@ while true; do
 done
 
 # add BE to cluster
-mysql-h"$IPADDR" -P"$query_port" -uroot -e "ALTER SYSTEM ADD BACKEND '${IPADDR}:${heartbeat_service_port}' "
+mysql -h"$IPADDR" -P"$query_port" -uroot -e "ALTER SYSTEM ADD BACKEND '${IPADDR}:${heartbeat_service_port}' "
 
 # wait for Doris BE ready
 while true; do

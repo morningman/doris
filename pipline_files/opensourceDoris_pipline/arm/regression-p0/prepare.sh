@@ -1,8 +1,6 @@
 #!/bin/bash
 ###################################################################
-# Amazon EC2
-# Amazon Machine Image(AMI) Description:
-#     Amazon Linux 2 Kernel 5.10 AMI 2.0.20220912.1 x86_64 HVM gp2
+# this work well on 
 ###################################################################
 set -ex
 
@@ -23,6 +21,8 @@ if [[ "${skip_pipeline}" == "true" ]]; then
 else
     echo "no skip"
 fi
+
+if ! which git; then sudo yum install -y git; fi
 
 echo '####update scripts from git@github.com:selectdb/selectdb-qa.git'
 cd "${pipeline_home}"

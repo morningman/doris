@@ -22,6 +22,8 @@ else
     echo "no skip"
 fi
 
+if ! which git; then sudo yum install -y git; fi
+
 echo '####update scripts from git@github.com:selectdb/selectdb-qa.git'
 cd "${pipeline_home}"
 if [[ ! -d "${pipeline_home}/selectdb-qa" ]]; then
