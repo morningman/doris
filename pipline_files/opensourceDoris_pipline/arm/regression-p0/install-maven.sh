@@ -15,9 +15,10 @@ if ! which mvn; then
     wget $maven_download_url
     file_name=$(basename $maven_download_url)
     tar -zxvf "$file_name"
+
+    # edit maven config
     maven_dir="$pipeline_home/apache-maven-3.6.3"
     maven_settings_xml_path="$maven_dir"/conf/settings.xml
-
     row_num=$(sed -n -e "/<mirrors>/=" "$maven_settings_xml_path")
     sed -i "${row_num}a <mirror>" "$maven_settings_xml_path"
     sed -i "$((row_num + 1))a <id>aliyunmaven<\/id>" "$maven_settings_xml_path"

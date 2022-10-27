@@ -1,11 +1,11 @@
 #!/bin/bash
 ###################################################################
-# this work well on 
+# this work well on
 ###################################################################
 set -ex
 
 teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
-teamcity_build_checkoutDir='/root/teamcity/teamcity-agent-1/work/e0bc234628561cad'
+# teamcity_build_checkoutDir='/root/teamcity/teamcity-agent-1/work/e0bc234628561cad'
 teamcity_agent_work_dir=%teamcity.agent.work.dir%
 
 pipeline_home=${HOME}/teamcity/
@@ -22,9 +22,8 @@ else
     echo "no skip"
 fi
 
-if ! which git; then sudo yum install -y git; fi
-
 echo '####update scripts from git@github.com:selectdb/selectdb-qa.git'
+if ! which git; then sudo yum install -y git; fi
 cd "${pipeline_home}"
 if [[ ! -d "${pipeline_home}/selectdb-qa" ]]; then
     if ! git clone git@github.com:selectdb/selectdb-qa.git; then
@@ -47,8 +46,8 @@ cp -r \
 echo "####check if utils ready, include: 
 byacc patch automake libtool make which file 
 ncurses-devel gettext-devel unzip bzip2 bison 
-zip util-linux wget git python2 curl jq java 
-mysql coscli ccache"
+zip util-linux wget python curl jq java mysql ccache"
+if ! which python; then sudo yum install python36 -y && sudo ln -s /usr/bin/python3 /usr/bin/python; fi
 if ! which byacc; then sudo yum install byacc -y; fi
 if ! which bison; then sudo yum install bison -y; fi
 if ! which patch; then sudo yum install patch -y; fi
@@ -61,17 +60,16 @@ if ! (which gettext && which gettextize); then sudo yum install gettext-devel -y
 if ! which unzip; then sudo yum install unzip -y; fi
 if ! which bzip2; then sudo yum install bzip2 -y; fi
 if ! which zip; then sudo yum install zip -y; fi
-if ! which git; then sudo yum install git -y; fi
 sudo yum install util-linux -y
 bash install-java.sh
 bash install-maven.sh
+bash install-ldb-toolchain.sh
 if [[ ! -f /etc/ssl/certs/ca-certificates.crt ]]; then
     sudo ln -s /etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
 fi
 if ! which jq; then sudo yum install jq -y; fi
 if ! which mysql; then sudo yum install -y mysql; fi
 set +e
-# bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-coscli.sh
 bash "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/install-ccache.sh
 set -e
 
