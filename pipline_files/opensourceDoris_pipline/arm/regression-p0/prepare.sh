@@ -63,6 +63,7 @@ if ! which zip; then sudo yum install zip -y; fi
 sudo yum install util-linux -y
 bash install-java.sh
 bash install-maven.sh
+bash install-nodejs.sh
 bash install-ldb-toolchain.sh
 if [[ ! -f /etc/ssl/certs/ca-certificates.crt ]]; then
     sudo ln -s /etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
