@@ -59,8 +59,8 @@ brokerName = "broker_name"
 
 s3Endpoint = "cos.ap-beijing.myqcloud.com"
 s3BucketName = "doris-build-1308700295"
-ak = "AKIDJTO4VheMnzwd5HEvNZWHmiPr41jCPN5Y"
-sk = "GH2Xu2uXu4zf5GDvNaXFivvgBRSDjz1o"
+ak = "AKIDPhmeKo46sPhkZ9USWQEqGTSDsW5Xr6IL"
+sk = "xmT2Uoz0vgGkbKr6A4mGWcWCiBVcYJSV"
 s3Region = "ap-beijing"
 
 sf1DataPath = "/data"
