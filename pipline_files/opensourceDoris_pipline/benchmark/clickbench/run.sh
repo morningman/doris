@@ -127,7 +127,7 @@ PROPERTIES ( \"replication_num\"=\"1\");
 "
 
 echo "####load data"
-if [[ ! -f "${data_home}"/hits.tsv.gz ]] && [[ ! -f "${data_home}"/hits.tsv ]]; then
+if [[ ! -f "${data_home}"/hits.tsv ]] || [[ $(wc -c "${data_home}"/hits.tsv | awk '{print $1}') != '74807831229' ]]; then
     cd "${data_home}"
     wget --continue 'https://datasets.clickhouse.com/hits_compatible/hits.tsv.gz'
     gzip -d hits.tsv.gz
@@ -188,7 +188,7 @@ if bash check-result.sh; then
 check query result, PASS
 ########################
 \033[0m"
-echo "####load and run, DONE."
+    echo "####load and run, DONE."
     exit 0
 else
     echo -e "
@@ -197,6 +197,6 @@ else
 check query result, FAIL
 ########################
 \033[0m"
-echo "####load and run, DONE."
+    echo "####load and run, DONE."
     exit 1
 fi

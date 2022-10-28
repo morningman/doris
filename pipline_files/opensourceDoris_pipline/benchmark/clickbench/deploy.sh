@@ -1,4 +1,7 @@
 #!/bin/bash
+# shellcheck source=/dev/null
+source ~/.bashrc
+
 set -ex
 
 teamcity_build_checkoutDir=%teamcity.build.checkoutDir%

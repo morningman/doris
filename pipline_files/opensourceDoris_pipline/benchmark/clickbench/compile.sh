@@ -1,4 +1,7 @@
 #!/bin/bash
+# shellcheck source=/dev/null
+source ~/.bashrc
+
 set -ex
 
 teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
@@ -42,16 +45,8 @@ echo "####config build"
 echo -e "
 export DORIS_TOOLCHAIN=gcc
 export BUILD_TYPE=release
+export REPOSITORY_URL=https://doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com/thirdparty
 " >"$teamcity_build_checkoutDir"/custom_env.sh
-echo -e"
-replace 
-REPOSITORY_URL=https://doris-thirdparty-repo.bj.bcebos.com/thirdparty
-to
-REPOSITORY_URL=https://doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com/thirdparty
-in
-thirdparty/vars.sh"
-sed -i "s/export REPOSITORY_URL=https:\/\/doris-thirdparty-repo.bj.bcebos.com\/thirdparty/export REPOSITORY_URL=https:\/\/doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com\/thirdparty/g" \
-    thirdparty/vars.sh
 
 echo "####check is there exist outdate docker,if exist, clear"
 docker_name=doris-p0-compile-$build_vcs_number
@@ -80,6 +75,7 @@ echo "sudo docker run -i --rm \\
         && cp -r /root/git/* ${git_storage_path} \\
         && cd /root/doris \\
         && export EXTRA_CXX_FLAGS=-O3 \\
+        && export USE_JEMALLOC='ON' \\
         && bash build.sh --fe --be  -j $(nproc) \\
         | tee build.log\"
 "
@@ -98,6 +94,7 @@ sudo docker run -i --rm \
         && cp -r /root/git/* ${git_storage_path}/ \
         && cd /root/doris \
         && export EXTRA_CXX_FLAGS=-O3 \
+        && export USE_JEMALLOC='ON' \
         && bash build.sh --fe --be -j $(nproc) \
         | tee build.log"
 
