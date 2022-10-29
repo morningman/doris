@@ -36,7 +36,7 @@ sum_best_hot_time=$(awk -F ',' '{if($3<$4){sum+=$3}else{sum+=$4}} END {print sum
 loadtime=$(cat loadtime)
 storage_size=$(cat storage_size)
 comment_body="TeamCity pipeline, clickbench performance test result:\n the sum of best hot time: $sum_best_hot_time seconds\n load time: $loadtime seconds\n storage size: $storage_size Bytes\n https://doris-community-test-1308700295.cos.ap-hongkong.myqcloud.com/tmp/$html_file_name"
-bash create-an-issue-comment-on-github.sh \
+bash update-or-create-an-issue-comment.sh \
     "$teamcity_pullRequest_number" \
     "$comment_body"
 
