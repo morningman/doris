@@ -1,6 +1,6 @@
 #!/bin/bash
 ###################################################################
-# this work well on HuaWeiYun Linux VM-0-12-centos 5.4.119-19-0008 #1 SMP Fri Oct 22 10:43:49 CST 2021 aarch64 aarch64 aarch64 GNU/Linux
+# this work well on HuaWeiYun(Linux VM-0-12-centos 5.4.119-19-0008 #1 SMP Fri Oct 22 10:43:49 CST 2021 aarch64 aarch64 aarch64 GNU/Linux)
 ###################################################################
 set -ex
 
@@ -12,7 +12,6 @@ pipeline_home=${HOME}/teamcity/
 skip_pipeline=${skip_pipeline:=false}
 username=${github_username:=hello-stephen}
 password=${github_password:=fake-password}
-# password=${github_password:=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}
 
 echo '####check if skip'
 if [[ "${skip_pipeline}" == "true" ]]; then
@@ -40,7 +39,10 @@ cp -r \
     "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/common/* \
     "$teamcity_build_checkoutDir"/
 cp -r \
-    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/arm/regression-p0/* \
+    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/arm/be-ut/* \
+    "$teamcity_build_checkoutDir"/
+cp -r \
+    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/arm/common/* \
     "$teamcity_build_checkoutDir"/
 
 echo "####check if utils ready, include: 
@@ -64,6 +66,7 @@ sudo yum install util-linux -y
 bash install-java.sh
 bash install-maven.sh
 bash install-nodejs.sh
+bash install-autoconf.sh
 bash install-ldb-toolchain.sh
 if [[ ! -f /etc/ssl/certs/ca-certificates.crt ]]; then
     sudo ln -s /etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
