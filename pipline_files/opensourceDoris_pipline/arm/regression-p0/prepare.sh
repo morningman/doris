@@ -40,6 +40,9 @@ cp -r \
     "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/common/* \
     "$teamcity_build_checkoutDir"/
 cp -r \
+    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/arm/common/* \
+    "$teamcity_build_checkoutDir"/
+cp -r \
     "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/arm/regression-p0/* \
     "$teamcity_build_checkoutDir"/
 

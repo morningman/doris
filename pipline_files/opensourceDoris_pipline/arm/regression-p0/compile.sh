@@ -12,8 +12,10 @@ teamcity_pullRequest_target_branch=%teamcity.pullRequest.target.branch%
 build_id=%teamcity.build.id%
 
 doris_thirdparty_dir="$teamcity_agent_home_dir/doris_thirdparty"
-rebuild_thirdparty=${rebuild_thirdparty:=false}
+build_thirdparty=${build_thirdparty:="false"}
 teamcity_home=${HOME}/teamcity/
+REPOSITORY_URL='https://doris-thirdparty-1308700295.cos.ap-beijing.myqcloud.com/thirdparty'
+REPOSITORY_URL='https://doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com/thirdparty'
 
 # for ccache-3.7.7
 CCACHE_DIR=$(ccache -s | grep 'cache directory' | awk '{print $3}')
@@ -49,14 +51,14 @@ echo -e "
 export USE_AVX2=OFF
 export DORIS_TOOLCHAIN=gcc
 export BUILD_TYPE=release
-export REPOSITORY_URL='https://doris-thirdparty-1308700295.cos.ap-beijing.myqcloud.com/thirdparty'
+export REPOSITORY_URL='$REPOSITORY_URL'
 export DORIS_THIRDPARTY='$doris_thirdparty_dir'
 " >"$teamcity_build_checkoutDir"/custom_env.sh
 if [[ ! -d $doris_thirdparty_dir ]]; then mkdir -p "$doris_thirdparty_dir"; fi
 # update thirdparty
 cp -rf "$teamcity_build_checkoutDir"/thirdparty/* "$doris_thirdparty_dir"
-if [[ "${rebuild_thirdparty}" == "true" ]]; then
-    echo "rm -rf $doris_thirdparty_dir/* and rebuild doris thirdparty"
+if [[ "${build_thirdparty}" == "true" ]]; then
+    echo "rm -rf $doris_thirdparty_dir/* and build doris thirdparty"
     rm -rf "${doris_thirdparty_dir:?}"/*
 fi
 

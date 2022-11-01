@@ -14,12 +14,7 @@ username=${github_username:=hello-stephen}
 password=${github_password:=fake-password}
 
 echo '####check if skip'
-if [[ "${skip_pipeline}" == "true" ]]; then
-    echo "skip build pipline"
-    exit 0
-else
-    echo "no skip"
-fi
+if [[ "${skip_pipeline}" == "true" ]]; then echo "skip build pipline" && exit 0; fi
 
 echo '####update scripts from git@github.com:selectdb/selectdb-qa.git'
 if ! which git; then sudo yum install -y git; fi
@@ -67,7 +62,8 @@ bash install-java.sh
 bash install-maven.sh
 bash install-nodejs.sh
 bash install-autoconf.sh
-bash install-ldb-toolchain.sh
+# bash install-ldb-toolchain.sh
+bash install-ldb-toolchain-fix.sh
 if [[ ! -f /etc/ssl/certs/ca-certificates.crt ]]; then
     sudo ln -s /etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
 fi

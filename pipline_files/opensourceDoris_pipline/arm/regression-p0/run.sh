@@ -28,6 +28,9 @@ s/8040/804$port_tail/g;
 s/8060/806$port_tail/g;
 s/9040/904$port_tail/g;
 s/9060/906$port_tail/g;" "$regression_conf_path"
+
+if [[ "$ak" == 'fake-ak' ]] || [[ "$sk" == 'fake-sk' ]]; then echo "ak sk required..." && exit 1; fi
+
 echo "
 s3Region = $s3Region
 s3Endpoint = $s3Endpoint
