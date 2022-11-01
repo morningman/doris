@@ -4,6 +4,7 @@
 source ~/.bashrc
 
 set -ex
+source ~/.bashrc_tmp
 
 pipeline_home=${HOME}/teamcity/
 ldb_toolchain_dir_name="ldb_toolchain_fix"
