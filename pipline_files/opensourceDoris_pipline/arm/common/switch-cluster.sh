@@ -18,6 +18,7 @@ switch_on() {
 
 switch_off() {
     local doris_home="$1"
+    if [[ ! -d "$doris_home" ]]; then echo "Not exist: $doris_home, compile failed???" && exit 0; fi
     echo 'try to use stop_fe.sh and stop_be.sh to stop doris cluster'
     bash "${doris_home}/fe/bin/stop_fe.sh"
     bash "${doris_home}/be/bin/stop_be.sh"
@@ -48,7 +49,7 @@ switch_off() {
 
     echo 'return this free port to port-tail-manager'
     port_tail=${fe_conf_query_port:0-1}
-    bash port-tail-manager.sh return "$port_tail"
+    bash port-tail-manager.sh 'return' "$port_tail"
 
     exit 0
 }

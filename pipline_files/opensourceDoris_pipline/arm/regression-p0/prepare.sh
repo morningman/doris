@@ -9,18 +9,13 @@ teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
 teamcity_agent_work_dir=%teamcity.agent.work.dir%
 
 pipeline_home=${HOME}/teamcity/
-skip_pipeline=${skip_pipeline:=false}
+skip_pipeline=${skip_pipeline:="false"}
 username=${github_username:=hello-stephen}
 password=${github_password:=fake-password}
 # password=${github_password:=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}
 
 echo '####check if skip'
-if [[ "${skip_pipeline}" == "true" ]]; then
-    echo "skip build pipline"
-    exit 0
-else
-    echo "no skip"
-fi
+if [[ "${skip_pipeline}" == "true" ]]; then echo "skip build pipline" && exit 0; fi
 
 echo '####update scripts from git@github.com:selectdb/selectdb-qa.git'
 if ! which git; then sudo yum install -y git; fi

@@ -6,7 +6,15 @@ set -ex
 
 teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
 
-if [[ ! -d output ]]; then echo "Can't find output dir, are you sure compiled?"; fi
+skip_pipeline=${skip_pipeline:="false"}
+
+tmp_env_file_path="$teamcity_build_checkoutDir/.my_tmp_env"
+if [[ -f $"$tmp_env_file_path" ]]; then source "$tmp_env_file_path"; fi
+
+echo '####check if skip'
+if [[ "${skip_pipeline}" == "true" ]]; then echo "skip build pipline" && exit 0; fi
+
+if [[ ! -d output ]]; then echo "Can't find output dir, are you sure compiled?" && exit 1; fi
 
 DORIS_HOME="$teamcity_build_checkoutDir/output/"
 echo "$DORIS_HOME" >doris_home
@@ -14,6 +22,7 @@ echo "$DORIS_HOME" >doris_home
 IPADDR=$(ifconfig -a | grep inet | grep -v 127.0.0.1 | grep -v inet6 | awk '{print $2}' | sed -n '$p')
 IPADDR='127.0.0.1'
 
+bash port-tail-manager.sh 'show'
 port_tail=$(bash port-tail-manager.sh 'take')
 # FE port
 http_port="803$port_tail"

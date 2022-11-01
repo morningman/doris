@@ -11,8 +11,10 @@ teamcity_pullRequest_source_branch=%teamcity.pullRequest.source.branch%
 teamcity_pullRequest_target_branch=%teamcity.pullRequest.target.branch%
 build_id=%teamcity.build.id%
 
+tmp_env_file_path="$teamcity_build_checkoutDir/.my_tmp_env"
 doris_thirdparty_dir="$teamcity_agent_home_dir/doris_thirdparty"
 build_thirdparty=${build_thirdparty:="false"}
+skip_pipeline=${skip_pipeline:="false"}
 teamcity_home=${HOME}/teamcity/
 REPOSITORY_URL='https://doris-thirdparty-1308700295.cos.ap-beijing.myqcloud.com/thirdparty'
 REPOSITORY_URL='https://doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com/thirdparty'
@@ -21,6 +23,9 @@ REPOSITORY_URL='https://doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.
 CCACHE_DIR=$(ccache -s | grep 'cache directory' | awk '{print $3}')
 # for ccache-4.7
 if [[ -z $CCACHE_DIR ]]; then CCACHE_DIR=$(ccache -sv | grep -i 'cache directory' | awk '{print $3}'); fi
+
+echo '####check if skip'
+if [[ "${skip_pipeline}" == "true" ]]; then echo "skip build pipline" && exit 0; fi
 
 echo "####check if old build of same pr still running, cancel it if so"
 build_record_item=${teamcity_pullRequest_number}_${teamcity_pullRequest_source_branch}_${teamcity_pullRequest_target_branch}_doris
@@ -36,7 +41,8 @@ done < <(grep ${build_record_item} "$teamcity_home"/OpenSourceDorisBuild.log | a
 echo "###check change file to see if need run this pipeline"
 set +e
 if bash check_change_file.sh --is_modify_only_invoved_doc $teamcity_pullRequest_number 2>/dev/null; then
-    exit 0
+    # if no need to run this pipeline, use env to tell next steps
+    echo "export skip_pipeline='true'" >"$tmp_env_file_path" && exit 0
 fi
 set -e
 echo -e "FINISH check!\n"

@@ -42,8 +42,16 @@ check_port_tail() {
         done
     fi
 }
+show_port_tail() {
+    echo -e "
+show busy port tail:
+$(cat "$port_tail_file")
+"
+}
 
-if [[ "$1" == "check" ]]; then
+if [[ "$1" == "show" ]]; then
+    show_port_tail
+elif [[ "$1" == "check" ]]; then
     check_port_tail
 elif [[ "$1" == "take" ]]; then
     take_port_tail

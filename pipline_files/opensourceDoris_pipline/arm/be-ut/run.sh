@@ -1,7 +1,6 @@
 #!/bin/bash
 # shellcheck source=/dev/null
 source ~/.bashrc
-source ~/.bashrc_tmp
 
 set -ex
 
@@ -18,10 +17,10 @@ doris_thirdparty_dir="$teamcity_agent_home_dir/doris_thirdparty"
 build_thirdparty=${build_thirdparty:="false"}
 skip_pipeline=${skip_pipeline:="false"}
 REPOSITORY_URL='https://doris-thirdparty-1308700295.cos.ap-beijing.myqcloud.com/thirdparty'
-# REPOSITORY_URL='https://doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com/thirdparty'
+REPOSITORY_URL='https://doris-thirdparty-hk-1308700295.cos.ap-hongkong.myqcloud.com/thirdparty'
 
 tmp_env_file_path="$teamcity_build_checkoutDir/.my_tmp_env"
-source "$tmp_env_file_path"
+if [[ -f $"$tmp_env_file_path" ]]; then source "$tmp_env_file_path"; fi
 
 echo '####check if skip'
 if [[ "${skip_pipeline}" == "true" ]]; then echo "skip build pipline" && exit 0; fi
@@ -39,9 +38,8 @@ done < <(grep ${build_record_item} "$teamcity_home"/OpenSourceDorisBuild.log | a
 #skip build which trigered by file under docs/zh-CN/docs/sql-manual/
 echo "###check change file to see if need run this pipeline"
 set +e
-if bash check_change_file.sh --is_modify_only_invoved_doc $teamcity_pullRequest_number 2>/dev/null; then
-    exit 0
-fi
+if bash check_change_file.sh --is_modify_only_invoved_doc \
+    $teamcity_pullRequest_number 2>/dev/null; then exit 0; fi
 set -e
 echo -e "FINISH check!\n"
 
