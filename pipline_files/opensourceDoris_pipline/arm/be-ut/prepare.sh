@@ -9,7 +9,7 @@ teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
 teamcity_agent_work_dir=%teamcity.agent.work.dir%
 
 pipeline_home=${HOME}/teamcity/
-skip_pipeline=${skip_pipeline:=false}
+skip_pipeline=${skip_pipeline:='false'}
 username=${github_username:=hello-stephen}
 password=${github_password:=fake-password}
 
