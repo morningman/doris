@@ -62,7 +62,7 @@ bash install-java.sh
 bash install-maven.sh
 bash install-nodejs.sh
 bash install-autoconf.sh
-install-ldb-toolchain-v0.14.1.sh
+bash install-ldb-toolchain-v0.14.1.sh
 if [[ ! -f /etc/ssl/certs/ca-certificates.crt ]]; then
     sudo ln -s /etc/ssl/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt
 fi
