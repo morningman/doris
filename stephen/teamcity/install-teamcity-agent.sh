@@ -5,14 +5,16 @@
 set -ex
 
 agent_download_url='https://doris-pipline-1308700295.cos.ap-hongkong.myqcloud.com/teamcity/buildAgentFull.zip'
+# agent_download_url='https://doris-build-1308700295.cos.ap-beijing.myqcloud.com/teamcity/buildAgentFull.zip'
 server_ip='43.132.222.7'
 java_version='11'
 agent_count_to_install=1
+install_dir="$HOME"
 
 serverUrl="http://${server_ip}:8111/"
 
 cd ~
-echo "Will install $agent_count_to_install teamcity agent in $HOME/teamcity, sleep 10..." && sleep 10
+echo "Will install $agent_count_to_install teamcity agent in $install_dir/teamcity, sleep 10..." && sleep 10
 
 # install java on Amazon Linux
 if ! java --version; then
@@ -63,7 +65,7 @@ java --version
 if ! wget --continue "$agent_download_url"; then echo "download failed!!" && exit 1; fi
 
 for ((i = 0; i < agent_count_to_install; ++i)); do
-    teamcity_agent_home="$HOME/teamcity/teamcity-agent-$i"
+    teamcity_agent_home="$install_dir/teamcity/teamcity-agent-$i"
     if [[ -d "$teamcity_agent_home" ]]; then echo "$teamcity_agent_home existed, please remove it firstly..." && exit 1; fi
     mkdir -p "$teamcity_agent_home"
     unzip "$(basename $agent_download_url)" -d "$teamcity_agent_home"
@@ -93,4 +95,4 @@ Later, authorize this agent '$agent_name' on server,
 
 After authorize, wait a few minutes for the agent to download some sources from the server,
 check the progress in 
-" "$HOME"/teamcity/teamcity-agent-*/logs/teamcity-agent.log
+" "$install_dir"/teamcity/teamcity-agent-*/logs/teamcity-agent.log
