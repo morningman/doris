@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+set -e
 
 teamcity_pullRequest_number=%teamcity.pullRequest.number%
 build_id=%teamcity.build.id%
@@ -11,8 +11,8 @@ ts=$(date '+%%Y%%m%%d%%H%%M%%S')
 html_file_name="${ts}_clickbench_pr_${build_id}.html"
 
 echo '-------------------------------------------------------------'
-echo "####record some info"
-bash get-doris-runtime-conf.sh
+# echo "####record some info"
+# bash get-doris-runtime-conf.sh
 echo '-------------------------------------------------------------'
 bash get-table-schema.sh
 echo '-------------------------------------------------------------'

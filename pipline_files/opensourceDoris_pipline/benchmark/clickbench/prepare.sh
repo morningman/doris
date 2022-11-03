@@ -4,7 +4,7 @@
 # Amazon Machine Image(AMI) Description:
 #     Amazon Linux 2 Kernel 5.10 AMI 2.0.20220912.1 x86_64 HVM gp2
 ###################################################################
-set -ex
+set -e
 
 teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
 teamcity_agent_work_dir=%teamcity.agent.work.dir%

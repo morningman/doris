@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+set -e
 
 teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
 
@@ -155,7 +155,7 @@ mysql -h127.0.0.1 -P9030 -uroot hits -e "SELECT count(*) FROM hits"
 date
 
 echo '-------------------------------------------------------------'
-bash get-segment-file-info.sh
+# bash get-segment-file-info.sh
 echo '-------------------------------------------------------------'
 
 echo "####run queries"

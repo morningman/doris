@@ -2,7 +2,7 @@
 # shellcheck source=/dev/null
 source ~/.bashrc
 
-set -ex
+set -e
 
 teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
 
