@@ -42,6 +42,9 @@ cp -r \
 cp -r \
     "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/clickbench/* \
     "$teamcity_build_checkoutDir"/
+cp -r \
+    "${pipeline_home}"/selectdb-qa/pipline_files/opensourceDoris_pipline/benchmark/common/* \
+    "$teamcity_build_checkoutDir"/
 
 #############
 echo '####check if utils ready, include: curl jq java mysql coscli ccache'

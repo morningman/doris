@@ -70,7 +70,8 @@ fi
 
 echo "####build Doris"
 cd "$teamcity_build_checkoutDir"
-bash build.sh -j"$(($(nproc) / 2))" | tee build.log
+# bash build.sh -j"$(($(nproc) / 2))" | tee build.log
+bash build.sh | tee build.log
 
 echo "####check build result"
 succ_symble="BUILD SUCCESS"

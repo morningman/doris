@@ -12,6 +12,7 @@ build_id=%teamcity.build.id%
 build_vcs_number=%build.vcs.number%
 
 teamcity_home=${HOME}/teamcity/
+tmp_env_file_path="$teamcity_build_checkoutDir/.my_tmp_env"
 # for ccache-3.7.7
 CCACHE_DIR=$(ccache -s | grep 'cache directory' | awk '{print $3}')
 # for ccache-4.7
@@ -31,7 +32,7 @@ done < <(grep ${build_record_item} "$teamcity_home"/OpenSourceDorisBuild.log | a
 echo "###check change file to see if need run this pipeline"
 set +e
 if bash check_change_file.sh --is_modify_only_invoved_doc $teamcity_pullRequest_number 2>/dev/null; then
-    exit 0
+    echo "export skip_pipeline='true'" >"$tmp_env_file_path" && exit 0
 fi
 set -e
 echo -e "FINISH check!\n"

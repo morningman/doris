@@ -1,9 +1,7 @@
 #!/bin/bash
 ###################################################################
-# this work well on HuaWeiYun Linux VM-0-12-centos 5.4.119-19-0008 #1 SMP Fri Oct 22 10:43:49 CST 2021 aarch64 aarch64 aarch64 GNU/Linux
+# this work well on
 ###################################################################
-# shellcheck source=/dev/null
-source ~/.bashrc
 set -ex
 
 teamcity_build_checkoutDir=%teamcity.build.checkoutDir%

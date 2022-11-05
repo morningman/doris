@@ -6,7 +6,6 @@ set -ex
 teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
 # teamcity_build_checkoutDir='/root/doris'
 
-skip_pipeline=${skip_pipeline:="false"}
 DORIS_HOME="$teamcity_build_checkoutDir/output/"
 teamcity_home=${HOME}/teamcity/
 cacheDataPath="$teamcity_home/data/regression"
@@ -17,9 +16,9 @@ s3BucketName=${s3BucketName:='doris-build-hk-1308700295'}
 ak=${ak:='fake-ak'}
 sk=${sk:='fake-sk'}
 
+skip_pipeline=${skip_pipeline:="false"}
 tmp_env_file_path="$teamcity_build_checkoutDir/.my_tmp_env"
 if [[ -f $"$tmp_env_file_path" ]]; then source "$tmp_env_file_path"; fi
-
 echo '####check if skip'
 if [[ "${skip_pipeline}" == "true" ]]; then echo "skip build pipline" && exit 0; fi
 

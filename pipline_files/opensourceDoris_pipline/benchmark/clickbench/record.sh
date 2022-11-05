@@ -1,8 +1,17 @@
 #!/bin/bash
+# shellcheck source=/dev/null
+source ~/.bashrc
 set -e
 
 teamcity_pullRequest_number=%teamcity.pullRequest.number%
 build_id=%teamcity.build.id%
+teamcity_build_checkoutDir=%teamcity.build.checkoutDir%
+
+skip_pipeline=${skip_pipeline:="false"}
+tmp_env_file_path="$teamcity_build_checkoutDir/.my_tmp_env"
+if [[ -f $"$tmp_env_file_path" ]]; then source "$tmp_env_file_path"; fi
+echo '####check if skip'
+if [[ "${skip_pipeline}" == "true" ]]; then echo "skip build pipline" && exit 0; fi
 
 # TeamCity treats a string surrounded by percentage signs (%) in the script as a parameter reference.
 # To prevent TeamCity from treating the text in the percentage signs as a property reference,
