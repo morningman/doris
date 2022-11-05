@@ -27,7 +27,7 @@ bash get-table-schema.sh
 echo '-------------------------------------------------------------'
 bash get-mechine-info.sh
 echo '-------------------------------------------------------------'
-bash get-ckb-html.sh | tee "$html_file_name"
+bash get-ckb-html.sh >"$html_file_name"
 echo '-------------------------------------------------------------'
 
 echo "####upload $html_file_name to cos"
