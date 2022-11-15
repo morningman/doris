@@ -18,8 +18,10 @@
 package org.apache.doris.catalog.external;
 
 import org.apache.doris.catalog.Column;
+import org.apache.doris.catalog.Env;
 import org.apache.doris.catalog.EsTable;
 import org.apache.doris.datasource.EsExternalCatalog;
+import org.apache.doris.datasource.ExternalSchemaCache;
 import org.apache.doris.thrift.TEsTable;
 import org.apache.doris.thrift.TTableDescriptor;
 import org.apache.doris.thrift.TTableType;
@@ -84,7 +86,8 @@ public class EsExternalTable extends ExternalTable {
     }
 
     private EsTable toEsTable() {
-        List<Column> schema = getFullSchema();
+        ExternalSchemaCache cache = Env.getCurrentEnv().getExtMetaCacheMgr().getSchemaCache(catalog);
+        List<Column> schema = cache.getSchema(dbName, name);
         EsExternalCatalog esCatalog = (EsExternalCatalog) catalog;
         EsTable esTable = new EsTable(this.id, this.name, schema, TableType.ES_EXTERNAL_TABLE);
         esTable.setIndexName(name);
