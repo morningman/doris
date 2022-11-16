@@ -95,6 +95,7 @@ public class ExternalDatabase<T extends ExternalTable> implements DatabaseIf<T>,
 
     public void setUnInitialized() {
         this.initialized = false;
+        // TODO: invalidate cache?
     }
 
     public boolean isInitialized() {

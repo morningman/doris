@@ -97,6 +97,10 @@ public class ExternalSchemaCache {
         schemaCache.invalidate(key);
     }
 
+    public void invalidateAll() {
+        schemaCache.invalidateAll();
+    }
+
     @Data
     public static class SchemaCacheKey {
         private String dbName;

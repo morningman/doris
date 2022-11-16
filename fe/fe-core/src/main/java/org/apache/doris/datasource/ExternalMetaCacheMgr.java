@@ -71,7 +71,7 @@ public class ExternalMetaCacheMgr {
         return cache;
     }
 
-    public void removeCache(String catalogId) {
+    public void invalidateTableCache(String catalogId) {
         if (cacheMap.remove(catalogId) != null) {
             LOG.info("remove hive metastore cache for catalog {}" + catalogId);
         }
@@ -80,7 +80,7 @@ public class ExternalMetaCacheMgr {
         }
     }
 
-    public void removeCache(long catalogId, String dbName, String tblName) {
+    public void invalidateTableCache(long catalogId, String dbName, String tblName) {
         ExternalSchemaCache schemaCache = schemaCacheMap.get(catalogId);
         if (schemaCache != null) {
             schemaCache.invalidateCache(dbName, tblName);
@@ -88,8 +88,21 @@ public class ExternalMetaCacheMgr {
         }
         HiveMetaStoreCache metaCache = cacheMap.get(catalogId);
         if (metaCache != null) {
-            metaCache.invalidateCache(dbName, tblName);
+            metaCache.invalidateTableCache(dbName, tblName);
             LOG.debug("invalid meta cache for {}.{} in catalog {}", dbName, tblName, catalogId);
+        }
+    }
+
+    public void invalidateCatalogCache(long catalogId) {
+        ExternalSchemaCache schemaCache = schemaCacheMap.get(catalogId);
+        if (schemaCache != null) {
+            schemaCache.invalidateAll();
+            LOG.debug("invalid all schema cache in catalog {}", catalogId);
+        }
+        HiveMetaStoreCache metaCache = cacheMap.get(catalogId);
+        if (metaCache != null) {
+            metaCache.invalidateAll();
+            LOG.debug("invalid all meta cache in catalog {}", catalogId);
         }
     }
 }

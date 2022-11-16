@@ -306,10 +306,16 @@ public class HiveMetaStoreCache {
         return partitions;
     }
 
-    public void invalidateCache(String dbName, String tblName) {
+    public void invalidateTableCache(String dbName, String tblName) {
         PartitionValueCacheKey key = new PartitionValueCacheKey(dbName, tblName, null);
         partitionValuesCache.invalidate(key);
         // TODO: find a way to invalidate partitionCache and fileCache
+    }
+
+    public void invalidateAll() {
+        partitionValuesCache.invalidateAll();
+        partitionCache.invalidateAll();
+        fileCache.invalidateAll();
     }
 
     /**
