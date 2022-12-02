@@ -46,7 +46,8 @@ public class CatalogProperty implements Writable {
     public Map<String, String> getDfsProperties() {
         Map<String, String> dfsProperties = Maps.newHashMap();
         for (Map.Entry<String, String> entry : properties.entrySet()) {
-            if (entry.getKey().startsWith(HiveTable.HIVE_HDFS_PREFIX)) {
+            if (entry.getKey().startsWith(HiveTable.HIVE_HDFS_PREFIX)
+                    || entry.getKey().equals(BrokerUtil.HADOOP_USER_NAME)) {
                 dfsProperties.put(entry.getKey(), entry.getValue());
             }
         }
