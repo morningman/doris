@@ -498,7 +498,7 @@ Status ExecNode::create_node(RuntimeState* state, ObjectPool* pool, const TPlanN
         if (state->enable_vectorized_exec()) {
             *node = pool->add(new vectorized::NewOlapScanNode(pool, tnode, descs));
         } else {
-            *node = pool->add(new OlapScanNode(pool, tnode, descs));
+            return Status::InternalError("Not support olap scan node in non-vec engine");
         }
         return Status::OK();
 
