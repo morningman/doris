@@ -21,9 +21,9 @@ import org.apache.doris.qe.ConnectContext;
 
 public class VectorizedUtil {
 
-	public static boolean isVectorized() {
-		return true;
-	}
+    public static boolean isVectorized() {
+        return true;
+    }
     
 	public static boolean isPipeline() {
         ConnectContext connectContext = ConnectContext.get();
