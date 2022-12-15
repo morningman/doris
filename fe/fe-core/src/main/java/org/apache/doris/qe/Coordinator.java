@@ -318,7 +318,7 @@ public class Coordinator {
 
     private void initQueryOptions(ConnectContext context) {
         this.queryOptions = context.getSessionVariable().toThrift();
-        this.queryOptions.setEnableVectorizedEngine(VectorizedUtil.isVectorized());
+        this.queryOptions.setEnableVectorizedEngine(true);
         this.queryOptions.setEnablePipelineEngine(VectorizedUtil.isPipeline());
         this.queryOptions.setBeExecVersion(Config.be_exec_version);
     }
@@ -340,7 +340,7 @@ public class Coordinator {
     }
 
     public void setExecVecEngine(boolean vec) {
-        this.queryOptions.setEnableVectorizedEngine(vec);
+        this.queryOptions.setEnableVectorizedEngine(true);
     }
 
     public void setExecPipEngine(boolean vec) {

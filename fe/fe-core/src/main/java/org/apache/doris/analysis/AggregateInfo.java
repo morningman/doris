@@ -257,7 +257,6 @@ public final class AggregateInfo extends AggregateInfoBase {
         // for vectorized execution, we force it to using hash set to execution
         if (distinctAggExprs.size() == 1
                 && distinctAggExprs.get(0).getFnParams().isDistinct()
-                && VectorizedUtil.isVectorized()
                 && ConnectContext.get().getSessionVariable().enableSingleDistinctColumnOpt()) {
             isSetUsingSetForDistinct = true;
         }

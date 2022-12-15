@@ -245,21 +245,6 @@ public class QueryStmtTest {
                 + "FROM bb\n"
                 + "LEFT JOIN cc ON cc.mon = bb.mon\n"
                 + "ORDER BY mon;";
-
-        // When disable vec engine, this sql can be analyzed successfully.
-        // But when enable vec engine and for now, it will throw VecNotImplException
-        // with msg: "could not be changed to nullable".
-        // So here we make a "if else" check, and once this VecNotImplException is fixed, we should remove this check.
-        SessionVariable sv = new SessionVariable();
-        if (!sv.enableVectorizedEngine) {
-            stmt = (QueryStmt) UtFrameUtils.parseAndAnalyzeStmt(sql, ctx);
-            exprsMap.clear();
-            stmt.collectExprs(exprsMap);
-            Assert.assertEquals(24, exprsMap.size());
-            constMap.clear();
-            constMap = getConstantExprMap(exprsMap, analyzer);
-            Assert.assertEquals(4, constMap.size());
-        }
     }
 
     @Test

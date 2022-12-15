@@ -160,11 +160,6 @@ public class ExternalFileScanNode extends ExternalScanNode {
     public void init(Analyzer analyzer) throws UserException {
         super.init(analyzer);
 
-        if (!Config.enable_vectorized_load) {
-            throw new UserException(
-                    "Please set 'enable_vectorized_load=true' in fe.conf to enable external file scan node");
-        }
-
         switch (type) {
             case QUERY:
                 // prepare for partition prune

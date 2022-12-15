@@ -627,12 +627,6 @@ public class ScalarType extends Type {
 
     @Override
     public void toThrift(TTypeDesc container) {
-        if (type.isDecimalV3Type() || type.isDateV2Type()) {
-            Preconditions.checkArgument((Config.enable_vectorized_load && ConnectContext.get() == null)
-                            || ConnectContext.get() != null,
-                    "Please make sure vectorized load and vectorized query engine are enabled to use data type: "
-                            + type);
-        }
         TTypeNode node = new TTypeNode();
         container.types.add(node);
         node.setType(TTypeNodeType.SCALAR);

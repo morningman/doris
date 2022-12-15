@@ -242,7 +242,7 @@ public abstract class LoadScanNode extends ScanNode {
         planNode.setNodeType(TPlanNodeType.BROKER_SCAN_NODE);
         TBrokerScanNode brokerScanNode = new TBrokerScanNode(desc.getId().asInt());
         if (!preFilterConjuncts.isEmpty()) {
-            if (Config.enable_vectorized_load && vpreFilterConjunct != null) {
+            if (vpreFilterConjunct != null) {
                 brokerScanNode.addToPreFilterExprs(vpreFilterConjunct.treeToThrift());
             } else {
                 for (Expr e : preFilterConjuncts) {
