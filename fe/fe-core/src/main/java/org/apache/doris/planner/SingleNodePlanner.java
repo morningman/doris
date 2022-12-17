@@ -851,15 +851,6 @@ public class SingleNodePlanner {
      */
     private PlanNode createCheapestJoinPlan(Analyzer analyzer,
             List<Pair<TableRef, PlanNode>> refPlans) throws UserException {
-        try {
-            return createCheapestJoinPlan2(analyzer, refPlans);
-        } catch (Throwable t) {
-            LOG.info("errors while yyyyy:", t);
-            throw t;
-        }
-    }
-    private PlanNode createCheapestJoinPlan2(Analyzer analyzer,
-            List<Pair<TableRef, PlanNode>> refPlans) throws UserException {
         if (refPlans.size() == 1) {
             return refPlans.get(0).second;
         }
