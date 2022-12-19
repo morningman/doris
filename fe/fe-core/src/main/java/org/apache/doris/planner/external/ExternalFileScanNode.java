@@ -39,6 +39,7 @@ import org.apache.doris.catalog.Table;
 import org.apache.doris.catalog.TableIf;
 import org.apache.doris.catalog.external.HMSExternalTable;
 import org.apache.doris.common.AnalysisException;
+import org.apache.doris.common.Config;
 import org.apache.doris.common.UserException;
 import org.apache.doris.load.BrokerFileGroup;
 import org.apache.doris.planner.PlanNodeId;
@@ -158,7 +159,10 @@ public class ExternalFileScanNode extends ExternalScanNode {
     @Override
     public void init(Analyzer analyzer) throws UserException {
         super.init(analyzer);
-
+        if (!Config.enable_vectorized_load) {
+            throw new UserException(
+                    "Please set 'enable_vectorized_load=true' in fe.conf to enable external file scan node");
+        }
         switch (type) {
             case QUERY:
                 // prepare for partition prune
