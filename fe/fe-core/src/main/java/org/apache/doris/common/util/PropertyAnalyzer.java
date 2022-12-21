@@ -93,6 +93,9 @@ public class PropertyAnalyzer {
 
     public static final String PROPERTIES_INMEMORY = "in_memory";
 
+    public static final String PROPERTIES_AUTO_BUCKET = "auto_bucket";
+    public static final String PROPERTIES_ESTIMATE_PARTITION_SIZE = "estimate_partition_size";
+
     public static final String PROPERTIES_TABLET_TYPE = "tablet_type";
 
     public static final String PROPERTIES_STRICT_RANGE = "strict_range";
@@ -132,7 +135,7 @@ public class PropertyAnalyzer {
     /**
      * check and replace members of DataProperty by properties.
      *
-     * @param properties key->value for members to change.
+     * @param properties      key->value for members to change.
      * @param oldDataProperty old DataProperty
      * @return new DataProperty
      * @throws AnalysisException property has invalid key->value
@@ -247,7 +250,8 @@ public class PropertyAnalyzer {
             throws AnalysisException {
         Short replicationNum = oldReplicationNum;
         String propKey = Strings.isNullOrEmpty(prefix)
-                ? PROPERTIES_REPLICATION_NUM : prefix + "." + PROPERTIES_REPLICATION_NUM;
+                ? PROPERTIES_REPLICATION_NUM
+                : prefix + "." + PROPERTIES_REPLICATION_NUM;
         if (properties != null && properties.containsKey(propKey)) {
             try {
                 replicationNum = Short.valueOf(properties.get(propKey));
@@ -349,7 +353,7 @@ public class PropertyAnalyzer {
     }
 
     public static Set<String> analyzeBloomFilterColumns(Map<String, String> properties, List<Column> columns,
-                                                        KeysType keysType) throws AnalysisException {
+            KeysType keysType) throws AnalysisException {
         Set<String> bfColumns = null;
         if (properties != null && properties.containsKey(PROPERTIES_BF_COLUMNS)) {
             bfColumns = Sets.newHashSet();
@@ -485,7 +489,7 @@ public class PropertyAnalyzer {
     }
 
     // analyzeCompressionType will parse the compression type from properties
-    public static TCompressionType analyzeCompressionType(Map<String, String> properties) throws  AnalysisException {
+    public static TCompressionType analyzeCompressionType(Map<String, String> properties) throws AnalysisException {
         String compressionType = "";
         if (properties != null && properties.containsKey(PROPERTIES_COMPRESSION)) {
             compressionType = properties.get(PROPERTIES_COMPRESSION);
@@ -762,7 +766,6 @@ public class PropertyAnalyzer {
         throw new AnalysisException(PropertyAnalyzer.ENABLE_UNIQUE_KEY_MERGE_ON_WRITE + " must be `true` or `false`");
     }
 
-
     /**
      * Check the type property of the catalog props.
      */
@@ -798,5 +801,3 @@ public class PropertyAnalyzer {
         }
     }
 }
-
-

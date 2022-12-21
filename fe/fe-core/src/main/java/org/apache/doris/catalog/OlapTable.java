@@ -592,8 +592,8 @@ public class OlapTable extends Table {
         if (full) {
             return indexIdToMeta.get(indexId).getSchema();
         } else {
-            return indexIdToMeta.get(indexId).getSchema().stream().filter(column ->
-                    column.isVisible()).collect(Collectors.toList());
+            return indexIdToMeta.get(indexId).getSchema().stream().filter(column -> column.isVisible())
+                    .collect(Collectors.toList());
         }
     }
 
@@ -1128,7 +1128,6 @@ public class OlapTable extends Table {
         return false;
     }
 
-
     @Override
     public void write(DataOutput out) throws IOException {
         super.write(out);
@@ -1621,6 +1620,22 @@ public class OlapTable extends Table {
         tableProperty.buildInMemory();
     }
 
+    public Boolean isAutoBucket() {
+        if (tableProperty != null) {
+            return tableProperty.isAutoBucket();
+        }
+        return false;
+    }
+
+    public void setIsAutoBucket(boolean isAutoBucket) {
+        if (tableProperty == null) {
+            tableProperty = new TableProperty(new HashMap<>());
+        }
+        tableProperty.modifyTableProperties(PropertyAnalyzer.PROPERTIES_AUTO_BUCKET,
+                Boolean.valueOf(isAutoBucket).toString());
+        tableProperty.buildAutoBucket();
+    }
+
     public boolean getEnableLightSchemaChange() {
         if (tableProperty != null) {
             return tableProperty.getUseSchemaLightChange();
@@ -1874,11 +1889,11 @@ public class OlapTable extends Table {
             return false;
         }
         List<Expr> partitionExps = aggregateInfo.getPartitionExprs() != null
-                ? aggregateInfo.getPartitionExprs() : groupingExps;
+                ? aggregateInfo.getPartitionExprs()
+                : groupingExps;
         DistributionInfo distribution = getDefaultDistributionInfo();
         if (distribution instanceof HashDistributionInfo) {
-            List<Column> distributeColumns =
-                    ((HashDistributionInfo) distribution).getDistributionColumns();
+            List<Column> distributeColumns = ((HashDistributionInfo) distribution).getDistributionColumns();
             PartitionInfo partitionInfo = getPartitionInfo();
             if (partitionInfo instanceof RangePartitionInfo) {
                 List<Column> rangeColumns = partitionInfo.getPartitionColumns();
@@ -1886,8 +1901,7 @@ public class OlapTable extends Table {
                     return false;
                 }
             }
-            List<SlotRef> partitionSlots =
-                    partitionExps.stream().map(Expr::unwrapSlotRef).collect(Collectors.toList());
+            List<SlotRef> partitionSlots = partitionExps.stream().map(Expr::unwrapSlotRef).collect(Collectors.toList());
             if (partitionSlots.contains(null)) {
                 return false;
             }
