@@ -602,7 +602,8 @@ terminal String
     KW_WORK,
     KW_WRITE,
     KW_YEAR,
-    KW_MTMV;
+    KW_MTMV,
+    KW_AUTO;
 
 terminal COMMA, COLON, DOT, DOTDOTDOT, AT, STAR, LPAREN, RPAREN, SEMICOLON, LBRACKET, RBRACKET, DIVIDE, MOD, ADD, SUBTRACT;
 terminal BITAND, BITOR, BITXOR, BITNOT;
@@ -2919,6 +2920,10 @@ opt_distribution_number ::=
     | KW_BUCKETS INTEGER_LITERAL:numDistribution
     {:
         RESULT = numDistribution.intValue();
+    :}
+    | KW_BUCKETS KW_AUTO
+    {:
+        RESULT = 0;
     :}
     ;
 
