@@ -1277,6 +1277,9 @@ public class OlapTable extends Table {
         if (in.readBoolean()) {
             tableProperty = TableProperty.read(in);
         }
+        if (isAutoBucket()) {
+            defaultDistributionInfo.markAutoBucket();
+        }
 
         // temp partitions
         tempPartitions = TempPartitions.read(in);
