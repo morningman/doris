@@ -21,7 +21,6 @@ import org.apache.doris.catalog.Column;
 import org.apache.doris.catalog.PrimitiveType;
 import org.apache.doris.catalog.ScalarType;
 import org.apache.doris.catalog.Type;
-import org.apache.doris.common.Config;
 import org.apache.doris.common.FeConstants;
 import org.apache.doris.common.util.Util;
 
@@ -346,10 +345,7 @@ public class JdbcClient {
                     int precision = fieldSchema.getColumnSize() + 1;
                     int scale = fieldSchema.getDecimalDigits();
                     if (precision <= ScalarType.MAX_DECIMAL128_PRECISION) {
-                        if (!Config.enable_decimal_conversion && precision > ScalarType.MAX_DECIMALV2_PRECISION) {
-                            return ScalarType.createStringType();
-                        }
-                        return ScalarType.createDecimalType(precision, scale);
+                        return ScalarType.createDecimalV3Type(precision, scale);
                     } else {
                         return ScalarType.createStringType();
                     }
@@ -384,10 +380,7 @@ public class JdbcClient {
                 int precision = fieldSchema.getColumnSize();
                 int scale = fieldSchema.getDecimalDigits();
                 if (precision <= ScalarType.MAX_DECIMAL128_PRECISION) {
-                    if (!Config.enable_decimal_conversion && precision > ScalarType.MAX_DECIMALV2_PRECISION) {
-                        return ScalarType.createStringType();
-                    }
-                    return ScalarType.createDecimalType(precision, scale);
+                    return ScalarType.createDecimalV3Type(precision, scale);
                 } else {
                     return ScalarType.createStringType();
                 }

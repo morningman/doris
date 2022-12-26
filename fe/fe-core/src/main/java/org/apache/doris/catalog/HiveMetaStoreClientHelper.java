@@ -725,7 +725,7 @@ public class HiveMetaStoreClientHelper {
             if (match.find()) {
                 scale = Integer.parseInt(match.group(1));
             }
-            return ScalarType.createDecimalType(precision, scale);
+            return ScalarType.createDecimalV3Type(precision, scale);
         }
         return Type.INVALID;
     }
