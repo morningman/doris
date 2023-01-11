@@ -80,16 +80,17 @@ public class EsTable extends Table {
     private EsTablePartitions esTablePartitions;
 
     // Whether to enable docvalues scan optimization for fetching fields more fast, default to true
-    private boolean enableDocValueScan = true;
+    private boolean enableDocValueScan = Boolean.valueOf(EsResource.DOC_VALUE_SCAN_DEFAULT_VALUE);
     // Whether to enable sniffing keyword for filtering more reasonable, default to true
-    private boolean enableKeywordSniff = true;
+    private boolean enableKeywordSniff = Boolean.valueOf(EsResource.KEYWORD_SNIFF_DEFAULT_VALUE);
+
     // if the number of fields which value extracted from `doc_value` exceeding this max limitation
     // would downgrade to extract value from `stored_fields`
     private int maxDocValueFields = DEFAULT_MAX_DOCVALUE_FIELDS;
 
-    private boolean nodesDiscovery = true;
+    private boolean nodesDiscovery = Boolean.valueOf(EsResource.NODES_DISCOVERY_DEFAULT_VALUE);
 
-    private boolean httpSslEnabled = false;
+    private boolean httpSslEnabled = Boolean.valueOf(EsResource.HTTP_SSL_ENABLED_DEFAULT_VALUE);
 
     // tableContext is used for being convenient to persist some configuration parameters uniformly
     private Map<String, String> tableContext = new HashMap<>();
@@ -264,7 +265,7 @@ public class EsTable extends Table {
         if (tableContext.containsKey("enableKeywordSniff")) {
             enableKeywordSniff = Boolean.parseBoolean(tableContext.get("enableKeywordSniff"));
         } else {
-            enableKeywordSniff = true;
+            enableKeywordSniff = Boolean.valueOf(EsResource.KEYWORD_SNIFF_DEFAULT_VALUE);
         }
         if (tableContext.containsKey("maxDocValueFields")) {
             try {
@@ -276,12 +277,17 @@ public class EsTable extends Table {
         if (tableContext.containsKey(EsResource.NODES_DISCOVERY)) {
             nodesDiscovery = Boolean.parseBoolean(tableContext.get(EsResource.NODES_DISCOVERY));
         } else {
-            nodesDiscovery = true;
+            nodesDiscovery = Boolean.valueOf(EsResource.NODES_DISCOVERY_DEFAULT_VALUE);
         }
         if (tableContext.containsKey(EsResource.HTTP_SSL_ENABLED)) {
             httpSslEnabled = Boolean.parseBoolean(tableContext.get(EsResource.HTTP_SSL_ENABLED));
         } else {
-            httpSslEnabled = false;
+            httpSslEnabled = Boolean.valueOf(EsResource.HTTP_SSL_ENABLED_DEFAULT_VALUE);
+        }
+        if (tableContext.containsKey("enableDocValueScan")) {
+            enableDocValueScan = Boolean.parseBoolean(tableContext.get("enableDocValueScan"));
+        } else {
+            enableDocValueScan = Boolean.valueOf(EsResource.DOC_VALUE_SCAN_DEFAULT_VALUE);
         }
         PartitionType partType = PartitionType.valueOf(Text.readString(in));
         if (partType == PartitionType.UNPARTITIONED) {

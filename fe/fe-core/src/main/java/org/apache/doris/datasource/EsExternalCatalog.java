@@ -66,26 +66,14 @@ public class EsExternalCatalog extends ExternalCatalog {
         if (properties.containsKey("ssl")) {
             properties.put(EsResource.HTTP_SSL_ENABLED, properties.remove("ssl"));
         }
-        if (!properties.containsKey(EsResource.HTTP_SSL_ENABLED)) {
-            properties.put(EsResource.HTTP_SSL_ENABLED, String.valueOf(false));
-        }
         if (properties.containsKey("username")) {
             properties.put(EsResource.USER, properties.remove("username"));
         }
         if (properties.containsKey("doc_value_scan")) {
             properties.put(EsResource.DOC_VALUE_SCAN, properties.remove("doc_value_scan"));
         }
-        if (!properties.containsKey(EsResource.DOC_VALUE_SCAN)) {
-            properties.put(EsResource.DOC_VALUE_SCAN, "true");
-        }
         if (properties.containsKey("keyword_sniff")) {
             properties.put(EsResource.KEYWORD_SNIFF, properties.remove("keyword_sniff"));
-        }
-        if (!properties.containsKey(EsResource.KEYWORD_SNIFF)) {
-            properties.put(EsResource.KEYWORD_SNIFF, "true");
-        }
-        if (!properties.containsKey(EsResource.NODES_DISCOVERY)) {
-            properties.put(EsResource.NODES_DISCOVERY, "true");
         }
         return properties;
     }
@@ -104,19 +92,23 @@ public class EsExternalCatalog extends ExternalCatalog {
     }
 
     public boolean enableDocValueScan() {
-        return Boolean.valueOf(catalogProperty.getOrDefault(EsResource.DOC_VALUE_SCAN, "true"));
+        return Boolean.valueOf(
+                catalogProperty.getOrDefault(EsResource.DOC_VALUE_SCAN, EsResource.DOC_VALUE_SCAN_DEFAULT_VALUE));
     }
 
     public boolean enableKeywordSniff() {
-        return Boolean.valueOf(catalogProperty.getOrDefault(EsResource.KEYWORD_SNIFF, "true"));
+        return Boolean.valueOf(
+                catalogProperty.getOrDefault(EsResource.KEYWORD_SNIFF, EsResource.KEYWORD_SNIFF_DEFAULT_VALUE));
     }
 
     public boolean enableSsl() {
-        return Boolean.valueOf(catalogProperty.getOrDefault(EsResource.HTTP_SSL_ENABLED, "false"));
+        return Boolean.valueOf(
+                catalogProperty.getOrDefault(EsResource.HTTP_SSL_ENABLED, EsResource.HTTP_SSL_ENABLED_DEFAULT_VALUE));
     }
 
     public boolean enableNodesDiscovery() {
-        return Boolean.valueOf(catalogProperty.getOrDefault(EsResource.NODES_DISCOVERY, "true"));
+        return Boolean.valueOf(
+                catalogProperty.getOrDefault(EsResource.NODES_DISCOVERY, EsResource.NODES_DISCOVERY_DEFAULT_VALUE));
     }
 
     @Override
