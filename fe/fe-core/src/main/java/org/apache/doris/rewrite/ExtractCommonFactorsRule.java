@@ -44,13 +44,11 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * This rule extracts common predicate from multiple disjunctions when it is applied
@@ -116,8 +114,7 @@ public class ExtractCommonFactorsRule implements ExprRewriteRule {
      * 4. Construct new expr:
      * @return: a and b' and (b or (e and f))
      */
-    private Expr extractCommonFactors(List<List<Expr>> exprs, Analyzer analyzer, ExprRewriter.ClauseType clauseType)
-            throws AnalysisException {
+    private Expr extractCommonFactors(List<List<Expr>> exprs, Analyzer analyzer, ExprRewriter.ClauseType clauseType) {
         if (exprs.size() < 2) {
             return null;
         }
@@ -191,19 +188,12 @@ public class ExtractCommonFactorsRule implements ExprRewriteRule {
         }
         Expr result = null;
         if (CollectionUtils.isNotEmpty(commonFactorList)) {
-            commonFactorList = commonFactorList.stream().map(expr -> {
-                try {
-                    return apply(expr, analyzer, clauseType);
-                } catch (AnalysisException e) {
-                    throw new RuntimeException(e);
-                }
-            }).collect(Collectors.toList());
             result = new CompoundPredicate(CompoundPredicate.Operator.AND,
                     makeCompound(commonFactorList, CompoundPredicate.Operator.AND),
-                    makeCompoundRemaining(remainingOrClause, CompoundPredicate.Operator.OR, analyzer, clauseType));
+                    makeCompoundRemaining(remainingOrClause, CompoundPredicate.Operator.OR));
             result.setPrintSqlInParens(true);
         } else {
-            result = makeCompoundRemaining(remainingOrClause, CompoundPredicate.Operator.OR, analyzer, clauseType);
+            result = makeCompoundRemaining(remainingOrClause, CompoundPredicate.Operator.OR);
         }
         if (LOG.isDebugEnabled()) {
             LOG.debug("equal ors: " + result.toSql());
@@ -441,8 +431,7 @@ public class ExtractCommonFactorsRule implements ExprRewriteRule {
         return result;
     }
 
-    private Expr makeCompoundRemaining(List<Expr> exprs, CompoundPredicate.Operator op,
-            Analyzer analyzer, ExprRewriter.ClauseType clauseType) throws AnalysisException {
+    private Expr makeCompoundRemaining(List<Expr> exprs, CompoundPredicate.Operator op) {
         if (CollectionUtils.isEmpty(exprs)) {
             return null;
         }
@@ -453,7 +442,7 @@ public class ExtractCommonFactorsRule implements ExprRewriteRule {
         Expr rewritePredicate = null;
         // only OR will be rewrite to IN
         if (op == CompoundPredicate.Operator.OR) {
-            rewritePredicate = rewriteOrToIn(exprs, analyzer, clauseType);
+            rewritePredicate = rewriteOrToIn(exprs);
             // IF rewrite finished, rewritePredicate will not be null
             // IF not rewrite, do compoundPredicate
             if (rewritePredicate != null) {
@@ -469,109 +458,60 @@ public class ExtractCommonFactorsRule implements ExprRewriteRule {
         return result;
     }
 
-    private Expr rewriteOrToIn(List<Expr> exprs, Analyzer analyzer, ExprRewriter.ClauseType clauseType)
-            throws AnalysisException {
+    private Expr rewriteOrToIn(List<Expr> exprs) {
         // remainingOR  expr = BP IP
         InPredicate inPredicate = null;
+        boolean isOrToInAllowed = true;
+        Set<String> slotSet = new LinkedHashSet<>();
+
         int rewriteThreshold;
         if (ConnectContext.get() == null) {
             rewriteThreshold = 2;
         } else {
             rewriteThreshold = ConnectContext.get().getSessionVariable().getRewriteOrToInPredicateThreshold();
         }
-        List<Expr> notMergedExprs = Lists.newArrayList();
-        /**
-         * col1= 1 or col1=2 or col2=3 or col2=4 or col1 != 5 or col1 not in (2)
-         * ==>
-         * slotNameToMergeExprsMap:
-         *  {
-         *      col1:[col1=1, col1=2],
-         *      col2:[col2=3, col2=4]
-         *  }
-         * notMergedExprs: [col1 != 5, col1 not in (2)]
-         */
-        Map<String, List<Expr>> slotNameToMergeExprsMap = new HashMap<>();
-        /*
-        slotNameForMerge is keys of slotNameToMergeExprsMap, but reserves slot orders in original expr.
-        To reserve orders, we can get stable output, and hence good for unit/regression test.
-         */
-        List<String> slotNameForMerge = Lists.newArrayList();
 
         for (int i = 0; i < exprs.size(); i++) {
             Expr predicate = exprs.get(i);
-            if (predicate instanceof CompoundPredicate
-                    && ((CompoundPredicate) predicate).getOp() == Operator.AND) {
-                CompoundPredicate and = (CompoundPredicate) predicate;
-                Expr left = and.getChild(0);
-                if (left instanceof CompoundPredicate) {
-                    left = apply(and.getChild(0), analyzer, clauseType);
-                    if (CompoundPredicate.isOr(left)) {
-                        left.setPrintSqlInParens(true);
-                    }
-                }
-                Expr right = and.getChild(1);
-                if (right instanceof CompoundPredicate) {
-                    right = apply(and.getChild(1), analyzer, clauseType);
-                    if (CompoundPredicate.isOr(right)) {
-                        right.setPrintSqlInParens(true);
-                    }
-                }
-                notMergedExprs.add(new CompoundPredicate(Operator.AND, left, right));
-            } else if (!(predicate instanceof BinaryPredicate) && !(predicate instanceof InPredicate)) {
-                notMergedExprs.add(predicate);
+            if (!(predicate instanceof BinaryPredicate) && !(predicate instanceof InPredicate)) {
+                isOrToInAllowed = false;
+                break;
             } else if (!(predicate.getChild(0) instanceof SlotRef)) {
-                notMergedExprs.add(predicate);
+                isOrToInAllowed = false;
+                break;
             } else if (!(predicate.getChild(1) instanceof LiteralExpr)) {
-                notMergedExprs.add(predicate);
+                isOrToInAllowed = false;
+                break;
             } else if (predicate instanceof BinaryPredicate
                     && ((BinaryPredicate) predicate).getOp() != BinaryPredicate.Operator.EQ) {
-                notMergedExprs.add(predicate);
-            } else if (predicate instanceof InPredicate
-                    && ((InPredicate) predicate).isNotIn()) {
-                notMergedExprs.add(predicate);
+                isOrToInAllowed = false;
+                break;
             } else {
                 TableName tableName = ((SlotRef) predicate.getChild(0)).getTableName();
-                String columnWithTable;
                 if (tableName != null) {
                     String tblName = tableName.toString();
-                    columnWithTable = tblName + "." + ((SlotRef) predicate.getChild(0)).getColumnName();
+                    String columnWithTable = tblName + "." + ((SlotRef) predicate.getChild(0)).getColumnName();
+                    slotSet.add(columnWithTable);
                 } else {
-                    columnWithTable = ((SlotRef) predicate.getChild(0)).getColumnName();
+                    slotSet.add(((SlotRef) predicate.getChild(0)).getColumnName());
                 }
-                slotNameToMergeExprsMap.computeIfAbsent(columnWithTable, key -> {
-                    slotNameForMerge.add(columnWithTable);
-                    return Lists.newArrayList();
-                });
+            }
+        }
 
-                slotNameToMergeExprsMap.get(columnWithTable).add(predicate);
+        // isOrToInAllowed : true, means can rewrite
+        // slotSet.size : nums of columnName in exprs, should be 1
+        if (isOrToInAllowed && slotSet.size() == 1) {
+            if (exprs.size() < rewriteThreshold) {
+                return null;
             }
+
+            // get deduplication list
+            List<Expr> deduplicationExprs = getDeduplicationList(exprs);
+            inPredicate = new InPredicate(deduplicationExprs.get(0),
+                    deduplicationExprs.subList(1, deduplicationExprs.size()), false);
         }
-        Expr notMerged = null;
-        if (!notMergedExprs.isEmpty()) {
-            notMerged = CompoundPredicate.createDisjunctivePredicate(notMergedExprs);
-        }
-        List<Expr> rewritten = Lists.newArrayList();
-        if (!slotNameToMergeExprsMap.isEmpty()) {
-            for (String columnNameWithTable : slotNameForMerge) {
-                List<Expr> toMerge = slotNameToMergeExprsMap.get(columnNameWithTable);
-                if (toMerge.size() < rewriteThreshold) {
-                    rewritten.addAll(toMerge);
-                } else {
-                    List<Expr> deduplicationExprs = getDeduplicationList(toMerge);
-                    inPredicate = new InPredicate(deduplicationExprs.get(0),
-                            deduplicationExprs.subList(1, deduplicationExprs.size()), false);
-                    rewritten.add(inPredicate);
-                }
-            }
-        }
-        if (rewritten.isEmpty()) {
-            return notMerged;
-        } else {
-            if (notMerged != null) {
-                rewritten.add(notMerged);
-            }
-            return CompoundPredicate.createDisjunctivePredicate(rewritten);
-        }
+
+        return inPredicate;
     }
 
     public List<Expr> getDeduplicationList(List<Expr> exprs) {
