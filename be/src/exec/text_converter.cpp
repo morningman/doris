@@ -53,7 +53,8 @@ bool TextConverter::write_vec_column(const SlotDescriptor* slot_desc,
     StringParser::ParseResult parse_result = StringParser::PARSE_SUCCESS;
     size_t origin_size = col_ptr->size();
     // Parse the raw-text data. Translate the text string to internal format.
-    switch (slot_desc->type().type) {
+    Type& type = slot_desc->type().type;
+    switch (type) {
     case TYPE_HLL: {
         HyperLogLog hyper_log_log(Slice(data, len));
         auto& hyper_data = reinterpret_cast<vectorized::ColumnHLL*>(col_ptr)->get_data();
@@ -155,6 +156,30 @@ bool TextConverter::write_vec_column(const SlotDescriptor* slot_desc,
         break;
     }
 
+    case TYPE_DATEV2: {
+        vectorized::DateV2Value<vectorized::DateV2ValueType> ts_slot;
+        if (!ts_slot.from_date_str(data, len)) {
+            parse_result = StringParser::PARSE_FAILURE;
+            break;
+        }
+        reinterpret_cast<vectorized::ColumnVector<vectorized::UInt32>*>(col_ptr)
+                ->get_data()
+                .resize_fill(origin_size + rows, *reinterpret_cast<uint32_t*>(&ts_slot));
+        break;
+    }
+
+    case TYPE_DATETIMEV2: {
+        vectorized::DateV2Value<vectorized::DateTimeV2ValueType> ts_slot;
+        if (!ts_slot.from_date_str(data, len)) {
+            parse_result = StringParser::PARSE_FAILURE;
+            break;
+        }
+        reinterpret_cast<vectorized::ColumnVector<vectorized::UInt64>*>(col_ptr)
+                ->get_data()
+                .resize_fill(origin_size + rows, *reinterpret_cast<uint64_t*>(&ts_slot));
+        break;
+    }
+
     case TYPE_DECIMALV2: {
         DecimalV2Value decimal_slot;
         if (decimal_slot.parse_from_str(data, len)) {
@@ -164,6 +189,36 @@ bool TextConverter::write_vec_column(const SlotDescriptor* slot_desc,
         reinterpret_cast<vectorized::ColumnVector<vectorized::Int128>*>(col_ptr)
                 ->get_data()
                 .resize_fill(origin_size + rows, decimal_slot.value());
+        break;
+    }
+    case TYPE_DECIMAL32: {
+        const Int32 decimal_slot = StringParser::string_to_decimal<Int32>(
+                data, len, type.precision, type.scale, &parse_result);
+        if (parse_result == StringParser::PARSE_FAILURE) {
+            break;    
+        }
+        reinterpret_cast<vectorized::ColumnDecimal32*>(col_ptr)->get_data()
+                .resize_fill(origin_size + rows, decimal_slot);
+        break;
+    }
+    case TYPE_DECIMAL64: {
+        const Int64 decimal_slot = StringParser::string_to_decimal<Int64>(
+                data, len, type.precision, type.scale, &parse_result);
+        if (parse_result == StringParser::PARSE_FAILURE) {
+            break;    
+        }
+        reinterpret_cast<vectorized::ColumnDecimal64*>(col_ptr)->get_data()
+                .resize_fill(origin_size + rows, decimal_slot);
+        break;
+    }
+    case TYPE_DECIMAL128I: {
+        const Int128 decimal_slot = StringParser::string_to_decimal<Int128>(
+                data, len, type.precision, type.scale, &parse_result);
+        if (parse_result == StringParser::PARSE_FAILURE) {
+            break;    
+        }
+        reinterpret_cast<vectorized::ColumnDecimal128I*>(col_ptr)->get_data(
+                .resize_fill(origin_size + rows, decimal_slot);
         break;
     }
 

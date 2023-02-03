@@ -481,6 +481,7 @@ Status VFileScanner::_get_next_reader() {
         }
         const TFileRangeDesc& range = _ranges[_next_range++];
 
+        LOG(INFO) << "xx debug path: " << range.path;
         // create reader for specific format
         // TODO: add json, avro
         Status init_status;

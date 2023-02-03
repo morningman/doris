@@ -371,6 +371,7 @@ Status CsvReader::_fill_dest_columns(const Slice& line, Block* block,
 
 Status CsvReader::_line_split_to_values(const Slice& line, bool* success) {
     if (!_is_proto_format && !validate_utf8(line.data, line.size)) {
+        // LOG(INFO) << "line data: " << line.to_string();
         if (!_is_load) {
             return Status::InternalError("Only support csv data in utf8 codec");
         } else {
