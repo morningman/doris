@@ -38,4 +38,10 @@ public class RangerAccessController implements CatalogAccessController {
         // TODO
         return false;
     }
+
+    @Override
+    public boolean checkColPriv(UserIdentity currentUser, String ctl, String db, String tbl, String col,
+            PrivPredicate wanted) {
+        return false;
+    }
 }

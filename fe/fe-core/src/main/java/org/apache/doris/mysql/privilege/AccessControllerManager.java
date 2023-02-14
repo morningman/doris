@@ -20,6 +20,7 @@ package org.apache.doris.mysql.privilege;
 import org.apache.doris.analysis.TableName;
 import org.apache.doris.analysis.UserIdentity;
 import org.apache.doris.catalog.AuthorizationInfo;
+import org.apache.doris.common.AnalysisException;
 import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.mysql.privilege.Auth.PrivLevel;
 import org.apache.doris.qe.ConnectContext;
@@ -121,6 +122,21 @@ public class AccessControllerManager {
         boolean hasGlobal = sysAccessController.checkGlobalPriv(currentUser, wanted);
         boolean hasTbl = getAccessControllerOrDefault(ctl).checkTblPriv(hasGlobal, currentUser, ctl, db, tbl, wanted);
         return hasGlobal || hasTbl;
+    }
+
+    // ==== Column ====
+    public void checkColumnPriv(UserIdentity currentUser, String ctl, Map<TableName, String> tableToColMap,
+            PrivPredicate wanted) throws AnalysisException {
+        boolean hasGlobal = sysAccessController.checkGlobalPriv(currentUser, wanted);
+        CatalogAccessController accessController = getAccessControllerOrDefault(ctl);
+        for (Map.Entry<TableName, String> entry : tableToColMap.entrySet()) {
+            TableName tableName = entry.getKey();
+            boolean hasCol = accessController.checkColPriv(hasGlobal, currentUser, ctl, tableName.getDb(),
+                    tableName.getTbl(), entry.getValue(), wanted);
+            if (!hasGlobal && !hasCol) {
+                throw new AnalysisException("Access deny to column " + entry.getValue() + " in " + entry.getKey());
+            }
+        }
     }
 
     // ==== Resource ====

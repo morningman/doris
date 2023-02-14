@@ -45,4 +45,13 @@ public interface CatalogAccessController {
     }
 
     boolean checkTblPriv(UserIdentity currentUser, String ctl, String db, String tbl, PrivPredicate wanted);
+
+    default boolean checkColPriv(boolean hasGlobal, UserIdentity currentUser, String ctl, String db, String tbl,
+            String col, PrivPredicate wanted) {
+        boolean res = checkColPriv(currentUser, ctl, db, tbl, col, wanted);
+        return hasGlobal || res;
+    }
+
+    boolean checkColPriv(UserIdentity currentUser, String ctl, String db, String tbl,
+            String col, PrivPredicate wanted);
 }

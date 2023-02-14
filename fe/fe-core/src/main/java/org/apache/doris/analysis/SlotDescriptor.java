@@ -41,6 +41,7 @@ public class SlotDescriptor {
     private final TupleDescriptor parent;
     private Type type;
     private Column column;  // underlying column, if there is one
+    private TableName tableName; // qualified name of this column
 
     // for SlotRef.toSql() in the absence of a path
     private String label;
@@ -67,8 +68,6 @@ public class SlotDescriptor {
     private ColumnStats stats;  // only set if 'column' isn't set
     private boolean isAgg;
     private boolean isMultiRef;
-    // used for load to get more information of varchar and decimal
-    private Type originType;
     // If set to false, then such slots will be ignored during
     // materialize them.Used to optmize to read less data and less memory usage
     private boolean needMaterialize = true;
@@ -159,10 +158,19 @@ public class SlotDescriptor {
         return column;
     }
 
+    public TableName getTableName() {
+        return tableName;
+    }
+
     public void setColumn(Column column) {
         this.column = column;
         this.type = column.getType();
-        this.originType = column.getOriginType();
+    }
+
+    public void setColumnWithTableName(TableName tableName, Column column) {
+        this.tableName = tableName;
+        this.column = column;
+        this.type = column.getType();
     }
 
     public void setSrcColumn(Column column) {
@@ -254,10 +262,6 @@ public class SlotDescriptor {
         this.label = label;
     }
 
-    public void setSourceExprs(List<Expr> exprs) {
-        sourceExprs = exprs;
-    }
-
     public void setSourceExpr(Expr expr) {
         sourceExprs = Collections.singletonList(expr);
     }
@@ -316,11 +320,9 @@ public class SlotDescriptor {
         return true;
     }
 
-    // TODO
     public TSlotDescriptor toThrift() {
-
         TSlotDescriptor tSlotDescriptor = new TSlotDescriptor(id.asInt(), parent.getId().asInt(),
-                (originType != null ? originType.toThrift() : type.toThrift()), -1, byteOffset, nullIndicatorByte,
+                type.toThrift(), -1, byteOffset, nullIndicatorByte,
                 nullIndicatorBit, ((column != null) ? column.getName() : ""), slotIdx, isMaterialized);
         tSlotDescriptor.setNeedMaterialize(needMaterialize);
         if (column != null) {

@@ -306,6 +306,14 @@ public class Auth implements Writable {
         }
     }
 
+    // ==== Column ====
+    public boolean checkColPriv(UserIdentity currentUser, String ctl, String db, String tbl, String col,
+            PrivPredicate wanted) {
+        // TODO: Support column priv
+        return true;
+    }
+
+
     // ==== Resource ====
     public boolean checkResourcePriv(UserIdentity currentUser, String resourceName, PrivPredicate wanted) {
         if (isLdapAuthEnabled() && LdapPrivsChecker.hasResourcePrivFromLdap(currentUser, resourceName, wanted)) {

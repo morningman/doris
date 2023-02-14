@@ -40,4 +40,10 @@ public class InternalCatalogAccessController implements CatalogAccessController 
     public boolean checkTblPriv(UserIdentity currentUser, String ctl, String db, String tbl, PrivPredicate wanted) {
         return auth.checkTblPriv(currentUser, ctl, db, tbl, wanted);
     }
+
+    @Override
+    public boolean checkColPriv(UserIdentity currentUser, String ctl, String db, String tbl, String col,
+            PrivPredicate wanted) {
+        return auth.checkColPriv(currentUser, ctl, db, tbl, col, wanted);
+    }
 }

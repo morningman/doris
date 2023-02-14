@@ -565,8 +565,8 @@ public class PlannerTest extends TestWithFeService {
 
     @Test
     public void testEliminatingSortNode() throws Exception {
-            // success case 1
-            {
+        // success case 1
+        {
             String sql1 = "explain select k1 from db1.tbl1 where k1 = 1 order by k1, k2 limit "
                     + connectContext.getSessionVariable().topnOptLimitThreshold;
             StmtExecutor stmtExecutor1 = new StmtExecutor(connectContext, sql1);
@@ -575,10 +575,10 @@ public class PlannerTest extends TestWithFeService {
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertTrue(plan1.contains("SORT INFO:\n          `k1`\n          `k2`"));
             Assertions.assertTrue(plan1.contains("SORT LIMIT:"));
-            }
+        }
 
-            // fail case 2
-            {
+        // fail case 2
+        {
             String sql1 = "explain select k1 from db1.tbl1 where k1 = 1 and k3 = 2 order by k1, k2 limit "
                     + connectContext.getSessionVariable().topnOptLimitThreshold;
             StmtExecutor stmtExecutor1 = new StmtExecutor(connectContext, sql1);
@@ -587,10 +587,10 @@ public class PlannerTest extends TestWithFeService {
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertTrue(plan1.contains("SORT INFO:\n          `k1`\n          `k2`"));
             Assertions.assertTrue(plan1.contains("SORT LIMIT:"));
-            }
+        }
 
-            // fail case 3
-            {
+        // fail case 3
+        {
             String sql1 = "explain select k1 from db1.tbl1 where k1 = 1 and k2 != 2 order by k1, k2 limit "
                     + connectContext.getSessionVariable().topnOptLimitThreshold;
             StmtExecutor stmtExecutor1 = new StmtExecutor(connectContext, sql1);
@@ -599,10 +599,10 @@ public class PlannerTest extends TestWithFeService {
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertTrue(plan1.contains("SORT INFO:\n          `k1`\n          `k2`"));
             Assertions.assertTrue(plan1.contains("SORT LIMIT:"));
-            }
+        }
 
-            // fail case 4
-            {
+        // fail case 4
+        {
             String sql1 = "explain select k1 from db1.tbl1 where k1 = 1 or k2 = 2 order by k1, k2 limit "
                     + connectContext.getSessionVariable().topnOptLimitThreshold;
             StmtExecutor stmtExecutor1 = new StmtExecutor(connectContext, sql1);
@@ -611,10 +611,10 @@ public class PlannerTest extends TestWithFeService {
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertTrue(plan1.contains("SORT INFO:\n          `k1`\n          `k2`"));
             Assertions.assertTrue(plan1.contains("SORT LIMIT:"));
-            }
+        }
 
-            // fail case 5
-            {
+        // fail case 5
+        {
             String sql1 = "explain select k1 from db1.tbl1 where k1 = 1 and k2 = 2 or k3 = 3 order by k1, k2 limit "
                     + connectContext.getSessionVariable().topnOptLimitThreshold;
             StmtExecutor stmtExecutor1 = new StmtExecutor(connectContext, sql1);
@@ -623,11 +623,11 @@ public class PlannerTest extends TestWithFeService {
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertTrue(plan1.contains("SORT INFO:\n          `k1`\n          `k2`"));
             Assertions.assertTrue(plan1.contains("SORT LIMIT:"));
-            }
+        }
 
-            // fail case 6
-            // TODO, support: in (select 1)
-            {
+        // fail case 6
+        // TODO, support: in (select 1)
+        {
             String sql1 = "explain select k1 from db1.tbl1 where k1 in (select 1) and k2 = 2 order by k1, k2 limit "
                     + connectContext.getSessionVariable().topnOptLimitThreshold;
             StmtExecutor stmtExecutor1 = new StmtExecutor(connectContext, sql1);
@@ -635,10 +635,10 @@ public class PlannerTest extends TestWithFeService {
             Planner planner1 = stmtExecutor1.planner();
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertTrue(plan1.contains("order by:"));
-            }
+        }
 
-            // fail case 7
-            {
+        // fail case 7
+        {
             String sql1 = "explain select k1 from db1.tbl1 where k1 not in (1) and k2 = 2 order by k1, k2 limit "
                     + connectContext.getSessionVariable().topnOptLimitThreshold;
             StmtExecutor stmtExecutor1 = new StmtExecutor(connectContext, sql1);
@@ -646,10 +646,10 @@ public class PlannerTest extends TestWithFeService {
             Planner planner1 = stmtExecutor1.planner();
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertTrue(plan1.contains("order by:"));
-            }
+        }
 
-            // success case 1
-            {
+        // success case 1
+        {
             String sql1 = "explain select k1 from db1.tbl1 where k1 = 1 and k2 = 2 order by k1, k2 limit "
                     + connectContext.getSessionVariable().topnOptLimitThreshold;
             StmtExecutor stmtExecutor1 = new StmtExecutor(connectContext, sql1);
@@ -658,10 +658,10 @@ public class PlannerTest extends TestWithFeService {
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertFalse(plan1.contains("SORT INFO:\n          `k1`\n          `k2`"));
             Assertions.assertFalse(plan1.contains("SORT LIMIT:"));
-            }
+        }
 
-            // success case 2
-            {
+        // success case 2
+        {
             String sql1 = "explain select k1 from db1.tbl1 where k3 = 3 and k2 = 2 and k1 = 1 order by k1, k2 limit "
                     + connectContext.getSessionVariable().topnOptLimitThreshold;
             StmtExecutor stmtExecutor1 = new StmtExecutor(connectContext, sql1);
@@ -670,34 +670,36 @@ public class PlannerTest extends TestWithFeService {
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertFalse(plan1.contains("SORT INFO:\n          `k1`\n          `k2`"));
             Assertions.assertFalse(plan1.contains("SORT LIMIT:"));
-            }
+        }
 
-            // success case 3
-            {
-            String sql1 = "explain select k1 from db1.tbl1 where k1 in (1) and k2 in (2) and k2 !=2 order by k1, k2 limit "
-                    + connectContext.getSessionVariable().topnOptLimitThreshold;
+        // success case 3
+        {
+            String sql1 =
+                    "explain select k1 from db1.tbl1 where k1 in (1) and k2 in (2) and k2 !=2 order by k1, k2 limit "
+                            + connectContext.getSessionVariable().topnOptLimitThreshold;
             StmtExecutor stmtExecutor1 = new StmtExecutor(connectContext, sql1);
             stmtExecutor1.execute();
             Planner planner1 = stmtExecutor1.planner();
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertFalse(plan1.contains("SORT INFO:\n          `k1`\n          `k2`"));
             Assertions.assertFalse(plan1.contains("SORT LIMIT:"));
-            }
+        }
 
-            // success case 4
-            {
-            String sql1 = "explain select k1 from db1.tbl1 where k1 in (concat('1','2')) and k2 = 2 order by k1, k2 limit "
-                    + connectContext.getSessionVariable().topnOptLimitThreshold;
+        // success case 4
+        {
+            String sql1 =
+                    "explain select k1 from db1.tbl1 where k1 in (concat('1','2')) and k2 = 2 order by k1, k2 limit "
+                            + connectContext.getSessionVariable().topnOptLimitThreshold;
             StmtExecutor stmtExecutor1 = new StmtExecutor(connectContext, sql1);
             stmtExecutor1.execute();
             Planner planner1 = stmtExecutor1.planner();
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertFalse(plan1.contains("SORT INFO:\n          `k1`\n          `k2`"));
             Assertions.assertFalse(plan1.contains("SORT LIMIT:"));
-            }
+        }
 
-            // success case 5
-            {
+        // success case 5
+        {
             String sql1 = "explain select tbl1.k1 from db1.tbl1 join db1.tbl2 on tbl1.k1 = tbl2.k1"
                     + " where tbl1.k1 = 1 and tbl2.k1 = 2 and tbl1.k2 = 3 order by tbl1.k1, tbl2.k1 limit "
                     + connectContext.getSessionVariable().topnOptLimitThreshold;
@@ -707,8 +709,6 @@ public class PlannerTest extends TestWithFeService {
             String plan1 = planner1.getExplainString(new ExplainOptions(false, false));
             Assertions.assertFalse(plan1.contains("SORT INFO:"));
             Assertions.assertFalse(plan1.contains("SORT LIMIT:"));
-            }
-
-
+        }
     }
 }

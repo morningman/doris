@@ -31,13 +31,17 @@ import org.apache.doris.analysis.SlotId;
 import org.apache.doris.analysis.SlotRef;
 import org.apache.doris.analysis.StatementBase;
 import org.apache.doris.analysis.StorageBackend;
+import org.apache.doris.analysis.TableName;
 import org.apache.doris.analysis.TupleDescriptor;
 import org.apache.doris.catalog.Column;
+import org.apache.doris.catalog.Env;
 import org.apache.doris.catalog.PrimitiveType;
 import org.apache.doris.catalog.ScalarType;
 import org.apache.doris.catalog.Type;
+import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.UserException;
 import org.apache.doris.common.util.VectorizedUtil;
+import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.rewrite.mvrewrite.MVSelectFailedException;
 import org.apache.doris.thrift.TQueryOptions;
@@ -45,6 +49,7 @@ import org.apache.doris.thrift.TRuntimeFilterMode;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -163,6 +168,8 @@ public class OriginalPlanner extends Planner {
             insertStmt.prepareExpressions();
         }
 
+        checkColumnPrivileges(singleNodePlan);
+
         // TODO chenhao16 , no used materialization work
         // compute referenced slots before calling computeMemLayout()
         //analyzer.markRefdSlots(analyzer, singleNodePlan, resultExprs, null);
@@ -280,6 +287,43 @@ public class OriginalPlanner extends Planner {
                 // Optimize query like `SELECT ... FROM <tbl> WHERE ... ORDER BY ... LIMIT ...`
                 injectRowIdColumnSlot();
             }
+        }
+    }
+
+    private void checkColumnPrivileges(PlanNode singleNodePlan) throws AnalysisException {
+        if (ConnectContext.get() == null) {
+            return;
+        }
+        // 1. collect all columns
+        List<ScanNode> scanNodes = Lists.newArrayList();
+        singleNodePlan.collect((PlanNode planNode) -> planNode instanceof ScanNode, scanNodes);
+        // catalog : <db.table : column>
+        Map<String, Map<TableName, String>> ctlToTableColumnMap = Maps.newHashMap();
+        for (ScanNode scanNode : scanNodes) {
+            TupleDescriptor tupleDesc = scanNode.getTupleDesc();
+            for (SlotDescriptor slotDesc : tupleDesc.getSlots()) {
+                if (!slotDesc.isMaterialized()) {
+                    continue;
+                }
+                TableName tableName = slotDesc.getTableName();
+                Column column = slotDesc.getColumn();
+                if (tableName == null || !tableName.isFullyQualified() || column == null) {
+                    continue;
+                }
+                Map<TableName, String> tableColumnMap = ctlToTableColumnMap.get(tableName.getCtl());
+                if (tableColumnMap == null) {
+                    tableColumnMap = Maps.newHashMap();
+                    ctlToTableColumnMap.put(tableName.getCtl(), tableColumnMap);
+                }
+                tableColumnMap.put(tableName, column.getName());
+                LOG.debug("collect column {} in {}", column.getName(), tableName);
+            }
+        }
+        // 2. check privs
+        PrivPredicate wanted = PrivPredicate.SELECT;
+        for (Map.Entry<String, Map<TableName, String>> entry : ctlToTableColumnMap.entrySet()) {
+            Env.getCurrentEnv().getAccessManager().checkColumnPriv(ConnectContext.get().getCurrentUserIdentity(),
+                    entry.getKey(), entry.getValue(), wanted);
         }
     }
 
