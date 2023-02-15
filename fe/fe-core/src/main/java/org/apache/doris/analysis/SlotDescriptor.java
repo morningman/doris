@@ -41,7 +41,6 @@ public class SlotDescriptor {
     private final TupleDescriptor parent;
     private Type type;
     private Column column;  // underlying column, if there is one
-    private TableName tableName; // qualified name of this column
 
     // for SlotRef.toSql() in the absence of a path
     private String label;
@@ -158,17 +157,7 @@ public class SlotDescriptor {
         return column;
     }
 
-    public TableName getTableName() {
-        return tableName;
-    }
-
     public void setColumn(Column column) {
-        this.column = column;
-        this.type = column.getType();
-    }
-
-    public void setColumnWithTableName(TableName tableName, Column column) {
-        this.tableName = tableName;
         this.column = column;
         this.type = column.getType();
     }

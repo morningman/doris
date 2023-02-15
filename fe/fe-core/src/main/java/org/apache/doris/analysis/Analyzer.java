@@ -918,7 +918,7 @@ public class Analyzer {
             return result;
         }
         result = globalState.descTbl.addSlotDescriptor(d);
-        result.setColumnWithTableName(newTblName, col);
+        result.setColumn(col);
         boolean isNullable;
         if (VectorizedUtil.isVectorized()) {
             isNullable = col.isAllowNull();
