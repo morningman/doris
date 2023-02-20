@@ -268,6 +268,8 @@ public class SessionVariable implements Serializable, Writable {
     public static final String GROUP_BY_AND_HAVING_USE_ALIAS_FIRST = "group_by_and_having_use_alias_first";
     public static final String DROP_TABLE_IF_CTAS_FAILED = "drop_table_if_ctas_failed";
 
+    public static final String SHOW_USER_DEFAULT_ROLE = "show_user_default_role";
+
     // session origin value
     public Map<Field, String> sessionOriginValue = new HashMap<Field, String>();
     // check stmt is or not [select /*+ SET_VAR(...)*/ ...]
@@ -706,6 +708,10 @@ public class SessionVariable implements Serializable, Writable {
     // Whether drop table when create table as select insert data appear error.
     @VariableMgr.VarAttr(name = DROP_TABLE_IF_CTAS_FAILED, needForward = true)
     public boolean dropTableIfCtasFailed = true;
+
+    // If this is true, the result of `show roles` will return all user default role
+    @VariableMgr.VarAttr(name = SHOW_USER_DEFAULT_ROLE, needForward = true)
+    public boolean showUserDefaultRole = false;
 
     // If this fe is in fuzzy mode, then will use initFuzzyModeVariables to generate some variables,
     // not the default value set in the code.
@@ -1469,6 +1475,10 @@ public class SessionVariable implements Serializable, Writable {
 
     public void setEnableFileCache(boolean enableFileCache) {
         this.enableFileCache = enableFileCache;
+    }
+
+    public boolean isShowUserDefaultRole() {
+        return showUserDefaultRole;
     }
 
     /**
