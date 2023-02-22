@@ -72,6 +72,10 @@ Status FileFactory::create_file_reader(RuntimeProfile* /*profile*/,
                                        const FileDescription& file_description,
                                        std::shared_ptr<io::FileSystem>* file_system,
                                        io::FileReaderSPtr* file_reader, IOContext* io_ctx) {
+
+    LOG(INFO) << "yy debug create_file_reader: system_properties: " << system_properties.to_string()
+            << ", file_description: " << file_description.to_string();
+
     TFileType::type type = system_properties.system_type;
     auto cache_policy = io::FileCachePolicy::NO_CACHE;
     if (config::enable_file_cache && io_ctx->enable_file_cache) {

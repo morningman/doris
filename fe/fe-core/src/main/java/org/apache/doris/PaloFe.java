@@ -18,6 +18,7 @@
 package org.apache.doris;
 
 import org.apache.doris.catalog.Env;
+import org.apache.doris.catalog.HdfsResource;
 import org.apache.doris.common.CommandLineOptions;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.LdapConfig;
@@ -27,6 +28,7 @@ import org.apache.doris.common.Version;
 import org.apache.doris.common.telemetry.Telemetry;
 import org.apache.doris.common.util.JdkUtils;
 import org.apache.doris.common.util.NetUtils;
+import org.apache.doris.datasource.HMSClientException;
 import org.apache.doris.httpv2.HttpServer;
 import org.apache.doris.journal.bdbje.BDBDebugger;
 import org.apache.doris.journal.bdbje.BDBTool;
@@ -46,6 +48,12 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -71,6 +79,52 @@ public class PaloFe {
         options.enableHttpServer = true;
         options.enableQeService = true;
         start(DORIS_HOME_DIR, PID_DIR, args, options);
+    }
+
+    private static void test() {
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(ClassLoader.getSystemClassLoader());
+            // String finalLocation = "hdfs://nameservice1/quark1/user/hive/warehouse/test.db/hive/test_table";
+            Configuration conf = new Configuration();
+            conf.set("dfs.nameservices", "nameservice1");
+            conf.set("dfs.ha.namenodes.nameservice1", "nn1,nn2");
+            conf.set("dfs.namenode.rpc-address.nameservice1.nn1", "vm-0-5-centos:8020");
+            conf.set("dfs.namenode.rpc-address.nameservice1.nn2", "vm-0-8-centos:8020");
+            conf.set("dfs.client.failover.proxy.provider.nameservice1",
+                    "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider");
+            conf.set("hadoop.security.authentication", "kerberos");
+            conf.set("hadoop.kerberos.principal", "hdfs/vm-0-12-centos@TDH");
+            conf.set("hadoop.kerberos.keytab", "/etc/hdfs1/conf/hdfs.keytab");
+            UserGroupInformation.setConfiguration(conf);
+            try {
+                /**
+                 * Because metastore client is created by using
+                 * {@link org.apache.hadoop.hive.metastore.RetryingMetaStoreClient#getProxy}
+                 * it will relogin when TGT is expired, so we don't need to relogin manually.
+                 */
+                UserGroupInformation.loginUserFromKeytab(
+                        conf.get(HdfsResource.HADOOP_KERBEROS_PRINCIPAL, ""),
+                        conf.get(HdfsResource.HADOOP_KERBEROS_KEYTAB, ""));
+            } catch (IOException e) {
+                throw new HMSClientException("login with kerberos auth failed for catalog", e);
+            }
+
+            //Create a FileSystem object
+            conf.set("fs.defaultFS", "hdfs://nameservice1/");
+            FileSystem fs = FileSystem.get(conf);
+            //Open the file
+            Path filePath = new Path("/quark1/user/hive/warehouse/test.db/hive/test_table/1.txt");
+            try (FSDataInputStream inStream = fs.open(filePath)) {
+                //Read from the file
+                IOUtils.copyBytes(inStream, System.out, 200, false);
+            }
+            System.out.println("yy finish read");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } finally {
+            Thread.currentThread().setContextClassLoader(classLoader);
+        }
     }
 
     // entrance for doris frontend
@@ -122,6 +176,12 @@ public class PaloFe {
             checkCommandLineOptions(cmdLineOpts);
 
             LOG.info("Doris FE starting...");
+
+            if (Config.run_test) {
+                Thread.sleep(15000);
+                test();
+                return;
+            }
 
             FrontendOptions.init();
 
@@ -397,3 +457,5 @@ public class PaloFe {
         public boolean enableQeService = true;
     }
 }
+
+

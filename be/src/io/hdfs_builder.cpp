@@ -26,6 +26,8 @@
 #include "util/string_util.h"
 #include "util/uid_util.h"
 #include "util/url_coding.h"
+#include "util/stack_util.h"
+
 namespace doris {
 
 Status HDFSCommonBuilder::run_kinit() {
@@ -36,7 +38,7 @@ Status HDFSCommonBuilder::run_kinit() {
     fmt::memory_buffer kinit_command;
     fmt::format_to(kinit_command, "kinit -c {} -R -t {} -k {}", ticket_path, hdfs_kerberos_keytab,
                    hdfs_kerberos_principal);
-    VLOG_NOTICE << "kinit command: " << fmt::to_string(kinit_command);
+    LOG(INFO) << "kinit command: " << fmt::to_string(kinit_command) << get_stack_trace();
     std::string msg;
     AgentUtils util;
     bool rc = util.exec_cmd(fmt::to_string(kinit_command), &msg);
@@ -44,6 +46,7 @@ Status HDFSCommonBuilder::run_kinit() {
         return Status::InternalError("Kinit failed, errMsg: " + msg);
     }
     hdfsBuilderSetKerbTicketCachePath(hdfs_builder, ticket_path.c_str());
+    LOG(INFO) << "yy debug ticket path: " << ticket_path;
     return Status::OK();
 }
 
@@ -81,21 +84,28 @@ THdfsParams parse_properties(const std::map<std::string, std::string>& propertie
 
 HDFSCommonBuilder createHDFSBuilder(const THdfsParams& hdfsParams) {
     HDFSCommonBuilder builder;
-    hdfsBuilderSetNameNode(builder.get(), hdfsParams.fs_name.c_str());
+    LOG(INFO) << "yy debug hdfsParams.fs_name: #" << hdfsParams.fs_name << "#";
+    LOG(INFO) << "yy debug builder: #" << (builder.get() == nullptr) << "#";
+    try {
+        hdfsBuilderSetNameNode(builder.get(), hdfsParams.fs_name.c_str());
+        LOG(INFO) << "yy debug after set hdfsBuilderSetNameNode";
+    } catch (...) {
+        LOG(WARNING) << "yy debug errno=" << errno;
+    }
     // set hdfs user
     if (hdfsParams.__isset.user) {
         hdfsBuilderSetUserName(builder.get(), hdfsParams.user.c_str());
     }
     // set kerberos conf
-    if (hdfsParams.__isset.hdfs_kerberos_principal) {
-        builder.need_kinit = true;
-        builder.hdfs_kerberos_principal = hdfsParams.hdfs_kerberos_principal;
-        hdfsBuilderSetPrincipal(builder.get(), hdfsParams.hdfs_kerberos_principal.c_str());
-    }
-    if (hdfsParams.__isset.hdfs_kerberos_keytab) {
-        builder.need_kinit = true;
-        builder.hdfs_kerberos_keytab = hdfsParams.hdfs_kerberos_keytab;
-    }
+    // if (hdfsParams.__isset.hdfs_kerberos_principal) {
+    //     builder.need_kinit = true;
+    //     builder.hdfs_kerberos_principal = hdfsParams.hdfs_kerberos_principal;
+    //     hdfsBuilderSetPrincipal(builder.get(), hdfsParams.hdfs_kerberos_principal.c_str());
+    // }
+    // if (hdfsParams.__isset.hdfs_kerberos_keytab) {
+    //     builder.need_kinit = true;
+    //     builder.hdfs_kerberos_keytab = hdfsParams.hdfs_kerberos_keytab;
+    // }
     // set other conf
     if (hdfsParams.__isset.hdfs_conf) {
         for (const THdfsConf& conf : hdfsParams.hdfs_conf) {

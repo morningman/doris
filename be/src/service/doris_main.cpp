@@ -64,8 +64,10 @@
 #include "util/thrift_rpc_helper.h"
 #include "util/thrift_server.h"
 #include "util/uid_util.h"
+#include "io/file_factory.h"
 
 static void help(const char*);
+static void test();
 
 #include <dlfcn.h>
 
@@ -533,6 +535,8 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
+    test();
+
     while (!doris::k_doris_exit) {
 #if defined(LEAK_SANITIZER)
         __lsan_do_leak_check();
@@ -564,6 +568,62 @@ int main(int argc, char** argv) {
     delete engine;
     engine = nullptr;
     return 0;
+}
+
+static void test() {
+    if (!doris::config::run_test) {
+        return;
+    }
+
+    LOG(INFO) << "begin sleep 15 s";
+    sleep(15);
+    LOG(INFO) << "begin test";
+
+    std::map<std::string, std::string> properties;
+    // TODO: add properties
+    doris::FileSystemProperties system_properties;
+    system_properties.system_type = doris::TFileType::FILE_HDFS;
+    system_properties.properties = properties;
+
+    // TODO: set hdfs_params
+    doris::THdfsParams hdfs_params;
+    hdfs_params.__set_fs_name("");
+    hdfs_params.__set_hdfs_kerberos_principal("");
+    hdfs_params.__set_hdfs_kerberos_keytab("");
+    system_properties.hdfs_params = hdfs_params;
+
+    doris::FileDescription file_description;
+    file_description.path = "";
+    file_description.start_offset = 0;
+    file_description.file_size = 10;
+
+    std::shared_ptr<doris::io::FileSystem> file_system;
+    doris::io::FileReaderSPtr file_reader;
+    doris::IOContext io_ctx;
+    doris::FileCacheStatistics file_cache_stats;
+    io_ctx.file_cache_stats = &file_cache_stats;
+    io_ctx.query_id = nullptr;
+    io_ctx.enable_file_cache = false;
+    doris::Status st = doris::FileFactory::create_file_reader(nullptr, system_properties, file_description,
+                    &file_system, &file_reader, &io_ctx);
+
+    if (!st.ok()) {
+        LOG(INFO) << "yy debug create file failed: " << st;
+        return;
+    }
+
+    char buf[100];
+    doris::Slice result;
+    result.data = buf;
+    result.size = 100;
+    size_t bytes_read = 0;
+    st = file_reader->read_at(0, result, io_ctx, &bytes_read);
+    if (!st.ok()) {
+        LOG(INFO) << "yy debug read file failed: " << st;
+        return;
+    }
+    LOG(INFO) << "yy debug read file: " << result.to_string();
+    
 }
 
 static void help(const char* progname) {

@@ -238,6 +238,7 @@ Status HdfsFileSystemCache::_create_fs(const THdfsParams& hdfs_params, hdfsFS* f
     if (hdfs_fs == nullptr) {
         return Status::InternalError("connect to hdfs failed. error: {}", hdfsGetLastError());
     }
+    LOG(INFO) << "yy debug after hdfsBuilderConnect";
     *fs = hdfs_fs;
     return Status::OK();
 }

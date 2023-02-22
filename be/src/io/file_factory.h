@@ -35,6 +35,11 @@ struct FileSystemProperties {
     std::map<std::string, std::string> properties;
     THdfsParams hdfs_params;
     std::vector<TNetworkAddress> broker_addresses;
+
+    std::string to_string() {
+        std::stringstream ss;
+        ss << "system_type: " << system_type
+    }
 };
 
 struct FileDescription {
