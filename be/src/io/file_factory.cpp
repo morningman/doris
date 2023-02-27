@@ -105,6 +105,7 @@ doris::Status doris::FileFactory::create_file_reader(RuntimeProfile* profile,
                                                      const std::string& path, int64_t start_offset,
                                                      int64_t file_size, int64_t buffer_size,
                                                      std::unique_ptr<FileReader>& file_reader) {
+
     FileReader* file_reader_ptr;
     doris::TFileType::type type = params.file_type;
     switch (type) {
@@ -117,6 +118,14 @@ doris::Status doris::FileFactory::create_file_reader(RuntimeProfile* profile,
         break;
     }
     case TFileType::FILE_HDFS: {
+        LOG(INFO) << "debug: params.hdfs_params: fs_name: " << params.hdfs_params.fs_name
+                << ", user: " << params.hdfs_params.user
+                << ", hdfs_kerberos_principal: " << params.hdfs_params.hdfs_kerberos_principal
+                << ", hdfs_kerberos_keytab: " << params.hdfs_params.hdfs_kerberos_keytab
+                << ", path: " << path << ", start_offset: " << start_offset;
+        for (auto& c : params.hdfs_params.hdfs_conf) {
+            LOG(INFO) << "debug hdfs_conf: key: " << c.key << ", value: " << c.value;
+        }
         RETURN_IF_ERROR(HdfsReaderWriter::create_reader(params.hdfs_params, path, start_offset,
                                                         &file_reader_ptr));
         break;

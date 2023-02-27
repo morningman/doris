@@ -84,8 +84,10 @@ void PlainTextLineReader::close() {
 
 inline bool PlainTextLineReader::update_eof() {
     if (done()) {
+        LOG(INFO) << "debug: done, file eof: " << _file_eof << ", _output_buf_limit: " << _output_buf_limit << ", _output_buf_pos: " << _output_buf_pos;
         _eof = true;
     } else if (_decompressor == nullptr && _total_read_bytes >= _min_length) {
+        LOG(INFO) << "debug: _decompressor: " << (_decompressor == nullptr) << ", _total_read_bytes: " << _total_read_bytes << ", _min_length: " << _min_length;
         _eof = true;
     }
     return _eof;
@@ -183,6 +185,7 @@ void PlainTextLineReader::extend_output_buf() {
 
 Status PlainTextLineReader::read_line(const uint8_t** ptr, size_t* size, bool* eof) {
     if (_eof || update_eof()) {
+        LOG(INFO) << "debug: _eof: " << _eof;
         *size = 0;
         *eof = true;
         return Status::OK();
