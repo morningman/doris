@@ -97,15 +97,15 @@ HDFSCommonBuilder createHDFSBuilder(const THdfsParams& hdfsParams) {
         hdfsBuilderSetUserName(builder.get(), hdfsParams.user.c_str());
     }
     // set kerberos conf
-    // if (hdfsParams.__isset.hdfs_kerberos_principal) {
-    //     builder.need_kinit = true;
-    //     builder.hdfs_kerberos_principal = hdfsParams.hdfs_kerberos_principal;
-    //     hdfsBuilderSetPrincipal(builder.get(), hdfsParams.hdfs_kerberos_principal.c_str());
-    // }
-    // if (hdfsParams.__isset.hdfs_kerberos_keytab) {
-    //     builder.need_kinit = true;
-    //     builder.hdfs_kerberos_keytab = hdfsParams.hdfs_kerberos_keytab;
-    // }
+    if (hdfsParams.__isset.hdfs_kerberos_principal) {
+        builder.need_kinit = true;
+        builder.hdfs_kerberos_principal = hdfsParams.hdfs_kerberos_principal;
+        hdfsBuilderSetPrincipal(builder.get(), hdfsParams.hdfs_kerberos_principal.c_str());
+    }
+    if (hdfsParams.__isset.hdfs_kerberos_keytab) {
+        builder.need_kinit = true;
+        builder.hdfs_kerberos_keytab = hdfsParams.hdfs_kerberos_keytab;
+    }
     // set other conf
     if (hdfsParams.__isset.hdfs_conf) {
         for (const THdfsConf& conf : hdfsParams.hdfs_conf) {

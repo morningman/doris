@@ -20,6 +20,7 @@
 #include "gen_cpp/Types_types.h"
 #include "io/file_writer.h"
 #include "io/fs/file_reader.h"
+#include <thrift/protocol/TDebugProtocol.h>
 
 namespace doris {
 namespace io {
@@ -36,9 +37,14 @@ struct FileSystemProperties {
     THdfsParams hdfs_params;
     std::vector<TNetworkAddress> broker_addresses;
 
-    std::string to_string() {
+    std::string to_string() const {
         std::stringstream ss;
-        ss << "system_type: " << system_type
+        ss << "system_type: " << system_type << "\n";
+        for (auto& kv : properties) {
+            ss << "prop key: " << kv.first << " = " << kv.second << "\n";
+        }
+        ss << "hdfs_params: " << apache::thrift::ThriftDebugString(hdfs_params).c_str();
+        return ss.str();
     }
 };
 
@@ -46,6 +52,11 @@ struct FileDescription {
     std::string path;
     int64_t start_offset;
     size_t file_size;
+    std::string to_string() const {
+        std::stringstream ss;
+        ss << "path: " << path << ", start_offset: " << start_offset << ", file_size: " << file_size;
+        return ss.str();
+    }
 };
 
 class FileFactory {

@@ -587,15 +587,19 @@ static void test() {
 
     // TODO: set hdfs_params
     doris::THdfsParams hdfs_params;
-    hdfs_params.__set_fs_name("");
-    hdfs_params.__set_hdfs_kerberos_principal("");
-    hdfs_params.__set_hdfs_kerberos_keytab("");
+    hdfs_params.__set_fs_name("hdfs://HDFS8001729");
+    hdfs_params.__set_hdfs_kerberos_principal("hadoop/172.21.16.37@EMR-0MUFP05O");
+    hdfs_params.__set_hdfs_kerberos_keytab("/var/krb5kdc/emr.keytab");
+    doris::THdfsConf hdfsConf;
+    hdfsConf.key = "hadoop.security.authentication";
+    hdfsConf.value = "kerberos";
+    hdfs_params.hdfs_conf.push_back(hdfsConf);
     system_properties.hdfs_params = hdfs_params;
 
     doris::FileDescription file_description;
-    file_description.path = "";
-    file_description.start_offset = 0;
-    file_description.file_size = 10;
+    file_description.path = "/usr/hive/warehouse/test.db/tbl1/000000_0";
+    file_description.start_offset = 3;
+    file_description.file_size = 110;
 
     std::shared_ptr<doris::io::FileSystem> file_system;
     doris::io::FileReaderSPtr file_reader;
