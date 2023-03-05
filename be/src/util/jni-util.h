@@ -23,6 +23,8 @@
 #include "gutil/macros.h"
 #include "util/thrift_util.h"
 
+extern "C" JNIEnv* getJNIEnv(void);
+
 namespace doris {
 
 #define RETURN_ERROR_IF_EXC(env)                                     \
@@ -42,7 +44,10 @@ public:
             *env = tls_env_;
             return Status::OK();
         }
-        return GetJNIEnvSlowPath(env);
+        //return GetJNIEnvSlowPath(env);
+        tls_env_ = getJNIEnv();
+        *env = tls_env_;
+        return Status::OK();
     }
 
     static Status GetGlobalClassRef(JNIEnv* env, const char* class_str,

@@ -71,15 +71,33 @@ if [[ "$(uname -s)" != 'Darwin' ]]; then
 fi
 
 # add libs to CLASSPATH
-for f in "${DORIS_HOME}/lib"/*.jar; do
-    if [[ -z "${DORIS_JNI_CLASSPATH_PARAMETER}" ]]; then
-        export DORIS_JNI_CLASSPATH_PARAMETER="${f}"
-    else
-        export DORIS_JNI_CLASSPATH_PARAMETER="${f}:${DORIS_JNI_CLASSPATH_PARAMETER}"
-    fi
-done
+#for f in "${DORIS_HOME}/lib"/*.jar; do
+#    if [[ -z "${DORIS_JNI_CLASSPATH_PARAMETER}" ]]; then
+#        export DORIS_JNI_CLASSPATH_PARAMETER="${f}"
+#    else
+#        export DORIS_JNI_CLASSPATH_PARAMETER="${f}:${DORIS_JNI_CLASSPATH_PARAMETER}"
+#    fi
+#done
 # DORIS_JNI_CLASSPATH_PARAMETER is used to configure additional jar path to jvm. e.g. -Djava.class.path=$DORIS_HOME/lib/java-udf.jar
-export DORIS_JNI_CLASSPATH_PARAMETER="-Djava.class.path=${DORIS_JNI_CLASSPATH_PARAMETER}"
+# hadoop
+#export DORIS_JNI_CLASSPATH_PARAMETER=${DORIS_HOME}/conf/:${DORIS_HOME}/lib/hadoop/common/*:${DORIS_HOME}/lib/hadoop/common/lib/*:${DORIS_HOME}/lib/hadoop/hdfs/*:${DORIS_HOME}/lib/hadoop/hdfs/lib/*:${DORIS_JNI_CLASSPATH_PARAMETER}
+
+DORIS_JNI_CLASSPATH_PARAMETER=
+for f in ${DORIS_HOME}/lib/hadoop/common/*.jar; do
+    DORIS_JNI_CLASSPATH_PARAMETER="${f}:${DORIS_JNI_CLASSPATH_PARAMETER}"
+done
+for f in ${DORIS_HOME}/lib/hadoop/common/lib/*.jar; do
+    DORIS_JNI_CLASSPATH_PARAMETER="${f}:${DORIS_JNI_CLASSPATH_PARAMETER}"
+done
+for f in ${DORIS_HOME}/lib/hadoop/hdfs/*.jar; do
+    DORIS_JNI_CLASSPATH_PARAMETER="${f}:${DORIS_JNI_CLASSPATH_PARAMETER}"
+done
+for f in ${DORIS_HOME}/lib/hadoop/hdfs/lib/*.jar; do
+    DORIS_JNI_CLASSPATH_PARAMETER="${f}:${DORIS_JNI_CLASSPATH_PARAMETER}"
+done
+
+export CLASSPATH=${DORIS_HOME}/conf/:$DORIS_JNI_CLASSPATH_PARAMETER:$CLASSPATH
+#export DORIS_JNI_CLASSPATH_PARAMETER="-Djava.class.path=${DORIS_JNI_CLASSPATH_PARAMETER}"
 
 jdk_version() {
     local java_cmd="${1}"
@@ -230,10 +248,15 @@ set_tcmalloc_heap_limit() {
 
 # set_tcmalloc_heap_limit || exit 1
 
-## set hdfs conf
-if [[ -f "${DORIS_HOME}/conf/hdfs-site.xml" ]]; then
-    export LIBHDFS3_CONF="${DORIS_HOME}/conf/hdfs-site.xml"
-fi
+jvm_arch=amd64
+export LD_LIBRARY_PATH=$JAVA_HOME/jre/lib/$jvm_arch/server:$JAVA_HOME/jre/lib/$jvm_arch:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$DORIS_HOME/lib/hadoop/native:$LD_LIBRARY_PATH
+
+export LIBHDFS_OPTS="-Xmx2192m -XX:+TraceClassLoading -Xrs"
+
+echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
+#echo "CLASSPATH: $CLASSPATH"
+echo "DORIS_JNI_CLASSPATH_PARAMETER: $DORIS_JNI_CLASSPATH_PARAMETER"
 
 # see https://github.com/jemalloc/jemalloc/issues/2366
 export JEMALLOC_CONF="percpu_arena:percpu,background_thread:true,metadata_thp:auto,muzzy_decay_ms:30000,dirty_decay_ms:30000,oversize_threshold:0,lg_tcache_max:16,prof:true,prof_prefix:jeprof.out"

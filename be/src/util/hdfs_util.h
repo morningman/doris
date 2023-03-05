@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include <hdfs/hdfs.h>
-
 #include <map>
 #include <memory>
 #include <string>
@@ -28,16 +26,6 @@
 
 namespace doris {
 
-class HDFSHandle {
-public:
-    ~HDFSHandle() {}
-
-    static HDFSHandle& instance();
-
-    hdfsFS create_hdfs_fs(HDFSCommonBuilder& builder);
-
-private:
-    HDFSHandle() {}
-};
+std::string get_hdfs_error();
 
 } // namespace doris

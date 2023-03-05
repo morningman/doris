@@ -19,24 +19,26 @@
 
 #include <util/string_util.h>
 
+#include <hdfs2/hdfs.h>
+
 #include "common/config.h"
 #include "common/logging.h"
 
 namespace doris {
 
-HDFSHandle& HDFSHandle::instance() {
-    static HDFSHandle hdfs_handle;
-    return hdfs_handle;
-}
-
-hdfsFS HDFSHandle::create_hdfs_fs(HDFSCommonBuilder& hdfs_builder) {
-    hdfsFS hdfs_fs = hdfsBuilderConnect(hdfs_builder.get());
-    if (hdfs_fs == nullptr) {
-        LOG(WARNING) << "connect to hdfs failed."
-                     << ", error: " << hdfsGetLastError();
-        return nullptr;
+std::string get_hdfs_error() {
+    int e = errno;
+    if (e == 0) {
+        return "";
     }
-    return hdfs_fs;
+    std::stringstream ss;
+    char buf[1024];
+    ss << "Error(" << e << "): " << strerror_r(e, buf, 1024);
+    char* root_cause = hdfsGetLastExceptionRootCause();
+    if (root_cause != nullptr) {
+        ss << ", root_cause=" << root_cause;
+    }
+    return ss.str();
 }
 
 } // namespace doris

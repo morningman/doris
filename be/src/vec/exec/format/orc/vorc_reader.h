@@ -79,10 +79,6 @@ public:
               IOContext* io_ctx);
 
     ~OrcReader() override;
-    // for test
-    void set_file_reader(const std::string& file_name, io::FileReaderSPtr file_reader) {
-        _file_reader = new ORCFileInputStream(file_name, file_reader);
-    }
 
     Status init_reader(
             std::unordered_map<std::string, ColumnValueRangeType>* colname_to_value_range);
@@ -91,7 +87,7 @@ public:
 
     void close();
 
-    int64_t size() const { return _file_reader->getLength(); }
+    int64_t size() const { return _file_input_stream->getLength(); }
 
     std::unordered_map<std::string, TypeDescriptor> get_name_to_type() override;
     Status get_columns(std::unordered_map<std::string, TypeDescriptor>* name_to_type,
@@ -284,9 +280,10 @@ private:
     // Flag for hive engine. True if the external table engine is Hive.
     bool _is_hive = false;
     std::vector<const orc::Type*> _col_orc_type;
-    ORCFileInputStream* _file_reader = nullptr;
+    std::unique_ptr<ORCFileInputStream> _file_input_stream;
     Statistics _statistics;
     OrcProfile _orc_profile;
+    bool _init = false;
     bool _closed = false;
 
     std::unique_ptr<orc::ColumnVectorBatch> _batch;

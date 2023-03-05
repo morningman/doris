@@ -48,6 +48,7 @@ namespace doris::vectorized {
     M(TypeIndex::Float64, Float64, orc::DoubleVectorBatch)
 
 void ORCFileInputStream::read(void* buf, uint64_t length, uint64_t offset) {
+    LOG(INFO) << "yy debug ORCFileInputStream::read: length: " << length << ", offset: " << offset;
     _statistics.read_calls++;
     _statistics.read_bytes += length;
     SCOPED_RAW_TIMER(&_statistics.read_time);
@@ -112,10 +113,10 @@ OrcReader::~OrcReader() {
 }
 
 void OrcReader::close() {
-    if (!_closed) {
+    if (!_closed && _init) {
         if (_profile != nullptr) {
-            if (_file_reader != nullptr) {
-                auto& fst = _file_reader->statistics();
+            if (_file_input_stream != nullptr) {
+                auto& fst = _file_input_stream->statistics();
                 COUNTER_UPDATE(_orc_profile.read_time, fst.read_time);
                 COUNTER_UPDATE(_orc_profile.read_calls, fst.read_calls);
                 COUNTER_UPDATE(_orc_profile.read_bytes, fst.read_bytes);
@@ -149,25 +150,25 @@ void OrcReader::_init_profile() {
 Status OrcReader::init_reader(
         std::unordered_map<std::string, ColumnValueRangeType>* colname_to_value_range) {
     SCOPED_RAW_TIMER(&_statistics.parse_meta_time);
-    if (_file_reader == nullptr) {
+    if (_file_input_stream.get() == nullptr) {
         io::FileReaderSPtr inner_reader;
 
         RETURN_IF_ERROR(FileFactory::create_file_reader(_profile, _system_properties,
                                                         _file_description, &_file_system,
                                                         &inner_reader, _io_ctx));
 
-        _file_reader = new ORCFileInputStream(_scan_range.path, inner_reader);
+        _file_input_stream.reset(new ORCFileInputStream(_scan_range.path, inner_reader));
     }
-    if (_file_reader->getLength() == 0) {
+    if (_file_input_stream->getLength() == 0) {
         return Status::EndOfFile("init reader failed, empty orc file: " + _scan_range.path);
     }
 
     // create orc reader
     try {
         orc::ReaderOptions options;
-        _reader = orc::createReader(std::unique_ptr<ORCFileInputStream>(_file_reader), options);
+        _reader = orc::createReader(std::unique_ptr<ORCFileInputStream>(_file_input_stream.release()), options);
     } catch (std::exception& e) {
-        return Status::InternalError("Init OrcReader failed. reason = {}", e.what());
+        return Status::InternalError("Init OrcReader failed. file = {}, reason = {}", _scan_range.path, e.what());
     }
     if (_reader->getNumberOfRows() == 0) {
         return Status::EndOfFile("init reader failed, empty orc file with row num 0: " +
@@ -201,28 +202,29 @@ Status OrcReader::init_reader(
         _colname_to_idx[name] = i;
         _col_orc_type[i] = selected_type.getSubtype(i);
     }
+    _init = true;
     return Status::OK();
 }
 
 Status OrcReader::get_parsed_schema(std::vector<std::string>* col_names,
                                     std::vector<TypeDescriptor>* col_types) {
-    if (_file_reader == nullptr) {
+    if (_file_input_stream.get() == nullptr) {
         io::FileReaderSPtr inner_reader;
 
         RETURN_IF_ERROR(FileFactory::create_file_reader(_profile, _system_properties,
                                                         _file_description, &_file_system,
                                                         &inner_reader, _io_ctx));
 
-        _file_reader = new ORCFileInputStream(_scan_range.path, inner_reader);
+        _file_input_stream.reset(new ORCFileInputStream(_scan_range.path, inner_reader));
     }
-    if (_file_reader->getLength() == 0) {
+    if (_file_input_stream->getLength() == 0) {
         return Status::EndOfFile("get parsed schema fail, empty orc file: " + _scan_range.path);
     }
 
     // create orc reader
     try {
         orc::ReaderOptions options;
-        _reader = orc::createReader(std::unique_ptr<ORCFileInputStream>(_file_reader), options);
+        _reader = orc::createReader(std::unique_ptr<ORCFileInputStream>(_file_input_stream.release()), options);
     } catch (std::exception& e) {
         return Status::InternalError("Init OrcReader failed. reason = {}", e.what());
     }
@@ -232,6 +234,7 @@ Status OrcReader::get_parsed_schema(std::vector<std::string>* col_names,
         col_names->emplace_back(_get_field_name_lower_case(&root_type, i));
         col_types->emplace_back(_convert_to_doris_type(root_type.getSubtype(i)));
     }
+    _init = true;
     return Status::OK();
 }
 

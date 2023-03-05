@@ -22,6 +22,7 @@
 #include "io/fs/hdfs_file_reader.h"
 #include "io/hdfs_builder.h"
 #include "service/backend_options.h"
+#include "util/hdfs_util.h"
 
 namespace doris {
 namespace io {
@@ -123,12 +124,12 @@ Status HdfsFileSystem::open_file(const Path& path, FileReaderSPtr* reader, IOCon
                 return Status::InternalError(
                         "open file failed. (BE: {}) namenode:{}, path:{}, err: {}",
                         BackendOptions::get_localhost(), _namenode, path.string(),
-                        hdfsGetLastError());
+                        get_hdfs_error());
             }
         } else {
             return Status::InternalError("open file failed. (BE: {}) namenode:{}, path:{}, err: {}",
                                          BackendOptions::get_localhost(), _namenode, path.string(),
-                                         hdfsGetLastError());
+                                         get_hdfs_error());
         }
     }
     *reader = std::make_shared<HdfsFileReader>(
@@ -188,7 +189,7 @@ Status HdfsFileSystem::file_size(const Path& path, size_t* file_size) const {
     Path real_path = _covert_path(path);
     hdfsFileInfo* file_info = hdfsGetPathInfo(_fs_handle->hdfs_fs, real_path.string().c_str());
     if (file_info == nullptr) {
-        return Status::InternalError("Failed to get file size of {}", path.string());
+        return Status::InternalError("Failed to get file size of {}, error: {}", path.string(), get_hdfs_error());
     }
     *file_size = file_info->mSize;
     hdfsFreeFileInfo(file_info, 1);
@@ -202,7 +203,7 @@ Status HdfsFileSystem::list(const Path& path, std::vector<Path>* files) {
     hdfsFileInfo* file_info =
             hdfsListDirectory(_fs_handle->hdfs_fs, real_path.string().c_str(), &numEntries);
     if (file_info == nullptr) {
-        return Status::InternalError("Failed to list files/directors of {}", path.string());
+        return Status::InternalError("Failed to list files/directors of {}, {}", path.string(), get_hdfs_error());
     }
     for (int idx = 0; idx < numEntries; ++idx) {
         files->emplace_back(file_info[idx].mName);
@@ -233,8 +234,9 @@ Status HdfsFileSystemCache::_create_fs(const THdfsParams& hdfs_params, hdfsFS* f
     HDFSCommonBuilder builder;
     RETURN_IF_ERROR(createHDFSBuilder(hdfs_params, &builder));
     hdfsFS hdfs_fs = hdfsBuilderConnect(builder.get());
-    if (hdfs_fs == nullptr) {
-        return Status::InternalError("connect to hdfs failed. error: {}", hdfsGetLastError());
+    LOG(INFO) << "yy debug hdfs_fs: " << (hdfs_fs == nullptr);
+    if (hdfs_fs == nullptr) { 
+        return Status::InternalError("connect to hdfs failed. error: {}", get_hdfs_error());
     }
     *fs = hdfs_fs;
     return Status::OK();

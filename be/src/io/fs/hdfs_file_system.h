@@ -18,7 +18,7 @@
 #pragma once
 
 #include <gen_cpp/PlanNodes_types.h>
-#include <hdfs/hdfs.h>
+#include <hdfs2/hdfs.h>
 
 #include <atomic>
 

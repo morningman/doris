@@ -35,6 +35,7 @@ HDFSWriter::~HDFSWriter() {
 }
 
 Status HDFSWriter::open() {
+#if 0
     if (_namenode.empty()) {
         LOG(WARNING) << "hdfs properties is incorrect.";
         return Status::InternalError("hdfs properties is incorrect");
@@ -81,10 +82,12 @@ Status HDFSWriter::open() {
         return Status::InternalError(ss.str());
     }
     VLOG_NOTICE << "open file. namenode:" << _namenode << ", path:" << _path;
+#endif
     return Status::OK();
 }
 
 Status HDFSWriter::write(const uint8_t* buf, size_t buf_len, size_t* written_len) {
+#if 0
     if (buf_len == 0) {
         *written_len = 0;
         return Status::OK();
@@ -100,10 +103,12 @@ Status HDFSWriter::write(const uint8_t* buf, size_t buf_len, size_t* written_len
     }
 
     *written_len = (unsigned int)result;
+#endif
     return Status::OK();
 }
 
 Status HDFSWriter::close() {
+#if 0
     if (_closed) {
         return Status::OK();
     }
@@ -130,17 +135,20 @@ Status HDFSWriter::close() {
 
     _hdfs_file = nullptr;
     _hdfs_fs = nullptr;
+#endif
     return Status::OK();
 }
 
 Status HDFSWriter::_connect() {
     HDFSCommonBuilder builder;
     RETURN_IF_ERROR(createHDFSBuilder(_properties, &builder));
+#if 0
     _hdfs_fs = hdfsBuilderConnect(builder.get());
     if (_hdfs_fs == nullptr) {
         return Status::InternalError("connect to hdfs failed. namenode address:{}, error {}",
                                      _namenode, hdfsGetLastError());
     }
+#endif
     return Status::OK();
 }
 

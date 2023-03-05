@@ -26,9 +26,12 @@
 #include "util/string_util.h"
 #include "util/uid_util.h"
 #include "util/url_coding.h"
+#include "util/stack_util.h"
+
 namespace doris {
 
 Status HDFSCommonBuilder::init_hdfs_builder() {
+    LOG(INFO) << "yy init_hdfs_builder: " << get_stack_trace();
     hdfs_builder = hdfsNewBuilder();
     if (hdfs_builder == nullptr) {
         LOG(INFO) << "failed to init HDFSCommonBuilder, please check check be/conf/hdfs-site.xml";
@@ -100,7 +103,7 @@ Status createHDFSBuilder(const THdfsParams& hdfsParams, HDFSCommonBuilder* build
     if (hdfsParams.__isset.hdfs_kerberos_principal) {
         builder->need_kinit = true;
         builder->hdfs_kerberos_principal = hdfsParams.hdfs_kerberos_principal;
-        hdfsBuilderSetPrincipal(builder->get(), hdfsParams.hdfs_kerberos_principal.c_str());
+        // hdfsBuilderSetPrincipal(builder->get(), hdfsParams.hdfs_kerberos_principal.c_str());
     }
     if (hdfsParams.__isset.hdfs_kerberos_keytab) {
         builder->need_kinit = true;
@@ -110,11 +113,12 @@ Status createHDFSBuilder(const THdfsParams& hdfsParams, HDFSCommonBuilder* build
     if (hdfsParams.__isset.hdfs_conf) {
         for (const THdfsConf& conf : hdfsParams.hdfs_conf) {
             hdfsBuilderConfSetStr(builder->get(), conf.key.c_str(), conf.value.c_str());
+            LOG(INFO) << "yy debug set hdfs conf key: " << conf.key << ", value: " << conf.value;
         }
     }
 
     if (builder->is_need_kinit()) {
-        RETURN_IF_ERROR(builder->run_kinit());
+        // RETURN_IF_ERROR(builder->run_kinit());
     }
 
     return Status::OK();

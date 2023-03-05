@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include <hdfs/hdfs.h>
+#include <hdfs2/hdfs.h>
 
 #include "common/status.h"
 #include "gen_cpp/PlanNodes_types.h"
@@ -38,9 +38,10 @@ class HDFSCommonBuilder {
 public:
     HDFSCommonBuilder() {}
     ~HDFSCommonBuilder() {
-        if (hdfs_builder != nullptr) {
-            hdfsFreeBuilder(hdfs_builder);
-        }
+        // if (hdfs_builder != nullptr) {
+        //     hdfsFreeBuilder(hdfs_builder);
+        //     hdfs_builder = nullptr;
+        // }
     }
 
     // Must call this to init hdfs_builder first.
@@ -51,7 +52,7 @@ public:
     Status run_kinit();
 
 private:
-    hdfsBuilder* hdfs_builder;
+    hdfsBuilder* hdfs_builder = nullptr;
     bool need_kinit {false};
     std::string hdfs_kerberos_keytab;
     std::string hdfs_kerberos_principal;

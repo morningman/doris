@@ -23,7 +23,7 @@
 #include "io/hdfs_writer.h"
 #include "olap/file_helper.h"
 #include "olap/iterators.h"
-#include "util/hdfs_util.h"
+// #include "util/hdfs_util.h"
 
 namespace doris {
 
@@ -38,12 +38,12 @@ static const std::string hdfs_file_prefix = "hdfs://";
 
 HDFSStorageBackend::HDFSStorageBackend(const std::map<std::string, std::string>& prop)
         : _properties(prop) {
-    HDFSCommonBuilder builder;
-    Status st = createHDFSBuilder(_properties, &builder);
-    if (st.ok()) {
-        _hdfs_fs = HDFSHandle::instance().create_hdfs_fs(builder);
-        DCHECK(_hdfs_fs) << "init hdfs client error.";
-    }
+    // HDFSCommonBuilder builder;
+    // Status st = createHDFSBuilder(_properties, &builder);
+    // if (st.ok()) {
+    //     _hdfs_fs = HDFSHandle::instance().create_hdfs_fs(builder);
+    //     DCHECK(_hdfs_fs) << "init hdfs client error.";
+    // }
     // if createHDFSBuilder failed, _hdfs_fs will be null.
     // and CHECK_HDFS_CLIENT will return error.
     // TODO: refacotr StorageBackend, unify into File system
@@ -55,7 +55,7 @@ HDFSStorageBackend::~HDFSStorageBackend() {
 
 Status HDFSStorageBackend::close() {
     if (_hdfs_fs != nullptr) {
-        hdfsDisconnect(_hdfs_fs);
+        // hdfsDisconnect(_hdfs_fs);
         _hdfs_fs = nullptr;
     }
     return Status::OK();
@@ -124,6 +124,7 @@ Status HDFSStorageBackend::direct_upload(const std::string& remote, const std::s
 Status HDFSStorageBackend::list(const std::string& remote_path, bool contain_md5, bool recursion,
                                 std::map<std::string, FileStat>* files) {
     CHECK_HDFS_CLIENT(_hdfs_fs);
+#if 0
     std::string normal_str = parse_path(remote_path);
     int exists = hdfsExists(_hdfs_fs, normal_str.c_str());
     if (exists != 0) {
@@ -167,6 +168,7 @@ Status HDFSStorageBackend::list(const std::string& remote_path, bool contain_md5
 
     hdfsFreeFileInfo(files_info, file_num);
     LOG(INFO) << "finished to split files. valid file num: " << files->size();
+#endif
     return Status::OK();
 }
 
@@ -266,6 +268,7 @@ Status HDFSStorageBackend::upload_with_checksum(const std::string& local, const 
 
 Status HDFSStorageBackend::rename(const std::string& orig_name, const std::string& new_name) {
     CHECK_HDFS_CLIENT(_hdfs_fs);
+#if 0
     std::string normal_orig_name = parse_path(orig_name);
     std::string normal_new_name = parse_path(new_name);
     int ret = hdfsRename(_hdfs_fs, normal_orig_name.c_str(), normal_new_name.c_str());
@@ -279,6 +282,8 @@ Status HDFSStorageBackend::rename(const std::string& orig_name, const std::strin
         LOG(WARNING) << ss.str();
         return Status::InternalError(ss.str());
     }
+#endif
+    return Status::OK();
 }
 
 Status HDFSStorageBackend::rename_dir(const std::string& orig_name, const std::string& new_name) {
@@ -303,12 +308,15 @@ Status HDFSStorageBackend::mkdirs(const std::string& path) {
 
 Status HDFSStorageBackend::exist(const std::string& path) {
     CHECK_HDFS_CLIENT(_hdfs_fs);
+#if 0
     int exists = hdfsExists(_hdfs_fs, path.c_str());
     if (exists == 0) {
         return Status::OK();
     } else {
         return Status::NotFound(path + " not exists!");
     }
+#endif
+    return Status::OK();
 }
 
 Status HDFSStorageBackend::exist_dir(const std::string& path) {
@@ -317,6 +325,7 @@ Status HDFSStorageBackend::exist_dir(const std::string& path) {
 
 Status HDFSStorageBackend::rm(const std::string& remote) {
     CHECK_HDFS_CLIENT(_hdfs_fs);
+#if 0
     int ret = hdfsDelete(_hdfs_fs, remote.c_str(), 1);
     if (ret == 0) {
         return Status::OK();
@@ -326,6 +335,8 @@ Status HDFSStorageBackend::rm(const std::string& remote) {
         LOG(WARNING) << ss.str();
         return Status::InternalError(ss.str());
     }
+#endif
+    return Status::OK();
 }
 
 Status HDFSStorageBackend::rmdir(const std::string& remote) {

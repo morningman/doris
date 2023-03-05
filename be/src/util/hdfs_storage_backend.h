@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include <hdfs/hdfs.h>
+// #include <hdfs/hdfs.h>
 
 #include "io/hdfs_builder.h"
 #include "util/storage_backend.h"
@@ -56,7 +56,7 @@ private:
 
 private:
     std::map<std::string, std::string> _properties;
-    hdfsFS _hdfs_fs = nullptr;
+    void* _hdfs_fs = nullptr;
 };
 
 } // end namespace doris
