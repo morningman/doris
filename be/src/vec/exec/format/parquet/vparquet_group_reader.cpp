@@ -834,6 +834,7 @@ Status RowGroupReader::_rewrite_dict_conjuncts(std::vector<int32_t>& dict_codes,
             node.__set_opcode(TExprOpcode::FILTER_IN);
             node.__isset.vector_opcode = true;
             node.__set_vector_opcode(TExprOpcode::FILTER_IN);
+            node.__set_is_nullable(false);
 
             root = _obj_pool->add(new vectorized::VDirectInPredicate(node));
             std::shared_ptr<HybridSetBase> hybrid_set(create_set(PrimitiveType::TYPE_INT));
