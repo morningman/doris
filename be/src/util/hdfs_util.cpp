@@ -17,27 +17,27 @@
 
 #include "util/hdfs_util.h"
 
+#include <system_error>
+#include <string.h>
+#include <io/fs/hdfs.h>
 #include <util/string_util.h>
-
-#include "common/config.h"
-#include "common/logging.h"
 
 namespace doris {
 namespace io {
 
-HDFSHandle& HDFSHandle::instance() {
-    static HDFSHandle hdfs_handle;
-    return hdfs_handle;
-}
-
-hdfsFS HDFSHandle::create_hdfs_fs(HDFSCommonBuilder& hdfs_builder) {
-    hdfsFS hdfs_fs = hdfsBuilderConnect(hdfs_builder.get());
-    if (hdfs_fs == nullptr) {
-        LOG(WARNING) << "connect to hdfs failed."
-                     << ", error: " << hdfsGetLastError();
-        return nullptr;
+std::string get_hdfs_error() {
+    std::stringstream ss;
+    char buf[1024];
+    ss << "(" << errno << "), " << strerror_r(errno, buf, 1024) << ")";
+#ifdef USE_HADOOP_HDFS
+    char* root_cause = hdfsGetLastExceptionRootCause();
+    if (root_cause != nullptr) {
+        ss << ", reason: " << root_cause;
     }
-    return hdfs_fs;
+#else
+    ss << ", reason: " << hdfsGetLastError();
+#endif
+    return ss.str();
 }
 
 Path convert_path(const Path& path, const std::string& namenode) {

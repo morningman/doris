@@ -34,13 +34,5 @@ std::string errcode_to_str(const std::error_code& ec) {
     return fmt::format("({}), {}", ec.value(), ec.message());
 }
 
-std::string hdfs_error() {
-    std::stringstream ss;
-    char buf[1024];
-    ss << "(" << errno << "), " << strerror_r(errno, buf, 1024);
-    ss << ", reason: " << hdfsGetLastError();
-    return ss.str();
-}
-
 } // namespace io
 } // namespace doris

@@ -52,7 +52,7 @@ Status HdfsFileWriter::close() {
         ss << "failed to flush hdfs file. "
            << "(BE: " << BackendOptions::get_localhost() << ")"
            << "namenode:" << _hdfs_fs->_namenode << " path:" << _path
-           << ", err: " << hdfsGetLastError();
+           << ", err: " << get_hdfs_error();
         LOG(WARNING) << ss.str();
         return Status::InternalError(ss.str());
     }
@@ -83,7 +83,7 @@ Status HdfsFileWriter::appendv(const Slice* data, size_t data_cnt) {
             if (written_bytes < 0) {
                 return Status::InternalError("write hdfs failed. namenode: {}, path: {}, error: {}",
                                              _hdfs_fs->_namenode, _path.native(),
-                                             hdfsGetLastError());
+                                             get_hdfs_error());
             }
             left_bytes -= written_bytes;
             p += written_bytes;
@@ -115,7 +115,7 @@ Status HdfsFileWriter::_open() {
             ss << "create dir failed. "
                << "(BE: " << BackendOptions::get_localhost() << ")"
                << " namenode: " << _hdfs_fs->_namenode << " path: " << hdfs_dir
-               << ", err: " << hdfsGetLastError();
+               << ", err: " << get_hdfs_error();
             LOG(WARNING) << ss.str();
             return Status::InternalError(ss.str());
         }
@@ -127,7 +127,7 @@ Status HdfsFileWriter::_open() {
         ss << "open file failed. "
            << "(BE: " << BackendOptions::get_localhost() << ")"
            << " namenode:" << _hdfs_fs->_namenode << " path:" << _path
-           << ", err: " << hdfsGetLastError();
+           << ", err: " << get_hdfs_error();
         LOG(WARNING) << ss.str();
         return Status::InternalError(ss.str());
     }

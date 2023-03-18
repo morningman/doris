@@ -19,7 +19,6 @@
 
 #include "gutil/hash/hash.h"
 #include "io/cache/block/cached_remote_file_reader.h"
-#include "io/fs/fs_utils.h"
 #include "io/fs/hdfs_file_reader.h"
 #include "io/fs/hdfs_file_writer.h"
 #include "io/fs/local_file_system.h"
@@ -119,10 +118,10 @@ Status HdfsFileSystem::open_file_internal(const Path& file, FileReaderSPtr* read
             RETURN_IF_ERROR(connect());
             hdfs_file = hdfsOpenFile(_fs_handle->hdfs_fs, file.string().c_str(), O_RDONLY, 0, 0, 0);
             if (hdfs_file == nullptr) {
-                return Status::IOError("failed to open {}: {}", file.native(), hdfs_error());
+                return Status::IOError("failed to open {}: {}", file.native(), get_hdfs_error());
             }
         } else {
-            return Status::IOError("failed to open {} from cache: {}", file.native(), hdfs_error());
+            return Status::IOError("failed to open {} from cache: {}", file.native(), get_hdfs_error());
         }
     }
     *reader = std::make_shared<HdfsFileReader>(
@@ -136,7 +135,7 @@ Status HdfsFileSystem::create_directory_impl(const Path& dir) {
     Path real_path = convert_path(dir, _namenode);
     int res = hdfsCreateDirectory(_fs_handle->hdfs_fs, real_path.string().c_str());
     if (res == -1) {
-        return Status::IOError("failed to create directory {}: {}", dir.native(), hdfs_error());
+        return Status::IOError("failed to create directory {}: {}", dir.native(), get_hdfs_error());
     }
     return Status::OK();
 }
@@ -166,7 +165,7 @@ Status HdfsFileSystem::delete_internal(const Path& path, int is_recursive) {
     Path real_path = convert_path(path, _namenode);
     int res = hdfsDelete(_fs_handle->hdfs_fs, real_path.string().c_str(), is_recursive);
     if (res == -1) {
-        return Status::IOError("failed to delete directory {}: {}", path.native(), hdfs_error());
+        return Status::IOError("failed to delete directory {}: {}", path.native(), get_hdfs_error());
     }
     return Status::OK();
 }
@@ -184,7 +183,7 @@ Status HdfsFileSystem::file_size_impl(const Path& path, size_t* file_size) const
     Path real_path = convert_path(path, _namenode);
     hdfsFileInfo* file_info = hdfsGetPathInfo(_fs_handle->hdfs_fs, real_path.string().c_str());
     if (file_info == nullptr) {
-        return Status::IOError("failed to get file size of {}: {}", path.native(), hdfs_error());
+        return Status::IOError("failed to get file size of {}: {}", path.native(), get_hdfs_error());
     }
     *file_size = file_info->mSize;
     hdfsFreeFileInfo(file_info, 1);
@@ -205,7 +204,7 @@ Status HdfsFileSystem::list_impl(const Path& path, bool only_file, std::vector<F
             hdfsListDirectory(_fs_handle->hdfs_fs, real_path.c_str(), &numEntries);
     if (hdfs_file_info == nullptr) {
         return Status::IOError("failed to list files/directors {}: {}", path.native(),
-                               hdfs_error());
+                               get_hdfs_error());
     }
     for (int idx = 0; idx < numEntries; ++idx) {
         auto& file = hdfs_file_info[idx];
@@ -232,7 +231,7 @@ Status HdfsFileSystem::rename_impl(const Path& orig_name, const Path& new_name) 
         return Status::OK();
     } else {
         return Status::IOError("fail to rename from {} to {}: {}", normal_orig_name.native(),
-                               normal_new_name.native(), hdfs_error());
+                               normal_new_name.native(), get_hdfs_error());
     }
     return Status::OK();
 }
@@ -371,7 +370,7 @@ Status HdfsFileSystemCache::_create_fs(const THdfsParams& hdfs_params, hdfsFS* f
     hdfsFS hdfs_fs = hdfsBuilderConnect(builder.get());
     if (hdfs_fs == nullptr) {
         return Status::IOError("faield to connect to hdfs {}: {}", hdfs_params.fs_name,
-                               hdfs_error());
+                               get_hdfs_error());
     }
     *fs = hdfs_fs;
     return Status::OK();
