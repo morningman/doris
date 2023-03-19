@@ -35,6 +35,7 @@ Status HDFSCommonBuilder::init_hdfs_builder() {
         return Status::InternalError(
                 "failed to init HDFSCommonBuilder, please check check be/conf/hdfs-site.xml");
     }
+    hdfsBuilderSetForceNewInstance(hdfs_builder);
     return Status::OK();
 }
 

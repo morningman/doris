@@ -362,7 +362,7 @@ HdfsFileSystemHandle* HdfsFileSystem::get_handle() {
 }
 
 // ************* HdfsFileSystemCache ******************
-int HdfsFileSystemCache::MAX_CACHE_HANDLE = 64;
+int HdfsFileSystemCache::MAX_CACHE_HANDLE = 8;
 
 Status HdfsFileSystemCache::_create_fs(const THdfsParams& hdfs_params, hdfsFS* fs) {
     HDFSCommonBuilder builder;
@@ -419,6 +419,7 @@ Status HdfsFileSystemCache::get_connection(const THdfsParams& hdfs_params,
         } else {
             hdfsFS hdfs_fs = nullptr;
             RETURN_IF_ERROR(_create_fs(hdfs_params, &hdfs_fs));
+
             if (_cache.size() >= MAX_CACHE_HANDLE) {
                 _clean_invalid();
                 _clean_oldest();
