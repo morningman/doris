@@ -2011,6 +2011,7 @@ public class StmtExecutor implements ProfileWriter {
         if (MysqlStateType.OK.equals(context.getState().getStateType())) {
             try {
                 parsedStmt = ctasStmt.getInsertStmt();
+                parsedStmt.setUserInfo(context.getCurrentUserIdentity());
                 execute();
                 if (MysqlStateType.ERR.equals(context.getState().getStateType())) {
                     LOG.warn("CTAS insert data error, stmt={}", ctasStmt.toSql());
