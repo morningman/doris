@@ -52,7 +52,6 @@
 #include "olap/utils.h" // for check_dir_existed
 #include "service/backend_options.h"
 #include "util/errno.h"
-#include "util/file_utils.h"
 #include "util/string_util.h"
 
 using strings::Substitute;
@@ -299,17 +298,26 @@ std::string DataDir::get_absolute_tablet_path(int64_t shard_id, int64_t tablet_i
 void DataDir::find_tablet_in_trash(int64_t tablet_id, std::vector<std::string>* paths) {
     // path: /root_path/trash/time_label/tablet_id/schema_hash
     auto trash_path = fmt::format("{}/{}", _path, TRASH_PREFIX);
-    std::vector<std::string> sub_dirs;
-    FileUtils::list_files(Env::Default(), trash_path, &sub_dirs);
+    bool exists = true;
+    std::vector<io::FileInfo> sub_dirs;
+    Status st = io::global_local_filesystem()->list(trash_path, false, &sub_dirs, &exists);
+    if (!st) {
+        LOG(WARNING) << st;
+        return;
+    }
+
     for (auto& sub_dir : sub_dirs) {
         // sub dir is time_label
-        auto sub_path = fmt::format("{}/{}", trash_path, sub_dir);
-        if (!FileUtils::is_dir(sub_path, Env::Default())) {
+        if (sub_dir.is_file) {
             continue;
         }
+        auto sub_path = fmt::format("{}/{}", trash_path, sub_dir.file_name);
         auto tablet_path = fmt::format("{}/{}", sub_path, tablet_id);
-        Status exist_status = Env::Default()->path_exists(tablet_path);
-        if (exist_status.ok()) {
+        st = io::global_local_filesystem()->exists(tablet_path, &exists);
+        if (!st) {
+            LOG(WARNING) << st;
+        }
+        if (st && exists) {
             paths->emplace_back(std::move(tablet_path));
         }
     }
@@ -641,37 +649,32 @@ void DataDir::perform_path_gc_by_rowsetid() {
 }
 
 // path producer
-void DataDir::perform_path_scan() {
+Status DataDir::perform_path_scan() {
     std::unique_lock<std::mutex> lck(_check_path_mutex);
     if (!_all_check_paths.empty()) {
         LOG(INFO) << "_all_check_paths is not empty when path scan.";
-        return;
+        return Status::OK();
     }
     LOG(INFO) << "start to scan data dir path:" << _path;
-    std::set<std::string> shards;
     auto data_path = fmt::format("{}/{}", _path, DATA_PREFIX);
+    std::vector<io::FileInfo> shards;
+    bool exists = true;
+    RETURN_IF_ERROR(io::global_local_filesystem()->list(data_path, false, &shards, &exists));
 
-    Status ret = FileUtils::list_dirs_files(data_path, &shards, nullptr, Env::Default());
-    if (!ret.ok()) {
-        LOG(WARNING) << "fail to walk dir. path=[" << data_path << "] error[" << ret.to_string()
-                     << "]";
-        return;
-    }
-
+    Status ret;
     for (const auto& shard : shards) {
-        auto shard_path = fmt::format("{}/{}", data_path, shard);
-        std::set<std::string> tablet_ids;
-        ret = FileUtils::list_dirs_files(shard_path, &tablet_ids, nullptr, Env::Default());
+        auto shard_path = fmt::format("{}/{}", data_path, shard.file_name);
+        std::vector<io::FileInfo> tablet_ids;
+        ret = io::global_local_filesystem()->list(shard_path, false, &tablet_ids, &exists);
         if (!ret.ok()) {
             LOG(WARNING) << "fail to walk dir. [path=" << shard_path << "] error["
                          << ret.to_string() << "]";
             continue;
         }
         for (const auto& tablet_id : tablet_ids) {
-            auto tablet_id_path = fmt::format("{}/{}", shard_path, tablet_id);
-            std::set<std::string> schema_hashes;
-            ret = FileUtils::list_dirs_files(tablet_id_path, &schema_hashes, nullptr,
-                                             Env::Default());
+            auto tablet_id_path = fmt::format("{}/{}", shard_path, tablet_id.file_name);
+            std::vector<io::FileInfo> schema_hashes;
+            ret = io::global_local_filesystem()->list(tablet_id_path, false, &schema_hashes, &exists);
             if (!ret.ok()) {
                 LOG(WARNING) << "fail to walk dir. [path=" << tablet_id_path << "]"
                              << " error[" << ret.to_string() << "]";
@@ -683,12 +686,11 @@ void DataDir::perform_path_scan() {
                 if (interval_ms > 0) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(interval_ms));
                 }
-                auto tablet_schema_hash_path = fmt::format("{}/{}", tablet_id_path, schema_hash);
+                auto tablet_schema_hash_path = fmt::format("{}/{}", tablet_id_path, schema_hash.file_name);
                 _all_tablet_schemahash_paths.insert(tablet_schema_hash_path);
 
-                std::set<std::string> rowset_files;
-                ret = FileUtils::list_dirs_files(tablet_schema_hash_path, nullptr, &rowset_files,
-                                                 Env::Default());
+                std::vector<io::FileInfo> rowset_files;
+                ret = io::global_local_filesystem()->list(tablet_schema_hash_path, true, &rowset_files, &exists);
                 if (!ret.ok()) {
                     LOG(WARNING) << "fail to walk dir. [path=" << tablet_schema_hash_path
                                  << "] error[" << ret.to_string() << "]";
@@ -696,7 +698,7 @@ void DataDir::perform_path_scan() {
                 }
                 for (const auto& rowset_file : rowset_files) {
                     auto rowset_file_path =
-                            fmt::format("{}/{}", tablet_schema_hash_path, rowset_file);
+                            fmt::format("{}/{}", tablet_schema_hash_path, rowset_file.file_name);
                     _all_check_paths.insert(rowset_file_path);
                 }
             }
@@ -705,6 +707,7 @@ void DataDir::perform_path_scan() {
     LOG(INFO) << "scan data dir path: " << _path << " finished. path size: "
               << _all_check_paths.size() + _all_tablet_schemahash_paths.size();
     _check_path_cv.notify_one();
+    return Status::OK();
 }
 
 // This function is called for rowset_id path, only local rowset_id_path can be garbage.
@@ -713,7 +716,7 @@ void DataDir::perform_path_scan() {
 void DataDir::_process_garbage_path(const std::string& path) {
     if (Env::Default()->path_exists(path).ok()) {
         LOG(INFO) << "collect garbage dir path: " << path;
-        WARN_IF_ERROR(FileUtils::remove_all(path), "remove garbage dir failed. path: " + path);
+        WARN_IF_ERROR(io::global_local_filesystem()->delete_directory(path), "remove garbage dir failed");
     }
 }
 
@@ -797,11 +800,11 @@ Status DataDir::move_to_trash(const std::string& tablet_path) {
 
     // 3. create target dir, or the rename() function will fail.
     auto trash_tablet_parent = trash_tablet_path.parent_path();
-    if (!FileUtils::check_exist(trash_tablet_parent) &&
-        !FileUtils::create_dir(trash_tablet_parent).ok()) {
-        LOG(WARNING) << "delete file failed. due to mkdir failed. [file=" << tablet_path
-                     << " new_dir=" << trash_tablet_parent << "]";
-        return Status::Error<OS_ERROR>();
+    // create dir if not exists
+    bool exists = true;
+    RETURN_IF_ERROR(io::global_local_filesystem()->exists(trash_tablet_parent, &exists));
+    if (!exists) {
+        RETURN_IF_ERROR(io::global_local_filesystem()->create_directory(trash_tablet_parent));
     }
 
     // 4. move tablet to trash
@@ -814,16 +817,12 @@ Status DataDir::move_to_trash(const std::string& tablet_path) {
 
     // 5. check parent dir of source file, delete it when empty
     std::string source_parent_dir = fs_tablet_path.parent_path(); // tablet_id level
-    std::set<std::string> sub_dirs, sub_files;
-
-    RETURN_WITH_WARN_IF_ERROR(
-            FileUtils::list_dirs_files(source_parent_dir, &sub_dirs, &sub_files, Env::Default()),
-            Status::OK(), "access dir failed. [dir=" + source_parent_dir);
-
-    if (sub_dirs.empty() && sub_files.empty()) {
+    std::vector<io::FileInfo> sub_files;
+    RETURN_IF_ERROR(io::global_local_filesystem()->list(source_parent_dir, false, &sub_files, &exists));
+    if (sub_files.empty()) {
         LOG(INFO) << "remove empty dir " << source_parent_dir;
         // no need to exam return status
-        Env::Default()->delete_dir(source_parent_dir);
+        io::global_local_filesystem()->delete_directory(source_parent_dir);
     }
 
     return Status::OK();

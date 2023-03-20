@@ -30,7 +30,6 @@
 #include "io/fs/local_file_system.h"
 #include "olap/iterators.h"
 #include "util/async_io.h"
-#include "util/file_utils.h"
 #include "util/string_util.h"
 
 namespace doris {

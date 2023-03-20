@@ -35,6 +35,7 @@
 #include "env/env.h"
 #include "gen_cpp/Types_types.h"
 #include "gutil/strings/substitute.h"
+#include "io/fs/local_file_system.h"
 #include "io/fs/s3_file_system.h"
 #include "olap/data_dir.h"
 #include "olap/olap_common.h"
@@ -53,7 +54,6 @@
 #include "runtime/snapshot_loader.h"
 #include "service/backend_options.h"
 #include "util/doris_metrics.h"
-#include "util/file_utils.h"
 #include "util/random.h"
 #include "util/scoped_cleanup.h"
 #include "util/stopwatch.hpp"
@@ -1517,10 +1517,15 @@ void TaskWorkerPool::_make_snapshot_thread_callback() {
             // list and save all snapshot files
             // snapshot_path like: data/snapshot/20180417205230.1.86400
             // we need to add subdir: tablet_id/schema_hash/
-            std::stringstream ss;
-            ss << snapshot_path << "/" << snapshot_request.tablet_id << "/"
-               << snapshot_request.schema_hash << "/";
-            status = FileUtils::list_files(Env::Default(), ss.str(), &snapshot_files);
+            std::vector<io::FileInfo> files; 
+            bool exists = true;
+            io::Path path = fmt::format("{}/{}/{}", snapshot_path, snapshot_request.tablet_id, snapshot_request.schema_hash);
+            status = io::global_local_filesystem()->list(path, true, &files, &exists);
+            if (status.ok()) {
+                for (auto& file : files) {
+                    snapshot_files.push_back(file.file_name);
+                }
+            }
         }
         if (!status.ok()) {
             LOG_WARNING("failed to make snapshot")

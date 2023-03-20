@@ -21,7 +21,6 @@
 #include <glog/logging.h>
 #include <stdio.h>  // for remove()
 #include <unistd.h> // for link()
-#include <util/file_utils.h>
 
 #include "common/status.h"
 #include "gutil/strings/substitute.h"

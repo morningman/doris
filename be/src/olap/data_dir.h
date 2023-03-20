@@ -109,7 +109,7 @@ public:
 
     // this function scans the paths in data dir to collect the paths to check
     // this is a producer function. After scan, it will notify the perform_path_gc function to gc
-    void perform_path_scan();
+    Status perform_path_scan();
 
     void perform_path_gc_by_rowsetid();
 

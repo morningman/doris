@@ -29,7 +29,8 @@
 #include <vector>
 
 #include "disk_info.h"
-#include "file_utils.h"
+
+#include "io/fs/local_file_system.h"
 
 namespace doris {
 
@@ -134,8 +135,11 @@ Status DiskInfo::get_disk_devices(const std::vector<std::string>& paths,
     std::vector<std::string> real_paths;
     for (const auto& path : paths) {
         std::string p;
-        WARN_IF_ERROR(FileUtils::canonicalize(path, &p),
-                      "canonicalize path " + path + " failed, skip disk monitoring of this path");
+        Status st = io::global_local_filesystem()->canonicalize(path, &p);
+        if (!st.ok()) {
+            LOG(WARN) << "skip disk monitoring of path. " << st;
+            continue;
+        }
         real_paths.emplace_back(std::move(p));
     }
 

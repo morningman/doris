@@ -30,6 +30,30 @@ public:
     /// hard link dest file to src file
     Status link_file(const Path& src, const Path& dest);
 
+    // Canonicalize 'path' by applying the following conversions:
+    // - Converts a relative path into an absolute one using the cwd.
+    // - Converts '.' and '..' references.
+    // - Resolves all symbolic links.
+    //
+    // All directory entries in 'path' must exist on the filesystem.
+    Status canonicalize(const Path& path, std::string* real_path);
+    // Check if the given path is directory
+    Status is_directory(const Path& path, bool* res);
+    // Calc md5sum of given file
+    Status md5sum(const Path& file, std::string* md5sum);
+    // iterate the given dir and execute cb on each entry
+    Status iterate_directory(const std::string& dir, const std::function<bool(const FileInfo&)>& cb);
+    // Return the mtime of given file
+    Status mtime(const Path& file, time_t* m_time);
+    // remove dir if eixsts and create a new one
+    Status delete_and_create_directory(const Path& dir);
+    // return disk available space where the given path is.
+    Status get_space_available(const Path& path, uint64_t* available_bytes);
+    // changes the size of the regular file 
+    Status resize_file(const Path& file, size_t new_size);
+    // return true if parent path contain sub path
+    static bool contain_path(const Path& parent, const Path& sub);
+
 protected:
     Status create_file_impl(const Path& file, FileWriterPtr* writer) override;
     Status open_file_impl(const Path& file, const FileReaderOptions& reader_options,
@@ -45,6 +69,12 @@ protected:
     Status rename_impl(const Path& orig_name, const Path& new_name) override;
     Status rename_dir_impl(const Path& orig_name, const Path& new_name) override;
     Status link_file_impl(const Path& src, const Path& dest);
+    Status md5sum_impl(const Path& file, std::string* md5sum);
+    Status iterate_directory_impl(const std::string& dir, const std::function<bool(const FileInfo&)>& cb);
+    Status mtime_impl(const Path& file, time_t* m_time);
+    Status delete_and_create_directory_impl(const Path& dir);
+    Status get_space_available_impl(const Path& path, uint64_t* available_bytes);
+    Status resize_file_impl(const Path& file, size_t new_size);
 
 private:
     LocalFileSystem(Path&& root_path, std::string&& id = "");

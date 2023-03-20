@@ -21,8 +21,8 @@
 #include <unistd.h>
 
 #include "env/env.h"
+#include "io/fs/local_file_system.h"
 #include "util/debug_util.h"
-#include "util/file_utils.h"
 #include "util/system_metrics.h"
 
 namespace doris {
@@ -345,9 +345,13 @@ void DorisMetrics::_update_process_thread_num() {
     ss << "/proc/" << pid << "/task/";
 
     int64_t count = 0;
-    Status st = FileUtils::get_children_count(Env::Default(), ss.str(), &count);
+    auto cb = [&count](const io::FileInfo& file) -> bool {
+        count += 1;
+        return true;
+    };
+    Status st = io::global_local_filesystem()->iterate_directory(ss.str(), cb);
     if (!st.ok()) {
-        LOG(WARNING) << "failed to count thread num from: " << ss.str();
+        LOG(WARNING) << "failed to count thread num: " << st;
         process_thread_num->set_value(0);
         return;
     }
@@ -363,9 +367,13 @@ void DorisMetrics::_update_process_fd_num() {
     std::stringstream ss;
     ss << "/proc/" << pid << "/fd/";
     int64_t count = 0;
-    Status st = FileUtils::get_children_count(Env::Default(), ss.str(), &count);
+    auto cb = [&count](const io::FileInfo& file) -> bool {
+        count += 1;
+        return true;
+    };
+    Status st = io::global_local_filesystem()->iterate_directory(ss.str(), cb);
     if (!st.ok()) {
-        LOG(WARNING) << "failed to count fd from: " << ss.str();
+        LOG(WARNING) << "failed to count fd: " << st;
         process_fd_num_used->set_value(0);
         return;
     }

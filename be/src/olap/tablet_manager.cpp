@@ -40,7 +40,6 @@
 #include "runtime/thread_context.h"
 #include "service/backend_options.h"
 #include "util/doris_metrics.h"
-#include "util/file_utils.h"
 #include "util/histogram.h"
 #include "util/path_util.h"
 #include "util/scoped_cleanup.h"
@@ -399,15 +398,20 @@ TabletSharedPtr TabletManager::_create_tablet_meta_and_dir_unlocked(
 
         // Because the tablet is removed asynchronously, so that the dir may still exist when BE
         // receive create-tablet request again, For example retried schema-change request
-        if (FileUtils::check_exist(schema_hash_dir)) {
+        bool exists = true;
+        res = io::global_local_filesystem()->exists(schema_hash_dir, &exists);
+        if (!res.ok()) {
+            LOG(WARNING) << res;
+            continue;
+        }
+        if (exists) {
             LOG(WARNING) << "skip this dir because tablet path exist, path=" << schema_hash_dir;
             continue;
         } else {
             data_dir->add_pending_ids(pending_id);
-            Status st = FileUtils::create_dir(schema_hash_dir);
+            Status st = io::global_local_filesystem()->create_directory(schema_hash_dir);
             if (!st.ok()) {
-                LOG(WARNING) << "create dir fail. path=" << schema_hash_dir
-                             << " error=" << st.to_string();
+                LOG(WARNING) << st;
                 continue;
             }
         }

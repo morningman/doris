@@ -17,10 +17,14 @@
 
 #include "io/fs/local_file_system.h"
 
+#include <openssl/md5.h>
+#include <sys/mman.h>
+
 #include "io/fs/file_system.h"
 #include "io/fs/fs_utils.h"
 #include "io/fs/local_file_reader.h"
 #include "io/fs/local_file_writer.h"
+#include "runtime/thread_context.h"
 #include "util/async_io.h"
 
 namespace doris {
@@ -179,6 +183,207 @@ Status LocalFileSystem::link_file_impl(const Path& src, const Path& dest) {
                                dest.native(), errno_to_str());
     }
     return Status::OK();
+}
+
+Status LocalFileSystem::canonicalize(const Path& path, std::string* real_path) {
+    std::error_code ec;
+    Path res = std::filesystem::canonical(path, ec);
+    if (ec) {
+        return Status::IOError("failed to canonicalize path {}: {}", path.native(), errcode_to_str(ec));
+    }
+    *real_path = res.string();
+    return Status::OK();
+}
+
+Status LocalFileSystem::is_directory(const Path& path, bool* res) {
+    auto tmp_path = absolute_path(path);
+    std::error_code ec;
+    *res = std::filesystem::is_directory(tmp_path, ec);
+    if (ec) {
+        return Status::IOError("failed to check is dir {}: {}", tmp_path.native(), errcode_to_str(ec));
+    }
+    return Status::OK();
+}
+
+Status LocalFileSystem::md5sum(const Path& file, std::string* md5sum) {
+    auto path = absolute_path(file);
+    if (bthread_self() == 0) {
+        return md5sum_impl(path, md5sum);
+    }
+    Status s;
+    auto task = [&] { s = md5sum_impl(path, md5sum); };
+    AsyncIO::run_task(task, _type);
+    return s;
+}
+
+Status LocalFileSystem::md5sum_impl(const Path& file, std::string* md5sum) {
+    int fd = open(file.c_str(), O_RDONLY);
+    if (fd < 0) {
+        return Status::IOError("failed to open file for md5sum {}: {}", file.native(), errno_to_str());
+    }
+
+    struct stat statbuf;
+    if (fstat(fd, &statbuf) < 0) {
+        std::string err = errno_to_str();
+        close(fd);
+        return Status::InternalError("failed to stat file {}: {}", file.native(), err);
+    }
+    size_t file_len = statbuf.st_size;
+    CONSUME_THREAD_MEM_TRACKER(file_len);
+    void* buf = mmap(0, file_len, PROT_READ, MAP_SHARED, fd, 0);
+
+    unsigned char result[MD5_DIGEST_LENGTH];
+    MD5((unsigned char*)buf, file_len, result);
+    munmap(buf, file_len);
+    RELEASE_THREAD_MEM_TRACKER(file_len);
+
+    std::stringstream ss;
+    for (int32_t i = 0; i < MD5_DIGEST_LENGTH; i++) {
+        ss << std::setfill('0') << std::setw(2) << std::hex << (int)result[i];
+    }
+    ss >> *md5sum;
+
+    close(fd);
+    return Status::OK();
+}
+
+Status LocalFileSystem::iterate_directory(const std::string& dir, const std::function<bool(const FileInfo& file)>& cb) {
+    auto path = absolute_path(dir);
+    if (bthread_self() == 0) {
+        return iterate_directory_impl(dir, cb);
+    }
+    Status s;
+    auto task = [&] { s = iterate_directory_impl(dir, cb); };
+    AsyncIO::run_task(task, _type);
+    return s;
+}
+
+Status LocalFileSystem::iterate_directory_impl(const std::string& dir, const std::function<bool(const FileInfo& file)>& cb) {
+    bool exists = true;
+    std::vector<FileInfo> files;
+    RETURN_IF_ERROR(list_impl(dir, false, &files, &exists));
+    for (auto& file : files) {
+        if (!cb(file)) {
+            break;
+        }
+    }
+    return Status::OK();
+}
+
+Status LocalFileSystem::mtime(const Path& file, time_t* m_time) {
+    auto path = absolute_path(file);
+    if (bthread_self() == 0) {
+        return mtime_impl(path, m_time);
+    }
+    Status s;
+    auto task = [&] { s = mtime_impl(path, m_time); };
+    AsyncIO::run_task(task, _type);
+    return s;
+}
+
+Status LocalFileSystem::mtime_impl(const Path& file, time_t* m_time) {
+    int fd = open(file.c_str(), O_RDONLY);
+    if (fd < 0) {
+        return Status::IOError("failed to get mtime for file {}: {}", file.native(), errno_to_str());
+    }
+
+    Defer defer {[&]() { close(fd); }};
+    struct stat statbuf;
+    if (fstat(fd, &statbuf) < 0) {
+        return Status::IOError("failed to stat file {}: {}", file.native(), errno_to_str());
+    }
+    *m_time = statbuf.st_mtime;
+    return Status::OK();
+}
+
+Status LocalFileSystem::delete_and_create_directory(const Path& dir) {
+    auto path = absolute_path(dir);
+    if (bthread_self() == 0) {
+        return delete_and_create_directory_impl(path);
+    }
+    Status s;
+    auto task = [&] { s = delete_and_create_directory_impl(path); };
+    AsyncIO::run_task(task, _type);
+    return s;
+}
+
+Status LocalFileSystem::delete_and_create_directory_impl(const Path& dir) {
+    RETURN_IF_ERROR(delete_directory_impl(dir));
+    return create_directory_impl(dir);
+}
+
+Status LocalFileSystem::get_space_available(const Path& dir,
+                                             uint64_t* available_bytes) {
+    auto path = absolute_path(dir);
+    if (bthread_self() == 0) {
+        return get_space_available_impl(path, available_bytes);
+    }
+    Status s;
+    auto task = [&] { s = get_space_available_impl(path, available_bytes); };
+    AsyncIO::run_task(task, _type);
+    return s;
+}
+
+Status LocalFileSystem::get_space_available_impl(const Path& path,
+                                           uint64_t* available_bytes) {
+    std::error_code ec;
+    std::filesystem::space_info info = std::filesystem::space(path, ec);
+    if (ec) {
+        return Status::IOError("failed to get available space for path {}: {}", path.native(), errcode_to_str(ec));
+    }
+    *available_bytes = info.available;
+    return Status::OK();
+}
+
+Status LocalFileSystem::resize_file(const Path& file, size_t new_size) {
+    auto path = absolute_path(file);
+    if (bthread_self() == 0) {
+        return resize_file_impl(path, new_size);
+    }
+    Status s;
+    auto task = [&] { s = resize_file_impl(path, new_size); };
+    AsyncIO::run_task(task, _type);
+    return s;
+}
+
+Status LocalFileSystem::resize_file_impl(const Path& file, size_t new_size) {
+    std::error_code ec;
+    std::filesystem::resize_file(file, new_size, ec);
+    if (ec) {
+        return Status::IOError("failed to resize file {}: {}", file.native(), errcode_to_str(ec));
+    }
+    return Status::OK();
+}
+
+bool contain_path(const Path& parent_, const Path& sub_) {
+    Path parent = parent_.lexically_normal();
+    Path sub = sub_.lexically_normal();
+    if (parent == sub) {
+        return true;
+    }
+
+    if (parent.filename() == ".") {
+        parent.remove_filename();
+    }
+
+    // We're also not interested in the file's name.
+    if (sub.has_filename()) {
+        sub.remove_filename();
+    }
+    // If dir has more components than file, then file can't possibly reside in dir.
+    auto dir_len = std::distance(parent.begin(), parent.end());
+    auto file_len = std::distance(sub.begin(), sub.end());
+    if (dir_len > file_len) {
+        return false;
+    }
+    auto p_it = parent.begin();
+    auto s_it = sub.begin();
+    for (; p_it != parent.end() && !p_it->string().empty(); ++p_it, ++s_it) {
+        if (!(*p_it == *s_it)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 static std::shared_ptr<LocalFileSystem> local_fs = io::LocalFileSystem::create("");

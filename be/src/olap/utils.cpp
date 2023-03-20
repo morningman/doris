@@ -33,8 +33,6 @@
 #include <string>
 #include <vector>
 
-#include "util/file_utils.h"
-
 #ifdef DORIS_WITH_LZO
 #include <lzo/lzo1c.h>
 #include <lzo/lzo1x.h>
@@ -493,7 +491,15 @@ Status read_write_test_file(const string& test_file_path) {
 }
 
 bool check_datapath_rw(const string& path) {
-    if (!FileUtils::check_exist(path)) return false;
+    bool exists = true;
+    Status st = io::global_local_filesystem()->exists(path, &exists);
+    if (!st.ok()) {
+        LOG(WARNING) << st;
+    }
+
+    if (!exists) {
+        return false;
+    }
     string file_path = path + "/.read_write_test_file";
     try {
         Status res = read_write_test_file(file_path);

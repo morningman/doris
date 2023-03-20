@@ -37,7 +37,6 @@
 #include "olap/rowset/beta_rowset_writer.h"
 #include "olap/storage_engine.h"
 #include "service/point_query_executor.h"
-#include "util/file_utils.h"
 #include "util/time.h"
 
 using std::string;
@@ -339,7 +338,10 @@ void StorageEngine::_path_scan_thread_callback(DataDir* data_dir) {
     int32_t interval = config::path_scan_interval_second;
     do {
         LOG(INFO) << "try to perform path scan!";
-        data_dir->perform_path_scan();
+        Status st = data_dir->perform_path_scan();
+        if (!st) {
+            LOG(WARNING) << "path scan failed: " << st;
+        }
 
         interval = config::path_scan_interval_second;
         if (interval <= 0) {

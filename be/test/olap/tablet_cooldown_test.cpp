@@ -34,7 +34,6 @@
 #include "olap/storage_policy.h"
 #include "olap/tablet.h"
 #include "runtime/descriptor_helper.h"
-#include "util/file_utils.h"
 #include "util/s3_util.h"
 
 namespace doris {
@@ -211,10 +210,9 @@ public:
         config::storage_root_path = std::string(buffer) + "/" + kTestDir;
         config::min_file_descriptor_number = 1000;
 
-        FileUtils::remove_all(config::storage_root_path);
-        FileUtils::create_dir(config::storage_root_path);
-        FileUtils::create_dir(get_remote_path(fmt::format("data/{}", kTabletId)));
-        FileUtils::create_dir(get_remote_path(fmt::format("data/{}", kTabletId2)));
+        EXPECT_TRUE(io::global_local_filesystem()->delete_and_create_directory(config::storage_root_path).ok());
+        EXPECT_TRUE(io::global_local_filesystem()->create_directory(get_remote_path(fmt::format("data/{}", kTabletId))).ok());
+        EXPECT_TRUE(io::global_local_filesystem()->create_directory(get_remote_path(fmt::format("data/{}", kTabletId2))).ok());
 
         std::vector<StorePath> paths {{config::storage_root_path, -1}};
 

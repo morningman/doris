@@ -32,7 +32,6 @@
 #include "olap/types.h"
 #include "runtime/mem_pool.h"
 #include "testutil/test_util.h"
-#include "util/file_utils.h"
 #include "vec/core/types.h"
 #include "vec/data_types/data_type_date.h"
 #include "vec/data_types/data_type_date_time.h"
@@ -56,16 +55,11 @@ public:
 protected:
     void SetUp() override {
         config::disable_storage_page_cache = true;
-        if (FileUtils::check_exist(TEST_DIR)) {
-            EXPECT_TRUE(FileUtils::remove_all(TEST_DIR).ok());
-        }
-        EXPECT_TRUE(FileUtils::create_dir(TEST_DIR).ok());
+        EXPECT_TRUE(io::global_local_filesystem()->delete_and_create_directory(TEST_DIR).ok());
     }
 
     void TearDown() override {
-        if (FileUtils::check_exist(TEST_DIR)) {
-            EXPECT_TRUE(FileUtils::remove_all(TEST_DIR).ok());
-        }
+        EXPECT_TRUE(io::global_local_filesystem()->delete_directory(TEST_DIR).ok());
     }
 
 private:

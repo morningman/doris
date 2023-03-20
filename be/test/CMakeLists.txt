@@ -34,7 +34,7 @@ set(COMMON_TEST_FILES
     common/exception_test.cpp
 )
 set(ENV_TEST_FILES
-    env/env_posix_test.cpp
+    #env/env_posix_test.cpp
 )
 
 set(EXEC_TEST_FILES
@@ -84,7 +84,7 @@ set(OLAP_TEST_FILES
     olap/bloom_filter_test.cpp
     olap/itoken_extractor_test.cpp
     olap/file_header_test.cpp
-    olap/file_utils_test.cpp
+    #olap/file_utils_test.cpp
     olap/cumulative_compaction_policy_test.cpp
     #olap/row_cursor_test.cpp
     olap/skiplist_test.cpp
@@ -138,7 +138,6 @@ set(RUNTIME_TEST_FILES
     # runtime/parallel_executor_test.cpp
     # runtime/datetime_value_test.cpp
     # runtime/dpp_sink_test.cpp
-    # runtime/tmp_file_mgr_test.cpp
     # runtime/export_task_mgr_test.cpp
     runtime/mem_pool_test.cpp
     runtime/decimalv2_value_test.cpp

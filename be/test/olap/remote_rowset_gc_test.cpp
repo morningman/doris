@@ -70,8 +70,7 @@ public:
         config::storage_root_path = std::string(buffer) + "/" + kTestDir;
         config::min_file_descriptor_number = 1000;
 
-        FileUtils::remove_all(config::storage_root_path);
-        FileUtils::create_dir(config::storage_root_path);
+        EXPECT_TRUE(io::global_local_filesystem()->delete_and_create_directory(config::storage_root_path).ok());
 
         std::vector<StorePath> paths {{config::storage_root_path, -1}};
 

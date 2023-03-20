@@ -21,7 +21,6 @@
 
 #include "io/fs/file_writer.h"
 #include "io/fs/local_file_system.h"
-#include "util/file_utils.h"
 #include "vec/data_types/data_type_factory.hpp"
 
 namespace doris {
@@ -30,15 +29,10 @@ using namespace ErrorCode;
 class PrimaryKeyIndexTest : public testing::Test {
 public:
     void SetUp() override {
-        if (FileUtils::check_exist(kTestDir)) {
-            EXPECT_TRUE(FileUtils::remove_all(kTestDir).ok());
-        }
-        EXPECT_TRUE(FileUtils::create_dir(kTestDir).ok());
+        EXPECT_TRUE(io::global_local_filesystem()->delete_and_create_directory(kTestDir).ok());
     }
     void TearDown() override {
-        if (FileUtils::check_exist(kTestDir)) {
-            EXPECT_TRUE(FileUtils::remove_all(kTestDir).ok());
-        }
+        EXPECT_TRUE(io::global_local_filesystem()->delete_directory(kTestDir).ok());
     }
 
 private:

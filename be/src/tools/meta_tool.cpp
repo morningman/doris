@@ -31,6 +31,7 @@
 #include "gutil/strings/numbers.h"
 #include "gutil/strings/split.h"
 #include "gutil/strings/substitute.h"
+#include "io/fs/local_file_system.h"
 #include "json2pb/pb_to_json.h"
 #include "olap/data_dir.h"
 #include "olap/olap_define.h"
@@ -42,7 +43,6 @@
 #include "olap/utils.h"
 #include "util/coding.h"
 #include "util/crc32c.h"
-#include "util/file_utils.h"
 
 using std::filesystem::path;
 using doris::DataDir;
@@ -50,7 +50,6 @@ using doris::OlapMeta;
 using doris::Status;
 using doris::TabletMeta;
 using doris::TabletMetaManager;
-using doris::FileUtils;
 using doris::Slice;
 using doris::RandomAccessFile;
 using strings::Substitute;
@@ -143,12 +142,7 @@ void delete_meta(DataDir* data_dir) {
 
 Status init_data_dir(const std::string& dir, std::unique_ptr<DataDir>* ret) {
     std::string root_path;
-    Status st = FileUtils::canonicalize(dir, &root_path);
-    if (!st.ok()) {
-        std::cout << "invalid root path:" << FLAGS_root_path << ", error: " << st.to_string()
-                  << std::endl;
-        return Status::InternalError("invalid root path");
-    }
+    RETURN_IF_ERROR(io::global_local_filesystem()->canonicalize(dir, &root_path));
     doris::StorePath path;
     auto res = parse_root_path(root_path, &path);
     if (!res.ok()) {
@@ -194,7 +188,7 @@ void batch_delete_meta(const std::string& tablet_file) {
         }
         // 1. get dir
         std::string dir;
-        Status st = FileUtils::canonicalize(v[0], &dir);
+        Status st = io::global_local_filesystem()->canonicalize(v[0], &dir);
         if (!st.ok()) {
             std::cout << "invalid root dir in tablet_file: " << line << std::endl;
             err_num++;
@@ -334,7 +328,7 @@ int main(int argc, char** argv) {
         show_meta();
     } else if (FLAGS_operation == "batch_delete_meta") {
         std::string tablet_file;
-        Status st = FileUtils::canonicalize(FLAGS_tablet_file, &tablet_file);
+        Status st = io::global_local_filesystem()->canonicalize(FLAGS_tablet_file, &tablet_file);
         if (!st.ok()) {
             std::cout << "invalid tablet file: " << FLAGS_tablet_file
                       << ", error: " << st.to_string() << std::endl;

@@ -49,12 +49,9 @@ protected:
         char buffer[MAX_PATH_LEN];
         EXPECT_NE(getcwd(buffer, MAX_PATH_LEN), nullptr);
         absolute_dir = std::string(buffer) + kTestDir;
+        EXPECT_TRUE(io::global_local_filesystem()->delete_and_create_directory(absolute_dir).ok());
+        EXPECT_TRUE(io::global_local_filesystem()->create_directory(absolute_dir + "/tablet_path").ok());
 
-        if (FileUtils::check_exist(absolute_dir)) {
-            EXPECT_TRUE(FileUtils::remove_all(absolute_dir).ok());
-        }
-        EXPECT_TRUE(FileUtils::create_dir(absolute_dir).ok());
-        EXPECT_TRUE(FileUtils::create_dir(absolute_dir + "/tablet_path").ok());
         _data_dir = std::make_unique<DataDir>(absolute_dir);
         _data_dir->update_capacity();
         doris::EngineOptions options;
@@ -65,9 +62,7 @@ protected:
         config::ordered_data_compaction_min_segment_size = 10;
     }
     void TearDown() override {
-        if (FileUtils::check_exist(absolute_dir)) {
-            EXPECT_TRUE(FileUtils::remove_all(absolute_dir).ok());
-        }
+        EXPECT_TRUE(io::global_local_filesystem()->delete_directory(absolute_dir).ok());
         if (k_engine != nullptr) {
             k_engine->stop();
             delete k_engine;
@@ -389,7 +384,7 @@ TEST_F(OrderedDataCompactionTest, test_01) {
 
     TabletSchemaSPtr tablet_schema = create_schema();
     TabletSharedPtr tablet = create_tablet(*tablet_schema, false, 10000, false);
-    EXPECT_TRUE(FileUtils::create_dir(tablet->tablet_path()).ok());
+    EXPECT_TRUE(io::global_local_filesystem()->create_directory(tablet->tablet_path()).ok());
     // create input rowset
     vector<RowsetSharedPtr> input_rowsets;
     SegmentsOverlapPB new_overlap = NONOVERLAPPING;
