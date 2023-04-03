@@ -117,7 +117,7 @@ Status createHDFSBuilder(const THdfsParams& hdfsParams, HDFSCommonBuilder* build
     }
 
     if (builder->is_need_kinit()) {
-        RETURN_IF_ERROR(builder->run_kinit());
+        // RETURN_IF_ERROR(builder->run_kinit());
     }
 
     return Status::OK();
