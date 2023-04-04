@@ -96,23 +96,28 @@ THdfsParams parse_properties(const std::map<std::string, std::string>& propertie
 Status createHDFSBuilder(const THdfsParams& hdfsParams, HDFSCommonBuilder* builder) {
     RETURN_IF_ERROR(builder->init_hdfs_builder());
     hdfsBuilderSetNameNode(builder->get(), hdfsParams.fs_name.c_str());
+    LOG(INFO) << "doris debug hdfs namenode: " << hdfsParams.fs_name.c_str();
     // set hdfs user
     if (hdfsParams.__isset.user) {
         hdfsBuilderSetUserName(builder->get(), hdfsParams.user.c_str());
+        LOG(INFO) << "doris debug hdfs username: " << hdfsParams.user.c_str();
     }
     // set kerberos conf
     if (hdfsParams.__isset.hdfs_kerberos_principal) {
         builder->need_kinit = true;
         builder->hdfs_kerberos_principal = hdfsParams.hdfs_kerberos_principal;
+        LOG(INFO) << "doris debug hdfs kerberos_principal: " << hdfsParams.hdfs_kerberos_principal;
     }
     if (hdfsParams.__isset.hdfs_kerberos_keytab) {
         builder->need_kinit = true;
         builder->hdfs_kerberos_keytab = hdfsParams.hdfs_kerberos_keytab;
+        LOG(INFO) << "doris debug hdfs kerberos_keytab: " << hdfsParams.hdfs_kerberos_keytab;
     }
     // set other conf
     if (hdfsParams.__isset.hdfs_conf) {
         for (const THdfsConf& conf : hdfsParams.hdfs_conf) {
             hdfsBuilderConfSetStr(builder->get(), conf.key.c_str(), conf.value.c_str());
+            LOG(INFO) << "doris debug hdfs key: " << conf.key.c_str() << ", value: " << conf.value.c_str();
         }
     }
 
