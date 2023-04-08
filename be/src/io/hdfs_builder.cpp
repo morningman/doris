@@ -97,11 +97,6 @@ Status createHDFSBuilder(const THdfsParams& hdfsParams, HDFSCommonBuilder* build
     RETURN_IF_ERROR(builder->init_hdfs_builder());
     hdfsBuilderSetNameNode(builder->get(), hdfsParams.fs_name.c_str());
     LOG(INFO) << "doris debug hdfs namenode: " << hdfsParams.fs_name.c_str();
-    // set hdfs user
-    if (hdfsParams.__isset.user) {
-        hdfsBuilderSetUserName(builder->get(), hdfsParams.user.c_str());
-        LOG(INFO) << "doris debug hdfs username: " << hdfsParams.user.c_str();
-    }
     // set kerberos conf
     if (hdfsParams.__isset.hdfs_kerberos_principal) {
         builder->need_kinit = true;
@@ -123,6 +118,10 @@ Status createHDFSBuilder(const THdfsParams& hdfsParams, HDFSCommonBuilder* build
 
     if (builder->is_need_kinit()) {
         // RETURN_IF_ERROR(builder->run_kinit());
+    } else if (hdfsParams.__isset.user) {
+        // set hdfs user
+        hdfsBuilderSetUserName(builder->get(), hdfsParams.user.c_str());
+        LOG(INFO) << "doris debug hdfs username: " << hdfsParams.user.c_str();
     }
 
     return Status::OK();
