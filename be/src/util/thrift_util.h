@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "common/status.h"
+#include "util/stack_util.h"
 
 namespace doris {
 
@@ -132,6 +133,7 @@ Status deserialize_thrift_msg(const uint8_t* buf, uint32_t* len, bool compact,
     try {
         deserialized_msg->read(tproto.get());
     } catch (std::exception& e) {
+        LOG(WARNING) << "Couldn't deserialize thrift msg: " << e.what() << get_stack_trace();
         return Status::InternalError("Couldn't deserialize thrift msg:\n{}", e.what());
     } catch (...) {
         // TODO: Find the right exception for 0 bytes

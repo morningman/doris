@@ -149,7 +149,11 @@ Status ParquetReader::_open_file() {
         if (_file_reader->size() == 0) {
             return Status::EndOfFile("open file failed, empty parquet file: " + _scan_range.path);
         }
-        RETURN_IF_ERROR(parse_thrift_footer(_file_reader.get(), _file_metadata));
+        Status st = parse_thrift_footer(_file_reader.get(), _file_metadata);
+        if (!st) {
+            LOG(WARNING) << "failed to open file: " << _scan_range.path;
+            return st;
+        }
     }
     return Status::OK();
 }
@@ -377,7 +381,11 @@ Status ParquetReader::get_columns(std::unordered_map<std::string, TypeDescriptor
 Status ParquetReader::get_next_block(Block* block, size_t* read_rows, bool* eof) {
     if (_current_group_reader == nullptr || _row_group_eof) {
         if (_read_row_groups.size() > 0) {
-            RETURN_IF_ERROR(_next_row_group_reader());
+            Status tmp_st = _next_row_group_reader();
+            if (!tmp_st) {
+                LOG(INFO) << "failed to read _next_row_group_reader: " << _scan_range.path;
+                return tmp_st;
+            }
         } else {
             _current_group_reader.reset(nullptr);
             _row_group_eof = true;
