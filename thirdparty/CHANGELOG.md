@@ -7,9 +7,6 @@ This file contains version of the third-party dependency libraries in the build-
 - Modified: boost 1.73.0 -> 1.81.0
 - Modified: clucene 2.4.6 -> 2.4.8
 
-## v20230228
-- Modified: thrift 0.13 -> 0.16
-
 ## v20230221
 - Modified: clucene 2.4.4 -> 2.4.6
 
