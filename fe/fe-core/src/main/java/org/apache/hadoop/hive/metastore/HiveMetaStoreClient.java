@@ -18,7 +18,6 @@
 
 package org.apache.hadoop.hive.metastore;
 
-import org.apache.doris.catalog.HMSResource;
 import org.apache.doris.datasource.hive.HiveVersionUtil;
 import org.apache.doris.datasource.hive.HiveVersionUtil.HiveVersion;
 import org.apache.doris.datasource.property.constants.HMSProperties;
@@ -218,17 +217,17 @@ import org.apache.hadoop.hive.metastore.utils.SecurityUtils;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.ReflectionUtils;
 import org.apache.hadoop.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import shade.doris.hive.org.apache.thrift.TApplicationException;
 import shade.doris.hive.org.apache.thrift.TException;
 import shade.doris.hive.org.apache.thrift.protocol.TBinaryProtocol;
 import shade.doris.hive.org.apache.thrift.protocol.TCompactProtocol;
 import shade.doris.hive.org.apache.thrift.protocol.TProtocol;
+import shade.doris.hive.org.apache.thrift.transport.TFramedTransport;
 import shade.doris.hive.org.apache.thrift.transport.TSocket;
 import shade.doris.hive.org.apache.thrift.transport.TTransport;
 import shade.doris.hive.org.apache.thrift.transport.TTransportException;
-import shade.doris.hive.org.apache.thrift.transport.TFramedTransport;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;

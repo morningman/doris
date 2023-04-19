@@ -54,12 +54,16 @@ import lombok.Data;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.BlockLocation;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
+import org.apache.hadoop.hive.common.ValidWriteIdList;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
+import org.apache.hadoop.hive.ql.io.AcidUtils;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.InputSplit;
@@ -605,6 +609,54 @@ public class HiveMetaStoreCache {
      */
     public AtomicReference<LoadingCache<FileCacheKey, FileCacheValue>> getFileCacheRef() {
         return fileCacheRef;
+    }
+
+    public List<FileCacheValue> getFilesByTransaction(List<HivePartition> partitions, ValidWriteIdList validWriteIds) {
+        List<FileCacheValue> fileCacheValues = Lists.newArrayList();
+        JobConf jobConf = getJobConf();
+        String remoteUser = jobConf.get(HdfsResource.HADOOP_USER_NAME);
+        try {
+            for (HivePartition partition : partitions) {
+                FileCacheValue fileCacheValue = new FileCacheValue();
+                AcidUtils.Directory directory;
+                if (!Strings.isNullOrEmpty(remoteUser)) {
+                    UserGroupInformation ugi = UserGroupInformation.createRemoteUser(remoteUser);
+                    directory = ugi.doAs((PrivilegedExceptionAction<AcidUtils.Directory>) () -> AcidUtils.getAcidState(
+                            new Path(partition.getPath()), jobConf, validWriteIds, false, true));
+                } else {
+                    directory = AcidUtils.getAcidState(new Path(partition.getPath()), jobConf, validWriteIds, false,
+                            true);
+                }
+                if (!directory.getOriginalFiles().isEmpty()) {
+                    throw new Exception("Original non-ACID files in transactional tables are not supported");
+                }
+
+                // delta directories
+                for (AcidUtils.ParsedDelta delta : directory.getCurrentDirectories()) {
+                    FileSystem fs = delta.getPath().getFileSystem(jobConf);
+                    RemoteIterator<LocatedFileStatus> iterator = fs.listFiles(delta.getPath(), false);
+                    while (iterator.hasNext()) {
+                        LocatedFileStatus fileStatus = iterator.next();
+                        fileCacheValue.addFile(fileStatus);
+                    }
+                }
+
+                // base
+                if (directory.getBaseDirectory() != null) {
+                    FileSystem fs = directory.getBaseDirectory().getFileSystem(jobConf);
+                    RemoteIterator<LocatedFileStatus> iterator = fs.listFiles(directory.getBaseDirectory(), false);
+                    while (iterator.hasNext()) {
+                        LocatedFileStatus fileStatus = iterator.next();
+                        fileCacheValue.addFile(fileStatus);
+                    }
+                }
+                fileCacheValues.add(fileCacheValue);
+            }
+        } catch (Exception e) {
+            throw new CacheException("failed to get input splits for write ids %s in catalog %s", e,
+                    validWriteIds.toString(), catalog.getName());
+        }
+        return fileCacheValues;
     }
 
     /**

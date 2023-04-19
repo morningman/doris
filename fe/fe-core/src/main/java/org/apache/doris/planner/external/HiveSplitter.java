@@ -27,7 +27,9 @@ import org.apache.doris.common.UserException;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.HMSExternalCatalog;
 import org.apache.doris.datasource.hive.HiveMetaStoreCache;
+import org.apache.doris.datasource.hive.HiveMetaStoreCache.FileCacheValue;
 import org.apache.doris.datasource.hive.HivePartition;
+import org.apache.doris.datasource.hive.HiveTransaction;
 import org.apache.doris.external.hive.util.HiveUtil;
 import org.apache.doris.planner.ColumnRange;
 import org.apache.doris.planner.ListPartitionPrunerV2;
@@ -41,6 +43,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RemoteIterator;
+import org.apache.hadoop.hive.common.ValidWriteIdList;
 import org.apache.hadoop.mapred.InputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.logging.log4j.LogManager;
@@ -57,12 +60,15 @@ public class HiveSplitter implements Splitter {
 
     private HMSExternalTable hmsTable;
     private Map<String, ColumnRange> columnNameToRange;
+    private HiveTransaction hiveTransaction;
     private int totalPartitionNum = 0;
     private int readPartitionNum = 0;
 
-    public HiveSplitter(HMSExternalTable hmsTable, Map<String, ColumnRange> columnNameToRange) {
+    public HiveSplitter(HMSExternalTable hmsTable, Map<String, ColumnRange> columnNameToRange,
+            HiveTransaction hiveTransaction) {
         this.hmsTable = hmsTable;
         this.columnNameToRange = columnNameToRange;
+        this.hiveTransaction = hiveTransaction;
     }
 
     @Override
@@ -134,8 +140,13 @@ public class HiveSplitter implements Splitter {
 
     private void getFileSplitByPartitions(HiveMetaStoreCache cache, List<HivePartition> partitions,
                                           List<Split> allFiles, boolean useSelfSplitter) throws IOException {
-        for (HiveMetaStoreCache.FileCacheValue fileCacheValue :
-                cache.getFilesByPartitions(partitions, useSelfSplitter)) {
+        List<FileCacheValue> fileCaches;
+        if (hiveTransaction != null) {
+            fileCaches = getFileSplitByTransaction(cache, partitions);
+        } else {
+            fileCaches = cache.getFilesByPartitions(partitions, useSelfSplitter);
+        }
+        for (HiveMetaStoreCache.FileCacheValue fileCacheValue : fileCaches) {
             if (fileCacheValue.getSplits() != null) {
                 allFiles.addAll(fileCacheValue.getSplits());
             }
@@ -148,13 +159,25 @@ public class HiveSplitter implements Splitter {
         }
     }
 
+    private List<FileCacheValue> getFileSplitByTransaction(HiveMetaStoreCache cache, List<HivePartition> partitions) {
+        for (HivePartition partition : partitions) {
+            if (partition.getPartitionValues() == null || partition.getPartitionValues().isEmpty()) {
+                // this is unpartitioned table.
+                continue;
+            }
+            hiveTransaction.addPartition(partition.getPartitionName(hmsTable.getPartitionColumns()));
+        }
+        ValidWriteIdList validWriteIds = hiveTransaction.getValidWriteIds(
+                ((HMSExternalCatalog) hmsTable.getCatalog()).getClient());
+        return cache.getFilesByTransaction(partitions, validWriteIds);
+    }
+
     private List<Split> splitFile(HiveMetaStoreCache.HiveFileStatus status, boolean splittable) throws IOException {
         List<Split> result = Lists.newArrayList();
         if (!splittable) {
             LOG.debug("Path {} is not splittable.", status.getPath());
             BlockLocation block = status.getBlockLocations()[0];
-            result.add(new FileSplit(status.getPath(), 0, status.getLength(),
-                    status.getLength(), block.getHosts()));
+            result.add(new FileSplit(status.getPath(), 0, status.getLength(), status.getLength(), block.getHosts()));
             return result;
         }
         long splitSize = ConnectContext.get().getSessionVariable().getFileSplitSize();

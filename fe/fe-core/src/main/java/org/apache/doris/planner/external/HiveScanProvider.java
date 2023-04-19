@@ -25,7 +25,10 @@ import org.apache.doris.common.DdlException;
 import org.apache.doris.common.FeConstants;
 import org.apache.doris.common.MetaNotFoundException;
 import org.apache.doris.common.UserException;
+import org.apache.doris.common.util.DebugUtil;
+import org.apache.doris.datasource.hive.HiveTransaction;
 import org.apache.doris.planner.ColumnRange;
+import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.thrift.TFileAttributes;
 import org.apache.doris.thrift.TFileFormatType;
 import org.apache.doris.thrift.TFileTextScanRangeParams;
@@ -54,13 +57,34 @@ public class HiveScanProvider extends HMSTableScanProvider {
     protected HMSExternalTable hmsTable;
     protected final TupleDescriptor desc;
     protected Map<String, ColumnRange> columnNameToRange;
+    private HiveTransaction hiveTransaction;
 
     public HiveScanProvider(HMSExternalTable hmsTable, TupleDescriptor desc,
             Map<String, ColumnRange> columnNameToRange) {
         this.hmsTable = hmsTable;
         this.desc = desc;
         this.columnNameToRange = columnNameToRange;
-        this.splitter = new HiveSplitter(hmsTable, columnNameToRange);
+        if (hmsTable.isHiveTransactionalTable()) {
+            this.hiveTransaction = new HiveTransaction(DebugUtil.printId(ConnectContext.get().queryId()),
+                    ConnectContext.get().getQualifiedUser(), hmsTable);
+        }
+        this.splitter = new HiveSplitter(hmsTable, columnNameToRange, this.hiveTransaction);
+    }
+
+    @Override
+    public void init() throws UserException {
+        super.init();
+        if (this.hiveTransaction != null) {
+            this.hiveTransaction.begin();
+        }
+    }
+
+    @Override
+    public void close() throws UserException {
+        super.close();
+        if (this.hiveTransaction != null) {
+            this.hiveTransaction.commit();
+        }
     }
 
     @Override

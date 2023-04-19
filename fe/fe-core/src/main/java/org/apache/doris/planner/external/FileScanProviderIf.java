@@ -33,6 +33,13 @@ import java.util.List;
 import java.util.Map;
 
 public interface FileScanProviderIf {
+
+    default void init() throws UserException {
+    }
+
+    default void close() throws UserException {
+    }
+
     // Return parquet/orc/text, etc.
     TFileFormatType getFileFormatType() throws DdlException, MetaNotFoundException;
 

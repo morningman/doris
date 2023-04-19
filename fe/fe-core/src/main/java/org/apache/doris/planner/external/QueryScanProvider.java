@@ -62,8 +62,7 @@ public abstract class QueryScanProvider implements FileScanProviderIf {
 
     @Override
     public void createScanRangeLocations(FileLoadScanNode.ParamCreateContext context,
-                                         FederationBackendPolicy backendPolicy,
-                                         List<TScanRangeLocations> scanRangeLocations) throws UserException {
+            FederationBackendPolicy backendPolicy, List<TScanRangeLocations> scanRangeLocations) throws UserException {
     }
 
     @Override

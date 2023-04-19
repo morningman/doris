@@ -172,6 +172,7 @@ public class FileQueryScanNode extends FileScanNode {
             default:
                 throw new UserException("Unknown table type: " + hmsTable.getDlaType());
         }
+        scanProvider.init();
     }
 
     private void initIcebergExternalTable(IcebergExternalTable icebergTable) throws UserException {
