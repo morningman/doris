@@ -834,26 +834,28 @@ public class StmtExecutor implements ProfileWriter {
                 throw new UserException("Could not execute, since `" + execStmt.getName() + "` not exist");
             }
             // parsedStmt may already by set when constructing this StmtExecutor();
-            preparedStmtCtx.stmt.asignValues(execStmt.getArgs());
-            parsedStmt = preparedStmtCtx.stmt.getInnerStmt();
+            prepareStmt = preparedStmtCtx.stmt;
+            prepareStmt.asignValues(execStmt.getArgs());
+
+            parsedStmt = prepareStmt.getInnerStmt();
             planner = preparedStmtCtx.planner;
             analyzer = preparedStmtCtx.analyzer;
-            prepareStmt = preparedStmtCtx.stmt;
             Preconditions.checkState(parsedStmt.isAnalyzed());
             LOG.debug("already prepared stmt: {}", preparedStmtCtx.stmtString);
             isExecuteStmt = true;
-            if (!preparedStmtCtx.stmt.needReAnalyze()) {
+            if (!prepareStmt.needReAnalyze()) {
                 // Return directly to bypass analyze and plan
                 return;
             }
             // continue analyze
             preparedStmtReanalyzed = true;
-            preparedStmtCtx.stmt.analyze(analyzer);
+            prepareStmt.analyze(analyzer);
         }
 
         // yiguolei: insert stmt's grammar analysis will write editlog,
         // so that we check if the stmt should be forward to master here
         // if the stmt should be forward to master, then just return here and the master will do analysis again
+        // This is only a check, the real forward is done outside
         if (isForwardToMaster()) {
             return;
         }
@@ -1835,18 +1837,16 @@ public class StmtExecutor implements ProfileWriter {
 
     private void handlePrepareStmt() throws Exception {
         // register prepareStmt
-        LOG.debug("add prepared statement {}, isBinaryProtocol {}",
-                        prepareStmt.getName(), prepareStmt.isBinaryProtocol());
+        LOG.debug("add prepared statement {}, isBinaryProtocol {}", prepareStmt.getName(),
+                prepareStmt.isBinaryProtocol());
         context.addPreparedStmt(prepareStmt.getName(),
-                new PrepareStmtContext(prepareStmt,
-                            context, planner, analyzer, prepareStmt.getName()));
+                new PrepareStmtContext(prepareStmt, context, planner, analyzer, prepareStmt.getName()));
         if (prepareStmt.isBinaryProtocol()) {
             sendStmtPrepareOK();
         }
         // context.getState().setEof();
         context.getState().setOk();
     }
-
 
     // Process use statement.
     private void handleUseStmt() throws AnalysisException {
