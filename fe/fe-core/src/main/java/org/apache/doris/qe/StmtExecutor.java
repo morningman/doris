@@ -659,7 +659,7 @@ public class StmtExecutor implements ProfileWriter {
                 parsedStmt.analyze(analyzer);
             }
 
-            if (prepareStmt instanceof PrepareStmt && !isExecuteStmt) {
+            if (prepareStmt != null && !isExecuteStmt) {
                 handlePrepareStmt();
                 return;
             }
