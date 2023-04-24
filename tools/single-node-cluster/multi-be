@@ -1,0 +1,228 @@
+#!/bin/bash
+
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+set -e
+
+CURRENT_PATH="$(
+    cd "$(dirname "${BASH_SOURCE[0]}")"
+    pwd
+)"
+OUTPUT_PATH="$(readlink -f "${CURRENT_PATH}/../../output")"
+
+readonly CURRENT_PATH
+readonly OUTPUT_PATH
+
+function log() {
+    local level="${1}"
+    local message="${2}"
+    local date
+    date="$(date +'%Y-%m-%d %H:%M:%S')"
+    if [[ "${level}" == 'INFO' ]]; then
+        level="[\033[32;1m ${level}  \033[0m]"
+    elif [[ "${level}" == 'WARNING' ]]; then
+        level="[\033[33;1m${level}\033[0m]"
+    elif [[ "${level}" == 'ERROR' ]]; then
+        level="[\033[31;1m ${level} \033[0m]"
+    fi
+    echo -e "${level} ${date} - ${message}"
+}
+
+function log_info() {
+    local message="${1}"
+    log 'INFO' "${message}"
+}
+
+function log_warning() {
+    local message="${1}"
+    log 'WARNING' "${message}"
+}
+
+function log_error() {
+    local message="${1}"
+    log 'ERROR' "${message}"
+    exit 1
+}
+
+function help() {
+    cat >&2 <<EOF
+${BASH_SOURCE[0]} start|stop|clean [OPTIONS ...]
+
+    start -n <NUM> -l <LIBRARY_PATH> -p <BASE_PORT>
+
+             Start the BE cluster.
+      -n     The number of BEs.
+      -l     The BE output path (default: ../../output/be/)
+      -p     The base port to generate all needed ports (default: 9130).
+
+    stop     Stop the BE cluster.
+
+    clean    Clean the data (rm -rf "\$(pwd)"/be*).
+EOF
+    exit 1
+}
+
+function parse_options() {
+    NUMBER_INSTANCES=1
+    PORT=9130
+    OUTPUT_DIR="${OUTPUT_PATH}/be"
+
+    ACTION="${1}"
+    if ! shift 1; then
+        help
+    fi
+
+    local option
+    while getopts "+n:p:l:" option; do
+        case "${option}" in
+        n)
+            NUMBER_INSTANCES="${OPTARG}"
+            ;;
+        p)
+            PORT="${OPTARG}"
+            ;;
+        l)
+            OUTPUT_DIR="$(readlink -f "${OPTARG}")"
+            ;;
+        *)
+            help
+            ;;
+        esac
+    done
+
+    readonly NUMBER_INSTANCES
+    readonly PORT
+    readonly OUTPUT_DIR
+}
+
+function prepare() {
+    local port="${1}"
+    local doris_home="${2}"
+    local log_dir="${3}"
+    local output_path="${4}"
+    local conf_dir="${doris_home}/conf"
+    local storage_dir="${doris_home}/storage"
+    local lib_dir="${doris_home}/lib"
+    local bin_dir="${doris_home}/bin"
+
+    mkdir -p "${doris_home}"
+    mkdir -p "${log_dir}"
+    mkdir -p "${conf_dir}"
+    mkdir -p "${storage_dir}"
+    mkdir -p "${lib_dir}"
+    mkdir -p "${bin_dir}"
+    cp "${output_path}/lib/doris_be" "${lib_dir}"/
+    cp "${output_path}/lib/java-udf-jar-with-dependencies.jar" "${lib_dir}"/
+    cp -r "${output_path}/lib/hadoop_hdfs" "${lib_dir}"/
+    cp "${output_path}/bin/start_be.sh" "${bin_dir}"/ && chmod +x "${bin_dir}/start_be.sh"
+
+    cat >"${conf_dir}/be.conf" <<EOF
+PPROF_TMPDIR="$DORIS_HOME/log/"
+sys_log_level = INFO
+be_port = $((port + id))
+webserver_port = $((port + 10 + id))
+heartbeat_service_port = $((port + 20 + id))
+brpc_port = $((port + 30 + id))
+
+priority_networks = 127.0.0.1/32
+log_buffer_level = -1
+EOF
+}
+
+function start_be() {
+    local id="${1}"
+    local port="${2}"
+    local output_path="${3}"
+    local doris_home
+    local helper
+
+    doris_home="$(pwd)/be${id}"
+    local pid_dir="${doris_home}/bin"
+    local log_dir="${doris_home}/log"
+
+    if [[ -f "${pid_dir}/be.pid" ]]; then
+        if xargs kill -0 <"${pid_dir}/be.pid"; then
+            log_warning "BE(${id}) is running..."
+            return
+        fi
+    fi
+
+    prepare "${port}" "${doris_home}" "${log_dir}" "${output_path}"
+
+    "${doris_home}"/bin/start_be.sh --daemon
+    sleep 1
+    if [[ -f "${pid_dir}/be.pid" ]]; then
+        echo "1111"
+        if xargs kill -0 <"${pid_dir}/be.pid"; then
+            echo "222"
+            log_info "Start BE(${id}) successfully"
+            return
+        fi
+    fi
+    
+    log_warning "Failed to start BE(${id})"
+}
+
+function start() {
+    if [[ -z "${OUTPUT_DIR}" ]]; then
+        help
+    fi
+
+    log_info "NUMBER:       ${NUMBER_INSTANCES}"
+    log_info "BASE PORT:    ${PORT}"
+    log_info "OUTPUT_PATH:  ${OUTPUT_DIR}"
+
+    for i in $(seq "${NUMBER_INSTANCES}"); do
+        start_be "${i}" "${PORT}" "${OUTPUT_DIR}"
+    done
+
+    echo "HEARTBEAT PORTS:"
+    find "$(pwd)"/be* -name 'be.conf' |xargs cat |grep heartbeat_service_port
+}
+
+function stop() {
+    local pid
+    while read -r file; do
+        pid="$(<"${file}")"
+        if kill "${pid}"; then
+            log_info "Stopped BE (${pid}) successfully"
+        else
+            log_warning "Failed to stop BE (${pid})"
+        fi
+    done < <(find "$(pwd)"/be* -name 'be.pid')
+}
+
+function clean() {
+    rm -rf "$(pwd)"/be*
+    log_info "Clean all data successfully"
+}
+
+function main() {
+    parse_options "${@}"
+
+    case "${ACTION}" in
+    start) start ;;
+    stop) stop ;;
+    clean) clean ;;
+    *)
+        help
+        ;;
+    esac
+}
+
+main "${@}"
