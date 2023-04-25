@@ -15,7 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package org.apache.doris.qe;
+package org.apache.doris.qe.executor;
+
+import org.apache.doris.qe.SessionVariable;
 
 public class ExecContext implements AutoCloseable {
     protected static ThreadLocal<ExecContext> threadLocalInfo = new ThreadLocal<>();
@@ -30,6 +32,10 @@ public class ExecContext implements AutoCloseable {
 
     public static void remove() {
         threadLocalInfo.remove();
+    }
+
+    public SessionVariable getSessionVariable() {
+        return null;
     }
 
     @Override

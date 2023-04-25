@@ -15,22 +15,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package org.apache.doris.qe;
+package org.apache.doris.qe.executor;
 
-public class NewStmtExecutor {
+import org.apache.doris.analysis.StatementBase;
+
+import lombok.Getter;
+
+@Getter
+public class ParsedStmt {
+    private int idx;
     private String sql;
-    private ExecContext execContext;
-    private ResultProcessor resultProcessor;
+    private StatementBase stmt;
 
-    public NewStmtExecutor(String sql, ExecContext execContext, ResultProcessor resultProcessor) {
-        execContext.setThreadLocalInfo();
-        try {
-            
-
-        } catch (Throwable t) {
-
-        } finally {
-            ExecContext.remove();
-        }
+    public ParsedStmt(int idx, String sql, StatementBase stmt) {
+        this.idx = idx;
+        this.sql = sql;
+        this.stmt = stmt;
     }
 }

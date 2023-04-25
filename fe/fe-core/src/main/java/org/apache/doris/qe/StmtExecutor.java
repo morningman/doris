@@ -1077,9 +1077,6 @@ public class StmtExecutor implements ProfileWriter {
         if (parsedStmt instanceof QueryStmt || parsedStmt instanceof InsertStmt) {
             planner.plan(parsedStmt, tQueryOptions);
         }
-        // TODO(zc):
-        // Preconditions.checkState(!analyzer.hasUnassignedConjuncts());
-
         plannerProfile.setQueryPlanFinishTime();
     }
 
