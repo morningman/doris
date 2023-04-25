@@ -877,7 +877,6 @@ public class JdbcClient {
         }
     }
 
-
     private Type createDecimalOrStringType(int precision, int scale) {
         if (precision <= ScalarType.MAX_DECIMAL128_PRECISION) {
             if (!Config.enable_decimal_conversion && (precision > ScalarType.MAX_DECIMALV2_PRECISION

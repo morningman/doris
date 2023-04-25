@@ -17,6 +17,7 @@
 
 package org.apache.doris.qe.executor;
 
+import org.apache.doris.analysis.StatementBase;
 import org.apache.doris.qe.SessionVariable;
 
 public class ExecContext implements AutoCloseable {
@@ -41,5 +42,11 @@ public class ExecContext implements AutoCloseable {
     @Override
     public void close() throws Exception {
 
+    }
+
+    public void prepareParsedStmt(StatementBase parsedStmt) {
+    }
+
+    public void prepareAudit(StatementBase parsedStmt) {
     }
 }
