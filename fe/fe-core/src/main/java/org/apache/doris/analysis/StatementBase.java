@@ -28,6 +28,7 @@ import org.apache.doris.common.UserException;
 import org.apache.doris.qe.OriginStatement;
 import org.apache.doris.rewrite.ExprRewriter;
 import org.apache.doris.thrift.TQueryOptions;
+import org.apache.doris.thrift.TUniqueId;
 
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
@@ -57,7 +58,10 @@ public abstract class StatementBase implements ParseNode {
 
     private boolean isPrepared = false;
 
-    protected StatementBase() { }
+    private TUniqueId queryId;
+
+    protected StatementBase() {
+    }
 
     /**
      * C'tor for cloning.
@@ -65,6 +69,14 @@ public abstract class StatementBase implements ParseNode {
     protected StatementBase(StatementBase other) {
         analyzer = other.analyzer;
         explainOptions = other.explainOptions;
+    }
+
+    public void setQueryId(TUniqueId queryId) {
+        this.queryId = queryId;
+    }
+
+    public TUniqueId getQueryId() {
+        return queryId;
     }
 
     /**

@@ -18,10 +18,18 @@
 package org.apache.doris.qe.executor;
 
 import org.apache.doris.analysis.StatementBase;
+import org.apache.doris.common.util.QueryPlannerProfile;
+import org.apache.doris.qe.ConnectContext;
+import org.apache.doris.qe.QueryState;
 import org.apache.doris.qe.SessionVariable;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 public class ExecContext implements AutoCloseable {
     protected static ThreadLocal<ExecContext> threadLocalInfo = new ThreadLocal<>();
+    protected static final AtomicLong STMT_ID_GENERATOR = new AtomicLong(0);
+
+    protected QueryPlannerProfile plannerProfile = new QueryPlannerProfile();
 
     public void setThreadLocalInfo() {
         threadLocalInfo.set(this);
@@ -37,6 +45,18 @@ public class ExecContext implements AutoCloseable {
 
     public SessionVariable getSessionVariable() {
         return null;
+    }
+
+    public QueryState getState() {
+        return null;
+    }
+
+    public ConnectContext getCtx() {
+        return null;
+    }
+
+    public QueryPlannerProfile getPlannerProfile() {
+        return plannerProfile;
     }
 
     @Override

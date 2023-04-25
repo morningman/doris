@@ -796,7 +796,7 @@ public class StmtExecutor implements ProfileWriter {
             setStmt.modifySetVarsForExecute();
             for (SetVar var : setStmt.getSetVars()) {
                 VariableMgr.setVarForNonMasterFE(context.getSessionVariable(), var);
-            }
+            }p
         }
     }
 
