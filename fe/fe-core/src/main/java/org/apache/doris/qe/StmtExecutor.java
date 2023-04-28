@@ -88,6 +88,7 @@ import org.apache.doris.common.profile.SummaryProfile.SummaryBuilder;
 import org.apache.doris.common.util.DebugUtil;
 import org.apache.doris.common.util.LiteralUtils;
 import org.apache.doris.common.util.MetaLockUtils;
+import org.apache.doris.common.util.ProfileManager.ProfileType;
 import org.apache.doris.common.util.SqlParserUtils;
 import org.apache.doris.common.util.TimeUtils;
 import org.apache.doris.common.util.Util;
@@ -187,7 +188,7 @@ public class StmtExecutor {
     private OriginStatement originStmt;
     private StatementBase parsedStmt;
     private Analyzer analyzer;
-    private String queryType = "Query";
+    private ProfileType profileType = ProfileType.QUERY;
     private volatile Coordinator coord = null;
     private MasterOpExecutor masterOpExecutor = null;
     private RedirectStatus redirectStatus = null;
@@ -270,15 +271,15 @@ public class StmtExecutor {
     private Map<String, String> getSummaryInfo(boolean isFinished) {
         long currentTimestamp = System.currentTimeMillis();
         SummaryBuilder builder = new SummaryBuilder();
+        builder.profileId(DebugUtil.printId(context.queryId()));
+        builder.taskType(profileType.name());
         builder.startTime(TimeUtils.longToTimeString(context.getStartTime()));
         if (isFinished) {
             builder.endTime(TimeUtils.longToTimeString(currentTimestamp));
             builder.totalTime(DebugUtil.getPrettyStringMs(currentTimestamp - context.getStartTime()));
         }
-        builder.queryState(!isFinished && context.getState().getStateType().equals(MysqlStateType.OK) ? "RUNNING"
+        builder.taskState(!isFinished && context.getState().getStateType().equals(MysqlStateType.OK) ? "RUNNING"
                 : context.getState().toString());
-        builder.queryId(DebugUtil.printId(context.queryId()));
-        builder.queryType(queryType);
         builder.user(context.getQualifiedUser());
         builder.defaultDb(context.getDatabase());
         builder.sqlStatement(originStmt.originStmt);
@@ -644,7 +645,7 @@ public class StmtExecutor {
                 try {
                     handleInsertStmt();
                     if (!((InsertStmt) parsedStmt).getQueryStmt().isExplain()) {
-                        queryType = "Load";
+                        profileType = ProfileType.LOAD;
                     }
                 } catch (Throwable t) {
                     LOG.warn("handle insert stmt fail: {}", t.getMessage());

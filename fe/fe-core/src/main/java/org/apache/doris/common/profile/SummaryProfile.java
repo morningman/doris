@@ -17,7 +17,6 @@
 
 package org.apache.doris.common.profile;
 
-import org.apache.doris.common.Version;
 import org.apache.doris.common.util.RuntimeProfile;
 import org.apache.doris.common.util.TimeUtils;
 import org.apache.doris.thrift.TUnit;
@@ -33,14 +32,12 @@ import java.util.Map;
  */
 public class SummaryProfile {
     // Summary
-    public static final String DORIS_VERSION = "Doris Version";
+    public static final String PROFILE_ID = "Profile ID";
+    public static final String TASK_TYPE = "Task Type";
     public static final String START_TIME = "Start Time";
     public static final String END_TIME = "End Time";
     public static final String TOTAL_TIME = "Total";
-    public static final String QUERY_STATE = "Query State";
-    public static final String JOB_ID = "Job ID";
-    public static final String QUERY_ID = "Query ID";
-    public static final String QUERY_TYPE = "Query Type";
+    public static final String TASK_STATE = "Task State";
     public static final String USER = "User";
     public static final String DEFAULT_DB = "Default Db";
     public static final String SQL_STATEMENT = "Sql Statement";
@@ -58,9 +55,9 @@ public class SummaryProfile {
     public static final String WRITE_RESULT_TIME = "Write Result Time";
     public static final String WAIT_FETCH_RESULT_TIME = "Wait and Fetch Result Time";
 
-    public static final ImmutableList<String> SUMMARY_KEYS = ImmutableList.of(START_TIME, END_TIME, TOTAL_TIME,
-            QUERY_STATE, JOB_ID, QUERY_ID, QUERY_TYPE, USER, DEFAULT_DB, SQL_STATEMENT, IS_CACHED, TOTAL_INSTANCES_NUM,
-            INSTANCES_NUM_PER_BE, PARALLEL_FRAGMENT_EXEC_INSTANCE, TRACE_ID);
+    public static final ImmutableList<String> SUMMARY_KEYS = ImmutableList.of(PROFILE_ID, TASK_TYPE,
+            START_TIME, END_TIME, TOTAL_TIME, TASK_STATE, USER, DEFAULT_DB, SQL_STATEMENT, IS_CACHED,
+            TOTAL_INSTANCES_NUM, INSTANCES_NUM_PER_BE, PARALLEL_FRAGMENT_EXEC_INSTANCE, TRACE_ID);
 
     public static final ImmutableList<String> EXECUTION_SUMMARY_KEYS = ImmutableList.of(ANALYSIS_TIME, PLAN_TIME,
             SCHEDULE_TIME, FETCH_RESULT_TIME, WRITE_RESULT_TIME, WAIT_FETCH_RESULT_TIME);
@@ -91,7 +88,6 @@ public class SummaryProfile {
     }
 
     private void init() {
-        summaryProfile.addInfoString(DORIS_VERSION, Version.DORIS_BUILD_VERSION);
         for (String key : SUMMARY_KEYS) {
             summaryProfile.addInfoString(key, "N/A");
         }
@@ -163,6 +159,16 @@ public class SummaryProfile {
     public static class SummaryBuilder {
         private Map<String, String> map = Maps.newHashMap();
 
+        public SummaryBuilder profileId(String val) {
+            map.put(PROFILE_ID, val);
+            return this;
+        }
+
+        public SummaryBuilder taskType(String val) {
+            map.put(TASK_TYPE, val);
+            return this;
+        }
+
         public SummaryBuilder startTime(String val) {
             map.put(START_TIME, val);
             return this;
@@ -178,23 +184,8 @@ public class SummaryProfile {
             return this;
         }
 
-        public SummaryBuilder queryState(String val) {
-            map.put(QUERY_STATE, val);
-            return this;
-        }
-
-        public SummaryBuilder jobId(String val) {
-            map.put(JOB_ID, val);
-            return this;
-        }
-
-        public SummaryBuilder queryId(String val) {
-            map.put(QUERY_ID, val);
-            return this;
-        }
-
-        public SummaryBuilder queryType(String val) {
-            map.put(QUERY_TYPE, val);
+        public SummaryBuilder taskState(String val) {
+            map.put(TASK_STATE, val);
             return this;
         }
 

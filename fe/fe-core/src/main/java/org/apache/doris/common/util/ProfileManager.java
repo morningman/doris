@@ -157,7 +157,7 @@ public class ProfileManager {
 
         ProfileElement element = createElement(profile);
         // 'insert into' does have job_id, put all profiles key with query_id
-        String key = element.infoStrings.get(SummaryProfile.QUERY_ID);
+        String key = element.infoStrings.get(SummaryProfile.PROFILE_ID);
         // check when push in, which can ensure every element in the list has QUERY_ID column,
         // so there is no need to check when remove element from list.
         if (Strings.isNullOrEmpty(key)) {
@@ -198,7 +198,7 @@ public class ProfileManager {
                     continue;
                 }
                 Map<String, String> infoStrings = profileElement.infoStrings;
-                if (type != null && !infoStrings.get(SummaryProfile.QUERY_TYPE).equalsIgnoreCase(type.name())) {
+                if (type != null && !infoStrings.get(SummaryProfile.TASK_TYPE).equalsIgnoreCase(type.name())) {
                     continue;
                 }
 

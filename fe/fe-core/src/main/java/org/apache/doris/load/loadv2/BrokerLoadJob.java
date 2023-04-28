@@ -37,6 +37,7 @@ import org.apache.doris.common.util.DebugUtil;
 import org.apache.doris.common.util.LogBuilder;
 import org.apache.doris.common.util.LogKey;
 import org.apache.doris.common.util.MetaLockUtils;
+import org.apache.doris.common.util.ProfileManager.ProfileType;
 import org.apache.doris.common.util.TimeUtils;
 import org.apache.doris.load.BrokerFileGroup;
 import org.apache.doris.load.BrokerFileGroupAggInfo.FileGroupAggKey;
@@ -320,15 +321,14 @@ public class BrokerLoadJob extends BulkLoadJob {
     private Map<String, String> getSummaryInfo(boolean isFinished) {
         long currentTimestamp = System.currentTimeMillis();
         SummaryBuilder builder = new SummaryBuilder();
+        builder.profileId(String.valueOf(id));
+        builder.taskType(ProfileType.LOAD.name());
         builder.startTime(TimeUtils.longToTimeString(createTimestamp));
         if (isFinished) {
             builder.endTime(TimeUtils.longToTimeString(currentTimestamp));
             builder.totalTime(DebugUtil.getPrettyStringMs(currentTimestamp - createTimestamp));
         }
-        builder.queryState("FINISHED");
-        builder.jobId(String.valueOf(id));
-        builder.queryId(queryId);
-        builder.queryType("LOAD");
+        builder.taskState("FINISHED");
         builder.user(getUserInfo() != null ? getUserInfo().getQualifiedUser() : "N/A");
         builder.defaultDb(getDefaultDb());
         builder.sqlStatement(getOriginStmt().originStmt);
