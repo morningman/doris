@@ -72,7 +72,6 @@ public class QueryProfileController extends BaseController {
         List<List<String>> finishedQueries = ProfileManager.getInstance().getAllQueries();
         List<String> columnHeaders = Lists.newLinkedList();
         columnHeaders.addAll(SummaryProfile.SUMMARY_KEYS);
-        columnHeaders.addAll(SummaryProfile.EXECUTION_SUMMARY_KEYS);
         int jobIdIndex = -1;
         int queryIdIndex = -1;
         int queryTypeIndex = -1;

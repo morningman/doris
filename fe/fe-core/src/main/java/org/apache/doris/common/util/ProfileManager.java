@@ -206,9 +206,6 @@ public class ProfileManager {
                 for (String str : SummaryProfile.SUMMARY_KEYS) {
                     row.add(infoStrings.get(str));
                 }
-                for (String str : SummaryProfile.EXECUTION_SUMMARY_KEYS) {
-                    row.add(infoStrings.get(str));
-                }
                 result.add(row);
             }
         } finally {
