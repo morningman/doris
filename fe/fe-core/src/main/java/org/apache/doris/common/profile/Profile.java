@@ -21,7 +21,6 @@ import org.apache.doris.common.util.ProfileManager;
 import org.apache.doris.common.util.RuntimeProfile;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 import java.util.List;
 import java.util.Map;
@@ -60,10 +59,6 @@ public class Profile {
     public void addExecutionProfile(ExecutionProfile executionProfile) {
         this.executionProfiles.add(executionProfile);
         executionProfile.addToProfileAsChild(rootProfile);
-    }
-
-    public void finalUpdate() {
-        update(-1, Maps.newHashMap(), true);
     }
 
     public synchronized void update(long startTime, Map<String, String> summaryInfo, boolean isFinished) {

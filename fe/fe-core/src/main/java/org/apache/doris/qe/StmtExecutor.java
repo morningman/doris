@@ -643,10 +643,10 @@ public class StmtExecutor {
                 handleCtasStmt();
             } else if (parsedStmt instanceof InsertStmt) { // Must ahead of DdlStmt because InsertStmt is its subclass
                 try {
-                    handleInsertStmt();
                     if (!((InsertStmt) parsedStmt).getQueryStmt().isExplain()) {
                         profileType = ProfileType.LOAD;
                     }
+                    handleInsertStmt();
                 } catch (Throwable t) {
                     LOG.warn("handle insert stmt fail: {}", t.getMessage());
                     // the transaction of this insert may already begin, we will abort it at outer finally block.
