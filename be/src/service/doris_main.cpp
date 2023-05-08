@@ -510,6 +510,8 @@ int main(int argc, char** argv) {
         sleep(10);
     }
 
+    LOG(INFO) << "1";
+    doris::TabletSchemaCache::stop_and_join();
     http_service.stop();
     brpc_service.join();
     daemon.stop();
@@ -527,8 +529,18 @@ int main(int argc, char** argv) {
 
     doris::ExecEnv::destroy(exec_env);
 
+    if (doris::config::enable_java_support) {
+        // Init jni
+        status = doris::JniUtil::Destroy();
+        if (!status.ok()) {
+            LOG(WARNING) << "Failed to destroy JVM: " << status;
+        }
+    }
+
+    LOG(INFO) << "2";
     delete engine;
     engine = nullptr;
+    LOG(INFO) << "11";
     return 0;
 }
 

@@ -375,4 +375,25 @@ Status JniUtil::Init() {
     return Status::OK();
 }
 
+Status JniUtil::Destroy() {
+    JavaVM* jvm = nullptr;
+    jsize num_vms;
+    jint ret = JNI_GetCreatedJavaVMs(&jvm, 1, &num_vms);
+    LOG(INFO) << "JNI_GetCreatedJavaVMs return code " << ret << " num_vms: " << num_vms;
+    if (ret != 0) {
+        return Status::InternalError("JNI_GetCreatedJavaVMs() none zero return code: {}", ret);
+    }
+
+    if (jvm) {
+        jint ret = jvm->DestroyJavaVM();
+        LOG(INFO) << "DestroyJavaVM return code " << ret;
+        if (ret != 0) {
+            return Status::InternalError("DestroyJavaVM() none zero return code: {}", ret);
+        }
+    } else {
+        LOG(INFO) << "There is no JVM to destroy";
+    }
+    return Status::OK();
+}
+
 } // namespace doris

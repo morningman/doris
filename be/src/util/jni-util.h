@@ -47,6 +47,8 @@ class JniUtil {
 public:
     static Status Init() WARN_UNUSED_RESULT;
 
+    static Status Destroy();
+
     static jmethodID throwable_to_string_id() { return throwable_to_string_id_; }
 
     static Status GetJNIEnv(JNIEnv** env) {
