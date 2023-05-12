@@ -68,15 +68,15 @@ public class InsertOverwriteTableStmt extends DdlStmt {
     public void analyze(Analyzer analyzer) throws UserException {
         // make a preliminary judgment, and subsequent insert statements will make a comprehensive judgment
         // create a tmp analyzer
-        Analyzer dummyRootAnalyzer = new Analyzer(analyzer.getEnv(), analyzer.getContext());
-        QueryStmt tmpStmt = getQueryStmt().clone();
-        tmpStmt.analyze(dummyRootAnalyzer);
-        // analyze target table name to get db info
-        target.getTblName().analyze(dummyRootAnalyzer);
-        ArrayList<Expr> resultExprs = getQueryStmt().getResultExprs();
-        // judge whether the target table matches the number of columns in the source table
-        if (cols != null && cols.size() != resultExprs.size()) {
-            ErrorReport.reportAnalysisException(ErrorCode.ERR_COL_NUMBER_NOT_MATCH);
-        }
+        // Analyzer dummyRootAnalyzer = new Analyzer(analyzer.getEnv(), analyzer.getContext());
+        // QueryStmt tmpStmt = getQueryStmt().clone();
+        // tmpStmt.analyze(dummyRootAnalyzer);
+        // // analyze target table name to get db info
+        // target.getTblName().analyze(dummyRootAnalyzer);
+        // ArrayList<Expr> resultExprs = getQueryStmt().getResultExprs();
+        // // judge whether the target table matches the number of columns in the source table
+        // if (cols != null && cols.size() != resultExprs.size()) {
+        //     ErrorReport.reportAnalysisException(ErrorCode.ERR_COL_NUMBER_NOT_MATCH);
+        // }
     }
 }
