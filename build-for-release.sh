@@ -130,7 +130,7 @@ echo "FE:   ${OUTPUT_FE}"
 echo "BE:   ${OUTPUT_BE}"
 echo "JAR:  ${OUTPUT_DEPS}"
 
-sh build.sh --clean &&
+#sh build.sh --clean &&
     USE_AVX2="${_USE_AVX2}" sh build.sh &&
     USE_AVX2="${_USE_AVX2}" sh build.sh --be --meta-tool
 
