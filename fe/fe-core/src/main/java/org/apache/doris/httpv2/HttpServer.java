@@ -23,6 +23,8 @@ import org.apache.doris.common.FeConstants;
 import org.apache.doris.httpv2.config.SpringLog4j2Config;
 import org.apache.doris.service.FrontendOptions;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -36,6 +38,8 @@ import java.util.Map;
 @EnableConfigurationProperties
 @ServletComponentScan
 public class HttpServer extends SpringBootServletInitializer {
+    public static final Logger LOG = LogManager.getLogger(HttpServer.class);
+
     private int port;
     private int httpsPort;
     private int acceptors;
@@ -176,9 +180,7 @@ public class HttpServer extends SpringBootServletInitializer {
         } else {
             properties.put("logging.config", Config.custom_config_dir + "/" + SpringLog4j2Config.SPRING_LOG_XML_FILE);
         }
-        new SpringApplicationBuilder()
-                .sources(HttpServer.class)
-                .properties(properties)
-                .run(new String[]{});
+        new SpringApplicationBuilder().sources(HttpServer.class).properties(properties).run(new String[] {});
+        LOG.info("after run");
     }
 }
