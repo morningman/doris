@@ -51,7 +51,11 @@ Status HDFSCommonBuilder::run_kinit() {
     std::string ticket_path = TICKET_CACHE_PATH + generate_uuid_string();
     fmt::memory_buffer kinit_command;
     // We can assign kinit path in env
-    fmt::format_to(kinit_command, std::string(std::getenv("KRB_HOME")) + "/bin/kinit -c {} -R -t {} -k {}", ticket_path,
+    // char* krb_home = std::getenv("KRB_HOME");
+    // if (krb_home != nullptr) {
+    //     
+    // }
+    fmt::format_to(kinit_command, "kinit -c {} -R -t {} -k {}", ticket_path,
                    hdfs_kerberos_keytab, hdfs_kerberos_principal);
     VLOG_NOTICE << "kinit command: " << fmt::to_string(kinit_command);
     std::string msg;
