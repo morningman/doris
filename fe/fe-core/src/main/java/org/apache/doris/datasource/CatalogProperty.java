@@ -86,7 +86,10 @@ public class CatalogProperty implements Writable {
     public Map<String, String> getProperties() {
         Map<String, String> mergedProperties = Maps.newHashMap();
         if (!Strings.isNullOrEmpty(resource)) {
-            mergedProperties = catalogResource().getCopiedProperties();
+            Resource res = catalogResource();
+            if (res != null) {
+                mergedProperties = res.getCopiedProperties();
+            }
         }
         mergedProperties.putAll(properties);
         return mergedProperties;
