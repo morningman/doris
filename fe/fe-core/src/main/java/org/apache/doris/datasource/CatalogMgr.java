@@ -114,8 +114,10 @@ public class CatalogMgr implements Writable, GsonPostProcessable {
         nameToCatalog.put(catalog.getName(), catalog);
         idToCatalog.put(catalog.getId(), catalog);
         if (!Strings.isNullOrEmpty(catalog.getResource())) {
-            Env.getCurrentEnv().getResourceMgr().getResource(catalog.getResource())
-                    .addReference(catalog.getName(), ReferenceType.CATALOG);
+            Resource resource = Env.getCurrentEnv().getResourceMgr().getResource(catalog.getResource());
+            if (resource != null) {
+                resource.addReference(catalog.getName(), ReferenceType.CATALOG);
+            }
         }
     }
 
