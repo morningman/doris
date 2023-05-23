@@ -30,15 +30,18 @@ import org.apache.doris.common.FeConstants;
 import org.apache.doris.datasource.iceberg.IcebergExternalCatalogFactory;
 import org.apache.doris.datasource.test.TestExternalCatalog;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.parquet.Strings;
 
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * A factory to create catalog instance of log or covert catalog into log.
  */
 public class CatalogFactory {
+    private static final Logger LOG = LogManager.getLogger(CatalogFactory.class);
+
     /**
      * Convert the sql statement into catalog log.
      */
@@ -84,11 +87,12 @@ public class CatalogFactory {
         // get catalog type from resource or properties
         String catalogType;
         if (!Strings.isNullOrEmpty(resource)) {
-            Resource catalogResource = Optional.ofNullable(Env.getCurrentEnv().getResourceMgr().getResource(resource))
-                    .orElseThrow(() -> new DdlException("Resource doesn't exist: " + resource));
-            catalogType = catalogResource.getType().name().toLowerCase();
-            if (props.containsKey(CatalogMgr.CATALOG_TYPE_PROP)) {
-                throw new DdlException("Can not set 'type' when creating catalog with resource");
+            Resource catalogResource = Env.getCurrentEnv().getResourceMgr().getResource(resource);
+            if (catalogResource == null) {
+                LOG.warn("Resource doesn't exist: {}", resource);
+                catalogType = "hms";
+            } else {
+                catalogType = catalogResource.getType().name().toLowerCase();
             }
         } else {
             String type = props.get(CatalogMgr.CATALOG_TYPE_PROP);
