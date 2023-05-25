@@ -74,7 +74,7 @@ public abstract class ExternalCatalog
     @SerializedName(value = "type")
     protected String type;
     // TODO: replace type with log type
-    protected final InitCatalogLog.Type logType;
+    protected InitCatalogLog.Type logType;
     // save properties of this catalog, such as hive meta store url.
     @SerializedName(value = "catalogProperty")
     protected CatalogProperty catalogProperty;
@@ -478,6 +478,34 @@ public abstract class ExternalCatalog
         objectCreated = false;
         if (this instanceof HMSExternalCatalog) {
             ((HMSExternalCatalog) this).setLastSyncedEventId(-1L);
+        }
+        // TODO: Will remove this type to logType translation after removing type.
+        if (type != null) {
+            switch (type) {
+                case "hms":
+                    logType = InitCatalogLog.Type.HMS;
+                    break;
+                case "iceberg":
+                    logType = InitCatalogLog.Type.ICEBERG;
+                    break;
+                case "es":
+                    logType = InitCatalogLog.Type.ES;
+                    break;
+                case "max_compute":
+                    logType = InitCatalogLog.Type.MAX_COMPUTE;
+                    break;
+                case "jdbc":
+                    logType = InitCatalogLog.Type.JDBC;
+                    break;
+                case "test":
+                    logType = InitCatalogLog.Type.TEST;
+                    break;
+                default:
+                    logType = InitCatalogLog.Type.UNKNOWN;
+                    break;
+            }
+        } else {
+            logType = InitCatalogLog.Type.UNKNOWN;
         }
     }
 

@@ -29,12 +29,16 @@ import org.apache.doris.fs.operations.OpParams;
 import org.apache.doris.fs.remote.RemoteFile;
 import org.apache.doris.fs.remote.RemoteFileSystem;
 
+import com.google.common.base.Strings;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.logging.log4j.LogManager;
@@ -50,6 +54,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.PrivilegedExceptionAction;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -85,17 +90,29 @@ public class DFSFileSystem extends RemoteFileSystem {
             }
         }
         try {
+            UserGroupInformation ugi = null;
             if (isSecurityEnabled) {
-                UserGroupInformation.setConfiguration(conf);
-                UserGroupInformation.loginUserFromKeytab(
+                ugi = UserGroupInformation.loginUserFromKeytabAndReturnUGI(
                         properties.get(HdfsResource.HADOOP_KERBEROS_PRINCIPAL),
                         properties.get(HdfsResource.HADOOP_KERBEROS_KEYTAB));
-            }
-            if (username == null) {
-                dfsFileSystem = FileSystem.get(new Path(remotePath).toUri(), conf);
             } else {
-                dfsFileSystem = FileSystem.get(new Path(remotePath).toUri(), conf, username);
+                if (Strings.isNullOrEmpty(username)) {
+                    username = "hadoop";
+                }
+                ugi = UserGroupInformation.createRemoteUser(username);
+                conf.set(CommonConfigurationKeysPublic.HADOOP_SECURITY_AUTHENTICATION, "simple");
+                ugi.setAuthenticationMethod(UserGroupInformation.AuthenticationMethod.SIMPLE);
             }
+            dfsFileSystem = ugi.doAs(
+                    (PrivilegedExceptionAction<FileSystem>) () -> {
+                        FileSystem fs = FileSystem.get(new Path(remotePath).toUri(), conf);
+                        RemoteIterator<LocatedFileStatus> iter = fs.listFiles(new Path(remotePath), false);
+                        while (iter.hasNext()) {
+                            LocatedFileStatus fileStatus = iter.next();
+                            LOG.warn("yy debug fileStatus: {}", fileStatus.getPath());
+                        }
+                        return fs;
+                    });
         } catch (Exception e) {
             LOG.error("errors while connect to " + remotePath, e);
             throw new UserException("errors while connect to " + remotePath, e);
@@ -450,3 +467,4 @@ public class DFSFileSystem extends RemoteFileSystem {
         return new Status(Status.ErrCode.COMMON_ERROR, "mkdir is not implemented.");
     }
 }
+
