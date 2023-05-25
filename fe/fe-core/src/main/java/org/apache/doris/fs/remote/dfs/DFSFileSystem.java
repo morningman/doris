@@ -23,6 +23,8 @@ import org.apache.doris.catalog.AuthType;
 import org.apache.doris.catalog.HdfsResource;
 import org.apache.doris.common.UserException;
 import org.apache.doris.common.util.URI;
+import org.apache.doris.datasource.hive.CloseableUGI;
+import org.apache.doris.datasource.hive.UGIManager;
 import org.apache.doris.fs.operations.HDFSFileOperations;
 import org.apache.doris.fs.operations.HDFSOpParams;
 import org.apache.doris.fs.operations.OpParams;
@@ -79,6 +81,19 @@ public class DFSFileSystem extends RemoteFileSystem {
         if (dfsFileSystem != null) {
             return dfsFileSystem;
         }
+
+        try (CloseableUGI ugi = UGIManager.login(properties)) {
+            return ugi.doAs((PrivilegedExceptionAction<FileSystem>) () -> {
+                FileSystem fs = FileSystem.get(new Path(remotePath).toUri(), ugi.getConf());
+                RemoteIterator<LocatedFileStatus> iter = fs.listFiles(new Path(remotePath), false);
+                while (iter.hasNext()) {
+                    LocatedFileStatus fileStatus = iter.next();
+                    LOG.warn("yy debug fileStatus: {}", fileStatus.getPath());
+                }
+                return fs;
+            });
+        }
+
         String username = properties.get(HdfsResource.HADOOP_USER_NAME);
         Configuration conf = new HdfsConfiguration();
         boolean isSecurityEnabled = false;
