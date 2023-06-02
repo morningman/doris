@@ -20,6 +20,7 @@ package org.apache.doris.load.routineload;
 import org.apache.doris.analysis.AlterRoutineLoadStmt;
 import org.apache.doris.analysis.CreateRoutineLoadStmt;
 import org.apache.doris.analysis.Expr;
+import org.apache.doris.analysis.ImportColumnDesc;
 import org.apache.doris.analysis.ImportColumnsStmt;
 import org.apache.doris.analysis.LoadStmt;
 import org.apache.doris.analysis.PartitionNames;
@@ -1461,8 +1462,23 @@ public abstract class RoutineLoadJob extends AbstractTxnStateChangeCallback impl
         Map<String, String> jobProperties = Maps.newHashMap();
         jobProperties.put("partitions", partitions == null
                 ? STAR_STRING : Joiner.on(",").join(partitions.getPartitionNames()));
+
+        List<String> exprStrs = Lists.newArrayList();
+        int i = 0;
+        for (ImportColumnDesc columnDesc : columnDescs.descs) {
+            try {
+                exprStrs.add(columnDesc.toString());
+                LOG.info("get routine load {} column expr: {}, {}",
+                        name, columnDesc.toString(), i);
+            } catch (Throwable e) {
+                LOG.warn("get column expr failed. with error: {}, {}",
+                        e.getClass().getName(), i);
+            }
+            i++;
+        }
+
         jobProperties.put("columnToColumnExpr", columnDescs == null
-                ? STAR_STRING : Joiner.on(",").join(columnDescs.descs));
+                ? STAR_STRING : Joiner.on(",").join(exprStrs));
         jobProperties.put("precedingFilter", precedingFilter == null ? STAR_STRING : precedingFilter.toSql());
         jobProperties.put("whereExpr", whereExpr == null ? STAR_STRING : whereExpr.toSql());
         if (getFormat().equalsIgnoreCase("json")) {
