@@ -44,6 +44,8 @@ set(IO_FILES
     fs/buffered_reader.cpp
     fs/stream_load_pipe.cpp
     fs/err_utils.cpp
+    fs/file_handle_cache.cpp
+    fs/file_meta_cache.cpp
     fs/fs_utils.cpp
     cache/dummy_file_cache.cpp
     cache/file_cache.cpp

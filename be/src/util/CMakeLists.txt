@@ -99,8 +99,8 @@ set(UTIL_FILES
   jni-util.cpp
   libjvm_loader.cpp
   jni_native_method.cpp
+  obj_lru_cache.cpp
 )
-
 
 if (OS_MACOSX)
     list(REMOVE_ITEM UTIL_FILES perf_counters.cpp disk_info.cpp)
