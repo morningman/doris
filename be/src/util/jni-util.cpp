@@ -47,6 +47,7 @@ JavaVM* g_vm;
 const std::string GetDorisJNIDefaultClasspath() {
     const auto* doris_home = getenv("DORIS_HOME");
     DCHECK(doris_home) << "Environment variable DORIS_HOME is not set.";
+    std::cout << "xxxxxx" << doris_home << std::endl;
 
     std::ostringstream out;
     std::string path(doris_home);

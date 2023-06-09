@@ -34,7 +34,9 @@ namespace doris {
 namespace io {
 
 Status RemoteFileSystem::upload(const Path& local_file, const Path& dest_file) {
+    std::cout << "yyy 1" << std::endl;
     auto dest_path = absolute_path(dest_file);
+    std::cout << "yyy 2 " << local_file.native() << ", remote: " << dest_path.native() << std::endl;
     FILESYSTEM_M(upload_impl(local_file, dest_path));
 }
 

@@ -43,6 +43,7 @@
 #include "io/fs/s3_file_system.h"
 #include "io/hdfs_builder.h"
 #include "runtime/exec_env.h"
+#include "util/jni-util.h"
 #include "util/s3_uri.h"
 #include "util/s3_util.h"
 
@@ -58,22 +59,21 @@ namespace doris {
 
 // set your own info
 // s3
-static std::string ak = "";
-static std::string sk = "";
+static std::string ak = "AKIDpTrysVrwjGXXFhqnVyB8pGSO4UfbHgph";
+static std::string sk = "dz4tRiiSs65pMdePvBAuOcaIlyua8SYN";
 static std::string endpoint = "http://cos.ap-beijing.myqcloud.com";
 static std::string region = "ap-beijing";
-static std::string s3_location = "";
+static std::string s3_location = "s3://yunyou-1308700295/ut";
 
 // hdfs
-static std::string fs_name = "hdfs://my_nameservice";
+static std::string fs_name = "hdfs://HDFS8000871";
 static std::string username = "hadoop";
-static std::string nameservices = "my_nameservice";
+static std::string nameservices = "HDFS8000871";
 static std::string nn = "nn1,nn2";
-static std::string rpc1 = "172.21.0.1:4007";
-static std::string rpc2 = "172.21.0.2:4007";
-static std::string provider =
-        "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider";
-static std::string hdfs_location = "/user/doris/";
+static std::string rpc1 = "172.21.0.32:4007";
+static std::string rpc2 = "172.21.0.44:4007";
+static std::string provider = "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider";
+static std::string hdfs_location = "/user/yunyou/";
 
 // broker
 static std::string broker_ip = "127.0.0.1";
@@ -81,8 +81,8 @@ static int broker_port = 8008;
 static std::string broker_location = "hdfs://my_nameservice/user/doris";
 
 // commend out to enable specified test
-#define TestHdfsFileSystem DISABLED_TestHdfsFileSystem
-#define TestS3FileSystem DISABLED_TestS3FileSystem
+// #define TestHdfsFileSystem DISABLED_TestHdfsFileSystem
+// #define TestS3FileSystem DISABLED_TestS3FileSystem
 #define TestBrokerFileSystem DISABLED_TestBrokerFileSystem
 
 class RemoteFileSystemTest : public testing::Test {
@@ -104,6 +104,7 @@ public:
 
         broker_addr.__set_hostname(broker_ip);
         broker_addr.__set_port(broker_port);
+        doris::JniUtil::Init();
     }
 
     virtual void TearDown() {}
@@ -363,13 +364,18 @@ TEST_F(RemoteFileSystemTest, TestHdfsFileSystem) {
     ASSERT_TRUE(exists);
     ASSERT_EQ(1, files.size());
 
+    std::cout << "cmy9" << std::endl;
     // upload
     std::string upload_file = "./be/test/io/fs/test_data/upload_file.txt";
     std::string remote_file = dst_dir + "/upload_file.txt";
+    std::cout << "cmy91" << std::endl;
     CHECK_STATUS_OK(fs->upload(upload_file, remote_file));
+    std::cout << "cmy92" << std::endl;
     exists = false;
     CHECK_STATUS_OK(fs->exists(remote_file, &exists));
+    std::cout << "cmy93" << std::endl;
     ASSERT_TRUE(exists);
+    std::cout << "cmy94" << std::endl;
 
     // batch upload
     std::vector<io::Path> local_files;

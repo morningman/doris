@@ -227,7 +227,7 @@ public:
 
         /// Returns a pointer to the stored key;
         /// Returns nullptr if it's an empty accessor;
-        const KeyType* const get_key() const;
+        KeyType* get_key() const;
 
         /// Explicit release of the object
         void release();

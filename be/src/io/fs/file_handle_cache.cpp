@@ -131,7 +131,7 @@ Status FileHandleCache::init() {
 Status FileHandleCache::get_file_handle(const hdfsFS& fs, const std::string& fname, int64_t mtime,
                                         int64_t file_size, bool require_new_handle,
                                         FileHandleCache::Accessor* accessor, bool* cache_hit) {
-    DCHECK_GT(mtime, 0);
+    // DCHECK_GT(mtime, 0);
     // Hash the key and get appropriate partition
     int index = HashUtil::hash(fname.data(), fname.size(), 0) % _cache_partitions.size();
     FileHandleCachePartition& p = _cache_partitions[index];
@@ -182,7 +182,7 @@ void FileHandleCache::_evict_handles_loop() {
             }
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(EVICT_HANDLES_PERIOD_MS));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 }
 

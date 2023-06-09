@@ -42,15 +42,24 @@ class FileSystem;
 #define FILESYSTEM_M(stmt)                    \
     do {                                      \
         Status _s;                            \
+        std::cout << "11" << std::endl;       \
         if (bthread_self() == 0) {            \
+        std::cout << "12" << std::endl;       \
             _s = (stmt);                      \
+        std::cout << "13" << std::endl;       \
         } else {                              \
+        std::cout << "14" << std::endl;       \
             auto task = [&] { _s = (stmt); }; \
+        std::cout << "15" << std::endl;       \
             AsyncIO::run_task(task, _type);   \
+        std::cout << "16" << std::endl;       \
         }                                     \
         if (!_s) {                            \
+        std::cout << "17" << std::endl;       \
             LOG(WARNING) << _s;               \
+        std::cout << "18" << std::endl;       \
         }                                     \
+        std::cout << "19" << std::endl;       \
         return _s;                            \
     } while (0);
 #endif

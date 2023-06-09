@@ -183,7 +183,6 @@ public:
 private:
     /// Periodic check to evict unused file handles. Only executed by _eviction_thread.
     void _evict_handles_loop();
-    static const int64_t EVICT_HANDLES_PERIOD_MS = 1000;
 
     std::vector<FileHandleCachePartition> _cache_partitions;
 

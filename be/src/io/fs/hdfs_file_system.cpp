@@ -300,18 +300,23 @@ Status HdfsFileSystem::rename_dir_impl(const Path& orig_name, const Path& new_na
 }
 
 Status HdfsFileSystem::upload_impl(const Path& local_file, const Path& remote_file) {
+    std::cout << "xx1" << std::endl;
     // 1. open local file for read
     FileSystemSPtr local_fs = global_local_filesystem();
+    std::cout << "xx2" << std::endl;
     FileReaderSPtr local_reader = nullptr;
     RETURN_IF_ERROR(local_fs->open_file(local_file, &local_reader));
+    std::cout << "xx3" << std::endl;
     int64_t file_len = local_reader->size();
     if (file_len == -1) {
         return Status::IOError("failed to get size of file: {}", local_file.string());
     }
 
+    std::cout << "xx4" << std::endl;
     // 2. open remote file for write
     FileWriterPtr hdfs_writer = nullptr;
     RETURN_IF_ERROR(create_file_impl(remote_file, &hdfs_writer));
+    std::cout << "xx5" << std::endl;
 
     constexpr size_t buf_sz = 1024 * 1024;
     char read_buf[buf_sz];
@@ -321,7 +326,9 @@ Status HdfsFileSystem::upload_impl(const Path& local_file, const Path& remote_fi
     while (left_len > 0) {
         size_t read_len = left_len > buf_sz ? buf_sz : left_len;
         RETURN_IF_ERROR(local_reader->read_at(read_offset, {read_buf, read_len}, &bytes_read));
+    std::cout << "xx6" << std::endl;
         RETURN_IF_ERROR(hdfs_writer->append({read_buf, read_len}));
+    std::cout << "xx7" << std::endl;
 
         read_offset += read_len;
         left_len -= read_len;
