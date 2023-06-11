@@ -29,6 +29,7 @@
 #include <tuple>
 #include <unordered_map>
 
+#include "gutil/hash/hash.h"
 #include "gutil/macros.h"
 #include "util/spinlock.h"
 

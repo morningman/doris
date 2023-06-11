@@ -31,7 +31,7 @@ Status FileMetaCache::get_parquet_footer(io::FileReaderSPtr file_reader, io::IOC
         *handle = std::move(cache_handle);
         *meta_size = 0;
     } else {
-        vectorized::FileMetaData* meta;
+        vectorized::FileMetaData* meta = nullptr;
         RETURN_IF_ERROR(vectorized::parse_thrift_footer(file_reader, &meta, meta_size, io_ctx));
         _cache.insert({cache_key}, meta, handle);
     }

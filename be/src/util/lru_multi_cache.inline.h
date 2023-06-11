@@ -74,7 +74,7 @@ ValueType* LruMultiCache<KeyType, ValueType>::Accessor::get() {
 template <typename KeyType, typename ValueType>
 KeyType* LruMultiCache<KeyType, ValueType>::Accessor::get_key() const {
     if (_p_value_internal) {
-        return &(_p_value_internal->key);
+        return const_cast<KeyType*>(&(_p_value_internal->key));
     }
 
     return nullptr;
