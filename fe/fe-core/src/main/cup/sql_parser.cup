@@ -4041,9 +4041,9 @@ show_param ::=
         RESULT = new ShowTableStatsStmt(tbl, partitionNames);
     :}
     /* show column stats */
-    | KW_COLUMN KW_STATS table_name:tbl opt_col_list:cols opt_partition_names:partitionNames
+    | KW_COLUMN KW_STATS table_name:tbl opt_col_list:cols opt_partition_names:partitionNames opt_properties:properties
     {:
-        RESULT = new ShowColumnStatsStmt(tbl, cols, partitionNames);
+        RESULT = new ShowColumnStatsStmt(tbl, cols, partitionNames, properties);
     :}
     /* show column histogram */
     | KW_COLUMN KW_HISTOGRAM table_name:tbl opt_col_list:cols

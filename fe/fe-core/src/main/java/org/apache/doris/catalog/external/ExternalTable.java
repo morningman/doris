@@ -326,8 +326,7 @@ public class ExternalTable implements TableIf, Writable, GsonPostProcessable {
     }
 
     @Override
-    public Optional<ColumnStatistic> getColumnStatistic() {
-        // TODO: Implement this interface for all kinds of external table.
+    public Optional<ColumnStatistic> getColumnStatistic(String colName) {
         return Optional.empty();
     }
 

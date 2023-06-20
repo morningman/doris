@@ -233,6 +233,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -2363,9 +2364,17 @@ public class ShowExecutor {
         List<Pair<String, ColumnStatistic>> columnStatistics = new ArrayList<>();
         Set<String> columnNames = showColumnStatsStmt.getColumnNames();
         PartitionNames partitionNames = showColumnStatsStmt.getPartitionNames();
+        Map<String, String> properties = showColumnStatsStmt.getProperties();
 
         for (String colName : columnNames) {
-            if (partitionNames == null) {
+            // Show column statistics in columnStatisticsCache. For validation.
+            if (properties != null && properties.containsKey("cache")
+                    && properties.get("cache").equalsIgnoreCase("true")) {
+                ColumnStatistic columnStatistic = Env.getCurrentEnv().getStatisticsCache().getColumnStatistics(
+                        tableIf.getDatabase().getCatalog().getId(),
+                        tableIf.getDatabase().getId(), tableIf.getId(), colName);
+                columnStatistics.add(Pair.of(colName, columnStatistic));
+            } else if (partitionNames == null) {
                 ColumnStatistic columnStatistic =
                         StatisticsRepository.queryColumnStatisticsByName(tableIf.getId(), colName);
                 columnStatistics.add(Pair.of(colName, columnStatistic));
