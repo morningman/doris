@@ -1059,6 +1059,11 @@ DECLARE_Int64(max_hdfs_file_handle_cache_num);
 // max number of meta info of external files, such as parquet footer
 DECLARE_Int64(max_external_file_meta_cache_num);
 
+// the max expiration time of kerberos ticket.
+// If a hdfs filesytem with kerberos authentication live longer
+// than this time, it will be expired.
+DECLARE_mInt64(kerberos_expiration_time_seconds);
+
 #ifdef BE_TEST
 // test s3
 DECLARE_String(test_s3_resource);

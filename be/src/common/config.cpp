@@ -1043,6 +1043,8 @@ DEFINE_Bool(enable_set_in_bitmap_value, "false");
 DEFINE_Int64(max_hdfs_file_handle_cache_num, "20000");
 DEFINE_Int64(max_external_file_meta_cache_num, "20000");
 
+DEFINE_mInt64(kerberos_expiration_time_seconds, "43200");
+
 #ifdef BE_TEST
 // test s3
 DEFINE_String(test_s3_resource, "resource");
