@@ -246,6 +246,7 @@ public class HiveMetaStoreCache {
             // Otherwise, getSplits() may throw exception: "Not a file xxx"
             // https://blog.actorsfit.com/a?ID=00550-ce56ec63-1bff-4b0c-a6f7-447b93efaa31
             jobConf.set("mapreduce.input.fileinputformat.input.dir.recursive", "true");
+            jobConf.set("fs.hdfs.impl.disable.cache", "true");
             FileInputFormat.setInputPaths(jobConf, finalLocation);
             try {
                 InputFormat<?, ?> inputFormat = HiveUtil.getInputFormat(jobConf, key.inputFormat, false);
