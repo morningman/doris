@@ -50,6 +50,8 @@ import com.google.common.collect.RangeMap;
 import com.google.common.collect.TreeRangeMap;
 import lombok.Data;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
@@ -64,6 +66,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.parquet.Strings;
 
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivilegedExceptionAction;
@@ -256,6 +259,23 @@ public class HiveMetaStoreCache {
             // Otherwise, getSplits() may throw exception: "Not a file xxx"
             // https://blog.actorsfit.com/a?ID=00550-ce56ec63-1bff-4b0c-a6f7-447b93efaa31
             jobConf.set("mapreduce.input.fileinputformat.input.dir.recursive", "true");
+            // FileInputFormat.setInputPaths() will call FileSystem.get(), which will create new FileSystem
+            // and save it in FileSystem.Cache. We don't need this cache.
+            try {
+                URI uri = FileSystem.getDefaultUri(jobConf);
+                jobConf.set("fs." + uri.getScheme() + ".impl.disable.cache", "true");
+            } catch (Exception e) {
+                // ignore
+            }
+
+            try {
+                Path path = new Path(finalLocation);
+                URI uri = path.toUri();
+                jobConf.set("fs." + uri.getScheme() + ".impl.disable.cache", "true");
+            } catch (Exception e) {
+                // ignore
+            }
+
             FileInputFormat.setInputPaths(jobConf, finalLocation);
             try {
                 InputFormat<?, ?> inputFormat = HiveUtil.getInputFormat(jobConf, key.inputFormat, false);
@@ -772,4 +792,5 @@ public class HiveMetaStoreCache {
         }
     }
 }
+
 
