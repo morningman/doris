@@ -253,12 +253,9 @@ Status OrcReader::init_reader(
     _is_acid = is_acid;
     _tuple_descriptor = tuple_descriptor;
     _row_descriptor = row_descriptor;
+    _not_single_slot_filter_conjuncts = not_single_slot_filter_conjuncts;
     _slot_id_to_filter_conjuncts = slot_id_to_filter_conjuncts;
     _text_converter.reset(new TextConverter('\\'));
-    if (not_single_slot_filter_conjuncts) {
-        _filter_conjuncts.insert(_filter_conjuncts.end(), not_single_slot_filter_conjuncts->begin(),
-                                 not_single_slot_filter_conjuncts->end());
-    }
     _obj_pool = std::make_shared<ObjectPool>();
     {
         SCOPED_RAW_TIMER(&_statistics.create_reader_time);
@@ -1407,8 +1404,20 @@ Status OrcReader::get_next_block(Block* block, size_t* read_rows, bool* eof) {
 
         RETURN_IF_ERROR(_fill_partition_columns(block, rr, _lazy_read_ctx.partition_columns));
         RETURN_IF_ERROR(_fill_missing_columns(block, rr, _lazy_read_ctx.missing_columns));
-        RETURN_IF_CATCH_EXCEPTION(Block::filter_block_internal(block, columns_to_filter, *_filter));
-        Block::erase_useless_column(block, column_to_keep);
+	if (_not_single_slot_filter_conjuncts) {
+            VExprContextSPtrs filter_conjuncts;
+            filter_conjuncts.insert(filter_conjuncts.end(), _not_single_slot_filter_conjuncts->begin(),
+                                    _not_single_slot_filter_conjuncts->end());
+            std::vector<IColumn::Filter*> filters;
+            filters.push_back(_filter.get());
+            RETURN_IF_CATCH_EXCEPTION(
+                    RETURN_IF_ERROR(VExprContext::execute_conjuncts_and_filter_block(
+                            filter_conjuncts, &filters, block, columns_to_filter, column_to_keep)));
+        } else {
+            RETURN_IF_CATCH_EXCEPTION(
+                    Block::filter_block_internal(block, columns_to_filter, *_filter));
+            Block::erase_useless_column(block, column_to_keep);
+        }
     } else {
         uint64_t rr;
         SCOPED_RAW_TIMER(&_statistics.column_read_time);
@@ -1483,17 +1492,39 @@ Status OrcReader::get_next_block(Block* block, size_t* read_rows, bool* eof) {
             if (_delete_rows_filter_ptr) {
                 filters.push_back(_delete_rows_filter_ptr.get());
             }
-            RETURN_IF_CATCH_EXCEPTION(
-                    RETURN_IF_ERROR(VExprContext::execute_conjuncts_and_filter_block(
-                            filter_conjuncts, &filters, block, columns_to_filter, column_to_keep)));
+	    IColumn::Filter result_filter(block->rows(), 1);
+            bool can_filter_all = false;
+            RETURN_IF_ERROR_OR_CATCH_EXCEPTION(VExprContext::execute_conjuncts(
+                    filter_conjuncts, &filters, block, &result_filter, &can_filter_all));
+            if (can_filter_all) {
+                for (auto& col : columns_to_filter) {
+                    std::move(*block->get_by_position(col).column).assume_mutable()->clear();
+                }
+                Block::erase_useless_column(block, column_to_keep);
+                _convert_dict_cols_to_string_cols(block, &batch_vec);
+                return Status::OK();
+            }
+            _convert_dict_cols_to_string_cols(block, &batch_vec);
+            if (_not_single_slot_filter_conjuncts) {
+                VExprContextSPtrs not_single_slot_filter_conjuncts;
+                not_single_slot_filter_conjuncts.insert(not_single_slot_filter_conjuncts.end(),
+                                                        _not_single_slot_filter_conjuncts->begin(),
+                                                        _not_single_slot_filter_conjuncts->end());
+                std::vector<IColumn::Filter*> merged_filters;
+                merged_filters.push_back(&result_filter);
+                RETURN_IF_CATCH_EXCEPTION(
+                        RETURN_IF_ERROR(VExprContext::execute_conjuncts_and_filter_block(
+                                not_single_slot_filter_conjuncts, &merged_filters, block,
+                                columns_to_filter, column_to_keep)));
+            }
         } else {
             if (_delete_rows_filter_ptr) {
                 RETURN_IF_CATCH_EXCEPTION(Block::filter_block_internal(block, columns_to_filter,
                                                                        (*_delete_rows_filter_ptr)));
             }
             Block::erase_useless_column(block, column_to_keep);
+	    _convert_dict_cols_to_string_cols(block, &batch_vec);
         }
-        _convert_dict_cols_to_string_cols(block, &batch_vec);
     }
     return Status::OK();
 }
