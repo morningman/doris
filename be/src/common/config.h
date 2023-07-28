@@ -1066,6 +1066,7 @@ DECLARE_mInt64(kerberos_expiration_time_seconds);
 // Values include `none`, `glog`, `boost`, `glibc`, `libunwind`
 DECLARE_mString(get_stack_trace_tool);
 
+<<<<<<< HEAD
 // the ratio of _prefetch_size/_batch_size in AutoIncIDBuffer
 DECLARE_mInt64(auto_inc_prefetch_size_ratio);
 
@@ -1079,6 +1080,8 @@ DECLARE_mInt64(lookup_connection_cache_bytes_limit);
 
 // level of compression when using LZ4_HC, whose defalut value is LZ4HC_CLEVEL_DEFAULT
 DECLARE_mInt64(LZ4_HC_compression_level);
+// The secure path with user files, used in the `local` table function.
+DECLARE_mString(user_files_secure_path);
 
 #ifdef BE_TEST
 // test s3
