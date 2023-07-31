@@ -60,7 +60,7 @@ import java.util.Map;
 public abstract class FileScanNode extends ExternalScanNode {
     private static final Logger LOG = LogManager.getLogger(FileScanNode.class);
 
-    public static final long DEFAULT_SPLIT_SIZE = 128 * 1024 * 1024; // 128MB
+    public static final long DEFAULT_SPLIT_SIZE = 8 * 1024 * 1024; // 128MB
 
     // For explain
     protected long inputSplitsNum = 0;
