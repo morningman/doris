@@ -97,6 +97,7 @@ public:
         std::lock_guard l(_transfer_lock);
         _should_stop = true;
         _blocks_queue_added_cv.notify_one();
+        LOG(INFO) << "yy debug set_should_stop: " << ctx_id << ", query id: " << print_id(_state->query_id());
     }
 
     // Return true if this ScannerContext need no more process

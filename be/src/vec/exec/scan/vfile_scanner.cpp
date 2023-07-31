@@ -230,6 +230,11 @@ Status VFileScanner::open(RuntimeState* state) {
 // _convert_to_output_block     -     -    -  -                 -                -      x
 Status VFileScanner::_get_block_impl(RuntimeState* state, Block* block, bool* eof) {
     do {
+        if (state->get_query_ctx()->should_stop()) {
+            LOG(INFO) << "yy debug stop _get_block_impl, query id: " << print_id(state->query_id()) << ", scanner id: " << get_id();
+            *eof = true;
+            return Status::OK();
+        }
         if (_cur_reader == nullptr || _cur_reader_eof) {
             RETURN_IF_ERROR(_get_next_reader());
         }
@@ -248,7 +253,8 @@ Status VFileScanner::_get_block_impl(RuntimeState* state, Block* block, bool* eo
             // Read next block.
             // Some of column in block may not be filled (column not exist in file)
             RETURN_IF_ERROR(
-                    _cur_reader->get_next_block(_src_block_ptr, &read_rows, &_cur_reader_eof));
+                    _cur_reader->get_next_block(state, _src_block_ptr, &read_rows, &_cur_reader_eof));
+            // LOG(INFO) << "yy debug get_next_block rows: " << _src_block_ptr->rows();
         }
         // use read_rows instead of _src_block_ptr->rows(), because the first column of _src_block_ptr
         // may not be filled after calling `get_next_block()`, so _src_block_ptr->rows() may return wrong result.

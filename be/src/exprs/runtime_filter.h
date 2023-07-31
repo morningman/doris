@@ -42,6 +42,7 @@
 #include "vec/common/string_ref.h"
 #include "vec/core/types.h"
 #include "vec/data_types/data_type.h"
+#include "vec/exprs/vexpr_fwd.h"
 #include "vec/runtime/vdatetime_value.h"
 
 namespace butil {

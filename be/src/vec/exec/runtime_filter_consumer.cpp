@@ -17,6 +17,8 @@
 
 #include "vec/exec/runtime_filter_consumer.h"
 
+#include "vec/exprs/vexpr_context.h"
+
 namespace doris::vectorized {
 
 RuntimeFilterConsumer::RuntimeFilterConsumer(const int32_t filter_id,

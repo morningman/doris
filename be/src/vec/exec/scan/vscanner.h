@@ -25,6 +25,7 @@
 #include "common/status.h"
 #include "olap/tablet.h"
 #include "runtime/exec_env.h"
+#include "runtime/query_context.h"
 #include "runtime/runtime_state.h"
 #include "util/stopwatch.hpp"
 #include "vec/core/block.h"
@@ -69,6 +70,10 @@ public:
     // return the readable name of current scan range.
     // eg, for file scanner, return the current file path.
     virtual std::string get_current_scan_range_name() { return "not implemented"; }
+
+    int get_id() { return _id; }
+
+    void set_id(int id) { _id = id; }
 
 protected:
     // Subclass should implement this to return data.
@@ -129,6 +134,7 @@ public:
         // update counters. For example, update counters depend on scanner's tablet, but
         // the tablet == null when init failed.
         if (_is_open) {
+            _state->get_query_ctx()->set_should_stop();
             _update_counters_before_close();
         }
         _need_to_close = true;
@@ -213,6 +219,8 @@ protected:
 
     ScannerCounter _counter;
     int64_t _per_scanner_timer = 0;
+
+    int _id = 0;
 };
 
 using VScannerSPtr = std::shared_ptr<VScanner>;

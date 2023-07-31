@@ -19,6 +19,8 @@
 
 #include "common/factory_creator.h"
 #include "common/status.h"
+#include "runtime/runtime_state.h"
+#include "runtime/query_context.h"
 #include "runtime/types.h"
 #include "vec/exprs/vexpr_context.h"
 
@@ -30,6 +32,16 @@ class Block;
 // a set of blocks with specified schema,
 class GenericReader {
 public:
+
+    Status get_next_block(RuntimeState* state, Block* block, size_t* read_rows, bool* eof) {
+        if (state->get_query_ctx()->should_stop()) {
+            LOG(INFO) << "yy debug stop reader get_next_block, query id: " << print_id(state->query_id());
+            *eof = true;
+            return Status::OK();
+        }
+        return get_next_block(block, read_rows, eof);
+    }
+
     virtual Status get_next_block(Block* block, size_t* read_rows, bool* eof) = 0;
     virtual std::unordered_map<std::string, TypeDescriptor> get_name_to_type() {
         std::unordered_map<std::string, TypeDescriptor> map;

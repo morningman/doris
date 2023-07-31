@@ -24,10 +24,11 @@
 #include <vector>
 
 #include "vec/core/block.h"
-#include "vec/exec/scan/scanner_context.h"
+// #include "vec/exec/scan/scanner_context.h"
 
 namespace doris::vectorized {
 
+class ScannerContext;
 class SharedScannerController {
 public:
     std::pair<bool, int> should_build_scanner_and_queue_id(int my_node_id) {
@@ -45,20 +46,11 @@ public:
     }
 
     void set_scanner_context(int my_node_id,
-                             const std::shared_ptr<ScannerContext> scanner_context) {
-        std::lock_guard<std::mutex> lock(_mutex);
-        _scanner_context.insert({my_node_id, scanner_context});
-    }
+                             const std::shared_ptr<ScannerContext> scanner_context);
 
-    bool scanner_context_is_ready(int my_node_id) {
-        std::lock_guard<std::mutex> lock(_mutex);
-        return _scanner_context.find(my_node_id) != _scanner_context.end();
-    }
+    bool scanner_context_is_ready(int my_node_id);
 
-    std::shared_ptr<ScannerContext> get_scanner_context(int my_node_id) {
-        std::lock_guard<std::mutex> lock(_mutex);
-        return _scanner_context[my_node_id];
-    }
+    std::shared_ptr<ScannerContext> get_scanner_context(int my_node_id);
 
 private:
     std::mutex _mutex;

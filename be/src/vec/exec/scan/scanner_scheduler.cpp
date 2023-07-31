@@ -211,6 +211,8 @@ void ScannerScheduler::_schedule_scanners(ScannerContext* ctx) {
                     task.queue_id = (*iter)->queue_id();
                     ret = _local_scan_thread_pool->offer(task);
                 } else {
+                    LOG(INFO) << "yy debug submit scanner: " << ctx->ctx_id << ", query id: " << print_id((*iter)->runtime_state()->query_id()) << ", scanner id: " << (*iter)->get_id()
+                        << ", queue: " << _remote_scan_thread_pool->get_queue_size();
                     ret = _remote_scan_thread_pool->submit_func([this, scanner = *iter, ctx] {
                         this->_scanner_scan(this, ctx, scanner);
                     });
@@ -314,6 +316,7 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
     bool has_free_block = true;
     int num_rows_in_block = 0;
 
+    LOG(INFO) << "yy debug begin scanner scan: " << ctx->ctx_id << ", query id: " << print_id(scanner->runtime_state()->query_id()) << ", scanner id: " << scanner->get_id();
     // Only set to true when ctx->done() return true.
     // Use this flag because we need distinguish eos from `should_stop`.
     // If eos is true, we still need to return blocks,
@@ -321,9 +324,12 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
     bool should_stop = false;
     // Has to wait at least one full block, or it will cause a lot of schedule task in priority
     // queue, it will affect query latency and query concurrency for example ssb 3.3.
-    while (!eos && raw_bytes_read < raw_bytes_threshold &&
+    while (!eos && raw_bytes_read < raw_bytes_threshold && !state->get_query_ctx()->should_stop() &&
            ((raw_rows_read < raw_rows_threshold && has_free_block) ||
             num_rows_in_block < state->batch_size())) {
+        // LOG(INFO) << "yy debug run scan: " << ctx->ctx_id << ", query id: " << print_id(scanner->runtime_state()->query_id()) << ", scanner id: " << scanner->get_id()
+        //     << ", raw_bytes_read: " << raw_bytes_read << ", raw_bytes_threshold: " << raw_bytes_threshold << ", raw_rows_read: " << raw_rows_read
+        //     << ", raw_rows_threshold: " << raw_rows_threshold << ", num_rows_in_block: " << num_rows_in_block;
         if (UNLIKELY(ctx->done())) {
             // No need to set status on error here.
             // Because done() maybe caused by "should_stop"
@@ -389,6 +395,7 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
     }
 
     ctx->push_back_scanner_and_reschedule(scanner);
+    LOG(INFO) << "yy debug finish scanner scan: " << ctx->ctx_id << ", query id: " << print_id(scanner->runtime_state()->query_id()) << ", scanner id: " << scanner->get_id();
 }
 
 } // namespace doris::vectorized

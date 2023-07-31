@@ -35,7 +35,7 @@
 #include "task_group/task_group.h"
 #include "util/pretty_printer.h"
 #include "util/threadpool.h"
-#include "vec/exec/scan/scanner_scheduler.h"
+// #include "vec/exec/scan/scanner_scheduler.h"
 #include "vec/runtime/shared_hash_table_controller.h"
 #include "vec/runtime/shared_scanner_controller.h"
 
@@ -94,12 +94,7 @@ public:
         return false;
     }
 
-    void set_thread_token(int concurrency, bool is_serial) {
-        _thread_token = _exec_env->scanner_scheduler()->new_limited_scan_pool_token(
-                is_serial ? ThreadPool::ExecutionMode::SERIAL
-                          : ThreadPool::ExecutionMode::CONCURRENT,
-                concurrency);
-    }
+    void set_thread_token(int concurrency, bool is_serial);
 
     ThreadPoolToken* get_token() { return _thread_token.get(); }
 
@@ -173,6 +168,14 @@ public:
 
     RuntimeFilterMgr* runtime_filter_mgr() { return _runtime_filter_mgr.get(); }
 
+    void set_should_stop() {
+        _should_stop = true;
+    }
+
+    bool should_stop() {
+        return _should_stop.load();
+    }
+
 public:
     TUniqueId query_id;
     DescriptorTbl* desc_tbl;
@@ -226,6 +229,8 @@ private:
     taskgroup::TaskGroupPtr _task_group;
     std::unique_ptr<RuntimeFilterMgr> _runtime_filter_mgr;
     const TQueryOptions _query_options;
+
+    std::atomic<bool> _should_stop {false};
 };
 
 } // namespace doris
