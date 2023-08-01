@@ -1034,6 +1034,10 @@ DEFINE_Int32(rocksdb_max_write_buffer_number, "5");
 DEFINE_Bool(allow_invalid_decimalv2_literal, "false");
 DEFINE_mInt64(kerberos_expiration_time_seconds, "43200");
 
+DEFINE_mBool(enable_hedged_read, "false");
+DEFINE_mString(enable_hedged_read_thread_num, "128");
+DEFINE_mString(enable_hedged_read_threshold_time, "500");
+
 #ifdef BE_TEST
 // test s3
 DEFINE_String(test_s3_resource, "resource");

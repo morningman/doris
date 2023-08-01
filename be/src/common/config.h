@@ -1061,6 +1061,10 @@ DECLARE_mBool(allow_invalid_decimalv2_literal);
 // than this time, it will be expired.
 DECLARE_mInt64(kerberos_expiration_time_seconds);
 
+DECLARE_mBool(enable_hedged_read);
+DECLARE_mString(enable_hedged_read_thread_num);
+DECLARE_mString(enable_hedged_read_threshold_time);
+
 #ifdef BE_TEST
 // test s3
 DECLARE_String(test_s3_resource);

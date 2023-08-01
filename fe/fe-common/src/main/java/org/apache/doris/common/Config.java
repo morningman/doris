@@ -2049,4 +2049,7 @@ public class Config extends ConfigBase {
     @ConfField
     public static long statistics_sql_mem_limit_in_bytes = 2L * 1024 * 1024 * 1024;
 
+    @ConfField
+    public static int virtual_node_num = 1024;
+
 }
