@@ -2046,4 +2046,8 @@ public class Config extends ConfigBase {
 
     @ConfField
     public static int statistics_sql_parallel_exec_instance_num = 1;
+
+    @ConfField
+    public static int virtual_node_num = 2048;
+
 }

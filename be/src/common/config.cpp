@@ -1030,6 +1030,9 @@ DEFINE_mInt64(LZ4_HC_compression_level, "9");
 
 // enable window_funnel_function with different modes
 DEFINE_mBool(enable_window_funnel_function_v2, "false");
+DEFINE_mBool(enable_hedged_read, "false");
+DEFINE_mString(enable_hedged_read_thread_num, "128");
+DEFINE_mString(enable_hedged_read_threshold_time, "500");
 
 #ifdef BE_TEST
 // test s3
