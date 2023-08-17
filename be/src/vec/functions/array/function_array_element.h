@@ -394,7 +394,7 @@ private:
         } else if (check_column<ColumnString>(*nested_column)) {
             res = _execute_string(offsets, *nested_column, src_null_map, *idx_col, nested_null_map,
                                   dst_null_map);
-        }else {
+        } else {
             res = _execute_common(offsets, *nested_column, src_null_map, *idx_col, nested_null_map,
                                   dst_null_map);
         }
