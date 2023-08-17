@@ -360,6 +360,7 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
     while (!eos && raw_bytes_read < raw_bytes_threshold &&
            ((raw_rows_read < raw_rows_threshold && has_free_block) ||
             num_rows_in_block < state->batch_size())) {
+            // && ctx->has_enough_space_in_blocks_queue()) {
         // TODO llj task group should should_yield?
         if (UNLIKELY(ctx->done())) {
             // No need to set status on error here.
@@ -417,7 +418,10 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
         // No need to return blocks because of should_stop, just delete them
         blocks.clear();
     } else if (!blocks.empty()) {
+        LOG(INFO) << "yy debug append_blocks_to_queue: " << blocks.size();
         ctx->append_blocks_to_queue(blocks);
+    } else {
+        LOG(INFO) << "yy debug append_blocks_to_queue empty";
     }
 
     scanner->update_scan_cpu_timer();

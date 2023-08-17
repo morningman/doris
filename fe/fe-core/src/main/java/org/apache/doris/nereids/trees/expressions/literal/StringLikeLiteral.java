@@ -19,6 +19,8 @@ package org.apache.doris.nereids.trees.expressions.literal;
 
 import org.apache.doris.nereids.types.DataType;
 
+import java.util.Objects;
+
 /** StringLikeLiteral. */
 public abstract class StringLikeLiteral extends Literal {
     public final String value;
@@ -43,4 +45,16 @@ public abstract class StringLikeLiteral extends Literal {
         }
         return (double) v;
     }
+
+    @Override
+    public boolean valueEquals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || !(o instanceof StringLikeLiteral)) {
+            return false;
+        }
+        return Objects.equals(getValue(), ((StringLikeLiteral) o).getValue());
+    }
 }
+

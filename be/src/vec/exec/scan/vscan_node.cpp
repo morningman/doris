@@ -254,6 +254,7 @@ Status VScanNode::get_next(RuntimeState* state, vectorized::Block* block, bool* 
 
     vectorized::BlockUPtr scan_block = nullptr;
     RETURN_IF_ERROR(_scanner_ctx->get_block_from_queue(state, &scan_block, eos, _context_queue_id));
+    LOG(INFO) << "yy debug _scanner_ctx: " << _scanner_ctx->debug_string();
     if (*eos) {
         DCHECK(scan_block == nullptr);
         return Status::OK();

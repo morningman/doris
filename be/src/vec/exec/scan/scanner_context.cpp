@@ -188,7 +188,9 @@ Status ScannerContext::get_block_from_queue(RuntimeState* state, vectorized::Blo
     // (if the scheduler continues to schedule, it will cause a lot of busy running).
     // At this point, consumers are required to trigger new scheduling to ensure that
     // data can be continuously fetched.
+    LOG(INFO) << "yy debug get_block_from_queue: " << debug_string();
     if (has_enough_space_in_blocks_queue() && _num_running_scanners == 0) {
+        LOG(INFO) << "yy debug submit ctx by consumer";
         auto state = _scanner_scheduler->submit(this);
         if (state.ok()) {
             _num_scheduling_ctx++;
@@ -201,7 +203,9 @@ Status ScannerContext::get_block_from_queue(RuntimeState* state, vectorized::Blo
         SCOPED_TIMER(_scanner_wait_batch_timer);
         while (!(!_blocks_queue.empty() || _is_finished || !status().ok() ||
                  state->is_cancelled())) {
+            LOG(INFO) << "yy debug wait";
             _blocks_queue_added_cv.wait(l);
+            LOG(INFO) << "yy debug wait done";
         }
     }
 
@@ -324,7 +328,7 @@ bool ScannerContext::no_schedule() {
 
 std::string ScannerContext::debug_string() {
     return fmt::format(
-            "id: {}, sacnners: {}, blocks in queue: {},"
+            "id: {}, scanners: {}, blocks in queue: {},"
             " status: {}, _should_stop: {}, _is_finished: {}, free blocks: {},"
             " limit: {}, _num_running_scanners: {}, _num_scheduling_ctx: {}, _max_thread_num: {},"
             " _block_per_scanner: {}, _cur_bytes_in_queue: {}, MAX_BYTE_OF_QUEUE: {}",
@@ -351,7 +355,9 @@ void ScannerContext::push_back_scanner_and_reschedule(VScannerSPtr scanner) {
         _scanners.push_front(scanner);
     }
     std::lock_guard l(_transfer_lock);
+    LOG(INFO) << "yy debug push_back_scanner_and_reschedule: " << debug_string();
     if (has_enough_space_in_blocks_queue()) {
+        LOG(INFO) << "yy debug submit by producer";
         auto state = _scanner_scheduler->submit(this);
         if (state.ok()) {
             _num_scheduling_ctx++;

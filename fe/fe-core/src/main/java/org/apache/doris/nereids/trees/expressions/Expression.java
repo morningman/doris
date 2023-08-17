@@ -222,4 +222,8 @@ public abstract class Expression extends AbstractTreeNode<Expression> implements
         return toSql();
     }
 
+    public boolean valueEquals(Object o) {
+        return equals(o);
+    }
+
 }
