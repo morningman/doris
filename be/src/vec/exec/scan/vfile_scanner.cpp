@@ -1025,6 +1025,7 @@ Status VFileScanner::close(RuntimeState* state) {
     }
 
     if (_cur_reader) {
+        LOG(INFO) << "yy debug close VFileScanner";
         _cur_reader->close();
     }
 
