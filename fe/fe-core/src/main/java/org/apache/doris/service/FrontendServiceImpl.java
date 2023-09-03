@@ -1039,7 +1039,7 @@ public class FrontendServiceImpl implements FrontendService.Iface {
         LOG.debug("receive forwarded stmt {} from FE: {}", params.getStmtId(), params.getClientNodeHost());
         ConnectContext context = new ConnectContext();
         // Set current connected FE to the client address, so that we can know where this request come from.
-        context.setCurrentConnectedFEIp(params.getClientNodeHost());
+        context.setCurrentConnectedFE(params.getClientNodeHost() + ":" + params.getClientNodePort());
         ConnectProcessor processor = new ConnectProcessor(context);
         TMasterOpResult result = processor.proxyExecute(params);
         if (QueryState.MysqlStateType.ERR.name().equalsIgnoreCase(result.getStatus())) {

@@ -301,7 +301,7 @@ public class HeartbeatMgr extends MasterDaemon {
         @Override
         public HeartbeatResponse call() {
             HelperNodeInfo selfNode = Env.getCurrentEnv().getSelfNode();
-            if (fe.getHost().equals(selfNode.getHost())) {
+            if (fe.toHelperNodeInfo().equals(selfNode)) {
                 // heartbeat to self
                 if (Env.getCurrentEnv().isReady()) {
                     return new FrontendHbResponse(fe.getNodeName(),

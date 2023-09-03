@@ -24,6 +24,7 @@ import org.apache.doris.ha.FrontendNodeType;
 import org.apache.doris.system.HeartbeatMgr.BrokerHeartbeatHandler;
 import org.apache.doris.system.HeartbeatMgr.FrontendHeartbeatHandler;
 import org.apache.doris.system.HeartbeatResponse.HbStatus;
+import org.apache.doris.system.SystemInfoService.HelperNodeInfo;
 import org.apache.doris.system.SystemInfoService.HostInfo;
 import org.apache.doris.thrift.FrontendService;
 import org.apache.doris.thrift.TBrokerOperationStatus;
@@ -55,7 +56,7 @@ public class HeartbeatMgrTest {
             {
                 env.getSelfNode();
                 minTimes = 0;
-                result = new HostInfo("192.168.1.3", 9010); // not self
+                result = new HelperNodeInfo("192.168.1.3", 9010, 9050); // not self
 
                 env.isReady();
                 minTimes = 0;

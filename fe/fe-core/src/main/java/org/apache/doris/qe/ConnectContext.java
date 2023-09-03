@@ -158,8 +158,8 @@ public class ConnectContext {
 
     private JSONObject minidump = null;
 
-    // The FE ip current connected
-    private String currentConnectedFEIp = "";
+    // The FE current connected, format as ip:editLogPort
+    private String currentConnectedFE = "";
 
     private InsertResult insertResult;
 
@@ -722,12 +722,12 @@ public class ConnectContext {
         this.isResourceTagsSet = !this.resourceTags.isEmpty();
     }
 
-    public void setCurrentConnectedFEIp(String ip) {
-        this.currentConnectedFEIp = ip;
+    public void setCurrentConnectedFE(String connectedFE) {
+        this.currentConnectedFE = connectedFE;
     }
 
-    public String getCurrentConnectedFEIp() {
-        return currentConnectedFEIp;
+    public String getCurrentConnectedFE() {
+        return currentConnectedFE;
     }
 
     /**

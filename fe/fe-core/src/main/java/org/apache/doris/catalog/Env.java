@@ -2725,9 +2725,9 @@ public class Env {
         helperNodes.removeIf(node -> node.getHost().equals(host) && node.getPort() == port);
     }
 
-    public Frontend checkFeExist(String host, int port) {
+    public Frontend checkFeExist(String host, int editLogPort) {
         for (Frontend fe : frontends.values()) {
-            if (fe.getEditLogPort() != port) {
+            if (fe.getEditLogPort() != editLogPort) {
                 continue;
             }
             if (fe.getHost().equals(host)) {

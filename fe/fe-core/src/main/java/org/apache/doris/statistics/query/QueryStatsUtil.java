@@ -172,7 +172,7 @@ public class QueryStatsUtil {
     private static List<TQueryStatsResult> getStats(TGetQueryStatsRequest request) {
         List<TQueryStatsResult> results = new ArrayList<>();
         for (Frontend fe : Env.getCurrentEnv().getFrontends(null /* all */)) {
-            if (!fe.isAlive() || fe.getHost().equals(Env.getCurrentEnv().getSelfNode().getHost())) {
+            if (!fe.isAlive() || fe.toHelperNodeInfo().equals(Env.getCurrentEnv().getSelfNode())) {
                 continue;
             }
             FrontendService.Client client = null;

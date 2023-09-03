@@ -18,7 +18,6 @@
 package org.apache.doris.common.proc;
 
 import org.apache.doris.catalog.Env;
-import org.apache.doris.common.Config;
 import org.apache.doris.common.io.DiskUtils;
 import org.apache.doris.common.util.TimeUtils;
 import org.apache.doris.qe.ConnectContext;
@@ -102,10 +101,11 @@ public class FrontendsProcNode implements ProcNodeInterface {
         List<HelperNodeInfo> helperNodes = env.getHelperNodes();
 
         // Because the `show frontend` stmt maybe forwarded from other FE.
-        // if we only get self node from currrent catalog, the "CurrentConnected" field will always points to Msater FE.
-        String selfNode = Env.getCurrentEnv().getSelfNode().getHost();
-        if (ConnectContext.get() != null && !Strings.isNullOrEmpty(ConnectContext.get().getCurrentConnectedFEIp())) {
-            selfNode = ConnectContext.get().getCurrentConnectedFEIp();
+        // if we only get self node from current catalog, the "CurrentConnected" field will always point to Master FE.
+        HelperNodeInfo selfNode = Env.getCurrentEnv().getSelfNode();
+        String selfHostPort = selfNode.getHost() + ":" + selfNode.getEditLogPort();
+        if (ConnectContext.get() != null && !Strings.isNullOrEmpty(ConnectContext.get().getCurrentConnectedFE())) {
+            selfHostPort = ConnectContext.get().getCurrentConnectedFE();
         }
 
         for (Frontend fe : env.getFrontends(null /* all */)) {
@@ -114,14 +114,8 @@ public class FrontendsProcNode implements ProcNodeInterface {
             info.add(fe.getHost());
             info.add(Integer.toString(fe.getEditLogPort()));
             info.add(Integer.toString(fe.getHttpPort()));
-
-            if (fe.getHost().equals(env.getSelfNode().getHost())) {
-                info.add(Integer.toString(Config.query_port));
-                info.add(Integer.toString(Config.rpc_port));
-            } else {
-                info.add(Integer.toString(fe.getQueryPort()));
-                info.add(Integer.toString(fe.getRpcPort()));
-            }
+            info.add(Integer.toString(fe.getQueryPort()));
+            info.add(Integer.toString(fe.getRpcPort()));
 
             info.add(fe.getRole().name());
             InetSocketAddress socketAddress = new InetSocketAddress(fe.getHost(), fe.getEditLogPort());
@@ -132,7 +126,7 @@ public class FrontendsProcNode implements ProcNodeInterface {
             info.add(Integer.toString(env.getClusterId()));
             info.add(String.valueOf(isJoin(allFe, fe)));
 
-            if (fe.getHost().equals(env.getSelfNode().getHost())) {
+            if (fe.toHelperNodeInfo().equals(env.getSelfNode())) {
                 info.add("true");
                 info.add(Long.toString(env.getEditLog().getMaxJournalId()));
             } else {
@@ -145,7 +139,7 @@ public class FrontendsProcNode implements ProcNodeInterface {
             info.add(fe.getHeartbeatErrMsg());
             info.add(fe.getVersion());
             // To indicate which FE we currently connected
-            info.add(fe.getHost().equals(selfNode) ? "Yes" : "No");
+            info.add((fe.getHost() + ":" + fe.getEditLogPort()).equals(selfHostPort) ? "Yes" : "No");
 
             infos.add(info);
         }

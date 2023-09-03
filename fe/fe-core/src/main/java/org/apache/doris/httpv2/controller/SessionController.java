@@ -79,7 +79,7 @@ public class SessionController extends RestBaseController {
                 .filter(Frontend::isAlive)
                 .map(frontend -> {
                     try {
-                        return Env.getCurrentEnv().getSelfNode().getHost().equals(frontend.getHost())
+                        return Env.getCurrentEnv().getSelfNode().equals(frontend.toHelperNodeInfo())
                             ? getSessionInfo(true)
                             : getOtherSessionInfo(request, frontend);
                     } catch (IOException e) {
@@ -127,7 +127,7 @@ public class SessionController extends RestBaseController {
         Map<String, String> header = Maps.newHashMap();
         header.put(NodeAction.AUTHORIZATION, request.getHeader(NodeAction.AUTHORIZATION));
         String res = HttpUtils.doGet(String.format("http://%s:%s/rest/v1/session",
-                frontend.getHost(), Env.getCurrentEnv().getMasterHttpPort()), header);
+                frontend.getHost(), frontend.getHttpPort()), header);
         ObjectMapper objectMapper = new ObjectMapper();
         Map<String, Object> jsonMap = objectMapper.readValue(res,
             new TypeReference<Map<String, Object>>() {});

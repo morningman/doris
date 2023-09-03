@@ -35,6 +35,7 @@ import org.apache.doris.persist.MetaCleaner;
 import org.apache.doris.persist.Storage;
 import org.apache.doris.qe.VariableMgr;
 import org.apache.doris.system.Frontend;
+import org.apache.doris.system.SystemInfoService.HelperNodeInfo;
 
 import com.google.common.base.Strings;
 import org.apache.logging.log4j.LogManager;
@@ -191,8 +192,8 @@ public class Checkpoint extends MasterDaemon {
         if (!allFrontends.isEmpty()) {
             otherNodesCount = allFrontends.size() - 1; // skip master itself
             for (Frontend fe : allFrontends) {
-                String host = fe.getHost();
-                if (host.equals(Env.getServingEnv().getMasterHost())) {
+                HelperNodeInfo host = fe.toHelperNodeInfo();
+                if (host.equals(Env.getServingEnv().getSelfNode())) {
                     // skip master itself
                     continue;
                 }
@@ -236,8 +237,7 @@ public class Checkpoint extends MasterDaemon {
                 long deleteVersion = storage.getLatestValidatedImageSeq();
                 if (successPushed > 0) {
                     for (Frontend fe : allFrontends) {
-                        String host = fe.getHost();
-                        if (host.equals(Env.getServingEnv().getMasterHost())) {
+                        if (fe.toHelperNodeInfo().equals(Env.getServingEnv().getSelfNode())) {
                             // skip master itself
                             continue;
                         }
@@ -250,7 +250,7 @@ public class Checkpoint extends MasterDaemon {
                              * any non-master node's current replayed journal id. otherwise,
                              * this lagging node can never get the deleted journal.
                              */
-                            idURL = "http://" + NetUtils.getHostPortInAccessibleFormat(host, fe.getHttpPort())
+                            idURL = "http://" + NetUtils.getHostPortInAccessibleFormat(fe.getHost(), fe.getHttpPort())
                                     + "/journal_id";
                             conn = HttpURLUtil.getConnectionWithNodeIdent(idURL);
                             conn.setConnectTimeout(CONNECT_TIMEOUT_SECOND * 1000);
@@ -262,7 +262,7 @@ public class Checkpoint extends MasterDaemon {
                             }
                         } catch (Throwable e) {
                             throw new CheckpointException(String.format("Exception when getting current replayed"
-                                    + " journal id. host=%s, port=%d", host, fe.getEditLogPort()), e);
+                                    + " journal id. host=%s, port=%d", fe.getHost(), fe.getEditLogPort()), e);
                         } finally {
                             if (conn != null) {
                                 conn.disconnect();
