@@ -1418,7 +1418,7 @@ public class Env {
         // MUST set master ip before starting checkpoint thread.
         // because checkpoint thread need this info to select non-master FE to push image
 
-        this.masterInfo = new MasterInfo(selfNode.getHost(), selfNode.getPorts().get(1), Config.rpc_port);
+        this.masterInfo = new MasterInfo(selfNode.getHost(), selfNode.getEditLogPort(), Config.rpc_port);
         editLog.logMasterInfo(masterInfo);
         LOG.info("logMasterInfo:{}", masterInfo);
 
