@@ -28,7 +28,7 @@ public class AddFollowerClause extends FrontendClause {
     public String toSql() {
         StringBuilder sb = new StringBuilder();
         sb.append("ALTER CLUSTER ADD FOLLOWER \"");
-        sb.append(hostPort).append("\"");
+        sb.append(hostPorts).append("\"");
         return sb.toString();
     }
 }

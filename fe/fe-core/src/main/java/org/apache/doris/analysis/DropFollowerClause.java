@@ -28,7 +28,7 @@ public class DropFollowerClause extends FrontendClause {
     public String toSql() {
         StringBuilder sb = new StringBuilder();
         sb.append("ALTER CLUSTER DROP FOLLOWER \"");
-        sb.append(hostPort).append("\"");
+        sb.append(hostPorts).append("\"");
         return sb.toString();
     }
 }

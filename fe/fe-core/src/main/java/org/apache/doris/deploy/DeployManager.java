@@ -29,6 +29,7 @@ import org.apache.doris.ha.FrontendNodeType;
 import org.apache.doris.system.Backend;
 import org.apache.doris.system.Frontend;
 import org.apache.doris.system.SystemInfoService;
+import org.apache.doris.system.SystemInfoService.HelperNodeInfo;
 import org.apache.doris.system.SystemInfoService.HostInfo;
 
 import com.google.common.base.Strings;
@@ -242,16 +243,16 @@ public class DeployManager extends MasterDaemon {
         return brokerName;
     }
 
-    public List<HostInfo> getHelperNodes() {
+    public List<HelperNodeInfo> getHelperNodes() {
         String existFeHosts = System.getenv(ENV_FE_EXIST_ENDPOINT);
         if (!Strings.isNullOrEmpty(existFeHosts)) {
             // Some Frontends already exist in service group.
             // We consider them as helper node
-            List<HostInfo> helperNodes = Lists.newArrayList();
+            List<HelperNodeInfo> helperNodes = Lists.newArrayList();
             String[] splittedHosts = existFeHosts.split(",");
             for (String host : splittedHosts) {
                 try {
-                    helperNodes.add(SystemInfoService.getHostAndPort(host));
+                    helperNodes.add(new HelperNodeInfo(SystemInfoService.getHostAndPorts(host)));
                 } catch (AnalysisException e) {
                     LOG.error("Invalid exist fe hosts: {}. will exit", existFeHosts);
                     System.exit(-1);
@@ -325,8 +326,10 @@ public class DeployManager extends MasterDaemon {
         LOG.info("sorted fe host list: {}", feHostInfos);
 
         // 4. return the first one as helper
-        return Lists.newArrayList(new HostInfo(feHostInfos.get(0).getHost(),
-                feHostInfos.get(0).getPort()));
+        // TODO: for deploy manager, the http port should be same among all FE nodes.
+        // Maybe we can support different http port in the future.
+        return Lists.newArrayList(new HelperNodeInfo(feHostInfos.get(0).getHost(),
+                feHostInfos.get(0).getPort(), Config.http_port));
     }
 
     @Override
@@ -535,13 +538,14 @@ public class DeployManager extends MasterDaemon {
         Integer remotePort = remoteHostInfo.getPort();
         String remoteHost = remoteHostInfo.getHost();
 
+        // TODO: for deploy manager, do not support different http port among FEs
         try {
             switch (nodeType) {
                 case ELECTABLE:
-                    env.addFrontend(FrontendNodeType.FOLLOWER, remoteHost, remotePort);
+                    env.addFrontend(FrontendNodeType.FOLLOWER, remoteHost, remotePort, Config.http_port);
                     break;
                 case OBSERVER:
-                    env.addFrontend(FrontendNodeType.OBSERVER, remoteHost, remotePort);
+                    env.addFrontend(FrontendNodeType.OBSERVER, remoteHost, remotePort, Config.http_port);
                     break;
                 case BACKEND:
                 case BACKEND_CN:

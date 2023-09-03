@@ -37,6 +37,7 @@ import org.apache.doris.resource.Tag;
 import org.apache.doris.system.Backend;
 import org.apache.doris.system.Frontend;
 import org.apache.doris.system.SystemInfoService;
+import org.apache.doris.system.SystemInfoService.HelperNodeInfo;
 import org.apache.doris.system.SystemInfoService.HostInfo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -227,7 +228,7 @@ public class NodeAction extends RestBaseController {
     }
 
     private static List<String> getFeList() {
-        return Env.getCurrentEnv().getFrontends(null).stream().map(fe -> fe.getHost() + ":" + Config.http_port)
+        return Env.getCurrentEnv().getFrontends(null).stream().map(fe -> fe.getHost() + ":" + fe.getHttpPort())
                 .collect(Collectors.toList());
     }
 
@@ -480,7 +481,7 @@ public class NodeAction extends RestBaseController {
         List<Map<String, String>> failedTotal = Lists.newArrayList();
         List<NodeConfigs> nodeConfigList = parseSetConfigNodes(requestBody, failedTotal);
         List<Pair<String, Integer>> aliveFe = Env.getCurrentEnv().getFrontends(null).stream().filter(Frontend::isAlive)
-                .map(fe -> Pair.of(fe.getHost(), Config.http_port)).collect(Collectors.toList());
+                .map(fe -> Pair.of(fe.getHost(), fe.getHttpPort())).collect(Collectors.toList());
         checkNodeIsAlive(nodeConfigList, aliveFe, failedTotal);
 
         Map<String, String> header = Maps.newHashMap();
@@ -603,7 +604,7 @@ public class NodeAction extends RestBaseController {
             List<String> hostPorts = reqInfo.getHostPorts();
             List<HostInfo> hostInfos = new ArrayList<>();
             for (String hostPort : hostPorts) {
-                hostInfos.add(SystemInfoService.getHostAndPort(hostPort));
+                hostInfos.add(SystemInfoService.getHostAndPorts(hostPort));
             }
             SystemInfoService currentSystemInfo = Env.getCurrentSystemInfo();
             if ("ADD".equals(action)) {
@@ -651,11 +652,11 @@ public class NodeAction extends RestBaseController {
             } else {
                 frontendNodeType = FrontendNodeType.OBSERVER;
             }
-            HostInfo info = SystemInfoService.getHostAndPort(reqInfo.getHostPort());
+            HelperNodeInfo info = SystemInfoService.getHelperNode(reqInfo.getHostPort());
             if ("ADD".equals(action)) {
-                currentEnv.addFrontend(frontendNodeType, info.getHost(), info.getPort());
+                currentEnv.addFrontend(frontendNodeType, info.getHost(), info.getEditLogPort(), info.getHttpPort());
             } else if ("DROP".equals(action)) {
-                currentEnv.dropFrontend(frontendNodeType, info.getHost(), info.getPort());
+                currentEnv.dropFrontend(frontendNodeType, info.getHost(), info.getEditLogPort());
             }
         } catch (Exception e) {
             return ResponseEntityBuilder.okWithCommonError(e.getMessage());

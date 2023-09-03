@@ -17,10 +17,12 @@
 
 package org.apache.doris.system;
 
+import org.apache.doris.common.Config;
 import org.apache.doris.common.io.Text;
 import org.apache.doris.common.io.Writable;
 import org.apache.doris.service.ExecuteEnv;
 import org.apache.doris.service.FeDiskInfo;
+import org.apache.doris.thrift.TFrontendPingFrontendResult;
 
 import com.google.gson.annotations.SerializedName;
 
@@ -39,6 +41,8 @@ public class FrontendHbResponse extends HeartbeatResponse implements Writable {
     private int queryPort;
     @SerializedName(value = "rpcPort")
     private int rpcPort;
+    @SerializedName(value = "httpPort")
+    private int httpPort;
     @SerializedName(value = "replayedJournalId")
     private long replayedJournalId;
     private String version;
@@ -50,7 +54,16 @@ public class FrontendHbResponse extends HeartbeatResponse implements Writable {
         super(HeartbeatResponse.Type.FRONTEND);
     }
 
-    public FrontendHbResponse(String name, int queryPort, int rpcPort,
+    public FrontendHbResponse(String name, TFrontendPingFrontendResult result) {
+        this(name, result.getQueryPort(), result.getRpcPort(),
+                // for compatibility, if http port is not set, use default http port
+                result.isSetHttpPort() ? result.getHttpPort() : Config.http_port,
+                result.getReplayedJournalId(),
+                System.currentTimeMillis(), result.getVersion(), result.getLastStartupTime(),
+                FeDiskInfo.fromThrifts(result.getDiskInfos()), result.getProcessUUID());
+    }
+
+    public FrontendHbResponse(String name, int queryPort, int rpcPort, int httpPort,
             long replayedJournalId, long hbTime, String version,
             long feStartTime, List<FeDiskInfo> diskInfos,
             long processUUID) {
@@ -59,10 +72,11 @@ public class FrontendHbResponse extends HeartbeatResponse implements Writable {
         this.name = name;
         this.queryPort = queryPort;
         this.rpcPort = rpcPort;
+        this.httpPort = httpPort;
         this.replayedJournalId = replayedJournalId;
         this.hbTime = hbTime;
         this.version = version;
-        this.processUUID = processUUID;
+        this.feStartTime = feStartTime;
         this.diskInfos = diskInfos;
         this.processUUID = processUUID;
     }
@@ -85,6 +99,10 @@ public class FrontendHbResponse extends HeartbeatResponse implements Writable {
 
     public int getRpcPort() {
         return rpcPort;
+    }
+
+    public int getHttpPort() {
+        return httpPort;
     }
 
     public long getReplayedJournalId() {

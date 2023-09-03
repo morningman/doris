@@ -81,11 +81,23 @@ public class SystemInfoService {
 
     public static class HostInfo implements Comparable<HostInfo> {
         public String host;
-        public int port;
+        // a node may have multiple ports, eg, FE node has edit log port and http port
+        public List<Integer> ports;
 
-        public HostInfo(String host, int port) {
-            this.host = host;
-            this.port = port;
+        public HostInfo(String part, int... ports) {
+            this.host = part;
+            this.ports = Lists.newArrayListWithExpectedSize(ports.length);
+            for (int port : ports) {
+                this.ports.add(port);
+            }
+        }
+
+        public HostInfo(HostInfo o) {
+            this.host = o.host;
+            this.ports = Lists.newArrayListWithExpectedSize(o.ports.size());
+            for (int port : o.ports) {
+                this.ports.add(port);
+            }
         }
 
         public String getHost() {
@@ -93,35 +105,38 @@ public class SystemInfoService {
         }
 
         public int getPort() {
-            return port;
+            return ports.get(0);
         }
 
-        public void setHost(String host) {
-            this.host = host;
-        }
-
-        public void setPort(int port) {
-            this.port = port;
+        public List<Integer> getPorts() {
+            return ports;
         }
 
         public String getIdent() {
-            return host + "_" + port;
+            return host + "_" + Joiner.on("_").join(ports);
+        }
+
+        public boolean isSame(HostInfo other) {
+            if (!other.getPorts().equals(ports)) {
+                return false;
+            }
+            return host.equals(other.getHost());
         }
 
         @Override
         public int compareTo(@NotNull HostInfo o) {
             int res = host.compareTo(o.getHost());
             if (res == 0) {
-                return Integer.compare(port, o.getPort());
+                int i = 0;
+                while (i < ports.size() && i < o.getPorts().size()) {
+                    res = ports.get(i).compareTo(o.getPorts().get(i));
+                    if (res != 0) {
+                        return res;
+                    }
+                    i++;
+                }
             }
             return res;
-        }
-
-        public boolean isSame(HostInfo other) {
-            if (other.getPort() != port) {
-                return false;
-            }
-            return host.equals(other.getHost());
         }
 
         @Override
@@ -134,15 +149,44 @@ public class SystemInfoService {
             }
             HostInfo that = (HostInfo) o;
             return Objects.equals(host, that.getHost())
-                    && Objects.equals(port, that.getPort());
+                    && Objects.equals(ports, that.getPorts());
         }
 
         @Override
         public String toString() {
             return "HostInfo{"
                     + "host='" + host + '\''
-                    + ", port=" + port
+                    + ", ports=" + Joiner.on(",").join(ports)
                     + '}';
+        }
+    }
+
+    /**
+     * Class for representing a helper node of FE.
+     * A helper node must contain edit log port and http port.
+     */
+    public static class HelperNodeInfo extends HostInfo {
+        public HelperNodeInfo(String host, int editLogPort, int httpPort) {
+            super(host, editLogPort, httpPort);
+        }
+
+        public HelperNodeInfo(HelperNodeInfo o) {
+            super(o);
+        }
+
+        public HelperNodeInfo(HostInfo hostInfo) {
+            super(hostInfo);
+            if (ports.size() == 1) {
+                ports.add(Config.http_port);
+            }
+        }
+
+        public int getEditLogPort() {
+            return ports.get(0);
+        }
+
+        public int getHttpPort() {
+            return ports.get(1);
         }
     }
 
@@ -711,37 +755,40 @@ public class SystemInfoService {
         this.idToReportVersionRef = null;
     }
 
-    public static HostInfo getHostAndPort(String hostPort)
+    // support following hostPorts:
+    // 1. ipv4:port
+    // 2. ipv4:port1:port2
+    // 3. [ipv6]:port1:port2
+    // 4. hostname:port
+    // 5. hostname:port1:port2
+    public static HostInfo getHostAndPorts(String hostPorts)
             throws AnalysisException {
-        hostPort = hostPort.replaceAll("\\s+", "");
-        if (hostPort.isEmpty()) {
-            throw new AnalysisException("Invalid host port: " + hostPort);
+        hostPorts = hostPorts.replaceAll("\\s+", "");
+        if (hostPorts.isEmpty()) {
+            throw new AnalysisException("Invalid host ports: " + hostPorts);
         }
 
-        HostInfo hostInfo = NetUtils.resolveHostInfoFromHostPort(hostPort);
+        HostInfo hostInfo = NetUtils.resolveHostInfoFromHostPort(hostPorts);
 
         String host = hostInfo.getHost();
         if (Strings.isNullOrEmpty(host)) {
             throw new AnalysisException("Host is null");
         }
 
-        int heartbeatPort = -1;
-        try {
-            // validate port
-            heartbeatPort = hostInfo.getPort();
-            if (heartbeatPort <= 0 || heartbeatPort >= 65536) {
-                throw new AnalysisException("Port is out of range: " + heartbeatPort);
+        for (int port: hostInfo.getPorts()) {
+            if (port <= 0 || port >= 65536) {
+                throw new AnalysisException("Port is out of range: " + port);
             }
-
-            return new HostInfo(host, heartbeatPort);
-        } catch (Exception e) {
-            throw new AnalysisException("Encounter unknown exception: " + e.getMessage());
         }
+        return hostInfo;
     }
 
+    public static HelperNodeInfo getHelperNode(String hostPorts) throws AnalysisException {
+        return new HelperNodeInfo(getHostAndPorts(hostPorts));
+    }
 
     public static Pair<String, Integer> validateHostAndPort(String hostPort) throws AnalysisException {
-        HostInfo hostInfo = getHostAndPort(hostPort);
+        HostInfo hostInfo = getHostAndPorts(hostPort);
         return Pair.of(hostInfo.getHost(), hostInfo.getPort());
     }
 

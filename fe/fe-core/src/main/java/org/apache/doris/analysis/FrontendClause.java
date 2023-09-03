@@ -26,6 +26,7 @@ import org.apache.doris.ha.FrontendNodeType;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.system.SystemInfoService;
+import org.apache.doris.system.SystemInfoService.HelperNodeInfo;
 import org.apache.doris.system.SystemInfoService.HostInfo;
 
 import org.apache.commons.lang3.NotImplementedException;
@@ -33,14 +34,15 @@ import org.apache.commons.lang3.NotImplementedException;
 import java.util.Map;
 
 public class FrontendClause extends AlterClause {
-    protected String hostPort;
+    protected String hostPorts;
     protected String host;
-    protected int port;
+    protected int editLogPort;
+    protected int httpPort;
     protected FrontendNodeType role;
 
-    protected FrontendClause(String hostPort, FrontendNodeType role) {
+    protected FrontendClause(String hostPorts, FrontendNodeType role) {
         super(AlterOpType.ALTER_OTHER);
-        this.hostPort = hostPort;
+        this.hostPorts = hostPorts;
         this.role = role;
     }
 
@@ -52,8 +54,12 @@ public class FrontendClause extends AlterClause {
         return host;
     }
 
-    public int getPort() {
-        return port;
+    public int getEditLogPort() {
+        return editLogPort;
+    }
+
+    public int getHttpPort() {
+        return httpPort;
     }
 
     @Override
@@ -63,9 +69,10 @@ public class FrontendClause extends AlterClause {
                                                 analyzer.getQualifiedUser());
         }
 
-        HostInfo hostInfo = SystemInfoService.getHostAndPort(hostPort);
+        HelperNodeInfo hostInfo = SystemInfoService.getHelperNode(hostPorts);
         this.host = hostInfo.getHost();
-        this.port = hostInfo.getPort();
+        this.editLogPort = hostInfo.getEditLogPort();
+        this.httpPort = hostInfo.getHttpPort();
     }
 
     @Override

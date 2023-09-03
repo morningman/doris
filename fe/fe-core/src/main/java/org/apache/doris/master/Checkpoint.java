@@ -196,10 +196,9 @@ public class Checkpoint extends MasterDaemon {
                     // skip master itself
                     continue;
                 }
-                int port = Config.http_port;
 
-                String url = "http://" + NetUtils.getHostPortInAccessibleFormat(host, port) + "/put?version=" + replayedJournalId
-                        + "&port=" + port;
+                String url = "http://" + NetUtils.getHostPortInAccessibleFormat(host, fe.getHttpPort())
+                        + "/put?version=" + replayedJournalId + "&port=" + fe.getEditLogPort();
                 LOG.info("Put image:{}", url);
 
                 try {
@@ -242,7 +241,6 @@ public class Checkpoint extends MasterDaemon {
                             // skip master itself
                             continue;
                         }
-                        int port = Config.http_port;
                         String idURL;
                         HttpURLConnection conn = null;
                         try {
@@ -252,7 +250,8 @@ public class Checkpoint extends MasterDaemon {
                              * any non-master node's current replayed journal id. otherwise,
                              * this lagging node can never get the deleted journal.
                              */
-                            idURL = "http://" + NetUtils.getHostPortInAccessibleFormat(host, port) + "/journal_id";
+                            idURL = "http://" + NetUtils.getHostPortInAccessibleFormat(host, fe.getHttpPort())
+                                    + "/journal_id";
                             conn = HttpURLUtil.getConnectionWithNodeIdent(idURL);
                             conn.setConnectTimeout(CONNECT_TIMEOUT_SECOND * 1000);
                             conn.setReadTimeout(READ_TIMEOUT_SECOND * 1000);
@@ -263,7 +262,7 @@ public class Checkpoint extends MasterDaemon {
                             }
                         } catch (Throwable e) {
                             throw new CheckpointException(String.format("Exception when getting current replayed"
-                                    + " journal id. host=%s, port=%d", host, port), e);
+                                    + " journal id. host=%s, port=%d", host, fe.getEditLogPort()), e);
                         } finally {
                             if (conn != null) {
                                 conn.disconnect();

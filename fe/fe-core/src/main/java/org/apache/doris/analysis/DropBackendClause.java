@@ -47,7 +47,7 @@ public class DropBackendClause extends BackendClause {
     public void analyze(Analyzer analyzer) throws AnalysisException {
         if (Config.enable_fqdn_mode) {
             for (String hostPort : hostPorts) {
-                HostInfo hostInfo = SystemInfoService.getHostAndPort(hostPort);
+                HostInfo hostInfo = SystemInfoService.getHostAndPorts(hostPort);
                 hostInfos.add(hostInfo);
             }
             Preconditions.checkState(!hostInfos.isEmpty());

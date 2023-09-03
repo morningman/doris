@@ -275,9 +275,9 @@ public class CacheTest extends TestWithFeService {
             @Mock
             public List<Frontend> getFrontends(FrontendNodeType nodeType) {
                 Frontend frontend1 = new Frontend(FrontendNodeType.MASTER,
-                        "fe1", "localhost:1111", "localhost", 2222);
+                        "fe1", "localhost", 1111, 1112);
                 Frontend frontend2 = new Frontend(FrontendNodeType.FOLLOWER,
-                        "fe1", "localhost:1112", "localhost", 2223);
+                        "fe1", "localhost", 2222, 2223);
                 List<Frontend> frontends = new ArrayList<>();
                 frontends.add(frontend1);
                 frontends.add(frontend2);
@@ -320,9 +320,9 @@ public class CacheTest extends TestWithFeService {
             @Mock
             public List<Frontend> getFrontends(FrontendNodeType nodeType) {
                 Frontend frontend1 = new Frontend(FrontendNodeType.MASTER,
-                        "fe1", "localhost:1111", "localhost", 2222);
+                        "fe1", "localhost", 1111, 1112);
                 Frontend frontend2 = new Frontend(FrontendNodeType.FOLLOWER,
-                        "fe1", "localhost:1112", "localhost", 2223);
+                        "fe1", "localhost", 2222, 2223);
                 List<Frontend> frontends = new ArrayList<>();
                 frontends.add(frontend1);
                 frontends.add(frontend2);

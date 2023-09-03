@@ -65,7 +65,7 @@ public class SystemInfoServiceTest {
         String ipv6 = "[fe80::5054:ff:fec9:dee0]:9050";
         String ipv6Error = "fe80::5054:ff:fec9:dee0:9050";
         try {
-            HostInfo hostAndPort = SystemInfoService.getHostAndPort(ipv4);
+            HostInfo hostAndPort = SystemInfoService.getHostAndPorts(ipv4);
             Assert.assertEquals("192.168.1.2", hostAndPort.getHost());
             Assert.assertEquals(9050, hostAndPort.getPort());
         } catch (AnalysisException e) {
@@ -73,7 +73,7 @@ public class SystemInfoServiceTest {
             Assert.fail();
         }
         try {
-            HostInfo hostAndPort = SystemInfoService.getHostAndPort(ipv6);
+            HostInfo hostAndPort = SystemInfoService.getHostAndPorts(ipv6);
             Assert.assertEquals("fe80::5054:ff:fec9:dee0", hostAndPort.getHost());
             Assert.assertEquals(9050, hostAndPort.getPort());
         } catch (AnalysisException e) {
@@ -81,7 +81,7 @@ public class SystemInfoServiceTest {
             Assert.fail();
         }
         try {
-            SystemInfoService.getHostAndPort(ipv6Error);
+            SystemInfoService.getHostAndPorts(ipv6Error);
             Assert.fail();
         } catch (AnalysisException e) {
             e.printStackTrace();

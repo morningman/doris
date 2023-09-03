@@ -232,7 +232,7 @@ import org.apache.doris.system.Backend;
 import org.apache.doris.system.Frontend;
 import org.apache.doris.system.HeartbeatMgr;
 import org.apache.doris.system.SystemInfoService;
-import org.apache.doris.system.SystemInfoService.HostInfo;
+import org.apache.doris.system.SystemInfoService.HelperNodeInfo;
 import org.apache.doris.task.AgentBatchTask;
 import org.apache.doris.task.AgentTaskExecutor;
 import org.apache.doris.task.CompactionTask;
@@ -381,8 +381,8 @@ public class Env {
     private static Env CHECKPOINT = null;
     private static long checkpointThreadId = -1;
     private Checkpoint checkpointer;
-    private List<HostInfo> helperNodes = Lists.newArrayList();
-    private HostInfo selfNode = null;
+    private List<HelperNodeInfo> helperNodes = Lists.newArrayList();
+    private HelperNodeInfo selfNode = null;
 
     // node name -> Frontend
     private ConcurrentHashMap<String, Frontend> frontends;
@@ -1053,7 +1053,7 @@ public class Env {
 
                 isFirstTimeStartUp = true;
                 Frontend self = new Frontend(role, nodeName, selfNode.getHost(),
-                        selfNode.getPort());
+                        selfNode.getEditLogPort(), selfNode.getHttpPort());
                 // Set self alive to true, the BDBEnvironment.getReplicationGroupAdmin() will rely on this to get
                 // helper node, before the heartbeat thread is started.
                 self.setIsAlive(true);
@@ -1101,7 +1101,7 @@ public class Env {
             Preconditions.checkNotNull(role);
             Preconditions.checkNotNull(nodeName);
 
-            HostInfo rightHelperNode = helperNodes.get(0);
+            HelperNodeInfo rightHelperNode = helperNodes.get(0);
 
             Storage storage = new Storage(this.imageDir);
             if (roleFile.exists() && (role != storage.getRole() || !nodeName.equals(storage.getNodeName()))
@@ -1130,7 +1130,8 @@ public class Env {
                 token = storage.getToken();
                 try {
                     String url = "http://" + NetUtils
-                            .getHostPortInAccessibleFormat(rightHelperNode.getHost(), Config.http_port) + "/check";
+                            .getHostPortInAccessibleFormat(rightHelperNode.getHost(), rightHelperNode.getHttpPort())
+                            + "/check";
                     HttpURLConnection conn = HttpURLUtil.getConnectionWithNodeIdent(url);
                     conn.setConnectTimeout(2 * 1000);
                     conn.setReadTimeout(2 * 1000);
@@ -1195,14 +1196,14 @@ public class Env {
     private boolean getFeNodeTypeAndNameFromHelpers() {
         // we try to get info from helper nodes, once we get the right helper node,
         // other helper nodes will be ignored and removed.
-        HostInfo rightHelperNode = null;
-        for (HostInfo helperNode : helperNodes) {
+        HelperNodeInfo rightHelperNode = null;
+        for (HelperNodeInfo helperNode : helperNodes) {
             try {
                 // For upgrade compatibility, the host parameter name remains the same
                 // and the new hostname parameter is added
-                String url = "http://" + NetUtils.getHostPortInAccessibleFormat(helperNode.getHost(), Config.http_port)
-                        + "/role?host=" + selfNode.getHost()
-                        + "&port=" + selfNode.getPort();
+                String url = "http://" + NetUtils.getHostPortInAccessibleFormat(helperNode.getHost(),
+                        helperNode.getHttpPort())
+                        + "/role?host=" + selfNode.getHost() + "&port=" + selfNode.getEditLogPort();
                 HttpURLConnection conn = HttpURLUtil.getConnectionWithNodeIdent(url);
                 if (conn.getResponseCode() != 200) {
                     LOG.warn("failed to get fe node type from helper node: {}. response code: {}", helperNode,
@@ -1235,8 +1236,8 @@ public class Env {
                 continue;
             }
 
-            LOG.info("get fe node type {}, name {} from {}:{}:{}", role, nodeName,
-                    helperNode.getHost(), helperNode.getHost(), Config.http_port);
+            LOG.info("get fe node type {}, name {} from {}:{}", role, nodeName,
+                    helperNode.getHost(), helperNode.getPorts().get(1));
             rightHelperNode = helperNode;
             break;
         }
@@ -1252,7 +1253,7 @@ public class Env {
 
     private void getSelfHostPort() {
         String host = Strings.nullToEmpty(FrontendOptions.getLocalHostAddress());
-        selfNode = new HostInfo(host, Config.edit_log_port);
+        selfNode = new HelperNodeInfo(host, Config.edit_log_port, Config.http_port);
         LOG.info("get self node: {}", selfNode);
     }
 
@@ -1285,7 +1286,7 @@ public class Env {
             if (helpers != null) {
                 String[] splittedHelpers = helpers.split(",");
                 for (String helper : splittedHelpers) {
-                    HostInfo helperHostPort = SystemInfoService.getHostAndPort(helper);
+                    HelperNodeInfo helperHostPort = SystemInfoService.getHelperNode(helper);
                     if (helperHostPort.isSame(selfNode)) {
                         /**
                          * If user specified the helper node to this FE itself,
@@ -1303,7 +1304,7 @@ public class Env {
                 }
             } else {
                 // If helper node is not designated, use local node as helper node.
-                helperNodes.add(new HostInfo(selfNode.getHost(), Config.edit_log_port));
+                helperNodes.add(new HelperNodeInfo(selfNode));
             }
         }
 
@@ -1324,10 +1325,9 @@ public class Env {
 
         if (roleFile.exists()) {
             // This is not the first time this node start up.
-            // It should already added to FE group, just set helper node as it self.
+            // It should already be added to FE group, just set helper node as itself.
             LOG.info("role file exist. this is not the first time to start up");
-            helperNodes = Lists.newArrayList(new HostInfo(selfNode.getHost(),
-                    Config.edit_log_port));
+            helperNodes = Lists.newArrayList(new HelperNodeInfo(selfNode));
             return;
         }
 
@@ -1418,9 +1418,7 @@ public class Env {
         // MUST set master ip before starting checkpoint thread.
         // because checkpoint thread need this info to select non-master FE to push image
 
-        this.masterInfo = new MasterInfo(Env.getCurrentEnv().getSelfNode().getHost(),
-                Config.http_port,
-                Config.rpc_port);
+        this.masterInfo = new MasterInfo(selfNode.getHost(), selfNode.getPorts().get(1), Config.rpc_port);
         editLog.logMasterInfo(masterInfo);
         LOG.info("logMasterInfo:{}", masterInfo);
 
@@ -1666,10 +1664,10 @@ public class Env {
         }
     }
 
-    private boolean getVersionFileFromHelper(HostInfo helperNode) throws IOException {
+    private boolean getVersionFileFromHelper(HelperNodeInfo helperNode) throws IOException {
         try {
-            String url = "http://" + NetUtils.getHostPortInAccessibleFormat(helperNode.getHost(), Config.http_port)
-                    + "/version";
+            String url = "http://" + NetUtils.getHostPortInAccessibleFormat(helperNode.getHost(),
+                    helperNode.getHttpPort()) + "/version";
             File dir = new File(this.imageDir);
             MetaHelper.getRemoteFile(url, HTTP_TIMEOUT_SECOND * 1000,
                     MetaHelper.getFile(Storage.VERSION_FILE, dir));
@@ -1682,13 +1680,13 @@ public class Env {
         return false;
     }
 
-    private void getNewImage(HostInfo helperNode) throws IOException {
+    private void getNewImage(HelperNodeInfo helperNode) throws IOException {
         long localImageVersion = 0;
         Storage storage = new Storage(this.imageDir);
         localImageVersion = storage.getLatestImageSeq();
 
         try {
-            String hostPort = NetUtils.getHostPortInAccessibleFormat(helperNode.getHost(), Config.http_port);
+            String hostPort = NetUtils.getHostPortInAccessibleFormat(helperNode.getHost(), helperNode.getHttpPort());
             String infoUrl = "http://" + hostPort + "/info";
             ResponseBody<StorageInfo> responseBody = MetaHelper
                     .doGet(infoUrl, HTTP_TIMEOUT_SECOND * 1000, StorageInfo.class);
@@ -1719,9 +1717,8 @@ public class Env {
         LOG.debug("self: {}. helpers: {}", selfNode, helperNodes);
         // if helper nodes contain itself, remove other helpers
         boolean containSelf = false;
-        for (HostInfo helperNode : helperNodes) {
-            // WARN: cannot use equals() here, because the hostname may not equal to helperNode.getHostName()
-            if (selfNode.isSame(helperNode)) {
+        for (HelperNodeInfo helperNode : helperNodes) {
+            if (selfNode.equals(helperNode)) {
                 containSelf = true;
                 break;
             }
@@ -2626,7 +2623,7 @@ public class Env {
         };
     }
 
-    public void addFrontend(FrontendNodeType role, String host, int editLogPort) throws DdlException {
+    public void addFrontend(FrontendNodeType role, String host, int editLogPort, int httpPort) throws DdlException {
         if (!tryLock(false)) {
             throw new DdlException("Failed to acquire catalog lock. Try again");
         }
@@ -2644,11 +2641,11 @@ public class Env {
                 throw new DdlException("frontend name already exists " + nodeName + ". Try again");
             }
 
-            fe = new Frontend(role, nodeName, host, editLogPort);
+            fe = new Frontend(role, nodeName, host, editLogPort, httpPort);
             frontends.put(nodeName, fe);
             BDBHA bdbha = (BDBHA) haProtocol;
             if (role == FrontendNodeType.FOLLOWER || role == FrontendNodeType.REPLICA) {
-                helperNodes.add(new HostInfo(host, editLogPort));
+                helperNodes.add(new HelperNodeInfo(host, editLogPort, httpPort));
                 bdbha.addUnReadyElectableNode(nodeName, getFollowerCount());
             }
             bdbha.removeConflictNodeIfExist(host, editLogPort);
@@ -3508,7 +3505,7 @@ public class Env {
                 // DO NOT add helper sockets here, cause BDBHA is not instantiated yet.
                 // helper sockets will be added after start BDBHA
                 // But add to helperNodes, just for show
-                helperNodes.add(new HostInfo(fe.getHost(), fe.getEditLogPort()));
+                helperNodes.add(new HelperNodeInfo(fe.getHost(), fe.getEditLogPort(), fe.getHttpPort()));
             }
         } finally {
             unlock();
@@ -3819,16 +3816,16 @@ public class Env {
         return this.role;
     }
 
-    public HostInfo getHelperNode() {
+    public HelperNodeInfo getHelperNode() {
         Preconditions.checkState(helperNodes.size() >= 1);
         return this.helperNodes.get(0);
     }
 
-    public List<HostInfo> getHelperNodes() {
+    public List<HelperNodeInfo> getHelperNodes() {
         return Lists.newArrayList(helperNodes);
     }
 
-    public HostInfo getSelfNode() {
+    public HelperNodeInfo getSelfNode() {
         return this.selfNode;
     }
 

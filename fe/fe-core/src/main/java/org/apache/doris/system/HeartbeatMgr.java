@@ -31,6 +31,7 @@ import org.apache.doris.service.ExecuteEnv;
 import org.apache.doris.service.FeDiskInfo;
 import org.apache.doris.service.FrontendOptions;
 import org.apache.doris.system.HeartbeatResponse.HbStatus;
+import org.apache.doris.system.SystemInfoService.HelperNodeInfo;
 import org.apache.doris.system.SystemInfoService.HostInfo;
 import org.apache.doris.thrift.FrontendService;
 import org.apache.doris.thrift.HeartbeatService;
@@ -299,11 +300,12 @@ public class HeartbeatMgr extends MasterDaemon {
 
         @Override
         public HeartbeatResponse call() {
-            HostInfo selfNode = Env.getCurrentEnv().getSelfNode();
+            HelperNodeInfo selfNode = Env.getCurrentEnv().getSelfNode();
             if (fe.getHost().equals(selfNode.getHost())) {
                 // heartbeat to self
                 if (Env.getCurrentEnv().isReady()) {
-                    return new FrontendHbResponse(fe.getNodeName(), Config.query_port, Config.rpc_port,
+                    return new FrontendHbResponse(fe.getNodeName(),
+                            Config.query_port, Config.rpc_port, Config.http_port,
                             Env.getCurrentEnv().getMaxJournalId(), System.currentTimeMillis(),
                             Version.DORIS_BUILD_VERSION + "-" + Version.DORIS_BUILD_SHORT_HASH,
                             ExecuteEnv.getInstance().getStartupTime(), ExecuteEnv.getInstance().getDiskInfos(),
@@ -326,10 +328,7 @@ public class HeartbeatMgr extends MasterDaemon {
                 TFrontendPingFrontendResult result = client.ping(request);
                 ok = true;
                 if (result.getStatus() == TFrontendPingFrontendStatusCode.OK) {
-                    return new FrontendHbResponse(fe.getNodeName(), result.getQueryPort(),
-                            result.getRpcPort(), result.getReplayedJournalId(),
-                            System.currentTimeMillis(), result.getVersion(), result.getLastStartupTime(),
-                            FeDiskInfo.fromThrifts(result.getDiskInfos()), result.getProcessUUID());
+                    return new FrontendHbResponse(fe.getNodeName(), result);
                 } else {
                     return new FrontendHbResponse(fe.getNodeName(), result.getMsg());
                 }

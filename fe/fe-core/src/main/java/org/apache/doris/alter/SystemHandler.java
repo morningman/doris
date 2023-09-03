@@ -143,19 +143,19 @@ public class SystemHandler extends AlterHandler {
         } else if (alterClause instanceof AddObserverClause) {
             AddObserverClause clause = (AddObserverClause) alterClause;
             Env.getCurrentEnv().addFrontend(FrontendNodeType.OBSERVER, clause.getHost(),
-                    clause.getPort());
+                    clause.getEditLogPort(), clause.getHttpPort());
         } else if (alterClause instanceof DropObserverClause) {
             DropObserverClause clause = (DropObserverClause) alterClause;
             Env.getCurrentEnv().dropFrontend(FrontendNodeType.OBSERVER, clause.getHost(),
-                    clause.getPort());
+                    clause.getEditLogPort());
         } else if (alterClause instanceof AddFollowerClause) {
             AddFollowerClause clause = (AddFollowerClause) alterClause;
             Env.getCurrentEnv().addFrontend(FrontendNodeType.FOLLOWER, clause.getHost(),
-                    clause.getPort());
+                    clause.getEditLogPort(), clause.getHttpPort());
         } else if (alterClause instanceof DropFollowerClause) {
             DropFollowerClause clause = (DropFollowerClause) alterClause;
             Env.getCurrentEnv().dropFrontend(FrontendNodeType.FOLLOWER, clause.getHost(),
-                    clause.getPort());
+                    clause.getEditLogPort());
         } else if (alterClause instanceof ModifyBrokerClause) {
             ModifyBrokerClause clause = (ModifyBrokerClause) alterClause;
             Env.getCurrentEnv().getBrokerMgr().execute(clause);

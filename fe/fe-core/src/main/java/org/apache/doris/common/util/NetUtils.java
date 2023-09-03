@@ -32,6 +32,7 @@ import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
 
@@ -136,17 +137,32 @@ public class NetUtils {
         return addr + ":" + port;
     }
 
-    public static SystemInfoService.HostInfo resolveHostInfoFromHostPort(String hostPort) throws AnalysisException {
-        String[] pair;
-        if (hostPort.charAt(0) == '[') {
-            pair = hostPort.substring(1).split("]:");
+    // support following hostPorts:
+    // 1. ipv4:port
+    // 2. ipv4:port1:port2
+    // 3. [ipv6]:port1:port2
+    // 4. hostname:port
+    // 5. hostname:port1:port2
+    public static SystemInfoService.HostInfo resolveHostInfoFromHostPort(String hostPorts) throws AnalysisException {
+        String[] parts;
+        if (hostPorts.charAt(0) == '[') {
+            parts = hostPorts.replace("[", "").replace("]", "").split(":");
         } else {
-            pair = hostPort.split(":");
+            parts = hostPorts.split(":");
         }
-        if (pair.length != 2) {
-            throw new AnalysisException("invalid host port: " + hostPort);
+        if (parts.length < 2) {
+            throw new AnalysisException("invalid host ports: " + hostPorts);
         }
-        return new SystemInfoService.HostInfo(pair[0], Integer.valueOf(pair[1]));
+        for (int i = 1; i < parts.length; i++) {
+            if (!parts[i].matches("\\d+")) {
+                throw new AnalysisException("invalid host ports: " + hostPorts);
+            }
+        }
+        int[] ports = new int[parts.length - 1];
+        for (int i = 1; i < parts.length; i++) {
+            ports[i - 1] = Integer.parseInt(parts[i]);
+        }
+        return new SystemInfoService.HostInfo(parts[0], ports);
     }
 
 }

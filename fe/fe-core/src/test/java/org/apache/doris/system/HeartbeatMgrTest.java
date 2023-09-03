@@ -114,7 +114,7 @@ public class HeartbeatMgrTest {
             }
         };
 
-        Frontend fe = new Frontend(FrontendNodeType.FOLLOWER, "test", "192.168.1.1", 9010);
+        Frontend fe = new Frontend(FrontendNodeType.FOLLOWER, "test", "192.168.1.1", 9010, 8030);
         FrontendHeartbeatHandler handler = new FrontendHeartbeatHandler(fe, 12345, "abcd");
         HeartbeatResponse response = handler.call();
 
@@ -126,7 +126,7 @@ public class HeartbeatMgrTest {
         Assert.assertEquals(HbStatus.OK, hbResponse.getStatus());
         Assert.assertEquals("test", hbResponse.getVersion());
 
-        Frontend fe2 = new Frontend(FrontendNodeType.FOLLOWER, "test2", "192.168.1.2", 9010);
+        Frontend fe2 = new Frontend(FrontendNodeType.FOLLOWER, "test2", "192.168.1.2", 9010, 8030);
         handler = new FrontendHeartbeatHandler(fe2, 12345, "abcde");
         response = handler.call();
 

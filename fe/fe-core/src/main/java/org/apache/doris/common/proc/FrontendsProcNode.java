@@ -24,7 +24,7 @@ import org.apache.doris.common.util.TimeUtils;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.service.FeDiskInfo;
 import org.apache.doris.system.Frontend;
-import org.apache.doris.system.SystemInfoService.HostInfo;
+import org.apache.doris.system.SystemInfoService.HelperNodeInfo;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
@@ -99,7 +99,7 @@ public class FrontendsProcNode implements ProcNodeInterface {
         // get all node which are joined in bdb group
         List<InetSocketAddress> allFe = env.getHaProtocol().getElectableNodes(true /* include leader */);
         allFe.addAll(env.getHaProtocol().getObserverNodes());
-        List<HostInfo> helperNodes = env.getHelperNodes();
+        List<HelperNodeInfo> helperNodes = env.getHelperNodes();
 
         // Because the `show frontend` stmt maybe forwarded from other FE.
         // if we only get self node from currrent catalog, the "CurrentConnected" field will always points to Msater FE.
@@ -109,12 +109,11 @@ public class FrontendsProcNode implements ProcNodeInterface {
         }
 
         for (Frontend fe : env.getFrontends(null /* all */)) {
-
             List<String> info = new ArrayList<String>();
             info.add(fe.getNodeName());
             info.add(fe.getHost());
             info.add(Integer.toString(fe.getEditLogPort()));
-            info.add(Integer.toString(Config.http_port));
+            info.add(Integer.toString(fe.getHttpPort()));
 
             if (fe.getHost().equals(env.getSelfNode().getHost())) {
                 info.add(Integer.toString(Config.query_port));
@@ -174,9 +173,8 @@ public class FrontendsProcNode implements ProcNodeInterface {
         }
     }
 
-
-    private static boolean isHelperNode(List<HostInfo> helperNodes, Frontend fe) {
-        return helperNodes.stream().anyMatch(p -> fe.toHostInfo().isSame(p));
+    private static boolean isHelperNode(List<HelperNodeInfo> helperNodes, Frontend fe) {
+        return helperNodes.stream().anyMatch(p -> fe.toHelperNodeInfo().isSame(p));
     }
 
     private static boolean isJoin(List<InetSocketAddress> allFeHosts, Frontend fe) {

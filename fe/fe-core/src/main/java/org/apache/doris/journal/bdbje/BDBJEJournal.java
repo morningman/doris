@@ -26,6 +26,7 @@ import org.apache.doris.journal.JournalCursor;
 import org.apache.doris.journal.JournalEntity;
 import org.apache.doris.metric.MetricRepo;
 import org.apache.doris.persist.OperationType;
+import org.apache.doris.system.SystemInfoService.HelperNodeInfo;
 import org.apache.doris.system.SystemInfoService.HostInfo;
 
 import com.sleepycat.bind.tuple.TupleBinding;
@@ -80,13 +81,13 @@ public class BDBJEJournal implements Journal { // CHECKSTYLE IGNORE THIS LINE: B
      */
     private void initBDBEnv(String nodeName) {
         environmentPath = Env.getServingEnv().getBdbDir();
-        HostInfo selfNode = Env.getServingEnv().getSelfNode();
+        HelperNodeInfo selfNode = Env.getServingEnv().getSelfNode();
         selfNodeName = nodeName;
         // We use the hostname as the address of the bdbje node,
         // so that we do not need to update bdbje when the IP changes.
         // WARNING:However, it is necessary to ensure that the hostname of the node
         // can be resolved and accessed by other nodes.
-        selfNodeHostPort = selfNode.getHost() + ":" + selfNode.getPort();
+        selfNodeHostPort = selfNode.getHost() + ":" + selfNode.getEditLogPort();
     }
 
     /*
@@ -305,8 +306,8 @@ public class BDBJEJournal implements Journal { // CHECKSTYLE IGNORE THIS LINE: B
             File dbEnv = new File(environmentPath);
             bdbEnvironment = new BDBEnvironment();
 
-            HostInfo helperNode = Env.getServingEnv().getHelperNode();
-            String helperHostPort = helperNode.getHost() + ":" + helperNode.getPort();
+            HelperNodeInfo helperNode = Env.getServingEnv().getHelperNode();
+            String helperHostPort = helperNode.getHost() + ":" + helperNode.getEditLogPort();
             try {
                 bdbEnvironment.setup(dbEnv, selfNodeName, selfNodeHostPort, helperHostPort,
                         Env.getServingEnv().isElectable());
@@ -368,7 +369,7 @@ public class BDBJEJournal implements Journal { // CHECKSTYLE IGNORE THIS LINE: B
         // the files
         // ATTN: here we use `getServingEnv()`, because only serving catalog has
         // helper nodes.
-        HostInfo helperNode = Env.getServingEnv().getHelperNode();
+        HelperNodeInfo helperNode = Env.getServingEnv().getHelperNode();
 
         for (int i = 0; i < RETRY_TIME; i++) {
             try {
@@ -390,7 +391,8 @@ public class BDBJEJournal implements Journal { // CHECKSTYLE IGNORE THIS LINE: B
 
         bdbEnvironment.close();
         bdbEnvironment.setup(new File(environmentPath), selfNodeName, selfNodeHostPort,
-                helperNode.getHost() + ":" + helperNode.getPort(), Env.getServingEnv().isElectable());
+                helperNode.getHost() + ":" + helperNode.getEditLogPort(),
+                Env.getServingEnv().isElectable());
     }
 
     @Override

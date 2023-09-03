@@ -58,13 +58,14 @@ public class ClusterAction extends RestBaseController {
         checkGlobalAuth(ConnectContext.get().getCurrentUserIdentity(), PrivPredicate.ADMIN);
 
         Map<String, List<String>> result = Maps.newHashMap();
-        List<String> frontends = Env.getCurrentEnv().getFrontends(null)
+        List<Frontend> frontends = Env.getCurrentEnv().getFrontends(null)
                 .stream().filter(Frontend::isAlive)
-                .map(Frontend::getHost)
                 .collect(Collectors.toList());
 
-        result.put("mysql", frontends.stream().map(ip -> ip + ":" + Config.query_port).collect(Collectors.toList()));
-        result.put("http", frontends.stream().map(ip -> ip + ":" + Config.http_port).collect(Collectors.toList()));
+        result.put("mysql",
+                frontends.stream().map(fe -> fe.getHost() + ":" + fe.getHttpPort()).collect(Collectors.toList()));
+        result.put("http",
+                frontends.stream().map(fe -> fe.getHost() + ":" + fe.getHttpPort()).collect(Collectors.toList()));
         return ResponseEntityBuilder.ok(result);
     }
 }

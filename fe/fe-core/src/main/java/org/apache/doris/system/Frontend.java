@@ -27,7 +27,7 @@ import org.apache.doris.ha.FrontendNodeType;
 import org.apache.doris.persist.gson.GsonUtils;
 import org.apache.doris.service.FeDiskInfo;
 import org.apache.doris.system.HeartbeatResponse.HbStatus;
-import org.apache.doris.system.SystemInfoService.HostInfo;
+import org.apache.doris.system.SystemInfoService.HelperNodeInfo;
 
 import com.google.gson.annotations.SerializedName;
 
@@ -51,6 +51,7 @@ public class Frontend implements Writable {
 
     private int queryPort;
     private int rpcPort;
+    private int httpPort;
 
     private long replayedJournalId;
     private long lastStartupTime;
@@ -65,15 +66,12 @@ public class Frontend implements Writable {
     public Frontend() {
     }
 
-    public Frontend(FrontendNodeType role, String nodeName, String host, int editLogPort) {
-        this(role, nodeName, host, "", editLogPort);
-    }
-
-    public Frontend(FrontendNodeType role, String nodeName, String host, String hostName, int editLogPort) {
+    public Frontend(FrontendNodeType role, String nodeName, String host, int editLogPort, int httpPort) {
         this.role = role;
         this.nodeName = nodeName;
         this.host = host;
         this.editLogPort = editLogPort;
+        this.httpPort = httpPort;
     }
 
     public FrontendNodeType getRole() {
@@ -134,6 +132,10 @@ public class Frontend implements Writable {
 
     public List<FeDiskInfo> getDiskInfos() {
         return diskInfos;
+    }
+
+    public int getHttpPort() {
+        return httpPort;
     }
 
     /**
@@ -217,7 +219,7 @@ public class Frontend implements Writable {
         this.host = host;
     }
 
-    public HostInfo toHostInfo() {
-        return new HostInfo(host, editLogPort);
+    public HelperNodeInfo toHelperNodeInfo() {
+        return new HelperNodeInfo(host, editLogPort, httpPort);
     }
 }

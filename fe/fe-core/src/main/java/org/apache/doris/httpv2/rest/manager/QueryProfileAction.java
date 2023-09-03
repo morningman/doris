@@ -37,6 +37,7 @@ import org.apache.doris.persist.gson.GsonUtils;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.service.ExecuteEnv;
 import org.apache.doris.service.FrontendOptions;
+import org.apache.doris.system.SystemInfoService.HelperNodeInfo;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
@@ -176,8 +177,9 @@ public class QueryProfileAction extends RestBaseController {
         queries = queryStream.collect(Collectors.toList());
 
         // add node information
+        HelperNodeInfo selfNode = Env.getCurrentEnv().getSelfNode();
         for (List<String> query : queries) {
-            query.add(1, Env.getCurrentEnv().getSelfNode().getHost() + ":" + Config.http_port);
+            query.add(1, selfNode.getHost() + ":" + selfNode.getHttpPort());
         }
 
         if (!Strings.isNullOrEmpty(search)) {
