@@ -198,7 +198,7 @@ public class Checkpoint extends MasterDaemon {
                     continue;
                 }
 
-                String url = "http://" + NetUtils.getHostPortInAccessibleFormat(host, fe.getHttpPort())
+                String url = "http://" + NetUtils.getHostPortInAccessibleFormat(fe.getHost(), fe.getHttpPort())
                         + "/put?version=" + replayedJournalId + "&port=" + fe.getEditLogPort();
                 LOG.info("Put image:{}", url);
 
