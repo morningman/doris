@@ -18,11 +18,13 @@
 package org.apache.doris.jdbc;
 
 import com.alibaba.druid.pool.DruidDataSource;
+import org.apache.log4j.Logger;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class JdbcDataSource {
+    private static final Logger LOG = Logger.getLogger(JdbcDataSource.class);
     private static final JdbcDataSource jdbcDataSource = new JdbcDataSource();
     private final Map<String, DruidDataSource> sourcesMap = new ConcurrentHashMap<>();
 
@@ -31,6 +33,7 @@ public class JdbcDataSource {
     }
 
     public DruidDataSource getSource(String jdbcUrl) {
+        LOG.info("yy debug get source " + jdbcUrl + " from " + sourcesMap.size() + " sources");
         return sourcesMap.get(jdbcUrl);
     }
 
@@ -42,3 +45,4 @@ public class JdbcDataSource {
         return sourcesMap;
     }
 }
+

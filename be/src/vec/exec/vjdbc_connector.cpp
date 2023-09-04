@@ -465,42 +465,47 @@ Status JdbcConnector::get_next(bool* eos, std::vector<MutableColumnPtr>& columns
             }
         }
 
+        SCOPED_RAW_TIMER(&_jdbc_statistic._call_jni_next_timer);
         block_obj = env->CallNonvirtualObjectMethod(_executor_obj, _executor_clazz,
                                                     _executor_get_blocks_new_id, batch_size,
                                                     arrayListObject);
     } else {
+        SCOPED_RAW_TIMER(&_jdbc_statistic._call_jni_next_timer);
         block_obj = env->CallNonvirtualObjectMethod(_executor_obj, _executor_clazz,
                                                     _executor_get_blocks_id, batch_size);
     }
 
     RETURN_IF_ERROR(JniUtil::GetJniExceptionMsg(env));
 
-    auto column_size = _tuple_desc->slots().size();
-    for (int column_index = 0, materialized_column_index = 0; column_index < column_size;
-         ++column_index) {
-        auto slot_desc = _tuple_desc->slots()[column_index];
-        // because the fe planner filter the non_materialize column
-        if (!slot_desc->is_materialized()) {
-            continue;
-        }
-        jobject column_data =
+    {
+        SCOPED_RAW_TIMER(&_jdbc_statistic._convert_batch_timer);
+        auto column_size = _tuple_desc->slots().size();
+        for (int column_index = 0, materialized_column_index = 0; column_index < column_size;
+                ++column_index) {
+            auto slot_desc = _tuple_desc->slots()[column_index];
+            // because the fe planner filter the non_materialize column
+            if (!slot_desc->is_materialized()) {
+                continue;
+            }
+            jobject column_data =
                 env->CallObjectMethod(block_obj, _executor_get_list_id, materialized_column_index);
-        jint num_rows = env->CallNonvirtualIntMethod(_executor_obj, _executor_clazz,
-                                                     _executor_block_rows_id);
-        RETURN_IF_ERROR(_convert_batch_result_set(
-                env, column_data, slot_desc, columns[column_index].get(), num_rows, column_index));
-        env->DeleteLocalRef(column_data);
-        //here need to cast string to array type
-        if (slot_desc->type().is_array_type()) {
-            _cast_string_to_array(slot_desc, block, column_index, num_rows);
-        } else if (slot_desc->type().is_hll_type()) {
-            _cast_string_to_hll(slot_desc, block, column_index, num_rows);
-        } else if (slot_desc->type().is_json_type()) {
-            _cast_string_to_json(slot_desc, block, column_index, num_rows);
-        } else if (slot_desc->type().is_bitmap_type()) {
-            _cast_string_to_bitmap(slot_desc, block, column_index, num_rows);
+            jint num_rows = env->CallNonvirtualIntMethod(_executor_obj, _executor_clazz,
+                    _executor_block_rows_id);
+            RETURN_IF_ERROR(_convert_batch_result_set(
+                        env, column_data, slot_desc, columns[column_index].get(), num_rows, column_index));
+            env->DeleteLocalRef(column_data);
+            //here need to cast string to array type
+            if (slot_desc->type().is_array_type()) {
+                _cast_string_to_array(slot_desc, block, column_index, num_rows);
+            } else if (slot_desc->type().is_hll_type()) {
+                _cast_string_to_hll(slot_desc, block, column_index, num_rows);
+            } else if (slot_desc->type().is_json_type()) {
+                _cast_string_to_json(slot_desc, block, column_index, num_rows);
+            } else if (slot_desc->type().is_bitmap_type()) {
+                _cast_string_to_bitmap(slot_desc, block, column_index, num_rows);
+            }
+            materialized_column_index++;
         }
-        materialized_column_index++;
     }
     // All Java objects returned by JNI functions are local references.
     env->DeleteLocalRef(block_obj);
