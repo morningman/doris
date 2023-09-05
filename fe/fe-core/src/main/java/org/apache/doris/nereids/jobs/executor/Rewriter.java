@@ -83,8 +83,8 @@ import org.apache.doris.nereids.rules.rewrite.PushFilterInsideJoin;
 import org.apache.doris.nereids.rules.rewrite.PushProjectIntoOneRowRelation;
 import org.apache.doris.nereids.rules.rewrite.PushProjectThroughUnion;
 import org.apache.doris.nereids.rules.rewrite.PushdownFilterThroughProject;
-import org.apache.doris.nereids.rules.rewrite.PushdownFilterThroughWindow;
 import org.apache.doris.nereids.rules.rewrite.PushdownLimit;
+import org.apache.doris.nereids.rules.rewrite.PushdownPartitionTopNThroughWindow;
 import org.apache.doris.nereids.rules.rewrite.PushdownTopNThroughWindow;
 import org.apache.doris.nereids.rules.rewrite.ReorderJoin;
 import org.apache.doris.nereids.rules.rewrite.ReplaceLimitNode;
@@ -263,7 +263,7 @@ public class Rewriter extends AbstractBatchJobExecutor {
                             new SplitLimit(),
                             new PushdownLimit(),
                             new PushdownTopNThroughWindow(),
-                            new PushdownFilterThroughWindow()
+                            new PushdownPartitionTopNThroughWindow()
                     )
             ),
             // TODO: these rules should be implementation rules, and generate alternative physical plans.

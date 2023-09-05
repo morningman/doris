@@ -46,7 +46,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-public class PushdownFilterThroughWindowTest implements MemoPatternMatchSupported {
+public class PushdownPartitionTopNThroughWindowTest implements MemoPatternMatchSupported {
     private final LogicalOlapScan scan = new LogicalOlapScan(StatementScopeIdGenerator.newRelationId(), PlanConstructor.student,
             ImmutableList.of(""));
 
@@ -96,7 +96,7 @@ public class PushdownFilterThroughWindowTest implements MemoPatternMatchSupporte
                 .build();
 
         PlanChecker.from(context, plan)
-                .applyTopDown(new PushdownFilterThroughWindow())
+                .applyTopDown(new PushdownPartitionTopNThroughWindow())
                 .matches(
                     logicalProject(
                         logicalFilter(
