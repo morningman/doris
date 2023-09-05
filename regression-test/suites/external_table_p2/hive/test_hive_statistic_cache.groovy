@@ -68,7 +68,7 @@ suite("test_hive_statistic_cache", "p2,external,hive,external_remote,external_re
         logger.info("switched to catalog " + catalog_name)
         sql """use statistics;"""
         sql """set query_timeout=300;"""
-        sql """analyze table `stats` with sync;"""
+        sql """analyze table statistics.`stats` with sync;"""
         sql """select count(*) from stats"""
         Thread.sleep(5000);
         result = sql """show column cached stats `stats` (lo_orderkey)"""

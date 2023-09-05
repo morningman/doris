@@ -129,6 +129,8 @@ suite("test_external_catalog_hive", "p2,external,hive,external_remote,external_r
 
         sql """alter catalog hms rename ${catalog_name};"""
 
+        sql """switch  ${catalog_name}"""
+
         // test wrong access controller
         test {
             def tmp_name = "${catalog_name}" + "_wrong"

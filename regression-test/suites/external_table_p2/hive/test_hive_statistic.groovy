@@ -37,7 +37,7 @@ suite("test_hive_statistic", "p2,external,hive,external_remote,external_remote_h
         sql """switch ${catalog_name};"""
         logger.info("switched to catalog " + catalog_name)
         sql """use statistics;"""
-        sql """analyze table `statistics` with sync"""
+        sql """analyze table `statistics`.`statistics` with sync"""
         def result = sql """show column stats `statistics` (lo_quantity)"""
         assertTrue(result.size() == 1)
         assertTrue(result[0][0] == "lo_quantity")
@@ -249,7 +249,7 @@ suite("test_hive_statistic", "p2,external,hive,external_remote,external_remote_h
         assertTrue(result.size() == 0)
 
         sql """use multi_catalog"""
-        sql """analyze table logs1_parquet (log_time) with sync"""
+        sql """analyze table multi_catalog.logs1_parquet (log_time) with sync"""
         def ctlId
         def dbId
         def tblId
