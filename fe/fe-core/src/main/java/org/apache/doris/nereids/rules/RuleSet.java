@@ -73,6 +73,7 @@ import org.apache.doris.nereids.rules.implementation.LogicalTVFRelationToPhysica
 import org.apache.doris.nereids.rules.implementation.LogicalTopNToPhysicalTopN;
 import org.apache.doris.nereids.rules.implementation.LogicalUnionToPhysicalUnion;
 import org.apache.doris.nereids.rules.implementation.LogicalWindowToPhysicalWindow;
+import org.apache.doris.nereids.rules.rewrite.CreatePartitionTopNFromWindow;
 import org.apache.doris.nereids.rules.rewrite.EliminateOuterJoin;
 import org.apache.doris.nereids.rules.rewrite.MergeFilters;
 import org.apache.doris.nereids.rules.rewrite.MergeGenerates;
@@ -128,14 +129,16 @@ public class RuleSet {
             new PushdownFilterThroughAggregation(),
             new PushdownFilterThroughRepeat(),
             new PushdownFilterThroughSetOperation(),
-            new PushdownFilterThroughWindow(),
+            new CreatePartitionTopNFromWindow(),
             new PushdownProjectThroughLimit(),
             new EliminateOuterJoin(),
             new MergeProjects(),
             new MergeFilters(),
             new MergeGenerates(),
             new MergeLimits(),
-            new PushdownAliasThroughJoin());
+            new PushdownAliasThroughJoin(),
+            new PushdownFilterThroughWindow()
+    );
 
     public static final List<Rule> IMPLEMENTATION_RULES = planRuleFactories()
             .add(new LogicalCTEProducerToPhysicalCTEProducer())
