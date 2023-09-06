@@ -36,6 +36,7 @@
 #include "jni_md.h"
 #include "runtime/define_primitive_type.h"
 #include "runtime/descriptors.h"
+#include "runtime/exec_env.h"
 #include "runtime/runtime_state.h"
 #include "runtime/types.h"
 #include "runtime/user_function_cache.h"
@@ -76,7 +77,10 @@ const char* JDBC_EXECUTOR_COPY_BATCH_SIGNATURE = "(Ljava/lang/Object;ZIJJ)V";
 JdbcConnector::JdbcConnector(const JdbcConnectorParam& param)
         : TableConnector(param.tuple_desc, param.query_string),
           _conn_param(param),
-          _closed(false) {}
+          _closed(false),
+          _query_queue(1024) {
+    _query_worker_future = _query_worker_promise.get_future();
+}
 
 JdbcConnector::~JdbcConnector() {
     if (!_closed) {
@@ -92,6 +96,7 @@ JdbcConnector::~JdbcConnector() {
 Status JdbcConnector::close() {
     SCOPED_RAW_TIMER(&_jdbc_statistic._connector_close_timer);
     _closed = true;
+    _query_worker_future.wait();
     if (!_is_open) {
         return Status::OK();
     }
@@ -206,6 +211,87 @@ Status JdbcConnector::query() {
         RETURN_IF_ERROR(_check_column_type());
     }
     return Status::OK();
+}
+
+Status JdbcConnector::start_query(RuntimeState* state) {
+    return state->exec_env()->jdbc_query_thread_pool()->submit_func(
+            [this, state] {
+            Defer defer {[&]() { this->_query_worker_promise.set_value(true); }};
+            this->_query_worker(state);
+            });
+}
+
+void JdbcConnector::_query_worker(RuntimeState* state) {
+    JNIEnv* env = nullptr;
+    _query_worker_status = JniUtil::GetJNIEnv(&env);
+    if (!_query_worker_status.ok()) {
+        _query_queue.shutdown();
+        return;
+    }
+
+    int batch_size = state->batch_size();
+    while (!_closed && !state->is_cancelled()) {
+        jboolean has_next =
+                env->CallNonvirtualBooleanMethod(_executor_obj, _executor_clazz, _executor_has_next_id);
+        if (has_next != JNI_TRUE) {
+            // eos
+            break;
+        }
+
+        jobject block_obj;
+        // if contain HLL column, pass the column type to jni env
+        if (_tuple_desc->has_hll_slot()) {
+            auto column_size = _tuple_desc->slots().size();
+            // Find ArrayList and Integer
+            jclass arrayListClass = env->FindClass("java/util/ArrayList");
+            jclass integerClass = env->FindClass("java/lang/Integer");
+
+            // Get method id of the constructor and the add in ArrayList
+            jmethodID arrayListConstructor = env->GetMethodID(arrayListClass, "<init>", "()V");
+            jmethodID arrayListAddMethod =
+                    env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
+
+            // Create an ArrayList object
+            jobject arrayListObject = env->NewObject(arrayListClass, arrayListConstructor);
+            for (int column_index = 0; column_index < column_size; ++column_index) {
+                auto slot_desc = _tuple_desc->slots()[column_index];
+                if (slot_desc->type().is_hll_type()) {
+                    // Create an Integer object
+                    jobject integerObject = env->NewObject(
+                            integerClass, env->GetMethodID(integerClass, "<init>", "(I)V"),
+                            (int)slot_desc->type().type);
+                    // Add Integer into ArrayList
+                    env->CallBooleanMethod(arrayListObject, arrayListAddMethod, integerObject);
+
+                } else {
+                    jobject integerObject = env->NewObject(
+                            integerClass, env->GetMethodID(integerClass, "<init>", "(I)V"), 0);
+                    env->CallBooleanMethod(arrayListObject, arrayListAddMethod, integerObject);
+                }
+            }
+
+            SCOPED_RAW_TIMER(&_jdbc_statistic._call_jni_next_timer);
+            block_obj = env->CallNonvirtualObjectMethod(_executor_obj, _executor_clazz,
+                                                        _executor_get_blocks_new_id, batch_size,
+                                                        arrayListObject);
+        } else {
+            SCOPED_RAW_TIMER(&_jdbc_statistic._call_jni_next_timer);
+            block_obj = env->CallNonvirtualObjectMethod(_executor_obj, _executor_clazz,
+                                                        _executor_get_blocks_id, batch_size);
+        }
+
+        jint num_rows = env->CallNonvirtualIntMethod(_executor_obj, _executor_clazz,
+                _executor_block_rows_id);
+
+        _query_worker_status = JniUtil::GetJniExceptionMsg(env);
+        if (!_query_worker_status.ok()) {
+            break;
+        }
+        _query_queue.blocking_put({num_rows, block_obj});
+    }
+
+    _query_queue.shutdown();
+    return;
 }
 
 Status JdbcConnector::_check_column_type() {
@@ -392,59 +478,17 @@ Status JdbcConnector::get_next(bool* eos, std::vector<MutableColumnPtr>& columns
         return Status::InternalError("get_next before open of jdbc connector.");
     }
     SCOPED_RAW_TIMER(&_jdbc_statistic._get_data_timer);
+    std::pair<int32_t, jobject> block_obj_pair;
+    bool get = _query_queue.blocking_get(&block_obj_pair);
+    if (!get) {
+        if (_query_worker_status.ok()) {
+            *eos = true;
+        }
+        return _query_worker_status;
+    }
+
     JNIEnv* env = nullptr;
     RETURN_IF_ERROR(JniUtil::GetJNIEnv(&env));
-    jboolean has_next =
-            env->CallNonvirtualBooleanMethod(_executor_obj, _executor_clazz, _executor_has_next_id);
-    if (has_next != JNI_TRUE) {
-        *eos = true;
-        return Status::OK();
-    }
-
-    jobject block_obj;
-    // if contain HLL column, pass the column type to jni env
-    if (_tuple_desc->has_hll_slot()) {
-        auto column_size = _tuple_desc->slots().size();
-        // Find ArrayList and Integer
-        jclass arrayListClass = env->FindClass("java/util/ArrayList");
-        jclass integerClass = env->FindClass("java/lang/Integer");
-
-        // Get method id of the constructor and the add in ArrayList
-        jmethodID arrayListConstructor = env->GetMethodID(arrayListClass, "<init>", "()V");
-        jmethodID arrayListAddMethod =
-                env->GetMethodID(arrayListClass, "add", "(Ljava/lang/Object;)Z");
-
-        // Create an ArrayList object
-        jobject arrayListObject = env->NewObject(arrayListClass, arrayListConstructor);
-        for (int column_index = 0; column_index < column_size; ++column_index) {
-            auto slot_desc = _tuple_desc->slots()[column_index];
-            if (slot_desc->type().is_hll_type()) {
-                // Create an Integer object
-                jobject integerObject = env->NewObject(
-                        integerClass, env->GetMethodID(integerClass, "<init>", "(I)V"),
-                        (int)slot_desc->type().type);
-                // Add Integer into ArrayList
-                env->CallBooleanMethod(arrayListObject, arrayListAddMethod, integerObject);
-
-            } else {
-                jobject integerObject = env->NewObject(
-                        integerClass, env->GetMethodID(integerClass, "<init>", "(I)V"), 0);
-                env->CallBooleanMethod(arrayListObject, arrayListAddMethod, integerObject);
-            }
-        }
-
-        SCOPED_RAW_TIMER(&_jdbc_statistic._call_jni_next_timer);
-        block_obj = env->CallNonvirtualObjectMethod(_executor_obj, _executor_clazz,
-                                                    _executor_get_blocks_new_id, batch_size,
-                                                    arrayListObject);
-    } else {
-        SCOPED_RAW_TIMER(&_jdbc_statistic._call_jni_next_timer);
-        block_obj = env->CallNonvirtualObjectMethod(_executor_obj, _executor_clazz,
-                                                    _executor_get_blocks_id, batch_size);
-    }
-
-    RETURN_IF_ERROR(JniUtil::GetJniExceptionMsg(env));
-
     {
         SCOPED_RAW_TIMER(&_jdbc_statistic._convert_batch_timer);
         auto column_size = _tuple_desc->slots().size();
@@ -456,13 +500,12 @@ Status JdbcConnector::get_next(bool* eos, std::vector<MutableColumnPtr>& columns
                 continue;
             }
             jobject column_data =
-                    env->CallObjectMethod(block_obj, _executor_get_list_id, materialized_column_index);
-            jint num_rows = env->CallNonvirtualIntMethod(_executor_obj, _executor_clazz,
-                                                         _executor_block_rows_id);
+                    env->CallObjectMethod(block_obj_pair.second, _executor_get_list_id, materialized_column_index);
+            jint num_rows = block_obj_pair.first;
             RETURN_IF_ERROR(_convert_batch_result_set(
                     env, column_data, slot_desc, columns[column_index].get(), num_rows, column_index));
             env->DeleteLocalRef(column_data);
-            // here need to cast string to array type
+            //here need to cast string to array type
             if (slot_desc->type().is_array_type()) {
                 _cast_string_to_array(slot_desc, block, column_index, num_rows);
             } else if (slot_desc->type().is_hll_type()) {
@@ -474,7 +517,7 @@ Status JdbcConnector::get_next(bool* eos, std::vector<MutableColumnPtr>& columns
         }
     }
     // All Java objects returned by JNI functions are local references.
-    env->DeleteLocalRef(block_obj);
+    env->DeleteLocalRef(block_obj_pair.second);
     return JniUtil::GetJniExceptionMsg(env);
 }
 

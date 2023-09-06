@@ -66,6 +66,7 @@ public class JdbcScanNode extends ExternalScanNode {
     private String tableName;
     private TOdbcTableType jdbcType;
     private String graphQueryString = "";
+    private boolean allConjunctsPushedDown = false;
 
     private JdbcTable tbl;
 
@@ -146,6 +147,7 @@ public class JdbcScanNode extends ExternalScanNode {
                 conjuncts.remove(p);
             }
         }
+        allConjunctsPushedDown = conjuncts.isEmpty();
     }
 
     private void createJdbcColumns() {
@@ -163,7 +165,7 @@ public class JdbcScanNode extends ExternalScanNode {
     }
 
     private boolean shouldPushDownLimit() {
-        return limit != -1 && conjuncts.isEmpty();
+        return limit != -1 && allConjunctsPushedDown;
     }
 
     private String getJdbcQueryStr() {
@@ -337,3 +339,4 @@ public class JdbcScanNode extends ExternalScanNode {
         return expr.toMySql();
     }
 }
+
