@@ -28,6 +28,7 @@
 
 #include "common/status.h"
 #include "exec/table_connector.h"
+#include "util/blocking_queue.hpp"
 #include "vec/aggregate_functions/aggregate_function.h"
 #include "vec/data_types/data_type.h"
 
@@ -77,6 +78,8 @@ public:
 
     Status query() override;
 
+    Status start_query(RuntimeState* state);
+
     Status exec_write_sql(const std::u16string& insert_stmt,
                           const fmt::memory_buffer& insert_stmt_buffer) override {
         return Status::OK();
@@ -111,6 +114,8 @@ private:
     Status _convert_batch_result_set(JNIEnv* env, jobject jobj, const SlotDescriptor* slot_desc,
                                      vectorized::IColumn* column_ptr, int num_rows,
                                      int column_index);
+
+    Status _query_worker(int batch_size);
 
     const JdbcConnectorParam& _conn_param;
     bool _closed = false;
@@ -170,6 +175,7 @@ private:
     std::vector<MutableColumnPtr> str_json_cols; // for json type to save data like string
 
     JdbcStatistic _jdbc_statistic;
+    BlockingQueue<std::pair<int32_t, jobject>> _query_queue;
 };
 
 } // namespace vectorized

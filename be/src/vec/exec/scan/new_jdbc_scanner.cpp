@@ -118,6 +118,7 @@ Status NewJdbcScanner::open(RuntimeState* state) {
     RETURN_IF_ERROR(VScanner::open(state));
     RETURN_IF_ERROR(_jdbc_connector->open(state, true));
     RETURN_IF_ERROR(_jdbc_connector->query());
+    RETURN_IF_ERROR(_jdbc_connector->start_query(state));
     return Status::OK();
 }
 
