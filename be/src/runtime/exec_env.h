@@ -140,6 +140,7 @@ public:
     }
     ThreadPool* send_report_thread_pool() { return _send_report_thread_pool.get(); }
     ThreadPool* join_node_thread_pool() { return _join_node_thread_pool.get(); }
+    ThreadPool* jdbc_query_thread_pool() { return _jdbc_query_thread_pool.get(); }
 
     void set_serial_download_cache_thread_token() {
         _serial_download_cache_thread_token =
@@ -252,6 +253,7 @@ private:
     std::unique_ptr<ThreadPool> _send_report_thread_pool;
     // Pool used by join node to build hash table
     std::unique_ptr<ThreadPool> _join_node_thread_pool;
+    std::unique_ptr<ThreadPool> _jdbc_query_thread_pool;
     // ThreadPoolToken -> buffer
     std::unordered_map<ThreadPoolToken*, std::unique_ptr<char[]>> _download_cache_buf_map;
     FragmentMgr* _fragment_mgr = nullptr;
