@@ -28,6 +28,7 @@
 
 #include "common/status.h"
 #include "exec/table_connector.h"
+#include "util/blocking_queue.hpp"
 #include "vec/aggregate_functions/aggregate_function.h"
 #include "vec/data_types/data_type.h"
 
@@ -64,6 +65,8 @@ public:
         int64_t _load_jar_timer = 0;
         int64_t _init_connector_timer = 0;
         int64_t _get_data_timer = 0;
+        int64_t _call_jni_next_timer = 0;
+        int64_t _convert_batch_timer = 0;
         int64_t _check_type_timer = 0;
         int64_t _execte_read_timer = 0;
         int64_t _connector_close_timer = 0;
@@ -76,6 +79,8 @@ public:
     Status open(RuntimeState* state, bool read = false);
 
     Status query() override;
+
+    Status start_query(RuntimeState* state);
 
     Status append(vectorized::Block* block, const vectorized::VExprContextSPtrs& _output_vexpr_ctxs,
                   uint32_t start_send_row, uint32_t* num_rows_sent,
@@ -125,6 +130,8 @@ private:
     Status _convert_batch_result_set(JNIEnv* env, jobject jobj, const SlotDescriptor* slot_desc,
                                      vectorized::IColumn* column_ptr, int num_rows,
                                      int column_index);
+
+    Status _query_worker(int batch_size);
 
     bool _closed = false;
     jclass _executor_clazz;
@@ -188,6 +195,8 @@ private:
     std::vector<MutableColumnPtr> str_json_cols; // for json type to save data like string
 
     JdbcStatistic _jdbc_statistic;
+
+    BlockingQueue<jobject> _query_queue;    
 };
 
 } // namespace vectorized
