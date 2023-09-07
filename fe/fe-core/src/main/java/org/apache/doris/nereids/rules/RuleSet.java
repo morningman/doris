@@ -88,7 +88,6 @@ import org.apache.doris.nereids.rules.rewrite.PushdownFilterThroughSetOperation;
 import org.apache.doris.nereids.rules.rewrite.PushdownFilterThroughSort;
 import org.apache.doris.nereids.rules.rewrite.PushdownFilterThroughWindow;
 import org.apache.doris.nereids.rules.rewrite.PushdownJoinOtherCondition;
-import org.apache.doris.nereids.rules.rewrite.PushdownPartitionTopNThroughWindow;
 import org.apache.doris.nereids.rules.rewrite.PushdownProjectThroughLimit;
 
 import com.google.common.collect.ImmutableList;
@@ -129,16 +128,14 @@ public class RuleSet {
             new PushdownFilterThroughAggregation(),
             new PushdownFilterThroughRepeat(),
             new PushdownFilterThroughSetOperation(),
-            new PushdownPartitionTopNThroughWindow(),
+            new PushdownFilterThroughWindow(),
             new PushdownProjectThroughLimit(),
             new EliminateOuterJoin(),
             new MergeProjects(),
             new MergeFilters(),
             new MergeGenerates(),
             new MergeLimits(),
-            new PushdownAliasThroughJoin(),
-            new PushdownFilterThroughWindow()
-    );
+            new PushdownAliasThroughJoin());
 
     public static final List<Rule> IMPLEMENTATION_RULES = planRuleFactories()
             .add(new LogicalCTEProducerToPhysicalCTEProducer())
