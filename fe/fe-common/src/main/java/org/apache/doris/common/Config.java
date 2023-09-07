@@ -2100,7 +2100,4 @@ public class Config extends ConfigBase {
 
     @ConfField
     public static boolean forbid_running_alter_job = false;
-
-    @ConfField
-    public static int virtual_node_num = 2048;
 }
