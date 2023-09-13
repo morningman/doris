@@ -1079,6 +1079,8 @@ DEFINE_mInt32(tablet_schema_cache_recycle_interval, "86400");
 DEFINE_Bool(exit_on_exception, "false")
 
 // clang-format off
+DEFINE_mInt32(max_file_scanner_num, "4");
+
 #ifdef BE_TEST
 // test s3
 DEFINE_String(test_s3_resource, "resource");
