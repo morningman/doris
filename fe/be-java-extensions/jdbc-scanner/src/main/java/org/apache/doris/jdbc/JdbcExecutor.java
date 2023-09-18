@@ -34,6 +34,8 @@ import com.clickhouse.data.value.UnsignedInteger;
 import com.clickhouse.data.value.UnsignedLong;
 import com.clickhouse.data.value.UnsignedShort;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Queues;
 import com.vesoft.nebula.client.graph.data.ValueWrapper;
 import org.apache.log4j.Logger;
 import org.apache.thrift.TDeserializer;
@@ -69,6 +71,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
 import java.util.function.Function;
 
 public class JdbcExecutor {
@@ -80,7 +83,9 @@ public class JdbcExecutor {
     private ResultSet resultSet = null;
     private ResultSetMetaData resultSetMetaData = null;
     private List<String> resultColumnTypeNames = null;
-    private List<Object[]> block = null;
+    private List<List<Object[]>> freeBlockList = Lists.newArrayList();
+    private int currentBlockIndex = 0;
+    private BlockingQueue<byte[]> freeTokenQueue = Queues.newLinkedBlockingQueue();
     private int batchSizeNum = 0;
     private int curBlockRows = 0;
     private static final byte[] emptyBytes = new byte[0];
@@ -92,6 +97,7 @@ public class JdbcExecutor {
     private int maxIdleTime;
     private int maxWaitTime;
     private TOdbcTableType tableType;
+    private static final int MAX_BLOCK_QUEUE_NUM = 2;
 
     public JdbcExecutor(byte[] thriftParams) throws Exception {
         TJdbcExecutorCtorParams request = new TJdbcExecutorCtorParams();
@@ -147,12 +153,17 @@ public class JdbcExecutor {
             resultSetMetaData = resultSet.getMetaData();
             int columnCount = resultSetMetaData.getColumnCount();
             resultColumnTypeNames = new ArrayList<>(columnCount);
-            block = new ArrayList<>(columnCount);
-            for (int i = 0; i < columnCount; ++i) {
-                if (!isNebula()) {
-                    resultColumnTypeNames.add(resultSetMetaData.getColumnClassName(i + 1));
+
+            for (int i = 0; i < MAX_BLOCK_QUEUE_NUM; ++i) {
+                List<Object[]> block = new ArrayList<>(columnCount);
+                for (int j = 0; j < columnCount; ++j) {
+                    if (!isNebula()) {
+                        resultColumnTypeNames.add(resultSetMetaData.getColumnClassName(j + 1));
+                    }
+                    block.add((Object[]) Array.newInstance(Object.class, batchSizeNum));
                 }
-                block.add((Object[]) Array.newInstance(Object.class, batchSizeNum));
+                freeBlockList.add(block);
+                freeTokenQueue.add(new byte[0]);
             }
             return columnCount;
         } catch (SQLException e) {
@@ -338,7 +349,17 @@ public class JdbcExecutor {
         }
     }
 
+    private List<Object[]> getNextAvailableBlock() throws UdfRuntimeException {
+        try {
+            freeTokenQueue.take();
+        } catch (InterruptedException e) {
+            throw new UdfRuntimeException(e.getMessage());
+        }
+        return freeBlockList.get((currentBlockIndex++) % MAX_BLOCK_QUEUE_NUM);
+    }
+
     public List<Object[]> getBlock(int batchSize, Object colsArray) throws UdfRuntimeException {
+        List<Object[]> block = getNextAvailableBlock();
         try {
             ArrayList<Integer> colsTypes = (ArrayList<Integer>) colsArray;
             Integer[] colArray = new Integer[colsTypes.size()];
@@ -364,6 +385,7 @@ public class JdbcExecutor {
     }
 
     public List<Object[]> getBlock(int batchSize) throws UdfRuntimeException {
+        List<Object[]> block = getNextAvailableBlock();
         try {
             int columnCount = resultSetMetaData.getColumnCount();
             curBlockRows = 0;
@@ -381,6 +403,11 @@ public class JdbcExecutor {
             throw new UdfRuntimeException("get next block failed: ", e);
         }
         return block;
+    }
+
+    public void freeToken() {
+        freeTokenQueue.offer(new byte[0]);
+        LOG.info("free token: " + freeTokenQueue.size());
     }
 
     public int getCurBlockRows() {

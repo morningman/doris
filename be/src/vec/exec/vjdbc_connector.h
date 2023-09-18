@@ -132,6 +132,7 @@ private:
     jmethodID _executor_block_rows_id;
     jmethodID _executor_get_blocks_id;
     jmethodID _executor_get_blocks_new_id;
+    jmethodID _executor_free_token_id;
     jmethodID _executor_get_boolean_result;
     jmethodID _executor_get_tinyint_result;
     jmethodID _executor_get_smallint_result;

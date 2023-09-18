@@ -69,6 +69,7 @@ const char* JDBC_EXECUTOR_STMT_WRITE_SIGNATURE = "(Ljava/util/Map;)I";
 const char* JDBC_EXECUTOR_HAS_NEXT_SIGNATURE = "()Z";
 const char* JDBC_EXECUTOR_GET_BLOCK_SIGNATURE = "(I)Ljava/util/List;";
 const char* JDBC_EXECUTOR_GET_BLOCK_WITH_TYPES_SIGNATURE = "(ILjava/lang/Object;)Ljava/util/List;";
+const char* JDBC_EXECUTOR_FREE_TOKEN_SIGNATURE = "()V";
 const char* JDBC_EXECUTOR_GET_TYPES_SIGNATURE = "()Ljava/util/List;";
 const char* JDBC_EXECUTOR_CLOSE_SIGNATURE = "()V";
 const char* JDBC_EXECUTOR_TRANSACTION_SIGNATURE = "()V";
@@ -516,6 +517,9 @@ Status JdbcConnector::get_next(bool* eos, std::vector<MutableColumnPtr>& columns
             materialized_column_index++;
         }
     }
+    
+    env->CallNonvirtualObjectMethod(_executor_obj, _executor_clazz,
+            _executor_free_token_id);
     // All Java objects returned by JNI functions are local references.
     env->DeleteLocalRef(block_obj_pair.second);
     return JniUtil::GetJniExceptionMsg(env);
@@ -820,6 +824,8 @@ Status JdbcConnector::_register_func_id(JNIEnv* env) {
     RETURN_IF_ERROR(register_id(_executor_clazz, "getBlock",
                                 JDBC_EXECUTOR_GET_BLOCK_WITH_TYPES_SIGNATURE,
                                 _executor_get_blocks_new_id));
+    RETURN_IF_ERROR(register_id(_executor_clazz, "freeToken", JDBC_EXECUTOR_FREE_TOKEN_SIGNATURE,
+                                _executor_free_token_id));
     RETURN_IF_ERROR(register_id(_executor_list_clazz, "get", "(I)Ljava/lang/Object;",
                                 _executor_get_list_id));
     RETURN_IF_ERROR(register_id(_executor_string_clazz, "getBytes", "(Ljava/lang/String;)[B",
