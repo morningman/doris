@@ -23,6 +23,7 @@ import org.apache.doris.analysis.BackendClause;
 import org.apache.doris.analysis.CreateDbStmt;
 import org.apache.doris.analysis.CreateTableStmt;
 import org.apache.doris.analysis.DropTableStmt;
+import org.apache.doris.analysis.UserIdentity;
 import org.apache.doris.catalog.ColocateGroupSchema;
 import org.apache.doris.catalog.ColocateTableIndex;
 import org.apache.doris.catalog.Database;
@@ -207,6 +208,14 @@ public class TabletRepairAndBalanceTest {
         Config.enable_multi_tags = true;
         String stmtStr3 = "alter system modify backend \"" + be1.getHost() + ":" + be1.getHeartbeatPort()
                 + "\" set ('tag.location' = 'zone1', 'tag.compute' = 'c1')";
+        // test if user has privilege modify backend properties
+        // 1. normal user
+        UserIdentity normalUser = UserIdentity.createAnalyzedUserIdentWithIp("user1", "198.168.1.1");
+        connectContext.setCurrentUserIdentity(normalUser);
+        ExceptionChecker.expectThrowsWithMsg(AnalysisException.class, "Access denied",
+                () -> UtFrameUtils.parseAndAnalyzeStmt(stmtStr3, connectContext));
+        // 2. admin user
+        connectContext.setCurrentUserIdentity(UserIdentity.ADMIN);
         AlterSystemStmt stmt = (AlterSystemStmt) UtFrameUtils.parseAndAnalyzeStmt(stmtStr3, connectContext);
         DdlExecutor.execute(Env.getCurrentEnv(), stmt);
         Map<String, String> tagMap = be1.getTagMap();

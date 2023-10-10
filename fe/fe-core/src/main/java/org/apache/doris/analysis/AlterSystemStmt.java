@@ -40,12 +40,6 @@ public class AlterSystemStmt extends DdlStmt {
 
     @Override
     public void analyze(Analyzer analyzer) throws UserException {
-
-        if (!Env.getCurrentEnv().getAccessManager().checkGlobalPriv(ConnectContext.get(), PrivPredicate.OPERATOR)) {
-            ErrorReport.reportAnalysisException(ErrorCode.ERR_SPECIFIC_ACCESS_DENIED_ERROR,
-                                                "NODE");
-        }
-
         Preconditions.checkState((alterClause instanceof AddBackendClause)
                 || (alterClause instanceof DropBackendClause)
                 || (alterClause instanceof DecommissionBackendClause)
@@ -59,6 +53,20 @@ public class AlterSystemStmt extends DdlStmt {
                 || (alterClause instanceof ModifyBackendHostNameClause)
                 || (alterClause instanceof ModifyFrontendHostNameClause)
         );
+
+        // Admin user can modify the properties of Backends.
+        // For other alter operation, need OPERATOR privilege.
+        if (alterClause instanceof ModifyBackendClause) {
+            if (!Env.getCurrentEnv().getAccessManager().checkGlobalPriv(ConnectContext.get(), PrivPredicate.ADMIN)) {
+                ErrorReport.reportAnalysisException(ErrorCode.ERR_SPECIFIC_ACCESS_DENIED_ERROR,
+                        "ADMIN");
+            }
+        } else {
+            if (!Env.getCurrentEnv().getAccessManager().checkGlobalPriv(ConnectContext.get(), PrivPredicate.OPERATOR)) {
+                ErrorReport.reportAnalysisException(ErrorCode.ERR_SPECIFIC_ACCESS_DENIED_ERROR,
+                        "NODE");
+            }
+        }
 
         alterClause.analyze(analyzer);
     }
