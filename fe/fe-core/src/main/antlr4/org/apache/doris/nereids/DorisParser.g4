@@ -69,7 +69,7 @@ userIdentify
 
 explain
     : (EXPLAIN planType? | DESC | DESCRIBE)
-          level=(VERBOSE | GRAPH | PLAN)?
+          level=(VERBOSE | TREE | GRAPH | PLAN)?
     ;
 
 planType
@@ -789,6 +789,7 @@ nonReserved
     | TIMESTAMPADD
     | TIMESTAMPDIFF
     | TRANSACTION
+    | TREE
     | TRIGGERS
     | TRUNCATE
     | TYPE
