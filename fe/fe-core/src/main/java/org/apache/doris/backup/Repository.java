@@ -211,10 +211,18 @@ public class Repository implements Writable {
     }
 
     // create repository dir and repo info file
-    public Status initRepository() {
+    public Status initRepository(boolean deleteRepoIfExists) {
         if (FeConstants.runningUnitTest) {
             return Status.OK;
         }
+
+        if (deleteRepoIfExists) {
+            Status st = deleteRepository();
+            if (!st.ok()) {
+                return st;
+            }
+        }
+
         String repoInfoFilePath = assembleRepoInfoFilePath();
         // check if the repo is already exist in remote
         List<RemoteFile> remoteFiles = Lists.newArrayList();
@@ -267,11 +275,23 @@ public class Repository implements Writable {
         }
     }
 
+    // Delete the repo path
+    private Status deleteRepository() {
+        String repoPath = assembleRepoPath();
+        return fileSystem.delete(repoPath);
+    }
+
     // eg: location/__palo_repository_repo_name/__repo_info
     public String assembleRepoInfoFilePath() {
         return Joiner.on(PATH_DELIMITER).join(location,
                 joinPrefix(PREFIX_REPO, name),
                 FILE_REPO_INFO);
+    }
+
+    // eg: location/__palo_repository_repo_name/
+    public String assembleRepoPath() {
+        return Joiner.on(PATH_DELIMITER).join(location,
+                joinPrefix(PREFIX_REPO, name));
     }
 
     // eg: location/__palo_repository_repo_name/__my_sp1/__meta

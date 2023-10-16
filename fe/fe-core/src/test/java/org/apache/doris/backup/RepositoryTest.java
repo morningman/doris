@@ -123,7 +123,7 @@ public class RepositoryTest {
 
         repo = new Repository(10000, "repo", false, location, fileSystem);
 
-        Status st = repo.initRepository();
+        Status st = repo.initRepository(false);
         System.out.println(st);
         Assert.assertTrue(st.ok());
     }

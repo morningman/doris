@@ -566,7 +566,7 @@ public class EditLog {
                 }
                 case OperationType.OP_CREATE_REPOSITORY: {
                     Repository repository = (Repository) journal.getData();
-                    env.getBackupHandler().getRepoMgr().addAndInitRepoIfNotExist(repository, true);
+                    env.getBackupHandler().getRepoMgr().addAndInitRepoIfNotExist(repository, false, true);
                     break;
                 }
                 case OperationType.OP_DROP_REPOSITORY: {

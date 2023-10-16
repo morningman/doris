@@ -59,13 +59,13 @@ public class RepositoryMgr extends Daemon implements Writable {
         }
     }
 
-    public Status addAndInitRepoIfNotExist(Repository repo, boolean isReplay) {
+    public Status addAndInitRepoIfNotExist(Repository repo, boolean deleteRepoIfExists, boolean isReplay) {
         lock.lock();
         try {
             if (!repoNameMap.containsKey(repo.getName())) {
                 if (!isReplay) {
                     // create repository path and repo info file in remote storage
-                    Status st = repo.initRepository();
+                    Status st = repo.initRepository(deleteRepoIfExists);
                     if (!st.ok()) {
                         return st;
                     }

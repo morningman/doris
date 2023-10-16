@@ -32,6 +32,8 @@ public class CreateRepositoryStmt extends DdlStmt {
     private String name;
     private StorageBackend storage;
 
+    public static final String PROP_DELETE_REPO_IF_EXISTS = "delete_repo_if_exists";
+
     public CreateRepositoryStmt(boolean isReadOnly, String name, StorageBackend storage) {
         this.isReadOnly = isReadOnly;
         this.name = name;
@@ -60,6 +62,11 @@ public class CreateRepositoryStmt extends DdlStmt {
 
     public Map<String, String> getProperties() {
         return storage.getStorageDesc().getProperties();
+    }
+
+    public boolean deleteRepoIfExists() {
+        return Boolean.valueOf(
+                storage.getStorageDesc().getProperties().getOrDefault(PROP_DELETE_REPO_IF_EXISTS, "false"));
     }
 
     @Override
