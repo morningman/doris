@@ -198,7 +198,6 @@ Status ExecNode::close(RuntimeState* state) {
                   << " already closed";
         return Status::OK();
     }
-    LOG(INFO) << "fragment_instance_id=" << print_id(state->fragment_instance_id()) << " closed. ";
     _is_closed = true;
 
     Status result;
@@ -212,6 +211,7 @@ Status ExecNode::close(RuntimeState* state) {
         _peak_memory_usage_counter->set(_mem_tracker->peak_consumption());
     }
     release_resource(state);
+    LOG(INFO) << "fragment_instance_id=" << print_id(state->fragment_instance_id()) << " closed. ";
     return result;
 }
 
