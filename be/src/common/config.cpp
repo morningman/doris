@@ -101,7 +101,7 @@ DEFINE_mInt64(mmap_threshold, "134217728"); // bytes
 
 // When hash table capacity is greater than 2^double_grow_degree(default 2G), grow when 75% of the capacity is satisfied.
 // Increase can reduce the number of hash table resize, but may waste more memory.
-DEFINE_mInt32(hash_table_double_grow_degree, "31");
+DEFINE_mInt32(hash_table_double_grow_degree, "24");
 
 DEFINE_mInt32(max_fill_rate, "2");
 
@@ -873,7 +873,7 @@ DEFINE_mInt64(small_column_size_buffer, "100");
 
 // When the rows number reached this limit, will check the filter rate the of bloomfilter
 // if it is lower than a specific threshold, the predicate will be disabled.
-DEFINE_mInt32(bloom_filter_predicate_check_row_num, "204800");
+DEFINE_mInt32(bloom_filter_predicate_check_row_num, "2147483647");
 
 // cooldown task configs
 DEFINE_Int32(cooldown_thread_num, "5");
