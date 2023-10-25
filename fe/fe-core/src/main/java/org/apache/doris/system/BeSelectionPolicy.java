@@ -165,7 +165,7 @@ public class BeSelectionPolicy {
         if (!preLocationFilterBackends.isEmpty()) {
             filterBackends = preLocationFilterBackends;
         }
-        Collections.shuffle(filterBackends);
+        // Collections.shuffle(filterBackends);
         List<Backend> candidates = new ArrayList<>();
         if (preferComputeNode) {
             int num = 0;
@@ -191,7 +191,7 @@ public class BeSelectionPolicy {
         } else {
             candidates.addAll(filterBackends);
         }
-        Collections.shuffle(candidates);
+        // Collections.shuffle(candidates);
         return candidates;
     }
 

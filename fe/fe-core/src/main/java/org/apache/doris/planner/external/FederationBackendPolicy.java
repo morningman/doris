@@ -57,6 +57,7 @@ public class FederationBackendPolicy {
     private ConsistentHash<TScanRangeLocations, Backend> consistentHash;
 
     private int nextBe = 0;
+    private int nextLocalBe = 0;
     private boolean initialized = false;
 
     public void init() throws UserException {
@@ -116,13 +117,17 @@ public class FederationBackendPolicy {
         for (String host : hosts) {
             List<Backend> backends = backendMap.get(host);
             if (CollectionUtils.isNotEmpty(backends)) {
-                candidateBackends.add(backends.get(random.nextInt(backends.size())));
+                // candidateBackends.add(backends.get(random.nextInt(backends.size())));
+                candidateBackends.add(backends.get(0));
             }
         }
 
-        return CollectionUtils.isEmpty(candidateBackends)
-                    ? getNextBe()
-                    : candidateBackends.get(random.nextInt(candidateBackends.size()));
+        if (CollectionUtils.isEmpty(candidateBackends)) {
+            return getNextBe();
+        }
+        Backend be = candidateBackends.get(nextLocalBe++);
+        nextLocalBe = nextLocalBe % candidateBackends.size();
+        return be;
     }
 
     public int numBackends() {
