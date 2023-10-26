@@ -745,7 +745,10 @@ public class Database extends MetaObject implements Writable, DatabaseIf<Table> 
 
     public synchronized void replayDropFunction(FunctionSearchDesc functionSearchDesc) {
         try {
-            FunctionUtil.dropFunctionImpl(functionSearchDesc, false, name2Function);
+            if (!FunctionUtil.dropFunctionImpl(functionSearchDesc, true, name2Function)) {
+                LOG.warn("failed to find function to drop: {} when replay, skip",
+                        functionSearchDesc.getName().getFunction());
+            }
             FunctionUtil.dropFromNereids(this.getFullName(), functionSearchDesc);
         } catch (UserException e) {
             throw new RuntimeException(e);
