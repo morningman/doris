@@ -286,6 +286,7 @@ bool RowGroupReader::is_dictionary_encoded(const tparquet::ColumnMetaData& colum
 
 Status RowGroupReader::next_batch(Block* block, size_t batch_size, size_t* read_rows,
                                   bool* batch_eof) {
+    
     if (_is_row_group_filtered) {
         *read_rows = 0;
         *batch_eof = true;
@@ -407,6 +408,8 @@ Status RowGroupReader::_read_column_data(Block* block, const std::vector<std::st
         bool col_eof = false;
         // Should reset _filter_map_index to 0 when reading next column.
         select_vector.reset();
+        // MonotonicStopWatch watch;
+        // watch.start();
         while (!col_eof && col_read_rows < batch_size) {
             size_t loop_rows = 0;
             RETURN_IF_ERROR(_column_readers[read_col_name]->read_column_data(
@@ -414,6 +417,8 @@ Status RowGroupReader::_read_column_data(Block* block, const std::vector<std::st
                     &col_eof, is_dict_filter));
             col_read_rows += loop_rows;
         }
+        // LOG(INFO) << "yy debug _read_column_data cost: " << watch.elapsed_time() / 1000000 << ", col: " << read_col_name;
+        
         if (batch_read_rows > 0 && batch_read_rows != col_read_rows) {
             return Status::Corruption("Can't read the same number of rows among parquet columns");
         }
@@ -444,8 +449,11 @@ Status RowGroupReader::_do_lazy_read(Block* block, size_t batch_size, size_t* re
         pre_read_rows = 0;
         pre_eof = false;
         ColumnSelectVector run_length_vector;
+        // MonotonicStopWatch watch;
+        // watch.start();
         RETURN_IF_ERROR(_read_column_data(block, _lazy_read_ctx.predicate_columns.first, batch_size,
                                           &pre_read_rows, &pre_eof, run_length_vector));
+        // LOG(INFO) << "yy debug _read_column_data cost: " << watch.elapsed_time() / 1000000 << ", pre_read_rows: " << pre_read_rows;
         if (pre_read_rows == 0) {
             DCHECK_EQ(pre_eof, true);
             break;
@@ -484,6 +492,7 @@ Status RowGroupReader::_do_lazy_read(Block* block, size_t batch_size, size_t* re
 
         const uint8_t* __restrict filter_map = result_filter.data();
         select_vector_ptr.reset(new ColumnSelectVector(filter_map, pre_read_rows, can_filter_all));
+        LOG(INFO) << "yy debug filter all: " << select_vector_ptr->filter_all();
         if (select_vector_ptr->filter_all()) {
             for (auto& col : _lazy_read_ctx.predicate_columns.first) {
                 // clean block to read predicate columns
@@ -497,6 +506,7 @@ Status RowGroupReader::_do_lazy_read(Block* block, size_t batch_size, size_t* re
             }
             Block::erase_useless_column(block, origin_column_num);
 
+            LOG(INFO) << "yy debug filter alli pre eof: " << pre_eof;
             if (!pre_eof) {
                 // If continuous batches are skipped, we can cache them to skip a whole page
                 _cached_filtered_rows += pre_read_rows;
@@ -530,8 +540,11 @@ Status RowGroupReader::_do_lazy_read(Block* block, size_t batch_size, size_t* re
     // lazy read columns
     size_t lazy_read_rows;
     bool lazy_eof;
+    // MonotonicStopWatch watch;
+    // watch.start();
     RETURN_IF_ERROR(_read_column_data(block, _lazy_read_ctx.lazy_read_columns, pre_read_rows,
-                                      &lazy_read_rows, &lazy_eof, select_vector));
+                &lazy_read_rows, &lazy_eof, select_vector));
+    // LOG(INFO) << "yy debug lazy _read_column_data cost: " << watch.elapsed_time() / 1000000 << ", lazy_read_rows: " << lazy_read_rows;
     if (pre_read_rows != lazy_read_rows) {
         return Status::Corruption("Can't read the same number of rows when doing lazy read");
     }

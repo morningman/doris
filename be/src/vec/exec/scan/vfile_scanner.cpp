@@ -289,7 +289,10 @@ Status VFileScanner::open(RuntimeState* state) {
 Status VFileScanner::_get_block_impl(RuntimeState* state, Block* block, bool* eof) {
     do {
         if (_cur_reader == nullptr || _cur_reader_eof) {
+            MonotonicStopWatch watch;
+            watch.start();
             RETURN_IF_ERROR(_get_next_reader());
+            LOG(INFO) << "yy debug get next reader cost ms: " << watch.elapsed_time() / 1000000 << ", id: " << print_id(state->fragment_instance_id());
         }
 
         if (_scanner_eof) {
@@ -306,8 +309,11 @@ Status VFileScanner::_get_block_impl(RuntimeState* state, Block* block, bool* eo
 
             // Read next block.
             // Some of column in block may not be filled (column not exist in file)
+            MonotonicStopWatch watch;
+            watch.start();
             RETURN_IF_ERROR(
                     _cur_reader->get_next_block(_src_block_ptr, &read_rows, &_cur_reader_eof));
+            LOG(INFO) << "yy debug get_next_block cost ms: " << watch.elapsed_time() / 1000000 << ", id: " << print_id(state->fragment_instance_id()) << ", read row: " << read_rows;
         }
         if (_params->format_type == TFileFormatType::FORMAT_WAL) {
             block->swap(*_src_block_ptr);

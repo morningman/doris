@@ -242,6 +242,7 @@ void ScannerScheduler::_schedule_scanners(ScannerContext* ctx) {
                         };
                         SimplifiedScanTask simple_scan_task = {work_func, ctx};
                         ret = scan_sche->get_scan_queue()->try_put(simple_scan_task);
+                        LOG(INFO) << "yy debug submit scanner simple: " << print_id(ctx->state()->fragment_instance_id());
                     } else if (ctx->get_task_group() && config::enable_workload_group_for_scan) {
                         auto work_func = [this, scanner = *iter, ctx] {
                             this->_scanner_scan(this, ctx, scanner);
@@ -250,6 +251,7 @@ void ScannerScheduler::_schedule_scanners(ScannerContext* ctx) {
                                 work_func, ctx, ctx->get_task_group()->local_scan_task_entity(),
                                 nice};
                         ret = _task_group_local_scan_queue->push_back(scan_task);
+                        LOG(INFO) << "yy debug submit scanner workload: " << print_id(ctx->state()->fragment_instance_id());
                     } else {
                         PriorityThreadPool::Task task;
                         task.work_function = [this, scanner = *iter, ctx] {
@@ -257,11 +259,13 @@ void ScannerScheduler::_schedule_scanners(ScannerContext* ctx) {
                         };
                         task.priority = nice;
                         ret = _local_scan_thread_pool->offer(task);
+                        LOG(INFO) << "yy debug submit scanner local: " << print_id(ctx->state()->fragment_instance_id()) << ", queue: " << _local_scan_thread_pool->get_queue_size();
                     }
                 } else {
                     ret = _remote_scan_thread_pool->submit_func([this, scanner = *iter, ctx] {
                         this->_scanner_scan(this, ctx, scanner);
                     });
+                    LOG(INFO) << "yy debug submit scanner remote: " << print_id(ctx->state()->fragment_instance_id()) << ", queue: " << _remote_scan_thread_pool->get_queue_size();
                 }
                 if (ret) {
                     this_run.erase(iter++);
@@ -316,6 +320,8 @@ void ScannerScheduler::_schedule_scanners(ScannerContext* ctx) {
 
 void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext* ctx,
                                      VScannerSPtr scanner) {
+    MonotonicStopWatch watch;
+    watch.start();
     SCOPED_ATTACH_TASK(scanner->runtime_state());
     // for cpu hard limit, thread name should not be reset
 #if !defined(USE_BTHREAD_SCANNER)
@@ -341,6 +347,7 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
     bool eos = false;
     RuntimeState* state = ctx->state();
     DCHECK(nullptr != state);
+    LOG(INFO) << "yy debug scanner 1: " << print_id(ctx->state()->fragment_instance_id()) << ", time ms: " << watch.elapsed_time() / 1000000;
     if (!scanner->is_init()) {
         status = scanner->init();
         if (!status.ok()) {
@@ -348,6 +355,7 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
             eos = true;
         }
     }
+    LOG(INFO) << "yy debug scanner 2: " << print_id(ctx->state()->fragment_instance_id()) << ", time ms: " << watch.elapsed_time() / 1000000;
     if (!eos && !scanner->is_open()) {
         status = scanner->open(state);
         if (!status.ok()) {
@@ -356,6 +364,7 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
         }
         scanner->set_opened();
     }
+    LOG(INFO) << "yy debug scanner 3: " << print_id(ctx->state()->fragment_instance_id()) << ", time ms: " << watch.elapsed_time() / 1000000;
 
     static_cast<void>(scanner->try_append_late_arrival_runtime_filter());
 
@@ -379,6 +388,7 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
     bool should_stop = false;
     // Has to wait at least one full block, or it will cause a lot of schedule task in priority
     // queue, it will affect query latency and query concurrency for example ssb 3.3.
+    LOG(INFO) << "yy debug scanner 4: " << print_id(ctx->state()->fragment_instance_id()) << ", time ms: " << watch.elapsed_time() / 1000000;
     while (!eos && raw_bytes_read < raw_bytes_threshold &&
            (raw_rows_read < raw_rows_threshold || num_rows_in_block < state->batch_size())) {
         // TODO llj task group should should_yield?
@@ -386,13 +396,14 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
             // No need to set status on error here.
             // Because done() maybe caused by "should_stop"
             should_stop = true;
+            LOG(INFO) << "yy debug scanner 5: " << print_id(ctx->state()->fragment_instance_id()) << ", time ms: " << watch.elapsed_time() / 1000000;
             break;
         }
 
         BlockUPtr block = ctx->get_free_block();
 
         status = scanner->get_block(state, block.get(), &eos);
-        VLOG_ROW << "VScanNode input rows: " << block->rows() << ", eos: " << eos;
+        LOG(INFO) << "yy debug VScanNode input rows: " << block->rows() << ", eos: " << eos << ", id: " << print_id(ctx->state()->fragment_instance_id());
         // The VFileScanner for external table may try to open not exist files,
         // Because FE file cache for external table may out of date.
         // So, NOT_FOUND for VFileScanner is not a fail case.
@@ -428,6 +439,8 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
         raw_rows_read = scanner->get_rows_read();
     } // end for while
 
+    LOG(INFO) << "yy debug scanner 6: " << print_id(ctx->state()->fragment_instance_id()) << ", time ms: " << watch.elapsed_time() / 1000000
+        << ", raw_bytes_read: " << raw_bytes_read << ", raw_bytes_threshold: " << raw_bytes_threshold << ", raw_rows_read: " << raw_rows_read << ", raw_rows_threshold: " << raw_rows_threshold << ", num_rows_in_block: " << num_rows_in_block;
     // if we failed, check status.
     if (UNLIKELY(!status.ok())) {
         // _transfer_done = true;
@@ -441,11 +454,13 @@ void ScannerScheduler::_scanner_scan(ScannerScheduler* scheduler, ScannerContext
         ctx->append_blocks_to_queue(blocks);
     }
 
+    LOG(INFO) << "yy debug scanner 7: " << print_id(ctx->state()->fragment_instance_id()) << ", time ms: " << watch.elapsed_time() / 1000000;
     scanner->update_scan_cpu_timer();
     if (eos || should_stop) {
         scanner->mark_to_need_to_close();
     }
     ctx->push_back_scanner_and_reschedule(scanner);
+    LOG(INFO) << "yy debug end scanner: " << print_id(ctx->state()->fragment_instance_id()) << ", time ms: " << watch.elapsed_time() / 1000000;
 }
 
 void ScannerScheduler::_task_group_scanner_scan(ScannerScheduler* scheduler,
