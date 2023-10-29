@@ -145,6 +145,10 @@ VFileScanner::VFileScanner(RuntimeState* state, pipeline::FileScanLocalState* lo
     _is_load = (_input_tuple_desc != nullptr);
 }
 
+VFileScanner::~VFileScanner() {
+    close(false); 
+}
+
 Status VFileScanner::prepare(
         const VExprContextSPtrs& conjuncts,
         std::unordered_map<std::string, ColumnValueRangeType>* colname_to_value_range,
@@ -697,7 +701,7 @@ void VFileScanner::_truncate_char_or_varchar_column(Block* block, int idx, int l
 Status VFileScanner::_get_next_reader() {
     while (true) {
         if (_cur_reader) {
-            _cur_reader->close();
+            _cur_reader->close(true);
         }
         _cur_reader.reset(nullptr);
         _src_block_init = false;
@@ -1087,7 +1091,7 @@ Status VFileScanner::_init_expr_ctxes() {
     return Status::OK();
 }
 
-Status VFileScanner::close(RuntimeState* state) {
+Status VFileScanner::close(RuntimeState* state, bool explicitly) {
     if (_is_closed) {
         return Status::OK();
     }
@@ -1098,10 +1102,10 @@ Status VFileScanner::close(RuntimeState* state) {
     }
 
     if (_cur_reader) {
-        _cur_reader->close();
+        _cur_reader->close(explicitly);
     }
 
-    RETURN_IF_ERROR(VScanner::close(state));
+    RETURN_IF_ERROR(VScanner::close(state, explicitly));
     return Status::OK();
 }
 

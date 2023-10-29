@@ -71,9 +71,11 @@ public:
                  const TFileScanRange& scan_range, RuntimeProfile* profile,
                  ShardedKVCache* kv_cache);
 
+    virtual ~VFileScanner();
+
     Status open(RuntimeState* state) override;
 
-    Status close(RuntimeState* state) override;
+    Status close(RuntimeState* state, bool explicitly) override;
 
     Status prepare(const VExprContextSPtrs& conjuncts,
                    std::unordered_map<std::string, ColumnValueRangeType>* colname_to_value_range,

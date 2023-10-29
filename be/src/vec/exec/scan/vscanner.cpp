@@ -174,7 +174,7 @@ Status VScanner::try_append_late_arrival_runtime_filter() {
     return Status::OK();
 }
 
-Status VScanner::close(RuntimeState* state) {
+Status VScanner::close(RuntimeState* state, bool explicitly) {
     if (_is_closed) {
         return Status::OK();
     }

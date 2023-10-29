@@ -100,7 +100,7 @@ ParquetReader::ParquetReader(const TFileScanRangeParams& params, const TFileRang
 }
 
 ParquetReader::~ParquetReader() {
-    _close_internal();
+    _close_internal(false);
 }
 
 void ParquetReader::_init_profile() {
@@ -163,11 +163,11 @@ void ParquetReader::_init_profile() {
     }
 }
 
-void ParquetReader::close() {
-    _close_internal();
+void ParquetReader::close(bool explicitly) {
+    _close_internal(explicitly);
 }
 
-void ParquetReader::_close_internal() {
+void ParquetReader::_close_internal(explicitly) {
     if (!_closed) {
         if (_profile != nullptr) {
             COUNTER_UPDATE(_parquet_profile.filtered_row_groups, _statistics.filtered_row_groups);
@@ -205,6 +205,10 @@ void ParquetReader::_close_internal() {
                            _column_statistics.decode_level_time);
             COUNTER_UPDATE(_parquet_profile.decode_null_map_time,
                            _column_statistics.decode_null_map_time);
+        }
+
+        if (_current_group_reader != nullptr) {
+            _current_group_reader
         }
         _closed = true;
     }

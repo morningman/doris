@@ -68,7 +68,7 @@ public:
 
     Status get_block(RuntimeState* state, Block* block, bool* eos);
 
-    virtual Status close(RuntimeState* state);
+    virtual Status close(RuntimeState* state, bool explicitly);
 
     virtual std::string get_name() { return ""; }
 
