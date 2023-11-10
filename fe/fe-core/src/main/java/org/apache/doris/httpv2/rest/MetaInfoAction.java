@@ -18,9 +18,11 @@
 package org.apache.doris.httpv2.rest;
 
 import org.apache.doris.catalog.Database;
+import org.apache.doris.catalog.DatabaseIf;
 import org.apache.doris.catalog.Env;
 import org.apache.doris.catalog.OlapTable;
 import org.apache.doris.catalog.Table;
+import org.apache.doris.catalog.TableIf;
 import org.apache.doris.cluster.ClusterNamespace;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.DdlException;
@@ -105,7 +107,7 @@ public class MetaInfoAction extends RestBaseController {
         for (String fullName : dbNames) {
             final String db = ClusterNamespace.getNameFromFullName(fullName);
             if (!Env.getCurrentEnv().getAccessManager()
-                    .checkDbPriv(ConnectContext.get(), fullName, PrivPredicate.SHOW)) {
+                    .checkDbPriv(ConnectContext.get(), ns, fullName, PrivPredicate.SHOW)) {
                 continue;
             }
             dbNameSet.add(db);
@@ -138,26 +140,30 @@ public class MetaInfoAction extends RestBaseController {
         boolean checkAuth = Config.enable_all_http_auth ? true : false;
         checkWithCookie(request, response, checkAuth);
 
-        if (!ns.equalsIgnoreCase(SystemInfoService.DEFAULT_CLUSTER)) {
-            return ResponseEntityBuilder.badRequest("Only support 'default_cluster' now");
+        if (ns.equalsIgnoreCase(SystemInfoService.DEFAULT_CLUSTER)) {
+            ns = InternalCatalog.INTERNAL_CATALOG_NAME;
         }
 
+        CatalogIf catalog = Env.getCurrentEnv().getCatalogMgr().getCatalog(ns);
+        if (catalog == null) {
+            return ResponseEntityBuilder.okWithCommonError("catalog " + ns + " does not exist");
+        }
 
         String fullDbName = getFullDbName(dbName);
-        Database db;
+        DatabaseIf db;
         try {
-            db = Env.getCurrentInternalCatalog().getDbOrMetaException(fullDbName);
+            db = catalog.getDbOrMetaException(fullDbName);
         } catch (MetaNotFoundException e) {
             return ResponseEntityBuilder.okWithCommonError(e.getMessage());
         }
 
         List<String> tblNames = Lists.newArrayList();
-        for (Table tbl : db.getTables()) {
-            if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ConnectContext.get(), fullDbName, tbl.getName(),
-                    PrivPredicate.SHOW)) {
+        for (Object tbl : db.getTables()) {
+            if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ConnectContext.get(), ns, fullDbName,
+                    ((TableIf) tbl).getName(), PrivPredicate.SHOW)) {
                 continue;
             }
-            tblNames.add(tbl.getName());
+            tblNames.add(((TableIf) tbl).getName());
         }
 
         Collections.sort(tblNames);

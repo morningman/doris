@@ -26,6 +26,8 @@ import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.UserException;
+import org.apache.doris.common.util.Util;
+import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.mysql.privilege.PrivBitSet;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.mysql.privilege.Privilege;
@@ -62,14 +64,17 @@ public class ShowCreateDbStmt extends ShowStmt {
         }
         db = ClusterNamespace.getFullName(getClusterName(), db);
 
-        if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(), db,
-                PrivPredicate.of(PrivBitSet.of(Privilege.ADMIN_PRIV,
-                                Privilege.ALTER_PRIV,
-                                Privilege.CREATE_PRIV,
-                                Privilege.DROP_PRIV),
-                        Operator.OR))) {
+        Util.checkIsOnInternalCatalog(null);
+
+        if (!Env.getCurrentEnv().getAccessManager()
+                .checkDbPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, db,
+                        PrivPredicate.of(PrivBitSet.of(Privilege.ADMIN_PRIV,
+                                        Privilege.ALTER_PRIV,
+                                        Privilege.CREATE_PRIV,
+                                        Privilege.DROP_PRIV),
+                                Operator.OR))) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_DBACCESS_DENIED_ERROR,
-                                                ConnectContext.get().getQualifiedUser(), db);
+                    ConnectContext.get().getQualifiedUser(), db);
         }
     }
 

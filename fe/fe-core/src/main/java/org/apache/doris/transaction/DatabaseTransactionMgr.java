@@ -1681,8 +1681,9 @@ public class DatabaseTransactionMgr {
                 for (Long tblId : tblIds) {
                     Table tbl = db.getTableNullable(tblId);
                     if (tbl != null) {
-                        if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ConnectContext.get(), db.getFullName(),
-                                tbl.getName(), PrivPredicate.SHOW)) {
+                        if (!Env.getCurrentEnv().getAccessManager()
+                                .checkTblPriv(ConnectContext.get(), db.getCatalog().getName(), db.getFullName(),
+                                        tbl.getName(), PrivPredicate.SHOW)) {
                             ErrorReport.reportAnalysisException(ErrorCode.ERR_TABLEACCESS_DENIED_ERROR,
                                     "SHOW TRANSACTION",
                                     ConnectContext.get().getQualifiedUser(),

@@ -657,4 +657,28 @@ public class Util {
         p.printStackTrace(pw);
         return sw.toString();
     }
+
+    public static String getCatalogOrFromSession(String catalog) {
+        if (Strings.isNullOrEmpty(catalog)) {
+            if (ConnectContext.get() != null && ConnectContext.get().getCurrentCatalog() != null) {
+                return ConnectContext.get().getCurrentCatalog().getName();
+            } else {
+                return InternalCatalog.INTERNAL_CATALOG_NAME;
+            }
+        }
+        return catalog;
+    }
+
+    public static void checkIsOnInternalCatalog(String catalog) throws AnalysisException {
+        if (!Strings.isNullOrEmpty(catalog)) {
+            if (!catalog.equalsIgnoreCase(InternalCatalog.INTERNAL_CATALOG_NAME)) {
+                throw new AnalysisException("Operation only supported on internal catalog.");
+            }
+        } else if (ConnectContext.get() != null && ConnectContext.get().getCurrentCatalog() != null) {
+            if (!ConnectContext.get().getCurrentCatalog().getName()
+                    .equalsIgnoreCase(InternalCatalog.INTERNAL_CATALOG_NAME)) {
+                throw new AnalysisException("Operation only supported on internal catalog.");
+            }
+        }
+    }
 }

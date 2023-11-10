@@ -19,7 +19,6 @@ package org.apache.doris.analysis;
 
 import org.apache.doris.analysis.CompoundPredicate.Operator;
 import org.apache.doris.catalog.Env;
-import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.UserException;
@@ -61,19 +60,19 @@ public class RecoverTableStmt extends DdlStmt {
     }
 
     @Override
-    public void analyze(Analyzer analyzer) throws AnalysisException, UserException {
+    public void analyze(Analyzer analyzer) throws UserException {
         dbTblName.analyze(analyzer);
         // disallow external catalog
-        Util.prohibitExternalCatalog(dbTblName.getCtl(), this.getClass().getSimpleName());
+        Util.checkIsOnInternalCatalog(dbTblName.getCtl());
 
         if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(
-                ConnectContext.get(), dbTblName.getDb(), dbTblName.getTbl(), PrivPredicate.of(
+                ConnectContext.get(), dbTblName.getCtl(), dbTblName.getDb(), dbTblName.getTbl(), PrivPredicate.of(
                         PrivBitSet.of(Privilege.ALTER_PRIV, Privilege.CREATE_PRIV, Privilege.ADMIN_PRIV),
                         Operator.OR))) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_TABLEACCESS_DENIED_ERROR, "RECOVERY",
-                                                ConnectContext.get().getQualifiedUser(),
-                                                ConnectContext.get().getRemoteIP(),
-                                                dbTblName.getDb() + ": " + dbTblName.getTbl());
+                    ConnectContext.get().getQualifiedUser(),
+                    ConnectContext.get().getRemoteIP(),
+                    dbTblName.toSql());
         }
     }
 

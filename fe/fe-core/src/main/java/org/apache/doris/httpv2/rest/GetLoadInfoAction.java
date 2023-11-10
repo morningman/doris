@@ -20,6 +20,7 @@ package org.apache.doris.httpv2.rest;
 import org.apache.doris.catalog.Env;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.MetaNotFoundException;
+import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.httpv2.entity.RestBaseResult;
 import org.apache.doris.load.Load;
 import org.apache.doris.mysql.privilege.PrivPredicate;
@@ -81,7 +82,8 @@ public class GetLoadInfoAction extends RestBaseController {
         try {
             Env.getCurrentEnv().getLoadInstance().getJobInfo(info);
             if (info.tblNames.isEmpty()) {
-                checkDbAuth(ConnectContext.get().getCurrentUserIdentity(), info.dbName, PrivPredicate.LOAD);
+                checkDbAuth(ConnectContext.get().getCurrentUserIdentity(), InternalCatalog.INTERNAL_CATALOG_NAME,
+                        info.dbName, PrivPredicate.LOAD);
             } else {
                 for (String tblName : info.tblNames) {
                     checkTblAuth(ConnectContext.get().getCurrentUserIdentity(), info.dbName, tblName,

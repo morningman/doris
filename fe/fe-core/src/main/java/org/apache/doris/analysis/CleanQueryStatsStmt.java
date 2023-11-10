@@ -23,6 +23,8 @@ import org.apache.doris.cluster.ClusterNamespace;
 import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.UserException;
+import org.apache.doris.common.util.Util;
+import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.system.SystemInfoService;
@@ -78,6 +80,7 @@ public class CleanQueryStatsStmt extends DdlStmt {
     @Override
     public void analyze(Analyzer analyzer) throws UserException {
         super.analyze(analyzer);
+        Util.checkIsOnInternalCatalog(null);
         switch (scope) {
             case ALL:
                 if (!Env.getCurrentEnv().getAccessManager()
@@ -97,7 +100,8 @@ public class CleanQueryStatsStmt extends DdlStmt {
 
                 Env.getCurrentEnv().getCurrentCatalog().getDbOrAnalysisException(dbName);
                 if (!Env.getCurrentEnv().getAccessManager()
-                        .checkDbPriv(ConnectContext.get(), dbName, PrivPredicate.ALTER)) {
+                        .checkDbPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, dbName,
+                                PrivPredicate.ALTER)) {
                     ErrorReport.reportAnalysisException(ErrorCode.ERR_SPECIFIC_ACCESS_DENIED_ERROR,
                             "CLEAN DATABASE QUERY STATS FOR " + ClusterNamespace.getNameFromFullName(dbName));
                 }
@@ -111,7 +115,8 @@ public class CleanQueryStatsStmt extends DdlStmt {
                 DatabaseIf db = Env.getCurrentEnv().getCurrentCatalog().getDbOrAnalysisException(dbName);
                 db.getTableOrAnalysisException(tableName.getTbl());
                 if (!Env.getCurrentEnv().getAccessManager()
-                        .checkTblPriv(ConnectContext.get(), dbName, tableName.getTbl(), PrivPredicate.ALTER)) {
+                        .checkTblPriv(ConnectContext.get(), dbName, tableName.getCtl(), tableName.getTbl(),
+                                PrivPredicate.ALTER)) {
                     ErrorReport.reportAnalysisException(ErrorCode.ERR_SPECIFIC_ACCESS_DENIED_ERROR,
                             "CLEAN TABLE QUERY STATS FROM " + tableName);
                 }

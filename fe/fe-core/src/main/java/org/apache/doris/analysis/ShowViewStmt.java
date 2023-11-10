@@ -89,11 +89,11 @@ public class ShowViewStmt extends ShowStmt {
         }
         tbl.analyze(analyzer);
         // disallow external catalog
-        Util.prohibitExternalCatalog(tbl.getCtl(), this.getClass().getSimpleName());
+        Util.checkIsOnInternalCatalog(tbl.getCtl());
 
         String dbName = tbl.getDb();
         if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(
-                ConnectContext.get(), dbName, getTbl(), PrivPredicate.SHOW)) {
+                ConnectContext.get(), tbl.getCtl(), dbName, getTbl(), PrivPredicate.SHOW)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_TABLEACCESS_DENIED_ERROR, "SHOW VIEW",
                     ConnectContext.get().getQualifiedUser(),
                     ConnectContext.get().getRemoteIP(),

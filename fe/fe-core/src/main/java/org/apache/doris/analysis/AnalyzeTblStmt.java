@@ -146,7 +146,7 @@ public class AnalyzeTblStmt extends AnalyzeStmt {
         if (table instanceof View) {
             throw new AnalysisException("Analyze view is not allowed");
         }
-        checkAnalyzePriv(tableName.getDb(), tableName.getTbl());
+        checkAnalyzePriv();
         if (columnNames == null) {
             // Filter unsupported type columns.
             columnNames = table.getBaseSchema(false).stream()
@@ -281,20 +281,20 @@ public class AnalyzeTblStmt extends AnalyzeStmt {
         return table instanceof HMSExternalTable && table.getPartitionNames().size() > partNum;
     }
 
-    private void checkAnalyzePriv(String dbName, String tblName) throws AnalysisException {
+    private void checkAnalyzePriv() throws AnalysisException {
         ConnectContext ctx = ConnectContext.get();
         // means it a system analyze
         if (ctx == null) {
             return;
         }
         if (!Env.getCurrentEnv().getAccessManager()
-                .checkTblPriv(ctx, dbName, tblName, PrivPredicate.SELECT)) {
+                .checkTblPriv(ctx, tableName.getCtl(), tableName.getDb(), tableName.getTbl(), PrivPredicate.SELECT)) {
             ErrorReport.reportAnalysisException(
                     ErrorCode.ERR_TABLEACCESS_DENIED_ERROR,
                     "ANALYZE",
                     ConnectContext.get().getQualifiedUser(),
                     ConnectContext.get().getRemoteIP(),
-                    dbName + ": " + tblName);
+                    tableName.toSql());
         }
     }
 

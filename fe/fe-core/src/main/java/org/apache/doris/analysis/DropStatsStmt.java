@@ -101,7 +101,7 @@ public class DropStatsStmt extends DdlStmt {
         TableIf table = db.getTableOrAnalysisException(tblName);
         tblId = table.getId();
         // check permission
-        checkAnalyzePriv(db.getFullName(), table.getName());
+        checkAnalyzePriv(catalogName, db.getFullName(), table.getName());
         // check columnNames
         if (columnNames != null) {
             for (String cName : columnNames) {
@@ -154,15 +154,15 @@ public class DropStatsStmt extends DdlStmt {
         return toSql();
     }
 
-    private void checkAnalyzePriv(String dbName, String tblName) throws AnalysisException {
+    private void checkAnalyzePriv(String catalogName, String dbName, String tblName) throws AnalysisException {
         if (!Env.getCurrentEnv().getAccessManager()
-                .checkTblPriv(ConnectContext.get(), dbName, tblName, PrivPredicate.DROP)) {
+                .checkTblPriv(ConnectContext.get(), catalogName, dbName, tblName, PrivPredicate.DROP)) {
             ErrorReport.reportAnalysisException(
                     ErrorCode.ERR_TABLEACCESS_DENIED_ERROR,
                     "DROP",
                     ConnectContext.get().getQualifiedUser(),
                     ConnectContext.get().getRemoteIP(),
-                    dbName + "." + tblName);
+                    catalogName + "." + dbName + "." + tblName);
         }
     }
 }

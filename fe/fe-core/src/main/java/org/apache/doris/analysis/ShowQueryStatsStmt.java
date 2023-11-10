@@ -138,7 +138,7 @@ public class ShowQueryStatsStmt extends ShowStmt {
             Map<String, Long> stats = QueryStatsUtil.getMergedDatabaseStats(catalog, dbName);
             stats.forEach((tableName, queryHit) -> {
                 if (Env.getCurrentEnv().getAccessManager()
-                        .checkTblPriv(ConnectContext.get(), dbName, tableName, PrivPredicate.SHOW)) {
+                        .checkTblPriv(ConnectContext.get(), catalog, dbName, tableName, PrivPredicate.SHOW)) {
                     totalRows.add(Arrays.asList(tableName, String.valueOf(queryHit)));
                 }
             });

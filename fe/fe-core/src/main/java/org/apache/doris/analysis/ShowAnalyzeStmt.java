@@ -115,9 +115,7 @@ public class ShowAnalyzeStmt extends ShowStmt {
         super.analyze(analyzer);
         if (dbTableName != null) {
             dbTableName.analyze(analyzer);
-            String dbName = dbTableName.getDb();
-            String tblName = dbTableName.getTbl();
-            checkShowAnalyzePriv(dbName, tblName);
+            checkShowAnalyzePriv();
         }
 
         // analyze where clause if not null
@@ -140,15 +138,16 @@ public class ShowAnalyzeStmt extends ShowStmt {
         return RedirectStatus.FORWARD_NO_SYNC;
     }
 
-    private void checkShowAnalyzePriv(String dbName, String tblName) throws AnalysisException {
+    private void checkShowAnalyzePriv() throws AnalysisException {
         if (!Env.getCurrentEnv().getAccessManager()
-                .checkTblPriv(ConnectContext.get(), dbName, tblName, PrivPredicate.SHOW)) {
+                .checkTblPriv(ConnectContext.get(), dbTableName.getCtl(), dbTableName.getDb(), dbTableName.getTbl(),
+                        PrivPredicate.SHOW)) {
             ErrorReport.reportAnalysisException(
                     ErrorCode.ERR_TABLEACCESS_DENIED_ERROR,
                     "SHOW ANALYZE",
                     ConnectContext.get().getQualifiedUser(),
                     ConnectContext.get().getRemoteIP(),
-                    dbName + ": " + tblName);
+                    dbTableName.toSql());
         }
     }
 

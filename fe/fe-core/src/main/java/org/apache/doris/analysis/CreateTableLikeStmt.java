@@ -92,19 +92,18 @@ public class CreateTableLikeStmt extends DdlStmt {
     public void analyze(Analyzer analyzer) throws UserException {
         super.analyze(analyzer);
         existedTableName.analyze(analyzer);
-        // disallow external catalog
-        Util.prohibitExternalCatalog(existedTableName.getCtl(), this.getClass().getSimpleName());
         ConnectContext ctx = ConnectContext.get();
-        if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ctx, existedTableName.getDb(),
-                existedTableName.getTbl(), PrivPredicate.SELECT)) {
+        if (!Env.getCurrentEnv().getAccessManager()
+                .checkTblPriv(ctx, existedTableName.getCtl(), existedTableName.getDb(),
+                        existedTableName.getTbl(), PrivPredicate.SELECT)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_SPECIFIC_ACCESS_DENIED_ERROR, "SELECT");
         }
 
         tableName.analyze(analyzer);
         // disallow external catalog
-        Util.prohibitExternalCatalog(tableName.getCtl(), this.getClass().getSimpleName());
+        Util.checkIsOnInternalCatalog(tableName.getCtl());
         FeNameFormat.checkTableName(getTableName());
-        if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ctx, tableName.getDb(),
+        if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ctx, tableName.getCtl(), tableName.getDb(),
                 tableName.getTbl(), PrivPredicate.CREATE)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_SPECIFIC_ACCESS_DENIED_ERROR, "CREATE");
         }

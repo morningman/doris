@@ -60,11 +60,12 @@ public class CreateViewStmt extends BaseViewStmt {
         FeNameFormat.checkTableName(tableName.getTbl());
         viewDefStmt.setNeedToSql(true);
         // disallow external catalog
-        Util.prohibitExternalCatalog(tableName.getCtl(), this.getClass().getSimpleName());
+        Util.checkIsOnInternalCatalog(tableName.getCtl());
 
         // check privilege
-        if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ConnectContext.get(), tableName.getDb(),
-                tableName.getTbl(), PrivPredicate.CREATE)) {
+        if (!Env.getCurrentEnv().getAccessManager()
+                .checkTblPriv(ConnectContext.get(), tableName.getCtl(), tableName.getDb(),
+                        tableName.getTbl(), PrivPredicate.CREATE)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_SPECIFIC_ACCESS_DENIED_ERROR, "CREATE");
         }
 

@@ -199,9 +199,9 @@ public class BaseController {
         }
     }
 
-    protected void checkDbAuth(UserIdentity currentUser, String db, PrivPredicate predicate)
+    protected void checkDbAuth(UserIdentity currentUser, String catalog, String db, PrivPredicate predicate)
             throws UnauthorizedException {
-        if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(currentUser, db, predicate)) {
+        if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(currentUser, catalog, db, predicate)) {
             throw new UnauthorizedException("Access denied; you need (at least one of) the "
                     + predicate.getPrivs().toString() + " privilege(s) for this operation");
         }

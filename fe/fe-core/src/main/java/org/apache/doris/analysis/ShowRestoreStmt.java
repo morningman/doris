@@ -28,6 +28,8 @@ import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.PatternMatcher;
 import org.apache.doris.common.PatternMatcherWrapper;
 import org.apache.doris.common.UserException;
+import org.apache.doris.common.util.Util;
+import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.ShowResultSetMetaData;
@@ -91,8 +93,11 @@ public class ShowRestoreStmt extends ShowStmt {
             dbName = ClusterNamespace.getFullName(getClusterName(), dbName);
         }
 
+        Util.checkIsOnInternalCatalog(null);
+
         // check auth
-        if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(), dbName, PrivPredicate.LOAD)) {
+        if (!Env.getCurrentEnv().getAccessManager()
+                .checkDbPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, dbName, PrivPredicate.LOAD)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_DBACCESS_DENIED_ERROR,
                     ConnectContext.get().getQualifiedUser(), dbName);
         }

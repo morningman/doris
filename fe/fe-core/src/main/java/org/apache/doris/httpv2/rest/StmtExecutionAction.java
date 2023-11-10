@@ -94,12 +94,13 @@ public class StmtExecutionAction extends RestBaseController {
 
         ActionAuthorizationInfo authInfo = checkWithCookie(request, response, false);
         String fullDbName = getFullDbName(dbName);
-        if (Config.enable_all_http_auth) {
-            checkDbAuth(ConnectContext.get().getCurrentUserIdentity(), fullDbName, PrivPredicate.ADMIN);
-        }
 
         if (ns.equalsIgnoreCase(SystemInfoService.DEFAULT_CLUSTER)) {
             ns = InternalCatalog.INTERNAL_CATALOG_NAME;
+        }
+
+        if (Config.enable_all_http_auth) {
+            checkDbAuth(ConnectContext.get().getCurrentUserIdentity(), ns, fullDbName, PrivPredicate.ADMIN);
         }
 
         Type type = new TypeToken<StmtRequestBody>() {

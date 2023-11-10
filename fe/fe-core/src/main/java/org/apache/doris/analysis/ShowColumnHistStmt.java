@@ -27,7 +27,6 @@ import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.Pair;
 import org.apache.doris.common.UserException;
-import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.CatalogIf;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.qe.ConnectContext;
@@ -76,8 +75,6 @@ public class ShowColumnHistStmt extends ShowStmt {
         super.analyze(analyzer);
         tableName.analyze(analyzer);
 
-        // disallow external catalog
-        Util.prohibitExternalCatalog(tableName.getCtl(), this.getClass().getSimpleName());
         CatalogIf<DatabaseIf> catalog = Env.getCurrentEnv().getCatalogMgr().getCatalog(tableName.getCtl());
         if (catalog == null) {
             ErrorReport.reportAnalysisException("Catalog: {} not exists", tableName.getCtl());
@@ -92,10 +89,11 @@ public class ShowColumnHistStmt extends ShowStmt {
         }
 
         if (!Env.getCurrentEnv().getAccessManager()
-                .checkTblPriv(ConnectContext.get(), tableName.getDb(), tableName.getTbl(), PrivPredicate.SHOW)) {
+                .checkTblPriv(ConnectContext.get(), tableName.getCtl(), tableName.getDb(), tableName.getTbl(),
+                        PrivPredicate.SHOW)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_TABLEACCESS_DENIED_ERROR, "Permission denied",
                     ConnectContext.get().getQualifiedUser(), ConnectContext.get().getRemoteIP(),
-                    tableName.getDb() + ": " + tableName.getTbl());
+                    tableName.toSql());
         }
 
         if (columnNames != null) {

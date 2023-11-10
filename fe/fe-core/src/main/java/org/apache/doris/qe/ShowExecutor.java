@@ -179,6 +179,7 @@ import org.apache.doris.common.util.TimeUtils;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.CatalogIf;
 import org.apache.doris.datasource.HMSExternalCatalog;
+import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.external.iceberg.IcebergTableCreationRecord;
 import org.apache.doris.load.DeleteHandler;
 import org.apache.doris.load.ExportJobState;
@@ -1318,14 +1319,16 @@ public class ShowExecutor {
         if (tableNames.isEmpty()) {
             // forward compatibility
             if (!Env.getCurrentEnv().getAccessManager()
-                    .checkDbPriv(ConnectContext.get(), db.getFullName(), PrivPredicate.SHOW)) {
+                    .checkDbPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, db.getFullName(),
+                            PrivPredicate.SHOW)) {
                 ErrorReport.reportAnalysisException(ErrorCode.ERR_DBACCESS_DENIED_ERROR,
                         ConnectContext.get().getQualifiedUser(), db.getFullName());
             }
         } else {
             for (String tblName : tableNames) {
                 if (!Env.getCurrentEnv().getAccessManager()
-                        .checkTblPriv(ConnectContext.get(), db.getFullName(), tblName, PrivPredicate.SHOW)) {
+                        .checkTblPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, db.getFullName(),
+                                tblName, PrivPredicate.SHOW)) {
                     ErrorReport.reportAnalysisException(ErrorCode.ERR_TABLEACCESS_DENIED_ERROR, "SHOW LOAD WARNING",
                             ConnectContext.get().getQualifiedUser(), ConnectContext.get().getRemoteIP(),
                             db.getFullName() + ": " + tblName);
@@ -1463,7 +1466,8 @@ public class ShowExecutor {
         // check auth
         for (Job job : jobList) {
             if (!Env.getCurrentEnv().getAccessManager()
-                    .checkDbPriv(ConnectContext.get(), job.getDbName(), PrivPredicate.SHOW)) {
+                    .checkDbPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, job.getDbName(),
+                            PrivPredicate.SHOW)) {
                 ErrorReport.reportAnalysisException(ErrorCode.ERR_DBACCESS_DENIED_ERROR,
                         ConnectContext.get().getQualifiedUser(), job.getDbName());
             }
@@ -1508,7 +1512,8 @@ public class ShowExecutor {
                 }
                 if (routineLoadJob.isMultiTable()) {
                     if (!Env.getCurrentEnv().getAccessManager()
-                            .checkDbPriv(ConnectContext.get(), dbFullName, PrivPredicate.LOAD)) {
+                            .checkDbPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, dbFullName,
+                                    PrivPredicate.LOAD)) {
                         LOG.warn(new LogBuilder(LogKey.ROUTINE_LOAD_JOB, routineLoadJob.getId()).add("operator",
                                         "show routine load job").add("user", ConnectContext.get().getQualifiedUser())
                                 .add("remote_ip", ConnectContext.get().getRemoteIP()).add("db_full_name", dbFullName)
@@ -1519,7 +1524,8 @@ public class ShowExecutor {
                     continue;
                 }
                 if (!Env.getCurrentEnv().getAccessManager()
-                        .checkTblPriv(ConnectContext.get(), dbFullName, tableName, PrivPredicate.LOAD)) {
+                        .checkTblPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, dbFullName,
+                                tableName, PrivPredicate.LOAD)) {
                     LOG.warn(new LogBuilder(LogKey.ROUTINE_LOAD_JOB, routineLoadJob.getId()).add("operator",
                                     "show routine load job").add("user", ConnectContext.get().getQualifiedUser())
                             .add("remote_ip", ConnectContext.get().getRemoteIP()).add("db_full_name", dbFullName)
@@ -1568,7 +1574,8 @@ public class ShowExecutor {
         }
         if (routineLoadJob.isMultiTable()) {
             if (!Env.getCurrentEnv().getAccessManager()
-                    .checkDbPriv(ConnectContext.get(), dbFullName, PrivPredicate.LOAD)) {
+                    .checkDbPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, dbFullName,
+                            PrivPredicate.LOAD)) {
                 ErrorReport.reportAnalysisException(ErrorCode.ERR_DBACCESS_DENIED_ERROR, "LOAD",
                         ConnectContext.get().getQualifiedUser(), ConnectContext.get().getRemoteIP(),
                         dbFullName);
@@ -1578,7 +1585,8 @@ public class ShowExecutor {
             return;
         }
         if (!Env.getCurrentEnv().getAccessManager()
-                .checkTblPriv(ConnectContext.get(), dbFullName, tableName, PrivPredicate.LOAD)) {
+                .checkTblPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, dbFullName, tableName,
+                        PrivPredicate.LOAD)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_TABLEACCESS_DENIED_ERROR, "LOAD",
                     ConnectContext.get().getQualifiedUser(), ConnectContext.get().getRemoteIP(),
                     dbFullName + ": " + tableName);
@@ -2150,7 +2158,8 @@ public class ShowExecutor {
 
                     // check tbl privs
                     if (!Env.getCurrentEnv().getAccessManager()
-                            .checkTblPriv(ConnectContext.get(), db.getFullName(), olapTable.getName(),
+                            .checkTblPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, db.getFullName(),
+                                    olapTable.getName(),
                                     PrivPredicate.SHOW)) {
                         continue;
                     }
@@ -2380,7 +2389,8 @@ public class ShowExecutor {
                             .build(), e);
                 }
                 if (!Env.getCurrentEnv().getAccessManager()
-                        .checkTblPriv(ConnectContext.get(), dbName, tableName, PrivPredicate.LOAD)) {
+                        .checkTblPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, dbName, tableName,
+                                PrivPredicate.LOAD)) {
                     resultSet = new ShowResultSet(showCreateRoutineLoadStmt.getMetaData(), rows);
                     continue;
                 }

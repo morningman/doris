@@ -25,6 +25,7 @@ import org.apache.doris.analysis.InsertStmt;
 import org.apache.doris.analysis.LoadStmt;
 import org.apache.doris.analysis.UserIdentity;
 import org.apache.doris.catalog.Database;
+import org.apache.doris.catalog.DatabaseIf;
 import org.apache.doris.catalog.Env;
 import org.apache.doris.cluster.ClusterNamespace;
 import org.apache.doris.common.AnalysisException;
@@ -369,8 +370,12 @@ public class LoadManager implements Writable {
         try {
             Map<String, List<LoadJob>> labelToLoadJobs = new HashMap<>();
             for (Long dbId : dbIdToLabelToLoadJobs.keySet()) {
+                DatabaseIf db = Env.getCurrentEnv().getCatalogMgr().getDbNullable(dbId);
+                if (db == null) {
+                    continue;
+                }
                 if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(),
-                        Env.getCurrentEnv().getCatalogMgr().getDbNullable(dbId).getFullName(),
+                        db.getCatalog().getName(), db.getFullName(),
                         PrivPredicate.LOAD)) {
                     continue;
                 }
@@ -585,8 +590,12 @@ public class LoadManager implements Writable {
         try {
             Map<String, List<LoadJob>> labelToLoadJobs = new HashMap<>();
             for (Long dbId : dbIdToLabelToLoadJobs.keySet()) {
+                DatabaseIf db = Env.getCurrentEnv().getCatalogMgr().getDbNullable(dbId);
+                if (db == null) {
+                    continue;
+                }
                 if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(),
-                        Env.getCurrentEnv().getCatalogMgr().getDbNullable(dbId).getFullName(),
+                        db.getCatalog().getName(), db.getFullName(),
                         PrivPredicate.LOAD)) {
                     continue;
                 }

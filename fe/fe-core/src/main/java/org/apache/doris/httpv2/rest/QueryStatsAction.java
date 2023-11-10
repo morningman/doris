@@ -84,13 +84,14 @@ public class QueryStatsAction extends RestBaseController {
             return ResponseEntityBuilder.badRequest("pretty and summary can not be true at the same time");
         }
         executeCheckPassword(request, response);
-        checkDbAuth(ConnectContext.get().getCurrentUserIdentity(), database, PrivPredicate.SHOW);
         // use NS_KEY as catalog, but NS_KEY's default value is 'default_cluster'.
-        String clasterName = catalog;
         if (catalog.equalsIgnoreCase(SystemInfoService.DEFAULT_CLUSTER)) {
             catalog = InternalCatalog.INTERNAL_CATALOG_NAME;
         }
-        database = ClusterNamespace.getFullName(clasterName, database);
+        database = ClusterNamespace.getFullName(SystemInfoService.DEFAULT_CLUSTER, database);
+
+        checkDbAuth(ConnectContext.get().getCurrentUserIdentity(), catalog, database, PrivPredicate.SHOW);
+
         try {
             Map<String, Map> result = Env.getCurrentEnv().getQueryStats().getStats(catalog, database, summary);
             if (pretty) {

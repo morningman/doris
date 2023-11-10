@@ -140,14 +140,6 @@ public class AccessControllerManager {
     }
 
     // ==== Database ====
-    public boolean checkDbPriv(ConnectContext ctx, String qualifiedDb, PrivPredicate wanted) {
-        return checkDbPriv(ctx.getCurrentUserIdentity(), qualifiedDb, wanted);
-    }
-
-    public boolean checkDbPriv(UserIdentity currentUser, String db, PrivPredicate wanted) {
-        return checkDbPriv(currentUser, Auth.DEFAULT_CATALOG, db, wanted);
-    }
-
     public boolean checkDbPriv(ConnectContext ctx, String ctl, String db, PrivPredicate wanted) {
         return checkDbPriv(ctx.getCurrentUserIdentity(), ctl, db, wanted);
     }
@@ -159,10 +151,6 @@ public class AccessControllerManager {
     }
 
     // ==== Table ====
-    public boolean checkTblPriv(ConnectContext ctx, String qualifiedDb, String tbl, PrivPredicate wanted) {
-        return checkTblPriv(ctx, Auth.DEFAULT_CATALOG, qualifiedDb, tbl, wanted);
-    }
-
     public boolean checkTblPriv(ConnectContext ctx, TableName tableName, PrivPredicate wanted) {
         Preconditions.checkState(tableName.isFullyQualified());
         return checkTblPriv(ctx, tableName.getCtl(), tableName.getDb(), tableName.getTbl(), wanted);
@@ -240,10 +228,11 @@ public class AccessControllerManager {
             return false;
         }
         if (authInfo.getTableNameList() == null || authInfo.getTableNameList().isEmpty()) {
-            return checkDbPriv(ctx, authInfo.getDbName(), wanted);
+            return checkDbPriv(ctx, InternalCatalog.INTERNAL_CATALOG_NAME, authInfo.getDbName(), wanted);
         }
         for (String tblName : authInfo.getTableNameList()) {
-            if (!checkTblPriv(ConnectContext.get(), authInfo.getDbName(), tblName, wanted)) {
+            if (!checkTblPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME, authInfo.getDbName(),
+                    tblName, wanted)) {
                 return false;
             }
         }

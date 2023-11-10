@@ -71,6 +71,7 @@ import org.apache.doris.common.PatternMatcherWrapper;
 import org.apache.doris.common.UserException;
 import org.apache.doris.common.util.ListComparator;
 import org.apache.doris.common.util.TimeUtils;
+import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.load.LoadJob.JobState;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.persist.ReplicaPersistInfo;
@@ -1235,31 +1236,6 @@ public class Load {
         }
     }
 
-    public long getLoadJobNum(JobState jobState) {
-        readLock();
-        try {
-            List<LoadJob> loadJobs = new ArrayList<>();
-            for (Long dbId : dbToLoadJobs.keySet()) {
-                if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(),
-                        Env.getCurrentEnv().getCatalogMgr().getDbNullable(dbId).getFullName(),
-                        PrivPredicate.LOAD)) {
-                    continue;
-                }
-                loadJobs.addAll(this.dbToLoadJobs.get(dbId));
-            }
-
-            int jobNum = 0;
-            for (LoadJob job : loadJobs) {
-                if (job.getState() == jobState) {
-                    ++jobNum;
-                }
-            }
-            return jobNum;
-        } finally {
-            readUnlock();
-        }
-    }
-
     public LoadJob getLoadJob(long jobId) {
         readLock();
         try {
@@ -1267,55 +1243,6 @@ public class Load {
         } finally {
             readUnlock();
         }
-    }
-
-    public LinkedList<List<Comparable>> getAllLoadJobInfos() {
-        LinkedList<List<Comparable>> loadJobInfos = new LinkedList<List<Comparable>>();
-        readLock();
-        try {
-            List<LoadJob> loadJobs = new ArrayList<>();
-            for (Long dbId : dbToLoadJobs.keySet()) {
-                if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(),
-                        Env.getCurrentEnv().getCatalogMgr().getDbNullable(dbId).getFullName(),
-                        PrivPredicate.LOAD)) {
-                    continue;
-                }
-
-                loadJobs.addAll(this.dbToLoadJobs.get(dbId));
-            }
-            if (loadJobs.size() == 0) {
-                return loadJobInfos;
-            }
-
-            long start = System.currentTimeMillis();
-            LOG.debug("begin to get load job info, size: {}", loadJobs.size());
-
-            for (LoadJob loadJob : loadJobs) {
-                // filter first
-                String dbName = Env.getCurrentEnv().getCatalogMgr().getDbNullable(loadJob.getDbId()).getFullName();
-                // check auth
-                Set<String> tableNames = loadJob.getTableNames();
-                boolean auth = true;
-                for (String tblName : tableNames) {
-                    if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ConnectContext.get(), dbName,
-                            tblName, PrivPredicate.LOAD)) {
-                        auth = false;
-                        break;
-                    }
-                }
-                if (!auth) {
-                    continue;
-                }
-
-                loadJobInfos.add(composeJobInfoByLoadJob(loadJob));
-            } // end for loadJobs
-
-            LOG.debug("finished to get load job info, cost: {}", (System.currentTimeMillis() - start));
-        } finally {
-            readUnlock();
-        }
-
-        return loadJobInfos;
     }
 
     private List<Comparable> composeJobInfoByLoadJob(LoadJob loadJob) {
@@ -1459,14 +1386,16 @@ public class Load {
                 Set<String> tableNames = loadJob.getTableNames();
                 if (tableNames.isEmpty()) {
                     // forward compatibility
-                    if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(), dbName,
+                    if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(),
+                            InternalCatalog.INTERNAL_CATALOG_NAME, dbName,
                             PrivPredicate.LOAD)) {
                         continue;
                     }
                 } else {
                     boolean auth = true;
                     for (String tblName : tableNames) {
-                        if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ConnectContext.get(), dbName,
+                        if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ConnectContext.get(),
+                                InternalCatalog.INTERNAL_CATALOG_NAME, dbName,
                                 tblName, PrivPredicate.LOAD)) {
                             auth = false;
                             break;

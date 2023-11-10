@@ -91,17 +91,20 @@ public class DropMaterializedViewStmt extends DdlStmt {
             }
             tableName.analyze(analyzer);
             // disallow external catalog
-            Util.prohibitExternalCatalog(tableName.getCtl(), this.getClass().getSimpleName());
+            Util.checkIsOnInternalCatalog(tableName.getCtl());
 
             // check access
-            if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ConnectContext.get(), tableName.getDb(),
-                    tableName.getTbl(), PrivPredicate.DROP)) {
+            if (!Env.getCurrentEnv().getAccessManager()
+                    .checkTblPriv(ConnectContext.get(), tableName.getCtl(), tableName.getDb(),
+                            tableName.getTbl(), PrivPredicate.DROP)) {
                 ErrorReport.reportAnalysisException(ErrorCode.ERR_SPECIFIC_ACCESS_DENIED_ERROR, "DROP");
             }
         } else {
             mtmvName.analyze(analyzer);
-            if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ConnectContext.get(), mtmvName.getDb(),
-                    mtmvName.getTbl(), PrivPredicate.DROP)) {
+            Util.checkIsOnInternalCatalog(mtmvName.getCtl());
+            if (!Env.getCurrentEnv().getAccessManager()
+                    .checkTblPriv(ConnectContext.get(), mtmvName.getCtl(), mtmvName.getDb(),
+                            mtmvName.getTbl(), PrivPredicate.DROP)) {
                 ErrorReport.reportAnalysisException(ErrorCode.ERR_SPECIFIC_ACCESS_DENIED_ERROR, "DROP");
             }
         }

@@ -24,6 +24,7 @@ import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.UserException;
+import org.apache.doris.common.util.Util;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.qe.ConnectContext;
 
@@ -68,9 +69,7 @@ public class RefreshDbStmt extends DdlStmt {
     @Override
     public void analyze(Analyzer analyzer) throws AnalysisException, UserException {
         super.analyze(analyzer);
-        if (Strings.isNullOrEmpty(catalogName)) {
-            catalogName = ConnectContext.get().getCurrentCatalog().getName();
-        }
+        catalogName = Util.getCatalogOrFromSession(catalogName);
         if (Strings.isNullOrEmpty(dbName)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_WRONG_DB_NAME, dbName);
         }
@@ -85,11 +84,13 @@ public class RefreshDbStmt extends DdlStmt {
                     ErrorCode.ERR_DBACCESS_DENIED_ERROR, analyzer.getQualifiedUser(), dbName);
         }
         // check access
-        if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(), dbName, PrivPredicate.DROP)) {
+        if (!Env.getCurrentEnv().getAccessManager()
+                .checkDbPriv(ConnectContext.get(), catalogName, dbName, PrivPredicate.DROP)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_DBACCESS_DENIED_ERROR,
                     ConnectContext.get().getQualifiedUser(), dbName);
         }
-        if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(), dbName, PrivPredicate.CREATE)) {
+        if (!Env.getCurrentEnv().getAccessManager()
+                .checkDbPriv(ConnectContext.get(), catalogName, dbName, PrivPredicate.CREATE)) {
             ErrorReport.reportAnalysisException(
                     ErrorCode.ERR_DBACCESS_DENIED_ERROR, analyzer.getQualifiedUser(), dbName);
         }

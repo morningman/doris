@@ -21,6 +21,7 @@ import org.apache.doris.catalog.Env;
 import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.UserException;
+import org.apache.doris.common.util.Util;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.qe.ConnectContext;
 
@@ -74,8 +75,11 @@ public class InsertOverwriteTableStmt extends DdlStmt {
 
     @Override
     public void analyze(Analyzer analyzer) throws UserException {
+        target.getTblName().analyze(analyzer);
+        Util.checkIsOnInternalCatalog(target.getTblName().getCtl());
         if (!Env.getCurrentEnv().getAccessManager()
-                .checkTblPriv(ConnectContext.get(), getDb(), getTbl(), PrivPredicate.LOAD)) {
+                .checkTblPriv(ConnectContext.get(), target.getTblName().getCtl(), getDb(), getTbl(),
+                        PrivPredicate.LOAD)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_TABLEACCESS_DENIED_ERROR, "LOAD",
                     ConnectContext.get().getQualifiedUser(), ConnectContext.get().getRemoteIP(),
                     getDb() + ": " + getTbl());

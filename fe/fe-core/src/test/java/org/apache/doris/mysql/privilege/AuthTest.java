@@ -394,7 +394,8 @@ public class AuthTest {
         Assert.assertEquals(1, currentUser2.size());
         // check auth before grant
         Assert.assertFalse(
-                accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db1",
+                accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":db1",
                         PrivPredicate.CREATE));
 
         try {
@@ -405,12 +406,14 @@ public class AuthTest {
         }
 
         // 9.1 check auth
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db1",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db1",
                 PrivPredicate.CREATE));
         UserIdentity zhangsan1 = UserIdentity
                 .createAnalyzedUserIdentWithIp(SystemInfoService.DEFAULT_CLUSTER + ":zhangsan",
                         "172.1.1.1");
-        Assert.assertFalse(accessManager.checkDbPriv(zhangsan1, SystemInfoService.DEFAULT_CLUSTER + ":db1",
+        Assert.assertFalse(accessManager.checkDbPriv(zhangsan1, InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db1",
                 PrivPredicate.CREATE));
 
         // 10. grant auth for non exist user
@@ -482,7 +485,8 @@ public class AuthTest {
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
 
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db1",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db1",
                 PrivPredicate.SELECT));
         Assert.assertFalse(accessManager.checkGlobalPriv(currentUser2.get(0), PrivPredicate.SELECT));
         Assert.assertTrue(
@@ -514,7 +518,8 @@ public class AuthTest {
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
         Assert.assertFalse(
-                accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db2",
+                accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":db2",
                         PrivPredicate.SELECT));
         Assert.assertFalse(accessManager.checkGlobalPriv(currentUser2.get(0), PrivPredicate.SELECT));
         Assert.assertTrue(
@@ -577,7 +582,8 @@ public class AuthTest {
         auth.checkPlainPasswordForTest(SystemInfoService.DEFAULT_CLUSTER + ":zhangsan", "10.1.1.1", "12345",
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db3",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db3",
                 PrivPredicate.ALTER));
         // 15. grant new auth to exist priv entry (exist ALTER/DROP, add SELECT)
         tablePattern = new TablePattern("db3", "*");
@@ -602,20 +608,23 @@ public class AuthTest {
         auth.checkPlainPasswordForTest(SystemInfoService.DEFAULT_CLUSTER + ":zhangsan", "10.1.1.1", "12345",
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db3",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db3",
                 PrivPredicate.SELECT));
 
         currentUser2.clear();
         auth.checkPlainPasswordForTest(SystemInfoService.DEFAULT_CLUSTER + ":zhangsan", "10.1.1.2", "12345",
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db3",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db3",
                 PrivPredicate.ALTER));
         currentUser2.clear();
         auth.checkPlainPasswordForTest(SystemInfoService.DEFAULT_CLUSTER + ":zhangsan", "10.1.1.3", "12345",
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db3",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db3",
                 PrivPredicate.DROP));
 
         /*
@@ -709,7 +718,8 @@ public class AuthTest {
         currentUser2.clear();
         auth.checkPlainPasswordForTest(SystemInfoService.DEFAULT_CLUSTER + ":cmy", "172.1.1.1", "12345", currentUser2);
         Assert.assertEquals(1, currentUser2.size());
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db",
                 PrivPredicate.CREATE));
         try {
             auth.revoke(revokeStmt);
@@ -717,9 +727,11 @@ public class AuthTest {
             e.printStackTrace();
             Assert.fail();
         }
-        Assert.assertFalse(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db",
+        Assert.assertFalse(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db",
                 PrivPredicate.CREATE));
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db",
                 PrivPredicate.DROP));
 
         // 19. revoke tbl privs from user @ ip
@@ -755,7 +767,8 @@ public class AuthTest {
         Assert.assertFalse(
                 accessManager.checkTblPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db2",
                         "tbl2", PrivPredicate.ALTER));
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db1",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db1",
                 PrivPredicate.SELECT));
 
         // 20. revoke privs from non exist user @ domain
@@ -816,7 +829,8 @@ public class AuthTest {
         auth.checkPlainPasswordForTest(SystemInfoService.DEFAULT_CLUSTER + ":zhangsan", "10.1.1.1", "12345",
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db3",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db3",
                 PrivPredicate.DROP));
 
         try {
@@ -831,7 +845,8 @@ public class AuthTest {
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
         Assert.assertFalse(
-                accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db3",
+                accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":db3",
                         PrivPredicate.DROP));
 
         /*
@@ -987,7 +1002,8 @@ public class AuthTest {
         auth.checkPlainPasswordForTest(SystemInfoService.DEFAULT_CLUSTER + ":wangwu", "10.17.2.1", "12345",
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db4",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db4",
                 PrivPredicate.DROP));
 
         // 28. create user@domain and set it as role1
@@ -1017,7 +1033,8 @@ public class AuthTest {
         auth.checkPlainPasswordForTest(SystemInfoService.DEFAULT_CLUSTER + ":chenliu", "20.1.1.1", "12345",
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
-        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db4",
+        Assert.assertTrue(accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                SystemInfoService.DEFAULT_CLUSTER + ":db4",
                 PrivPredicate.DROP));
 
         // 29. revoke auth on non exist db from role1
@@ -1061,7 +1078,8 @@ public class AuthTest {
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
         Assert.assertFalse(
-                accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db4",
+                accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":db4",
                         PrivPredicate.DROP));
 
         // 31. drop role, privs remain unchanged
@@ -1084,7 +1102,8 @@ public class AuthTest {
                 currentUser2);
         Assert.assertEquals(1, currentUser2.size());
         Assert.assertFalse(
-                accessManager.checkDbPriv(currentUser2.get(0), SystemInfoService.DEFAULT_CLUSTER + ":db4",
+                accessManager.checkDbPriv(currentUser2.get(0), InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":db4",
                         PrivPredicate.DROP));
 
         // 31.1 drop role again with IF EXISTS
@@ -1610,7 +1629,8 @@ public class AuthTest {
             Assert.fail();
         }
         Assert.assertFalse(accessManager
-                .checkDbPriv(userIdentity, SystemInfoService.DEFAULT_CLUSTER + ":db1", PrivPredicate.SELECT));
+                .checkDbPriv(userIdentity, InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":db1", PrivPredicate.SELECT));
         // grant 'role1' to testUser
         grantStmt = new GrantStmt(Lists.newArrayList(role), userIdentity);
         try {
@@ -1621,7 +1641,8 @@ public class AuthTest {
             Assert.fail();
         }
         Assert.assertTrue(accessManager
-                .checkDbPriv(userIdentity, SystemInfoService.DEFAULT_CLUSTER + ":db1", PrivPredicate.SELECT));
+                .checkDbPriv(userIdentity, InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":db1", PrivPredicate.SELECT));
         // revoke 'role1' from testUser
         RevokeStmt revokeStmt = new RevokeStmt(Lists.newArrayList(role), userIdentity);
         try {
@@ -1632,7 +1653,8 @@ public class AuthTest {
             Assert.fail();
         }
         Assert.assertFalse(accessManager
-                .checkDbPriv(userIdentity, SystemInfoService.DEFAULT_CLUSTER + ":db1", PrivPredicate.SELECT));
+                .checkDbPriv(userIdentity, InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":db1", PrivPredicate.SELECT));
         // grant not exist role to testUser
         grantStmt = new GrantStmt(Lists.newArrayList("norole"), userIdentity);
         try {
@@ -2246,14 +2268,16 @@ public class AuthTest {
                         new AccessPrivilegeWithCols(AccessPrivilege.LOAD_PRIV)));
         grant(grantStmt);
         Assert.assertFalse(accessManager
-                .checkDbPriv(userIdentity, SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
+                .checkDbPriv(userIdentity, InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
 
         // `SHOW_VIEW_PRIV` can `show create view`
         grantStmt = new GrantStmt(userIdentity, null, new TablePattern("viewdb", "*"),
                 Lists.newArrayList(new AccessPrivilegeWithCols(AccessPrivilege.SHOW_VIEW_PRIV)));
         grant(grantStmt);
         Assert.assertTrue(accessManager
-                .checkDbPriv(userIdentity, SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
+                .checkDbPriv(userIdentity, InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
 
         RevokeStmt revokeStmt = new RevokeStmt(userIdentity, null, new TablePattern("viewdb", "*"),
                 Lists.newArrayList(new AccessPrivilegeWithCols(AccessPrivilege.SHOW_VIEW_PRIV)));
@@ -2264,7 +2288,8 @@ public class AuthTest {
                 Lists.newArrayList(new AccessPrivilegeWithCols(AccessPrivilege.ADMIN_PRIV)));
         grant(grantStmt);
         Assert.assertTrue(accessManager
-                .checkDbPriv(userIdentity, SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
+                .checkDbPriv(userIdentity, InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
 
         revokeStmt = new RevokeStmt(userIdentity, null, new TablePattern("*", "*", "*"),
                 Lists.newArrayList(new AccessPrivilegeWithCols(AccessPrivilege.ADMIN_PRIV)));
@@ -2275,7 +2300,8 @@ public class AuthTest {
                 Lists.newArrayList(new AccessPrivilegeWithCols(AccessPrivilege.CREATE_PRIV)));
         grant(grantStmt);
         Assert.assertTrue(accessManager
-                .checkDbPriv(userIdentity, SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
+                .checkDbPriv(userIdentity, InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
 
         revokeStmt = new RevokeStmt(userIdentity, null, new TablePattern("viewdb", "*"),
                 Lists.newArrayList(new AccessPrivilegeWithCols(AccessPrivilege.CREATE_PRIV)));
@@ -2286,7 +2312,8 @@ public class AuthTest {
                 Lists.newArrayList(new AccessPrivilegeWithCols(AccessPrivilege.ALTER_PRIV)));
         grant(grantStmt);
         Assert.assertTrue(accessManager
-                .checkDbPriv(userIdentity, SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
+                .checkDbPriv(userIdentity, InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
 
         revokeStmt = new RevokeStmt(userIdentity, null, new TablePattern("viewdb", "*"),
                 Lists.newArrayList(new AccessPrivilegeWithCols(AccessPrivilege.ALTER_PRIV)));
@@ -2297,7 +2324,8 @@ public class AuthTest {
                 Lists.newArrayList(new AccessPrivilegeWithCols(AccessPrivilege.DROP_PRIV)));
         grant(grantStmt);
         Assert.assertTrue(accessManager
-                .checkDbPriv(userIdentity, SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
+                .checkDbPriv(userIdentity, InternalCatalog.INTERNAL_CATALOG_NAME,
+                        SystemInfoService.DEFAULT_CLUSTER + ":viewdb", PrivPredicate.SHOW_VIEW));
 
         revokeStmt = new RevokeStmt(userIdentity, null, new TablePattern("viewdb", "*"),
                 Lists.newArrayList(new AccessPrivilegeWithCols(AccessPrivilege.DROP_PRIV)));

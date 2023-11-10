@@ -21,6 +21,7 @@ import org.apache.doris.analysis.CancelExportStmt;
 import org.apache.doris.analysis.CompoundPredicate;
 import org.apache.doris.analysis.TableName;
 import org.apache.doris.catalog.Database;
+import org.apache.doris.catalog.DatabaseIf;
 import org.apache.doris.catalog.Env;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.CaseSensibility;
@@ -33,6 +34,7 @@ import org.apache.doris.common.PatternMatcherWrapper;
 import org.apache.doris.common.util.ListComparator;
 import org.apache.doris.common.util.OrderByPair;
 import org.apache.doris.common.util.TimeUtils;
+import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.scheduler.exception.JobException;
@@ -310,12 +312,12 @@ public class ExportMgr {
                 return false;
             }
             if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(),
-                    db.getFullName(), PrivPredicate.SHOW)) {
+                    InternalCatalog.INTERNAL_CATALOG_NAME, db.getFullName(), PrivPredicate.SHOW)) {
                 return false;
             }
         } else {
             if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ConnectContext.get(),
-                    tableName.getDb(), tableName.getTbl(),
+                    InternalCatalog.INTERNAL_CATALOG_NAME, tableName.getDb(), tableName.getTbl(),
                     PrivPredicate.SHOW)) {
                 return false;
             }
@@ -444,8 +446,12 @@ public class ExportMgr {
         readLock();
         try {
             for (ExportJob job : exportIdToJob.values()) {
+                DatabaseIf db = Env.getCurrentEnv().getCatalogMgr().getDbNullable(job.getDbId());
+                if (db == null) {
+                    continue;
+                }
                 if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(),
-                        Env.getCurrentEnv().getCatalogMgr().getDbNullable(job.getDbId()).getFullName(),
+                        db.getCatalog().getName(), db.getFullName(),
                         PrivPredicate.LOAD)) {
                     continue;
                 }

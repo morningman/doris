@@ -139,7 +139,8 @@ public class InsertIntoTableCommand extends Command implements ForwardWithSync, 
         OlapTable targetTable = physicalOlapTableSink.getTargetTable();
         // check auth
         if (!Env.getCurrentEnv().getAccessManager()
-                .checkTblPriv(ConnectContext.get(), targetTable.getQualifiedDbName(), targetTable.getName(),
+                .checkTblPriv(ConnectContext.get(), InternalCatalog.INTERNAL_CATALOG_NAME,
+                        targetTable.getQualifiedDbName(), targetTable.getName(),
                         PrivPredicate.LOAD)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_TABLEACCESS_DENIED_ERROR, "LOAD",
                     ConnectContext.get().getQualifiedUser(), ConnectContext.get().getRemoteIP(),

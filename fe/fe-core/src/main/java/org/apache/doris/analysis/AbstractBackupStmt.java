@@ -23,6 +23,8 @@ import org.apache.doris.common.Config;
 import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.UserException;
+import org.apache.doris.common.util.Util;
+import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.qe.ConnectContext;
 
@@ -59,10 +61,12 @@ public class AbstractBackupStmt extends DdlStmt {
     public void analyze(Analyzer analyzer) throws UserException {
         labelName.analyze(analyzer);
 
+        Util.checkIsOnInternalCatalog(null);
+
         // user need database level privilege(not table level), because when doing restore operation,
         // the restore table may be newly created, so we can not judge its privileges.
         if (!Env.getCurrentEnv().getAccessManager().checkDbPriv(ConnectContext.get(),
-                labelName.getDbName(), PrivPredicate.LOAD)) {
+                InternalCatalog.INTERNAL_CATALOG_NAME, labelName.getDbName(), PrivPredicate.LOAD)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_SPECIFIC_ACCESS_DENIED_ERROR, "LOAD");
         }
 

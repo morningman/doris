@@ -142,9 +142,9 @@ public class ExportStmt extends StatementBase {
         Preconditions.checkNotNull(tableRef);
         tableRef.analyze(analyzer);
 
-        // disallow external catalog
+        // disallow external catalog(Nerieds support it)
         tblName = tableRef.getName();
-        Util.prohibitExternalCatalog(tblName.getCtl(), this.getClass().getSimpleName());
+        Util.checkIsOnInternalCatalog(tblName.getCtl());
 
         // get partitions name
         Optional<PartitionNames> optionalPartitionNames = Optional.ofNullable(tableRef.getPartitionNames());
@@ -159,8 +159,8 @@ public class ExportStmt extends StatementBase {
 
         // check auth
         if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ConnectContext.get(),
-                                                                tblName.getDb(), tblName.getTbl(),
-                                                                PrivPredicate.SELECT)) {
+                tblName.getCtl(), tblName.getDb(), tblName.getTbl(),
+                PrivPredicate.SELECT)) {
             ErrorReport.reportAnalysisException(ErrorCode.ERR_TABLEACCESS_DENIED_ERROR, "EXPORT",
                                                 ConnectContext.get().getQualifiedUser(),
                                                 ConnectContext.get().getRemoteIP(),

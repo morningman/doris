@@ -55,6 +55,7 @@ import org.apache.doris.common.util.IdGeneratorUtil;
 import org.apache.doris.common.util.ListComparator;
 import org.apache.doris.common.util.PropertyAnalyzer;
 import org.apache.doris.common.util.Util;
+import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.persist.BatchDropInfo;
 import org.apache.doris.persist.DropInfo;
@@ -1200,8 +1201,9 @@ public class MaterializedViewHandler extends AlterHandler {
                 continue;
             }
             if (ctx != null) {
-                if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(ctx, db.getFullName(),
-                        alterJob.getTableName(), PrivPredicate.ALTER)) {
+                if (!Env.getCurrentEnv().getAccessManager()
+                        .checkTblPriv(ctx, InternalCatalog.INTERNAL_CATALOG_NAME, db.getFullName(),
+                                alterJob.getTableName(), PrivPredicate.ALTER)) {
                     continue;
                 }
             }
