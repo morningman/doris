@@ -2,6 +2,11 @@
 
 This file contains version of the third-party dependency libraries in the build-env image. The docker build-env image is apache/doris, and the tag is `build-env-${version}`
 
+## v20231115
+
+- Modify: brpc patch: thirdparty/patches/brpc-stream-check-connected.patch
+- Modify: glog patch
+
 ## v20231020
 - Added: avx2neon -> 1.0.0
 

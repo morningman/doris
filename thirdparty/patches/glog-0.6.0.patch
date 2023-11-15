@@ -1,3 +1,122 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 846b444..2f7fd1d 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -291,50 +291,61 @@ if (WITH_TLS)
+ endif (WITH_TLS)
+ 
+ set (_PC_FIELDS
+-  "gregs[REG_PC]"
+-  "gregs[REG_EIP]"
+-  "gregs[REG_RIP]"
+-  "sc_ip"
+-  "uc_regs->gregs[PT_NIP]"
+-  "gregs[R15]"
+-  "arm_pc"
+-  "mc_eip"
+-  "mc_rip"
+-  "__gregs[REG_EIP]"
+-  "__gregs[REG_RIP]"
+-  "ss.eip"
+-  "__ss.__eip"
+-  "ss.rip"
+-  "__ss.__rip"
+-  "ss.srr0"
+-  "__ss.__srr0"
++  "uc_mcontext.gregs[REG_PC]"          # Solaris x86 (32 + 64 bit)
++  "uc_mcontext.gregs[REG_EIP]"         # Linux (i386)
++  "uc_mcontext.gregs[REG_RIP]"         # Linux (x86_64)
++  "uc_mcontext.sc_ip"                  # Linux (ia64)
++  "uc_mcontext.pc"                     # Linux (mips)
++  "uc_mcontext.uc_regs->gregs[PT_NIP]" # Linux (ppc)
++  "uc_mcontext.gregs[R15]"             # Linux (arm old [untested])
++  "uc_mcontext.arm_pc"                 # Linux (arm arch 5)
++  "uc_mcontext.gp_regs[PT_NIP]"        # Suse SLES 11 (ppc64)
++  "uc_mcontext.mc_eip"                 # FreeBSD (i386)
++  "uc_mcontext.mc_rip"                 # FreeBSD (x86_64 [untested])
++  "uc_mcontext.__gregs[_REG_EIP]"      # NetBSD (i386)
++  "uc_mcontext.__gregs[_REG_RIP]"      # NetBSD (x86_64)
++  "uc_mcontext->ss.eip"                # OS X (i386, <=10.4)
++  "uc_mcontext->__ss.__eip"            # OS X (i386, >=10.5)
++  "uc_mcontext->ss.rip"                # OS X (x86_64)
++  "uc_mcontext->__ss.__rip"            # OS X (>=10.5 [untested])
++  "uc_mcontext->ss.srr0"               # OS X (ppc, ppc64 [untested])
++  "uc_mcontext->__ss.__srr0"           # OS X (>=10.5 [untested])
+ )
+ 
+-set (_PC_HEADERS ucontext.h signal.h)
+-
+-if (HAVE_UCONTEXT_H AND NOT PC_FROM_UCONTEXT)
+-  foreach (_PC_FIELD ${_PC_FIELDS})
+-    foreach (_PC_HEADER ${_PC_HEADERS})
+-      set (_TMP
+-      ${CMAKE_CURRENT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/CMakeTmp/uctfield.cpp)
+-      file (WRITE ${_TMP} "
+-#define _GNU_SOURCE 1
+-#include <${_PC_HEADER}>
+-int main(void)
+-{
+-  ucontext_t u;
+-  return u.${_PC_FIELD} == 0;
+-}
+-")
+-      try_compile (HAVE_PC_FROM_UCONTEXT ${CMAKE_CURRENT_BINARY_DIR} ${_TMP}
+-        COMPILE_DEFINITIONS _GNU_SOURCE=1)
+-
+-      if (HAVE_PC_FROM_UCONTEXT)
+-        set (PC_FROM_UCONTEXT ${_PC_FIELD} CACHE)
+-      endif (HAVE_PC_FROM_UCONTEXT)
++if (HAVE_UCONTEXT_H AND NOT DEFINED PC_FROM_UCONTEXT)
++  cmake_push_check_state (RESET)
++
++  set (CMAKE_REQUIRED_DEFINITIONS -D_GNU_SOURCE)
++  set (_PC_HEADERS ucontext.h signal.h)
++
++  foreach (_PC_FIELD IN LISTS _PC_FIELDS)
++    foreach (_PC_HEADER IN LISTS _PC_HEADERS)
++      # Replace non-alphanumeric characters by underscores since the name will be
++      # used as preprocessor definition.
++      string (REGEX REPLACE "[^a-zA-Z0-9]" "_" HAVE_UCONTEXT_FIELD_NAME
++        "HAVE_PC_FROM_UCONTEXT_${_PC_FIELD}")
++      # Strip trailing underscores for readability
++      string (REGEX REPLACE "_+$" "" HAVE_UCONTEXT_FIELD_NAME
++        "${HAVE_UCONTEXT_FIELD_NAME}")
++
++      check_struct_has_member (ucontext_t ${_PC_FIELD} ${_PC_HEADER}
++        ${HAVE_UCONTEXT_FIELD_NAME} LANGUAGE CXX)
++
++      if (${HAVE_UCONTEXT_FIELD_NAME})
++        set (PC_FROM_UCONTEXT ${_PC_FIELD} CACHE STRING
++          "<${_PC_HEADER}> ucontext_t PC member")
++        mark_as_advanced (PC_FROM_UCONTEXT)
++        break ()
++      endif (${HAVE_UCONTEXT_FIELD_NAME})
+     endforeach (_PC_HEADER)
++
++    if (${HAVE_UCONTEXT_FIELD_NAME})
++      break ()
++    endif (${HAVE_UCONTEXT_FIELD_NAME})
+   endforeach (_PC_FIELD)
+-endif  (HAVE_UCONTEXT_H AND NOT PC_FROM_UCONTEXT)
++
++  cmake_pop_check_state ()
++endif (HAVE_UCONTEXT_H AND NOT DEFINED PC_FROM_UCONTEXT)
+ 
+ if (STL_STD_NAMESPACE)
+   set (STL_NAMESPACE std)
+diff --git a/src/config.h.cmake.in b/src/config.h.cmake.in
+index b225b7e..dff6f45 100644
+--- a/src/config.h.cmake.in
++++ b/src/config.h.cmake.in
+@@ -168,7 +168,7 @@
+ #cmakedefine PACKAGE_VERSION
+ 
+ /* How to access the PC from a struct ucontext */
+-#cmakedefine PC_FROM_UCONTEXT
++#cmakedefine PC_FROM_UCONTEXT ${PC_FROM_UCONTEXT}
+ 
+ /* define if we should print file offsets in traces instead of symbolizing. */
+ #cmakedefine PRINT_UNSYMBOLIZED_STACK_TRACES
 diff --git a/src/glog/logging.h.in b/src/glog/logging.h.in
 index 95a573b..57d2e9b 100644
 --- a/src/glog/logging.h.in
@@ -5,7 +124,7 @@ index 95a573b..57d2e9b 100644
 @@ -425,6 +425,12 @@ typedef void(*CustomPrefixCallback)(std::ostream& s, const LogMessageInfo& l, vo
    using fLS::FLAGS_##name
  #endif
-
+ 
 +// Set max log file num
 +DECLARE_int32(log_filenum_quota);
 +
@@ -14,7 +133,7 @@ index 95a573b..57d2e9b 100644
 +
  // Set whether appending a timestamp to the log file name
  DECLARE_bool(timestamp_in_logfile_name);
-
+ 
 diff --git a/src/logging.cc b/src/logging.cc
 index 4028ccc..fd60fc3 100644
 --- a/src/logging.cc
@@ -38,7 +157,7 @@ index 4028ccc..fd60fc3 100644
 @@ -204,6 +206,12 @@ GLOG_DEFINE_string(log_backtrace_at, "",
  GLOG_DEFINE_bool(log_utc_time, false,
      "Use UTC time for logging.");
-
+ 
 +GLOG_DEFINE_string(log_split_method, "day",
 +                   "split log by size, day, hour");
 +
@@ -47,11 +166,11 @@ index 4028ccc..fd60fc3 100644
 +
  // TODO(hamaji): consider windows
  #define PATH_SEPARATOR '/'
-
+ 
 @@ -429,6 +437,15 @@ namespace  {
-
+ 
  namespace {
-
+ 
 +typedef struct filetime {
 +    std::string name;
 +    time_t time;
@@ -69,7 +188,7 @@ index 4028ccc..fd60fc3 100644
    // acquiring lock_.
    void FlushUnlocked();
 +  void CheckFileNumQuota();
-
+ 
   private:
    static const uint32 kRolloverAttemptFrequency = 0x20;
 @@ -476,6 +494,9 @@ class LogFileObject : public base::Logger {
@@ -79,7 +198,7 @@ index 4028ccc..fd60fc3 100644
 +  std::list<Filetime> file_list_;
 +  bool inited_;
 +  struct ::tm tm_time_;
-
+ 
    // Actually create a logfile using the value of base_filename_ and the
    // optional argument time_pid_string
 @@ -665,7 +686,7 @@ inline void LogDestination::FlushLogFiles(int min_severity) {
@@ -106,7 +225,7 @@ index 4028ccc..fd60fc3 100644
 +    } else {}
    }
  }
-
+ 
 @@ -976,6 +1000,7 @@ LogFileObject::LogFileObject(LogSeverity severity,
      file_length_(0),
      rollover_attempt_(kRolloverAttemptFrequency-1),
@@ -146,7 +265,7 @@ index 4028ccc..fd60fc3 100644
 @@ -1138,6 +1167,59 @@ bool LogFileObject::CreateLogfile(const string& time_pid_string) {
    return true;  // Everything worked
  }
-
+ 
 +void LogFileObject::CheckFileNumQuota() {
 +    struct dirent *entry;
 +    DIR *dp;
@@ -206,7 +325,7 @@ index 4028ccc..fd60fc3 100644
 @@ -1149,13 +1231,55 @@ void LogFileObject::Write(bool force_flush,
      return;
    }
-
+ 
 -  if (file_length_ >> 20U >= MaxLogSize() || PidHasChanged()) {
 +  struct ::tm tm_time;
 +
@@ -237,7 +356,7 @@ index 4028ccc..fd60fc3 100644
      file_length_ = bytes_since_flush_ = dropped_mem_length_ = 0;
      rollover_attempt_ = kRolloverAttemptFrequency - 1;
    }
-
+ 
 +  if ((file_ == NULL) && (!inited_) && (FLAGS_log_split_method == "size")) {
 +    CheckFileNumQuota();
 +    const char* filename = file_list_.back().name.c_str();
@@ -263,7 +382,7 @@ index 4028ccc..fd60fc3 100644
 @@ -1164,7 +1288,15 @@ void LogFileObject::Write(bool force_flush,
      if (++rollover_attempt_ != kRolloverAttemptFrequency) return;
      rollover_attempt_ = 0;
-
+ 
 -    struct ::tm tm_time;
 +    if (!inited_) {
 +        CheckFileNumQuota();
@@ -302,23 +421,23 @@ index 4028ccc..fd60fc3 100644
 +    tm_time_ = tm_time;
 +
      const string& time_pid_string = time_pid_stream.str();
-
+ 
      if (base_filename_selected_) {
 @@ -1216,9 +1354,7 @@ void LogFileObject::Write(bool force_flush,
        // deadlock. Simply use a name like invalid-user.
        if (uidname.empty()) uidname = "invalid-user";
-
+ 
 -      stripped_filename = stripped_filename+'.'+hostname+'.'
 -                          +uidname+".log."
 -                          +LogSeverityNames[severity_]+'.';
 +      stripped_filename = stripped_filename + "." + LogSeverityNames[severity_] + ".log.";
        // We're going to (potentially) try to put logs in several different dirs
        const vector<string> & log_dirs = GetLoggingDirectories();
-
+ 
 @@ -1243,36 +1379,6 @@ void LogFileObject::Write(bool force_flush,
        }
      }
-
+ 
 -    // Write a header message into the log file
 -    ostringstream file_header_stream;
 -    file_header_stream.fill('0');
@@ -350,5 +469,5 @@ index 4028ccc..fd60fc3 100644
 -    file_length_ += header_len;
 -    bytes_since_flush_ += header_len;
    }
-
+ 
    // Write to LOG file
