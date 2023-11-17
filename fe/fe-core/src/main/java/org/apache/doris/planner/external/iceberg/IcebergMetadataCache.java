@@ -17,13 +17,16 @@
 
 package org.apache.doris.planner.external.iceberg;
 
+import org.apache.doris.catalog.AuthType;
 import org.apache.doris.catalog.Env;
+import org.apache.doris.catalog.HdfsResource;
 import org.apache.doris.catalog.HiveMetaStoreClientHelper;
 import org.apache.doris.catalog.external.HMSExternalTable;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.MetaNotFoundException;
 import org.apache.doris.common.UserException;
 import org.apache.doris.datasource.CatalogIf;
+import org.apache.doris.datasource.ExternalCatalog;
 import org.apache.doris.datasource.HMSExternalCatalog;
 import org.apache.doris.datasource.iceberg.IcebergExternalCatalog;
 import org.apache.doris.datasource.property.constants.HMSProperties;
@@ -35,6 +38,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Iterables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hdfs.HdfsConfiguration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.ManifestFiles;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
@@ -133,7 +137,8 @@ public class IcebergMetadataCache {
         if (cacheTable != null) {
             return cacheTable;
         }
-        Table table = HiveMetaStoreClientHelper.ugiDoAs(catalogId,
+        Table table = HiveMetaStoreClientHelper.ugiDoAs(
+                ((ExternalCatalog) Env.getCurrentEnv().getCatalogMgr().getCatalog(catalogId)).getConfiguration(),
                 () -> catalog.loadTable(TableIdentifier.of(dbName, tbName)));
         initIcebergTableFileIO(table);
 
@@ -193,6 +198,10 @@ public class IcebergMetadataCache {
         for (Map.Entry<String, String> entry : hdfsConf.entrySet()) {
             conf.set(entry.getKey(), entry.getValue());
         }
+        HiveConf hiveConf = new HiveConf();
+        for (Map.Entry<Object, Object> entry : hiveConf.getAllProperties().entrySet()) {
+            conf.set(entry.getKey().toString(), entry.getValue().toString());
+        }
 
         HiveCatalog hiveCatalog = new HiveCatalog();
         hiveCatalog.setConf(conf);
@@ -202,7 +211,16 @@ public class IcebergMetadataCache {
         catalogProperties.put("uri", uri);
         hiveCatalog.initialize("hive", catalogProperties);
 
-        Table table = HiveMetaStoreClientHelper.ugiDoAs(conf, () -> hiveCatalog.loadTable(TableIdentifier.of(db, tbl)));
+        String principal = null;
+        String keytab = null;
+        String authentication = conf.get(HdfsResource.HADOOP_SECURITY_AUTHENTICATION, null);
+        if (AuthType.KERBEROS.getDesc().equals(authentication)) {
+            principal = conf.get("hive.metastore.kerberos.principal", "");
+            keytab = conf.get("hadoop.kerberos.keytab");
+        }
+
+        Table table = HiveMetaStoreClientHelper.ugiDoAsWithKerberos(conf, principal, keytab,
+                () -> hiveCatalog.loadTable(TableIdentifier.of(db, tbl)));
 
         initIcebergTableFileIO(table);
 

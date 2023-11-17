@@ -35,7 +35,6 @@ import org.apache.doris.catalog.external.HMSExternalTable;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.UserException;
-import org.apache.doris.datasource.ExternalCatalog;
 import org.apache.doris.datasource.property.constants.HMSProperties;
 import org.apache.doris.fs.FileSystemFactory;
 import org.apache.doris.fs.RemoteFiles;
@@ -905,7 +904,29 @@ public class HiveMetaStoreClientHelper {
         return hudiSchema;
     }
 
-    public static UserGroupInformation getUserGroupInformation(Configuration conf) {
+    private static UserGroupInformation getUserGroupInformationWithKerberos(
+            Configuration conf, String principal, String keytab) {
+        UserGroupInformation ugi = null;
+        String authentication = conf.get(HdfsResource.HADOOP_SECURITY_AUTHENTICATION, null);
+        if (AuthType.KERBEROS.getDesc().equals(authentication)) {
+            conf.set("hadoop.security.authorization", "true");
+            UserGroupInformation.setConfiguration(conf);
+            try {
+                ugi = UserGroupInformation.loginUserFromKeytabAndReturnUGI(principal, keytab);
+                UserGroupInformation.setLoginUser(ugi);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            String hadoopUserName = conf.get(HdfsResource.HADOOP_USER_NAME);
+            if (hadoopUserName != null) {
+                ugi = UserGroupInformation.createRemoteUser(hadoopUserName);
+            }
+        }
+        return ugi;
+    }
+
+    private static UserGroupInformation getUserGroupInformation(Configuration conf) {
         UserGroupInformation ugi = null;
         String authentication = conf.get(HdfsResource.HADOOP_SECURITY_AUTHENTICATION, null);
         if (AuthType.KERBEROS.getDesc().equals(authentication)) {
@@ -928,11 +949,6 @@ public class HiveMetaStoreClientHelper {
         return ugi;
     }
 
-    public static <T> T ugiDoAs(long catalogId, PrivilegedExceptionAction<T> action) {
-        return ugiDoAs(((ExternalCatalog) Env.getCurrentEnv().getCatalogMgr().getCatalog(catalogId)).getConfiguration(),
-                action);
-    }
-
     public static <T> T ugiDoAs(Configuration conf, PrivilegedExceptionAction<T> action) {
         UserGroupInformation ugi = getUserGroupInformation(conf);
         try {
@@ -946,26 +962,25 @@ public class HiveMetaStoreClientHelper {
         }
     }
 
+    public static <T> T ugiDoAsWithKerberos(Configuration conf, String principal, String keytab,
+            PrivilegedExceptionAction<T> action) {
+        UserGroupInformation ugi = getUserGroupInformationWithKerberos(conf, principal, keytab);
+        try {
+            if (ugi != null) {
+                return ugi.doAs(action);
+            } else {
+                return action.run();
+            }
+        } catch (Exception e) {
+            throw new RuntimeException(e.getMessage(), e.getCause());
+        }
+    }
+
     public static HoodieTableMetaClient getHudiClient(HMSExternalTable table) {
         String hudiBasePath = table.getRemoteTable().getSd().getLocation();
-
         Configuration conf = getConfiguration(table);
-        UserGroupInformation ugi = getUserGroupInformation(conf);
-        HoodieTableMetaClient metaClient;
-        if (ugi != null) {
-            try {
-                metaClient = ugi.doAs(
-                        (PrivilegedExceptionAction<HoodieTableMetaClient>) () -> HoodieTableMetaClient.builder()
-                                .setConf(conf).setBasePath(hudiBasePath).build());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } catch (InterruptedException e) {
-                throw new RuntimeException("Cannot get hudi client.", e);
-            }
-        } else {
-            metaClient = HoodieTableMetaClient.builder().setConf(conf).setBasePath(hudiBasePath).build();
-        }
-        return metaClient;
+        return HiveMetaStoreClientHelper.ugiDoAs(conf, () ->
+                HoodieTableMetaClient.builder().setConf(conf).setBasePath(hudiBasePath).build());
     }
 
     public static Configuration getConfiguration(HMSExternalTable table) {
