@@ -122,8 +122,14 @@ public class ExportStmt extends StatementBase {
         this.lineDelimiter = DEFAULT_LINE_DELIMITER;
         this.timeout = DEFAULT_TIMEOUT;
         this.columns = DEFAULT_COLUMNS;
-        this.sessionVariables = VariableMgr.cloneSessionVariable(Optional.ofNullable(
-                ConnectContext.get().getSessionVariable()).orElse(VariableMgr.getDefaultSessionVariable()));
+
+        if (ConnectContext.get() != null) {
+            this.sessionVariables = VariableMgr.cloneSessionVariable(Optional.ofNullable(
+                    ConnectContext.get().getSessionVariable()).orElse(VariableMgr.getDefaultSessionVariable()));
+        } else {
+            this.sessionVariables = VariableMgr.cloneSessionVariable(VariableMgr.getDefaultSessionVariable());
+        }
+
     }
 
     public String getColumns() {
