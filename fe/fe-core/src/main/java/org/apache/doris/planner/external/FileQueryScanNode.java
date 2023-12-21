@@ -147,6 +147,10 @@ public abstract class FileQueryScanNode extends FileScanNode {
                                 table.getName()));
             }
         }
+        // if (HiveVersionUtil.isHive1(hmsTable.getHiveVersion())) {
+        genSlotToSchemaIdMap();
+        // }
+
         computeColumnsFilter();
         initBackendPolicy();
         initSchemaParams();
@@ -492,6 +496,23 @@ public abstract class FileQueryScanNode extends FileScanNode {
             }
         }
         return Optional.empty();
+    }
+
+    // To Support Hive 1.x orc internal column name like (_col0, _col1, _col2...)
+    protected void genSlotToSchemaIdMap() {
+        List<Column> baseSchema = desc.getTable().getBaseSchema();
+        Map<String, Integer> columnNameToPosition = Maps.newHashMap();
+        for (SlotDescriptor slot : desc.getSlots()) {
+            int idx = 0;
+            for (Column col : baseSchema) {
+                if (col.getName().equals(slot.getColumn().getName())) {
+                    columnNameToPosition.put(col.getName(), idx);
+                    break;
+                }
+                idx += 1;
+            }
+        }
+        params.setSlotNameToSchemaPos(columnNameToPosition);
     }
 }
 
