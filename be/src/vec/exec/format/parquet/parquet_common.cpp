@@ -93,7 +93,7 @@ void ColumnSelectVector::set_run_length_null_map(const std::vector<uint16_t>& ru
             }
         }
         _num_filtered = num_values - num_read;
-        if (null_map != nullptr && num_read > 0) {
+        /*if (null_map != nullptr && num_read > 0) {
             NullMap& map_data_column = *null_map;
             auto null_map_index = map_data_column.size();
             map_data_column.resize(null_map_index + num_read);
@@ -102,6 +102,22 @@ void ColumnSelectVector::set_run_length_null_map(const std::vector<uint16_t>& ru
                     map_data_column[null_map_index++] = (UInt8) false;
                 } else if (_data_map[i] == NULL_DATA) {
                     map_data_column[null_map_index++] = (UInt8) true;
+                }
+            }
+        }*/
+        if (null_map != nullptr && num_read > 0) {
+            NullMap& map_data_column = *null_map;
+            auto null_map_index = map_data_column.size();
+            map_data_column.resize(null_map_index + num_read);
+            if (_num_nulls == 0) {
+                memset(map_data_column.data(), 0, num_read);
+            } else {
+                for (size_t i = 0; i < num_values; ++i) {
+                    if (_data_map[i] == CONTENT) {
+                        map_data_column[null_map_index++] = (UInt8) false;
+                    } else if (_data_map[i] == NULL_DATA) {
+                        map_data_column[null_map_index++] = (UInt8) true;
+                    }
                 }
             }
         }

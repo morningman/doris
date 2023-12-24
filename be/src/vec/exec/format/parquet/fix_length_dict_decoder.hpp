@@ -55,7 +55,7 @@ public:
             assert_cast<ColumnDictI32&>(*doris_column)
                     .insert_many_dict_data(&dict_items[0], dict_items.size());
         }
-        if (doris_column->is_column_dictionary()) {
+        /*if (doris_column->is_column_dictionary()) {
             ColumnDictI32& dict_column = assert_cast<ColumnDictI32&>(*doris_column);
             if (dict_column.dict_size() == 0) {
                 std::vector<StringRef> dict_items;
@@ -65,7 +65,7 @@ public:
                 }
                 dict_column.insert_many_dict_data(&dict_items[0], dict_items.size());
             }
-        }
+        }*/
         _indexes.resize(non_null_size);
         _index_batch_decoder->GetBatch(&_indexes[0], non_null_size);
 
@@ -214,18 +214,44 @@ protected:
 
     template <typename CppType, typename ColumnType, bool has_filter>
     Status _decode_date(MutableColumnPtr& doris_column, ColumnSelectVector& select_vector) {
+        //auto& column_data = static_cast<ColumnVector<ColumnType>&>(*doris_column).get_data();
+        //size_t data_index = column_data.size();
+        ////column_data.resize(data_index + select_vector.num_values() - select_vector.num_filtered());
+        //column_data.reserve(data_index + select_vector.num_values() - select_vector.num_filtered());
+        //size_t dict_index = 0;
+        //date_day_offset_dict& date_dict = date_day_offset_dict::get();
+        ////ColumnSelectVector::DataReadType read_type;
+        ////size_t run_length = select_vector.get_next_run<has_filter>(&read_type);
+        //size_t size = select_vector.num_values() - select_vector.num_filtered();
+        //for (size_t i = 0; i < size; ++i) {
+        //    static_cast<void>(dict_index);
+        //    if constexpr (std::is_same_v<CppType, VecDateTimeValue>) {
+
+        //    } else {
+        //        //reinterpret_cast<CppType&>(column_data[data_index++]) = date_dict[100];
+        //	//column_data.emplace_back(date_dict[100].to_date_int_val());
+        //	column_data.emplace_back(date_dict.get_value_for_day(100).to_date_int_val());
+        //	static_cast<void>(date_dict);
+        //	//DateV2Value<DateV2ValueType> date_value;
+        //        //reinterpret_cast<CppType&>(column_data[data_index++]) = date_value;
+        //    }
+        //}
+
         auto& column_data = static_cast<ColumnVector<ColumnType>&>(*doris_column).get_data();
         size_t data_index = column_data.size();
         column_data.resize(data_index + select_vector.num_values() - select_vector.num_filtered());
+        //column_data.reserve(data_index + select_vector.num_values() - select_vector.num_filtered());
         size_t dict_index = 0;
         date_day_offset_dict& date_dict = date_day_offset_dict::get();
         ColumnSelectVector::DataReadType read_type;
+
         while (size_t run_length = select_vector.get_next_run<has_filter>(&read_type)) {
             switch (read_type) {
             case ColumnSelectVector::CONTENT: {
                 for (size_t i = 0; i < run_length; ++i) {
                     int64_t date_value =
                             _dict_items[_indexes[dict_index++]] + _decode_params->offset_days;
+                    static_cast<void>(dict_index);
                     if constexpr (std::is_same_v<CppType, VecDateTimeValue>) {
                         auto& v = reinterpret_cast<CppType&>(column_data[data_index++]);
                         v.create_from_date_v2(date_dict[date_value], TIME_DATE);
@@ -233,7 +259,8 @@ protected:
                         v.cast_to_date();
                     } else {
                         reinterpret_cast<CppType&>(column_data[data_index++]) =
-                                date_dict[date_value];
+                                date_dict.get_value_for_day(date_value);
+                        //column_data.emplace_back(date_dict.get_value_for_day(date_value).to_date_int_val());
                     }
                 }
                 break;

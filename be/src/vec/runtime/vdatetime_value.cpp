@@ -2663,13 +2663,17 @@ char* DateV2Value<T>::to_string(char* to, int scale) const {
     return to + len + 1;
 }
 
-template <typename T>
+/*inline template <typename T>
 typename DateV2Value<T>::underlying_value DateV2Value<T>::to_date_int_val() const {
     return int_val_;
-}
+}*/
 // [1900-01-01, 2039-12-31]
-static std::array<DateV2Value<DateV2ValueType>, date_day_offset_dict::DICT_DAYS>
-        DATE_DAY_OFFSET_ITEMS;
+//static std::array<DateV2Value<DateV2ValueType>, date_day_offset_dict::DICT_DAYS>
+//        DATE_DAY_OFFSET_ITEMS;
+
+std::array<DateV2Value<DateV2ValueType>, date_day_offset_dict::DICT_DAYS>
+        date_day_offset_dict::DATE_DAY_OFFSET_ITEMS;
+
 // [1900-01-01, 2039-12-31]
 static std::array<std::array<std::array<int, 31>, 12>, 140> DATE_DAY_OFFSET_DICT;
 
@@ -2713,15 +2717,20 @@ date_day_offset_dict::date_day_offset_dict() {
     DATE_DAY_OFFSET_ITEMS_INIT = true;
 }
 
-DateV2Value<DateV2ValueType> date_day_offset_dict::operator[](int day) const {
-    int index = day + DAY_BEFORE_EPOCH;
+DateV2Value<DateV2ValueType>& date_day_offset_dict::operator[](int day) const {
+    return DATE_DAY_OFFSET_ITEMS[day + DAY_BEFORE_EPOCH];
+    /*int index = day + DAY_BEFORE_EPOCH;
     if (LIKELY(index >= 0 && index < DICT_DAYS)) {
         return DATE_DAY_OFFSET_ITEMS[index];
     } else {
         DateV2Value<DateV2ValueType> d = DATE_DAY_OFFSET_ITEMS[0];
         return d += index;
-    }
+    }*/
 }
+
+/*inline DateV2Value<DateV2ValueType>& date_day_offset_dict::get_value_for_day(int day) const {
+        return DATE_DAY_OFFSET_ITEMS[day + DAY_BEFORE_EPOCH];
+    }*/
 
 int date_day_offset_dict::daynr(int year, int month, int day) const {
     return DATE_DAY_OFFSET_DICT[year - START_YEAR][month - 1][day - 1];
