@@ -310,7 +310,7 @@ public abstract class FileQueryScanNode extends FileScanNode {
 
         Map<String, String> locationProperties = getLocationProperties();
         // for JNI, only need to set properties
-        if (fileFormatType == TFileFormatType.FORMAT_JNI) {
+        if (fileFormatType == TFileFormatType.FORMAT_JNI || TFileType.KAFKA == getLocationType()) {
             params.setProperties(locationProperties);
         }
 
@@ -322,6 +322,8 @@ public abstract class FileQueryScanNode extends FileScanNode {
             if (fileSplit instanceof IcebergSplit
                     && ((IcebergSplit) fileSplit).getConfig().containsKey(HMSExternalCatalog.BIND_BROKER_NAME)) {
                 locationType = TFileType.FILE_BROKER;
+            } else if(fileSplit instanceof KafkaSplit) {
+                locationType = TFileType.KAFKA;
             } else {
                 locationType = getLocationType(fileSplit.getPath().toString());
             }
@@ -334,9 +336,12 @@ public abstract class FileQueryScanNode extends FileScanNode {
                 HiveSplit hiveSplit = (HiveSplit) split;
                 isACID = hiveSplit.isACID();
             }
-            List<String> partitionValuesFromPath = fileSplit.getPartitionValues() == null
+            List<String> partitionValuesFromPath = new ArrayList<>();
+            if (! (split instanceof KafkaSplit)) {
+                partitionValuesFromPath = fileSplit.getPartitionValues() == null
                     ? BrokerUtil.parseColumnsFromPath(fileSplit.getPath().toString(), pathPartitionKeys, false, isACID)
                     : fileSplit.getPartitionValues();
+            }
 
             TFileRangeDesc rangeDesc = createFileRangeDesc(fileSplit, partitionValuesFromPath, pathPartitionKeys,
                     locationType);
@@ -448,16 +453,30 @@ public abstract class FileQueryScanNode extends FileScanNode {
                                                List<String> columnsFromPathKeys, TFileType locationType)
             throws UserException {
         TFileRangeDesc rangeDesc = new TFileRangeDesc();
-        rangeDesc.setStartOffset(fileSplit.getStart());
-        rangeDesc.setSize(fileSplit.getLength());
-        // fileSize only be used when format is orc or parquet and TFileType is broker
-        // When TFileType is other type, it is not necessary
-        rangeDesc.setFileSize(fileSplit.getFileLength());
+        long partition;
+        long startOffset = 0;
+        long maxRows = 0;
+        if (fileSplit instanceof KafkaSplit) {
+            KafkaSplit kafkaSplit = (KafkaSplit) fileSplit;
+            partition = kafkaSplit.getPartition();
+            startOffset = kafkaSplit.getStartOffset();
+            maxRows = kafkaSplit.getMaxRows();
+            rangeDesc.setStartOffset(startOffset);
+            rangeDesc.setSize(partition);
+            rangeDesc.setFileSize(maxRows);
+            rangeDesc.setFileType(TFileType.KAFKA);
+        } else {
+            rangeDesc.setStartOffset(fileSplit.getStart());
+            rangeDesc.setSize(fileSplit.getLength());
+            // fileSize only be used when format is orc or parquet and TFileType is broker
+            // When TFileType is other type, it is not necessary
+            rangeDesc.setFileSize(fileSplit.getFileLength());
+        }
         rangeDesc.setColumnsFromPath(columnsFromPath);
         rangeDesc.setColumnsFromPathKeys(columnsFromPathKeys);
 
         rangeDesc.setFileType(locationType);
-        rangeDesc.setPath(fileSplit.getPath().toString());
+        rangeDesc.setPath("");
         if (locationType == TFileType.FILE_HDFS) {
             URI fileUri = fileSplit.getPath().toUri();
             rangeDesc.setFsName(fileUri.getScheme() + "://" + fileUri.getAuthority());

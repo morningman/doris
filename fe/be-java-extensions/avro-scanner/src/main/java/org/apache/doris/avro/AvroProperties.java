@@ -42,4 +42,21 @@ public class AvroProperties {
     protected static final String SPLIT_SIZE = "split_size";
     protected static final String SPLIT_FILE_SIZE = "split_file_size";
 
+
+    /****** KAFKA CONFIG ******/
+    protected static final String KAFKA_TOPIC = "topic";
+    protected static final String KAFKA_PARTITION = "partition";
+    protected static final String KAFKA_START_OFFSET = "start.offset";
+    protected static final String KAFKA_MAX_ROWS = "max.rows";
+    protected static final String KAFKA_SCHEMA_PATH = "schema.path";
+    protected static final String KAFKA_BOOTSTRAP_SERVERS = "bootstrap.servers";
+    protected static final String KAFKA_BROKER_LIST = "broker_list";
+    protected static final String KAFKA_GROUP_ID = "group.id";
+    protected static final String KAFKA_KEY_DESERIALIZER = "key.deserializer";
+    protected static final String KAFKA_VALUE_DESERIALIZER = "value.deserializer";
+    protected static final String KAFKA_STRING_DESERIALIZER = "org.apache.kafka.common.serialization.StringDeserializer";
+    protected static final String KAFKA_AVRO_DESERIALIZER = "io.confluent.kafka.serializers.KafkaAvroDeserializer";
+    protected static final String KAFKA_SCHEMA_REGISTRY_URL = "schema.registry.url";
+    protected static final String KAFKA_AUTO_COMMIT_ENABLE = "auto.commit.enable";
+
 }

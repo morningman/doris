@@ -86,7 +86,7 @@ Status AvroJNIReader::init_fetch_table_reader(
             {"file_type", std::to_string(type)},
             {"is_get_table_schema", "false"},
             {"hive.serde", "org.apache.hadoop.hive.serde2.avro.AvroSerDe"}};
-    if (type == TFileType::FILE_S3) {
+    if (type == TFileType::FILE_S3 || type == TFileType::KAFKA) {
         required_param.insert(_params.properties.begin(), _params.properties.end());
     }
     required_param.insert(

@@ -23,6 +23,7 @@ import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericData.Fixed;
 import org.apache.avro.generic.GenericFixed;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.util.Utf8;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -55,6 +56,8 @@ public class AvroColumnValue implements ColumnValue {
         } else if (fieldData instanceof Fixed) {
             return ((PrimitiveObjectInspector) fieldInspector).getPrimitiveJavaObject(
                     ((GenericFixed) fieldData).bytes());
+        } else if (fieldData instanceof Utf8) {
+            return ((PrimitiveObjectInspector) fieldInspector).getPrimitiveJavaObject(fieldData.toString());
         }
         return ((PrimitiveObjectInspector) fieldInspector).getPrimitiveJavaObject(fieldData);
     }

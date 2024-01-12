@@ -159,6 +159,9 @@ public class AvroJNIScanner extends JniScanner {
                 String region = requiredParams.get(AvroProperties.S3_REGION);
                 this.avroReader = new S3FileReader(accessKey, secretKey, endpoint, region, uri);
                 break;
+            case KAFKA:
+                this.avroReader = new KafkaReader(requiredParams);
+                break;
             default:
                 LOG.warn("Unsupported " + fileType.name() + " file type.");
                 throw new IOException("Unsupported " + fileType.name() + " file type.");
