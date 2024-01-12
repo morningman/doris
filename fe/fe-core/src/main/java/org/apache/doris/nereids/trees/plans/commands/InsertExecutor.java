@@ -23,8 +23,11 @@ import org.apache.doris.analysis.UserIdentity;
 import org.apache.doris.catalog.Column;
 import org.apache.doris.catalog.Database;
 import org.apache.doris.catalog.Env;
+import org.apache.doris.catalog.KafkaResource;
 import org.apache.doris.catalog.KeysType;
 import org.apache.doris.catalog.OlapTable;
+import org.apache.doris.catalog.Resource;
+import org.apache.doris.catalog.Resource.ResourceType;
 import org.apache.doris.catalog.Table;
 import org.apache.doris.catalog.TableIf;
 import org.apache.doris.catalog.TableIf.TableType;
@@ -94,6 +97,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -262,6 +266,19 @@ public class InsertExecutor {
                 txnStatus = TransactionStatus.VISIBLE;
             } else {
                 txnStatus = TransactionStatus.COMMITTED;
+            }
+
+            // update kafka resource offset
+            Map<String, Map<String, Long>> readStats = coordinator.getReadStats();
+            if (readStats != null) {
+                for (Map.Entry<String, Map<String, Long>> entry : readStats.entrySet()) {
+                    String resourceName = entry.getKey();
+                    Resource resource = Env.getCurrentEnv().getResourceMgr().getResource(resourceName);
+                    if (resource != null && resource.getType() == ResourceType.KAFKA) {
+                        KafkaResource kafkaResource = (KafkaResource) resource;
+                        kafkaResource.updateOffset(entry.getValue());
+                    }
+                }
             }
 
         } catch (Throwable t) {

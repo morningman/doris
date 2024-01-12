@@ -67,7 +67,13 @@ void NewFileScanNode::set_scan_ranges(RuntimeState* state,
     if (should_run_serial()) {
         max_scanners = 1;
     }
-    if (scan_ranges.size() <= max_scanners) {
+    // make sure one scanner consumer one and only one partition.
+    bool is_kafka = !scan_ranges.empty()
+        && !scan_ranges[0].scan_range.ext_scan_range.file_scan_range.ranges.empty()
+        && scan_ranges[0].scan_range.ext_scan_range.file_scan_range.ranges[0].file_type == TFileType::KAFKA;
+    LOG(INFO) << "set_scan_ranges is kafka: " << is_kafka << ", scan range size before merge: " << scan_ranges.size()
+              << ", max scanners: " << max_scanners;
+    if (scan_ranges.size() <= max_scanners || is_kafka) {
         _scan_ranges = scan_ranges;
     } else {
         // There is no need for the number of scanners to exceed the number of threads in thread pool.

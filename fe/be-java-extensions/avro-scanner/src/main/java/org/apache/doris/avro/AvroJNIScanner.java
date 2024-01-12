@@ -147,26 +147,34 @@ public class AvroJNIScanner extends JniScanner {
 
     @Override
     public void open() throws IOException {
-        Thread.currentThread().setContextClassLoader(classLoader);
-        switch (fileType) {
-            case FILE_HDFS:
-                this.avroReader = new HDFSFileReader(uri);
-                break;
-            case FILE_S3:
-                String accessKey = requiredParams.get(AvroProperties.S3_ACCESS_KEY);
-                String secretKey = requiredParams.get(AvroProperties.S3_SECRET_KEY);
-                String endpoint = requiredParams.get(AvroProperties.S3_ENDPOINT);
-                String region = requiredParams.get(AvroProperties.S3_REGION);
-                this.avroReader = new S3FileReader(accessKey, secretKey, endpoint, region, uri);
-                break;
-            default:
-                LOG.warn("Unsupported " + fileType.name() + " file type.");
-                throw new IOException("Unsupported " + fileType.name() + " file type.");
+        try {
+            Thread.currentThread().setContextClassLoader(classLoader);
+            switch (fileType) {
+                case FILE_HDFS:
+                    this.avroReader = new HDFSFileReader(uri);
+                    break;
+                case FILE_S3:
+                    String accessKey = requiredParams.get(AvroProperties.S3_ACCESS_KEY);
+                    String secretKey = requiredParams.get(AvroProperties.S3_SECRET_KEY);
+                    String endpoint = requiredParams.get(AvroProperties.S3_ENDPOINT);
+                    String region = requiredParams.get(AvroProperties.S3_REGION);
+                    this.avroReader = new S3FileReader(accessKey, secretKey, endpoint, region, uri);
+                    break;
+                case KAFKA:
+                    this.avroReader = new KafkaReader(requiredParams);
+                    break;
+                default:
+                    LOG.warn("Unsupported " + fileType.name() + " file type.");
+                    throw new IOException("Unsupported " + fileType.name() + " file type.");
+            }
+            if (!isGetTableSchema) {
+                initDataReader();
+            }
+            this.avroReader.open(avroFileContext, isGetTableSchema);
+        } catch (Throwable t) {
+            LOG.warn("Failed to init avro scanner. ", t);
+            throw new IOException(t);
         }
-        if (!isGetTableSchema) {
-            initDataReader();
-        }
-        this.avroReader.open(avroFileContext, isGetTableSchema);
     }
 
     private void initDataReader() {
@@ -202,6 +210,9 @@ public class AvroJNIScanner extends JniScanner {
                 break;
             }
             GenericRecord rowRecord = (GenericRecord) avroReader.getNext();
+            if (rowRecord == null) {
+                break;
+            }
             for (int i = 0; i < requiredFields.length; i++) {
                 Object fieldData = rowRecord.get(requiredFields[i]);
                 if (fieldData == null) {

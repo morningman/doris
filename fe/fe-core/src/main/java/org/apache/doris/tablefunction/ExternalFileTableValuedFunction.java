@@ -163,6 +163,9 @@ public abstract class ExternalFileTableValuedFunction extends TableValuedFunctio
     }
 
     protected void parseFile() throws AnalysisException {
+        if (TFileType.KAFKA.equals(getTFileType())) {
+            return;
+        }
         String path = getFilePath();
         BrokerDesc brokerDesc = getBrokerDesc();
         try {
@@ -475,6 +478,25 @@ public abstract class ExternalFileTableValuedFunction extends TableValuedFunctio
             String fsNmae = getLocationProperties().get(HdfsResource.HADOOP_FS_NAME);
             tHdfsParams.setFsName(fsNmae);
             fileScanRangeParams.setHdfsParams(tHdfsParams);
+        }
+
+        if (getTFileType() == TFileType.KAFKA) {
+            // set TFileRangeDesc
+            TFileRangeDesc fileRangeDesc = new TFileRangeDesc();
+            fileRangeDesc.setLoadId(ctx.queryId());
+            fileRangeDesc.setFileType(getTFileType());
+//            fileRangeDesc.setCompressType(Util.getOrInferCompressType(compressionType, firstFile.getPath()));
+//            fileRangeDesc.setPath(firstFile.getPath());
+            fileRangeDesc.setStartOffset(0);
+//            fileRangeDesc.setSize(firstFile.getSize());
+//            fileRangeDesc.setFileSize(firstFile.getSize());
+//            fileRangeDesc.setModificationTime(firstFile.getModificationTime());
+            // set TFileScanRange
+            TFileScanRange fileScanRange = new TFileScanRange();
+            fileScanRange.addToRanges(fileRangeDesc);
+            fileScanRange.setParams(fileScanRangeParams);
+            return InternalService.PFetchTableSchemaRequest.newBuilder()
+                .setFileScanRange(ByteString.copyFrom(new TSerializer().serialize(fileScanRange))).build();
         }
 
         // get first file, used to parse table schema

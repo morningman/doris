@@ -330,6 +330,12 @@ Status VFileScanner::_get_block_impl(RuntimeState* state, Block* block, bool* eo
             RETURN_IF_ERROR(
                     _cur_reader->get_next_block(_src_block_ptr, &read_rows, &_cur_reader_eof));
         }
+
+        if (_cur_reader_eof) {
+            if (_param.properties.find("resource") != _param.properties.end()) {
+                state->update_read_stats_map(_param.properties["resource"], _cur_reader->get_read_statistic());
+            }
+        }
         // use read_rows instead of _src_block_ptr->rows(), because the first column of _src_block_ptr
         // may not be filled after calling `get_next_block()`, so _src_block_ptr->rows() may return wrong result.
         if (read_rows > 0) {
