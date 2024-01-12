@@ -603,11 +603,19 @@ public class ConnectProcessor {
             case COM_STMT_CLOSE:
                 handleStmtClose();
                 break;
+            case COM_CHANGE_USER:
+                handleChangeUser();
+                break;
             default:
                 ctx.getState().setError(ErrorCode.ERR_UNKNOWN_COM_ERROR, "Unsupported command(" + command + ")");
                 LOG.warn("Unsupported command(" + command + ")");
                 break;
         }
+    }
+
+    private void handleChangeUser() {
+        // do nothing
+        ctx.getState().setOk();
     }
 
     private ByteBuffer getResultPacket() {
