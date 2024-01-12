@@ -103,11 +103,15 @@ public class AvroTypeUtils {
                 List<Schema> nonNullableMembers = filterNullableUnion(avroSchema);
                 Preconditions.checkArgument(!nonNullableMembers.isEmpty(),
                         avroSchema.getName() + "Union child type not all nullAble type");
+                if (nonNullableMembers.size() == 1) {
+                    Schema schema = nonNullableMembers.get(0);
+                    return typeFromAvro(schema, schemaColumn);
+                }
                 List<SchemaColumn> childSchemaColumns = Lists.newArrayList();
-                for (Schema nullableMember : nonNullableMembers) {
+                for (int i = 0; i < nonNullableMembers.size(); i++) {
                     SchemaColumn childColumn = new SchemaColumn();
-                    childColumn.setName(nullableMember.getName());
-                    childColumn.setType(typeFromAvro(nullableMember, childColumn));
+                    childColumn.setName("dumb" + i);
+                    childColumn.setType(typeFromAvro(nonNullableMembers.get(i), childColumn));
                     childSchemaColumns.add(childColumn);
                 }
                 schemaColumn.addChildColumns(childSchemaColumns);
