@@ -477,6 +477,8 @@ struct TReportExecStatusParams {
   24: optional TQueryStatistics query_statistics
 
   25: TReportWorkloadRuntimeStatusParams report_workload_runtime_status
+
+  26: optional map<string, i64> read_stats 
 }
 
 struct TFeResult {

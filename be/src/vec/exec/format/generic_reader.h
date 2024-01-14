@@ -66,6 +66,10 @@ public:
 
     virtual Status close() { return Status::OK(); }
 
+    virtual std::unordered_map<std::string, int64_t> get_read_statistic() {
+        return std::unordered_map<std::string, int64_t>();
+    }
+
 protected:
     const size_t _MIN_BATCH_SIZE = 4064; // 4094 - 32(padding)
 

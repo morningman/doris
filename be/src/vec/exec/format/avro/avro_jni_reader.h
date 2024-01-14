@@ -85,6 +85,8 @@ public:
 
     TypeDescriptor convert_complex_type(const rapidjson::Document::ConstObject child_schema);
 
+    std::unordered_map<std::string, int64_t> get_read_statistic() override;
+
 private:
     const std::vector<SlotDescriptor*>& _file_slot_descs;
     RuntimeState* _state = nullptr;
@@ -93,6 +95,8 @@ private:
     const TFileRangeDesc _range;
     std::unordered_map<std::string, ColumnValueRangeType>* _colname_to_value_range = nullptr;
     std::unique_ptr<JniConnector> _jni_connector;
+
+    int64_t _read_rows = 0;
 };
 
 } // namespace doris::vectorized

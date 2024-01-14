@@ -568,6 +568,9 @@ public:
         return _task_execution_context;
     }
 
+    void update_read_stats_map(const std::unordered_map<std::string, int64_t>& map);
+    void get_read_stats_map(std::map<std::string, int64_t>* output);
+
 private:
     Status create_error_log_file();
 
@@ -693,6 +696,9 @@ private:
 
     // prohibit copies
     RuntimeState(const RuntimeState&);
+    
+    std::mutex _read_stats_lock;
+    std::map<std::string, int64_t> _read_stats_map;
 };
 
 #define RETURN_IF_CANCELLED(state)                                                    \

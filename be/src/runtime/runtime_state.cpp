@@ -520,4 +520,27 @@ bool RuntimeState::enable_page_cache() const {
            (_query_options.__isset.enable_page_cache && _query_options.enable_page_cache);
 }
 
+void RuntimeState::update_read_stats_map(const std::unordered_map<std::string, int64_t>& map) {
+    std::lock_guard<std::mutex> l(_read_stats_lock);
+    for (const auto& kv : map) {
+        auto it = _read_stats_map.find(kv.first);
+        if (it != _read_stats_map.end()) {
+            it->second += kv.second;
+        } else {
+            _read_stats_map[kv.first] = kv.second;
+        }
+    }
+}
+
+void RuntimeState::get_read_stats_map(std::map<std::string, int64_t>* output) {
+    for (const auto& kv : _read_stats_map) {
+        auto it = output->find(kv.first);
+        if (it != output->end()) {
+            it->second += kv.second;
+        } else {
+            (*output)[kv.first] = kv.second;
+        }
+    }
+}
+
 } // end namespace doris

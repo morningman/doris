@@ -44,6 +44,7 @@ AvroJNIReader::~AvroJNIReader() = default;
 
 Status AvroJNIReader::get_next_block(Block* block, size_t* read_rows, bool* eof) {
     RETURN_IF_ERROR(_jni_connector->get_nex_block(block, read_rows, eof));
+    _read_rows += *read_rows;
     if (*eof) {
         RETURN_IF_ERROR(_jni_connector->close());
     }
@@ -177,6 +178,17 @@ TypeDescriptor AvroJNIReader::convert_to_doris_type(const rapidjson::Value& colu
     default:
         return {PrimitiveType::INVALID_TYPE};
     }
+}
+
+std::unordered_map<std::string, int64_t> AvroJNIReader::get_read_statistic() {
+    if (!_range.file_type == TFileType::KAFKA) {
+        return std::unordered_map<std::string, int64_t>();
+    }
+
+    std::unordered_map<std::string, int64_t> map;
+    // _range.size is kafka partition id
+    map.emplace(std::to_string(_range.size), _read_rows); 
+    return map;
 }
 
 } // namespace doris::vectorized
