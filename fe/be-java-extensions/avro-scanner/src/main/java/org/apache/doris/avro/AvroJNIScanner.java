@@ -205,6 +205,9 @@ public class AvroJNIScanner extends JniScanner {
                 break;
             }
             GenericRecord rowRecord = (GenericRecord) avroReader.getNext();
+            if (rowRecord == null) {
+                break;
+            }
             for (int i = 0; i < requiredFields.length; i++) {
                 Object fieldData = rowRecord.get(requiredFields[i]);
                 if (fieldData == null) {
