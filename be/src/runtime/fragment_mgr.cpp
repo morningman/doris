@@ -323,9 +323,9 @@ void FragmentMgr::coordinator_callback(const ReportStatusRequest& req) {
         params.load_counters.emplace(s_unselected_rows, std::to_string(num_rows_load_unselected));
 
         for (auto* rs : req.runtime_states) {
-            rs->get_read_stats_map(params.read_stats);
+            rs->get_read_stats_map(&(params.read_stats));
         }
-        req.runtime_state->get_read_stats_map(params.read_stats);
+        req.runtime_state->get_read_stats_map(&(params.read_stats));
         params.__isset.read_stats = true;
 
         LOG(INFO) << "execute coordinator callback, query id: " << print_id(req.query_id)

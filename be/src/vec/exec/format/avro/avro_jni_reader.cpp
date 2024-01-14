@@ -181,7 +181,7 @@ TypeDescriptor AvroJNIReader::convert_to_doris_type(const rapidjson::Value& colu
 }
 
 std::unordered_map<std::string, int64_t> AvroJNIReader::get_read_statistic() {
-    if (!_range.file_type == TFileType::KAFKA) {
+    if (_range.file_type != TFileType::KAFKA) {
         return std::unordered_map<std::string, int64_t>();
     }
 
