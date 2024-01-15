@@ -220,7 +220,9 @@ public abstract class Resource implements Writable, GsonPostProcessable {
     public void checkProperties(Map<String, String> properties) throws AnalysisException { }
 
     protected void replaceIfEffectiveValue(Map<String, String> properties, String key, String value) {
-        if (!Strings.isNullOrEmpty(value)) {
+        if (Strings.isNullOrEmpty(value)) {
+            properties.remove(key);
+        } else {
             properties.put(key, value);
         }
     }

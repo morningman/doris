@@ -2,7 +2,13 @@ package org.apache.doris.avro;
 
 import com.google.common.base.Optional;
 import com.google.common.collect.Queues;
+import io.confluent.kafka.schemaregistry.client.CachedSchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.SchemaMetadata;
+import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
+import io.confluent.kafka.schemaregistry.client.rest.exceptions.RestClientException;
+import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import org.apache.avro.Schema;
+import org.apache.avro.Schema.Parser;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.mapred.AvroWrapper;
 import org.apache.avro.mapred.Pair;
@@ -14,10 +20,11 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
-import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
@@ -47,30 +54,76 @@ public class KafkaReader extends AvroReader {
 
     @Override
     public void open(AvroFileContext avroFileContext, boolean tableSchema) throws IOException {
-        if (tableSchema) {
-            this.schema = new Schema.Parser().parse(new File(kafkaSchemaPath));
-        } else {
+        try {
             initKafkaProps();
-            pollRecords();
+
+            if (tableSchema) {
+                SchemaRegistryClient registryClient = new CachedSchemaRegistryClient(
+                        props.getProperty(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG),
+                        AbstractKafkaSchemaSerDeConfig.MAX_SCHEMAS_PER_SUBJECT_DEFAULT);
+                try {
+                    Collection<String> topicSubjects = registryClient.getAllSubjectsByPrefix(topic);
+                    for (String topicSubject : topicSubjects) {
+                        if (topicSubject.endsWith("-value")) {
+                            List<Integer> allVersions = registryClient.getAllVersions(topicSubject);
+                            if (allVersions.size() > 1) {
+                                String errMsg = String.format(
+                                        "kafka avro scanner does not support multiple avro schemas for one topic. "
+                                                + "topic=%s, allVersions=%s", topic, allVersions.toString());
+                                LOG.warn(errMsg);
+                                throw new IOException(errMsg);
+                            }
+                            SchemaMetadata latestSchemaMetadata = registryClient.getLatestSchemaMetadata(topicSubject);
+                            String schemaType = latestSchemaMetadata.getSchemaType();
+                            if (!schemaType.equalsIgnoreCase("AVRO")) {
+                                String errMsg = String.format(
+                                        "The schema of the current kafka topic is not an avro structure. topic=%s, schemaType=%s",
+                                        topic, schemaType);
+                                LOG.error(errMsg);
+                                throw new IOException(errMsg);
+                            }
+                            String schemaStr = latestSchemaMetadata.getSchema();
+                            this.schema = new Parser().parse(schemaStr);
+                        }
+                    }
+                } catch (RestClientException e) {
+                    LOG.warn("Failed to get kafka avro schema.", e);
+                    throw new RuntimeException("Failed to get kafka avro schema.", e);
+                }
+                return;
+            } else {
+                initConsumerProp();
+                pollRecords();
+            }
+        } catch (Throwable t) {
+            LOG.warn("Failed to open kafka reader.", t);
+            throw new IOException("Failed to open kafka reader.", t);
         }
     }
 
     private void initKafkaProps() {
-        this.partition = Integer.parseInt(requiredParams.get(AvroProperties.SPLIT_SIZE));
-        this.startOffset = Long.parseLong(requiredParams.get(AvroProperties.SPLIT_START_OFFSET));
-        this.maxRows = Long.parseLong(requiredParams.get(AvroProperties.SPLIT_FILE_SIZE));
         props.put(AvroProperties.KAFKA_BOOTSTRAP_SERVERS,
                 requiredParams.get(AvroProperties.KAFKA_BROKER_LIST));
         props.put(AvroProperties.KAFKA_GROUP_ID, requiredParams.get(AvroProperties.KAFKA_GROUP_ID));
         props.put(AvroProperties.KAFKA_SCHEMA_REGISTRY_URL,
                 requiredParams.get(AvroProperties.KAFKA_SCHEMA_REGISTRY_URL));
-        props.put(AvroProperties.KAFKA_KEY_DESERIALIZER, AvroProperties.KAFKA_STRING_DESERIALIZER);
-        props.put(AvroProperties.KAFKA_VALUE_DESERIALIZER, AvroProperties.KAFKA_AVRO_DESERIALIZER);
-        props.put(AvroProperties.KAFKA_AUTO_COMMIT_ENABLE, "true");
+        props.put(AvroProperties.KAFKA_KEY_DESERIALIZER, requiredParams.getOrDefault(
+                AvroProperties.KAFKA_KEY_DESERIALIZER, AvroProperties.KAFKA_AVRO_DESERIALIZER));
+        props.put(AvroProperties.KAFKA_VALUE_DESERIALIZER, requiredParams.getOrDefault(
+                AvroProperties.KAFKA_VALUE_DESERIALIZER, AvroProperties.KAFKA_AVRO_DESERIALIZER));
+        props.put(AvroProperties.KAFKA_AUTO_COMMIT_ENABLE, requiredParams.getOrDefault(
+                AvroProperties.KAFKA_AUTO_COMMIT_ENABLE, "false"));
+    }
+
+    private void initConsumerProp() {
+        this.partition = Integer.parseInt(requiredParams.get(AvroProperties.SPLIT_SIZE));
+        this.startOffset = Long.parseLong(requiredParams.get(AvroProperties.SPLIT_START_OFFSET));
+        this.maxRows = Long.parseLong(requiredParams.get(AvroProperties.SPLIT_FILE_SIZE));
     }
 
     private void pollRecords() {
-        consumerThread = new Thread(new ConsumerTask(topic, partition, startOffset, maxRows, props, maxRunTimeSec, recordsQueue));
+        consumerThread = new Thread(
+                new ConsumerTask(topic, partition, startOffset, maxRows, props, maxRunTimeSec, recordsQueue));
         consumerThread.start();
     }
 
