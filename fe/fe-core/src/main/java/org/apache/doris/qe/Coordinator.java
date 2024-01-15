@@ -1192,10 +1192,11 @@ public class Coordinator implements CoordInterface {
 
     private void updateReadStats(Map<String, Map<String, Long>> input) {
         if (this.readStats == null) {
-            LOG.info("read stats is null, {}", DebugUtil.printId(queryId));
+            LOG.debug("read stats is null, {}", DebugUtil.printId(queryId));
             return;
         }
         lock.lock();
+        LOG.debug("before update read stats: {}", input);
         try {
             for (Map.Entry<String, Map<String, Long>> entry1 : input.entrySet()) {
                 Map<String, Long> innerMap = this.readStats.get(entry1.getKey());
@@ -1204,7 +1205,7 @@ public class Coordinator implements CoordInterface {
                     this.readStats.put(entry1.getKey(), innerMap);
                 }
 
-                for (Map.Entry<String, Long> entry : innerMap.entrySet()) {
+                for (Map.Entry<String, Long> entry : entry1.getValue().entrySet()) {
                     String key = entry.getKey();
                     Long value = entry.getValue();
                     Long oldValue = innerMap.get(key);
@@ -1215,7 +1216,7 @@ public class Coordinator implements CoordInterface {
                     }
                 }
             }
-            LOG.info("update read stats, {}, read stats: {}", DebugUtil.printId(queryId),
+            LOG.debug("update read stats, {}, read stats: {}", DebugUtil.printId(queryId),
                     this.readStats);
         } finally {
             lock.unlock();
@@ -2575,6 +2576,9 @@ public class Coordinator implements CoordInterface {
                 if (params.isSetLoadCounters()) {
                     updateLoadCounters(params.getLoadCounters());
                 }
+                if (params.isSetReadStats()) {
+                    updateReadStats(params.getReadStats());
+                }
                 if (params.isSetTrackingUrl()) {
                     trackingUrl = params.getTrackingUrl();
                 }
@@ -2645,6 +2649,9 @@ public class Coordinator implements CoordInterface {
                 }
                 if (params.isSetLoadCounters()) {
                     updateLoadCounters(params.getLoadCounters());
+                }
+                if (params.isSetReadStats()) {
+                    updateReadStats(params.getReadStats());
                 }
                 if (params.isSetTrackingUrl()) {
                     trackingUrl = params.getTrackingUrl();

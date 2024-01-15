@@ -59,7 +59,7 @@ public class KafkaResource extends Resource {
     public static final String PARTITIONS = "partitions";
     public static final String OFFSETS = "start_offsets";
     public static final String MAX_ROWS = "max_rows";
-    public static final String GROUP_ID = "group_id";
+    public static final String GROUP_ID = "group.id";
 
     public static final String SECURITY_PROTOCOL = "security.protocol";
     public static final String SASL_MECHANISM = "sasl.mechanism";
@@ -103,7 +103,7 @@ public class KafkaResource extends Resource {
         Properties prop = new Properties();
         prop.put("bootstrap.servers", properties.get(BROKER_LIST));
         prop.put("enable.auto.commit", "false");
-        prop.put("group.id", properties.get(GROUP_ID));
+        prop.put("group.id", properties.getOrDefault(GROUP_ID, "doris"));
         if (properties.containsKey(SECURITY_PROTOCOL)) {
             prop.put(SECURITY_PROTOCOL, properties.get(SECURITY_PROTOCOL));
             prop.put(SASL_MECHANISM, properties.get(SASL_MECHANISM));
@@ -154,8 +154,8 @@ public class KafkaResource extends Resource {
             newpPartitions.add(entry.getKey());
             newOffsets.add(entry.getValue());
         }
-        updatedProperties.put(PARTITIONS, Joiner.on(",").join(partitions));
-        updatedProperties.put(OFFSETS, Joiner.on(",").join(offsets));
+        updatedProperties.put(PARTITIONS, Joiner.on(",").join(newpPartitions));
+        updatedProperties.put(OFFSETS, Joiner.on(",").join(newOffsets));
         LOG.info("kafka resource[{}] update offset to: {}", name, updatedProperties);
         try {
             modifyProperties(updatedProperties);

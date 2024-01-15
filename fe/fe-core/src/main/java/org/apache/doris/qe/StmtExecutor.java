@@ -79,8 +79,11 @@ import org.apache.doris.analysis.UseStmt;
 import org.apache.doris.catalog.Column;
 import org.apache.doris.catalog.Database;
 import org.apache.doris.catalog.Env;
+import org.apache.doris.catalog.KafkaResource;
 import org.apache.doris.catalog.OlapTable;
 import org.apache.doris.catalog.PrimitiveType;
+import org.apache.doris.catalog.Resource;
+import org.apache.doris.catalog.Resource.ResourceType;
 import org.apache.doris.catalog.ScalarType;
 import org.apache.doris.catalog.Table;
 import org.apache.doris.catalog.TableIf;
@@ -2058,6 +2061,19 @@ public class StmtExecutor {
                     txnStatus = TransactionStatus.VISIBLE;
                 } else {
                     txnStatus = TransactionStatus.COMMITTED;
+                }
+
+                // update kafka resource offset
+                Map<String, Map<String, Long>> readStats = coord.getReadStats();
+                if (readStats != null) {
+                    for (Map.Entry<String, Map<String, Long>> entry : readStats.entrySet()) {
+                        String resourceName = entry.getKey();
+                        Resource resource = Env.getCurrentEnv().getResourceMgr().getResource(resourceName);
+                        if (resource != null && resource.getType() == ResourceType.KAFKA) {
+                            KafkaResource kafkaResource = (KafkaResource) resource;
+                            kafkaResource.updateOffset(entry.getValue());
+                        }
+                    }
                 }
 
             } catch (Throwable t) {

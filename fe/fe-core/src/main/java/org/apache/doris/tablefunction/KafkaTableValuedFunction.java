@@ -27,6 +27,9 @@ public class KafkaTableValuedFunction extends ExternalFileTableValuedFunction {
         Map<String, String> otherProps = super.parseCommonProperties(properties);
         if (otherProps.containsKey(KAFKA_RESOURCE)) {
             Resource resource = Env.getCurrentEnv().getResourceMgr().getResource(otherProps.get(KAFKA_RESOURCE));
+            if (resource == null) {
+                throw new AnalysisException("resource does not exist");
+            }
             if (resource.getType() != ResourceType.KAFKA) {
                 throw new AnalysisException("resource type is not kafka");
             }
