@@ -322,8 +322,9 @@ void FragmentMgr::coordinator_callback(const ReportStatusRequest& req) {
         params.load_counters.emplace(s_dpp_abnormal_all, std::to_string(num_rows_load_filtered));
         params.load_counters.emplace(s_unselected_rows, std::to_string(num_rows_load_unselected));
 
+        std::map<std::string, int64_t> read_map;
         for (auto* rs : req.runtime_states) {
-            rs->get_read_stats_map(&(params.read_stats));
+            rs->get_read_stats_map(&(params.read_stats);
         }
         req.runtime_state->get_read_stats_map(&(params.read_stats));
         params.__isset.read_stats = true;
@@ -334,10 +335,15 @@ void FragmentMgr::coordinator_callback(const ReportStatusRequest& req) {
                   << ", num_rows_load_filtered: " << num_rows_load_filtered
                   << ", num_rows_load_unselected: " << num_rows_load_unselected;
 
+        std::stringstream ss;
+        ss << "execute coordinator callback, query id: " << print_id(req.query_id);
         for (auto& kv : params.read_stats) {
-            LOG(INFO) << "execute coordinator callback, query id: " << print_id(req.query_id)
-                    << ", read stats: " << kv.first << ": " << kv.second;
+            ss << ", read stats: " << kv.first << ": ";
+            for (auto& kv2 : kv.second) {
+                ss << kv2.first << " = " << kv2.second;
+            }
         }
+        LOG(INFO) << ss.str();
 
         if (!req.runtime_state->get_error_log_file_path().empty()) {
             params.__set_tracking_url(

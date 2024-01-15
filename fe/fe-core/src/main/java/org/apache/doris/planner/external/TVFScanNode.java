@@ -20,6 +20,7 @@ package org.apache.doris.planner.external;
 import org.apache.doris.analysis.TupleDescriptor;
 import org.apache.doris.catalog.Env;
 import org.apache.doris.catalog.FunctionGenTable;
+import org.apache.doris.catalog.KafkaResource;
 import org.apache.doris.catalog.TableIf;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.MetaNotFoundException;
@@ -133,9 +134,9 @@ public class TVFScanNode extends FileQueryScanNode {
         }
         if (tableValuedFunction.getTFileType() == TFileType.KAFKA) {
             Map<String, String> locationProperties = tableValuedFunction.getLocationProperties();
-            String partitions = locationProperties.get("partition");
-            String startOffsets = locationProperties.get("start_offset");
-            long maxRows = Long.parseLong(locationProperties.get("max_rows"));
+            String partitions = locationProperties.get(KafkaResource.PARTITIONS);
+            String startOffsets = locationProperties.get(KafkaResource.OFFSETS);
+            long maxRows = Long.parseLong(locationProperties.get(KafkaResource.MAX_ROWS));
             String[] partitionArr = partitions.split(",");
             String[] startOffsetArr = startOffsets.split(",");
             for (int i = 0; i < partitionArr.length; i++) {

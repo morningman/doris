@@ -57,7 +57,8 @@ public abstract class Resource implements Writable, GsonPostProcessable {
         JDBC,
         HDFS,
         HMS,
-        ES;
+        ES,
+        KAFKA;
 
         public static ResourceType fromString(String resourceType) {
             for (ResourceType type : ResourceType.values()) {
@@ -183,6 +184,9 @@ public abstract class Resource implements Writable, GsonPostProcessable {
                 break;
             case ES:
                 resource = new EsResource(name);
+                break;
+            case KAFKA:
+                resource = new KafkaResource(name);
                 break;
             default:
                 throw new DdlException("Unknown resource type: " + type);

@@ -222,6 +222,7 @@ public class Coordinator implements CoordInterface {
 
     private List<String> deltaUrls;
     private Map<String, String> loadCounters;
+    private Map<String, Map<String, Long>> readStats;
     private String trackingUrl;
 
     // for export
@@ -434,6 +435,10 @@ public class Coordinator implements CoordInterface {
 
     public Map<String, String> getLoadCounters() {
         return loadCounters;
+    }
+
+    public Map<String, Map<String, Long>> getReadStats() {
+        return readStats;
     }
 
     public String getTrackingUrl() {
@@ -677,6 +682,7 @@ public class Coordinator implements CoordInterface {
             this.queryOptions.setIsReportSuccess(true);
             deltaUrls = Lists.newArrayList();
             loadCounters = Maps.newHashMap();
+            readStats = Maps.newHashMap();
             List<Long> relatedBackendIds = Lists.newArrayList(addressToBackendID.values());
             Env.getCurrentEnv().getLoadManager().initJobProgress(jobId, queryId, instanceIds,
                     relatedBackendIds);
@@ -1184,6 +1190,38 @@ public class Coordinator implements CoordInterface {
         }
     }
 
+    private void updateReadStats(Map<String, Map<String, Long>> input) {
+        if (this.readStats == null) {
+            LOG.info("read stats is null, {}", DebugUtil.printId(queryId));
+            return;
+        }
+        lock.lock();
+        try {
+            for (Map.Entry<String, Map<String, Long>> entry1 : input.entrySet()) {
+                Map<String, Long> innerMap = this.readStats.get(entry1.getKey());
+                if (innerMap == null) {
+                    innerMap = Maps.newHashMap();
+                    this.readStats.put(entry1.getKey(), innerMap);
+                }
+
+                for (Map.Entry<String, Long> entry : innerMap.entrySet()) {
+                    String key = entry.getKey();
+                    Long value = entry.getValue();
+                    Long oldValue = innerMap.get(key);
+                    if (oldValue == null) {
+                        innerMap.put(key, value);
+                    } else {
+                        innerMap.put(key, oldValue + value);
+                    }
+                }
+            }
+            LOG.info("update read stats, {}, read stats: {}", DebugUtil.printId(queryId),
+                    this.readStats);
+        } finally {
+            lock.unlock();
+        }
+    }
+
     private void updateLoadCounters(Map<String, String> newLoadCounters) {
         lock.lock();
         try {
@@ -1406,8 +1444,8 @@ public class Coordinator implements CoordInterface {
                         LOG.warn("Backend process epoch changed, previous {} now {}, "
                                         + "means this be has already restarted, should cancel this coordinator,"
                                         + " query id {}",
-                                        pipelineExecContext.beProcessEpoch, be.getProcessEpoch(),
-                                        DebugUtil.printId(queryId));
+                                pipelineExecContext.beProcessEpoch, be.getProcessEpoch(),
+                                DebugUtil.printId(queryId));
                         return true;
                     } else if (be.getProcessEpoch() == 0) {
                         LOG.warn("Backend {} has zero process epoch, maybe we are upgrading cluster?",
@@ -2188,7 +2226,7 @@ public class Coordinator implements CoordInterface {
 
     // weather we can overwrite the first parameter or not?
     private List<TScanRangeParams> findOrInsert(Map<Integer, List<TScanRangeParams>> m, Integer key,
-                                                ArrayList<TScanRangeParams> defaultVal) {
+            ArrayList<TScanRangeParams> defaultVal) {
         List<TScanRangeParams> value = m.get(key);
         if (value == null) {
             m.put(key, defaultVal);
@@ -2328,9 +2366,9 @@ public class Coordinator implements CoordInterface {
     }
 
     public TScanRangeLocation selectBackendsByRoundRobin(TScanRangeLocations seqLocation,
-                                                         Map<TNetworkAddress, Long> assignedBytesPerHost,
-                                                         Map<TNetworkAddress, Long> replicaNumPerHost,
-                                                         Reference<Long> backendIdRef) throws UserException {
+            Map<TNetworkAddress, Long> assignedBytesPerHost,
+            Map<TNetworkAddress, Long> replicaNumPerHost,
+            Reference<Long> backendIdRef) throws UserException {
         if (!Config.enable_local_replica_selection) {
             return selectBackendsByRoundRobin(seqLocation.getLocations(), assignedBytesPerHost, replicaNumPerHost,
                     backendIdRef);
@@ -2472,6 +2510,9 @@ public class Coordinator implements CoordInterface {
             }
             if (params.isSetLoadCounters()) {
                 updateLoadCounters(params.getLoadCounters());
+            }
+            if (params.isSetReadStats()) {
+                updateReadStats(params.getReadStats());
             }
             if (params.isSetTrackingUrl()) {
                 trackingUrl = params.getTrackingUrl();
@@ -2923,8 +2964,8 @@ public class Coordinator implements CoordInterface {
         boolean ignoreStorageDataDistribution = scanNodes.stream()
                 .allMatch(node -> node.ignoreStorageDataDistribution(context))
                 && addressToScanRanges.entrySet().stream().allMatch(addressScanRange -> {
-                    return addressScanRange.getValue().size() < parallelExecInstanceNum;
-                }) && useNereids;
+            return addressScanRange.getValue().size() < parallelExecInstanceNum;
+        }) && useNereids;
 
         FragmentScanRangeAssignment assignment = params.scanRangeAssignment;
         for (Map.Entry<TNetworkAddress, List<Pair<Integer, Map<Integer, List<TScanRangeParams>>>>> addressScanRange
@@ -3019,8 +3060,8 @@ public class Coordinator implements CoordInterface {
         TUniqueId instanceId;
 
         public BackendExecState(PlanFragmentId fragmentId, int instanceId, int profileFragmentId,
-                                TExecPlanFragmentParams rpcParams, Map<TNetworkAddress, Long> addressToBackendID,
-                                RuntimeProfile loadChannelProfile) {
+                TExecPlanFragmentParams rpcParams, Map<TNetworkAddress, Long> addressToBackendID,
+                RuntimeProfile loadChannelProfile) {
             this.profileFragmentId = profileFragmentId;
             this.fragmentId = fragmentId;
             this.rpcParams = rpcParams;
@@ -3290,7 +3331,7 @@ public class Coordinator implements CoordInterface {
             }
             if (LOG.isDebugEnabled()) {
                 LOG.debug("cancelRemoteFragments initiated={} done={} hasCanceled={} backend: {},"
-                        + " fragment id={} query={}, reason: {}",
+                                + " fragment id={} query={}, reason: {}",
                         this.initiated, this.done, this.hasCanceled, backend.getId(),
                         this.profileFragmentId,
                         DebugUtil.printId(queryId), cancelReason.name());
@@ -3314,7 +3355,7 @@ public class Coordinator implements CoordInterface {
         private synchronized boolean cancelInstance(Types.PPlanFragmentCancelReason cancelReason) {
             for (TPipelineInstanceParams localParam : rpcParams.local_params) {
                 LOG.warn("cancelRemoteFragments initiated={} done={} hasCanceled={} backend:{},"
-                        + " fragment instance id={} query={}, reason: {}",
+                                + " fragment instance id={} query={}, reason: {}",
                         this.initiated, this.done, this.hasCanceled, backend.getId(),
                         DebugUtil.printId(localParam.fragment_instance_id),
                         DebugUtil.printId(queryId), cancelReason.name());
@@ -3926,7 +3967,7 @@ public class Coordinator implements CoordInterface {
         }
 
         public FInstanceExecParam(TUniqueId id, TNetworkAddress host,
-                                  int perFragmentInstanceIdx, FragmentExecParams fragmentExecParams) {
+                int perFragmentInstanceIdx, FragmentExecParams fragmentExecParams) {
             this.instanceId = id;
             this.host = host;
             this.perFragmentInstanceIdx = perFragmentInstanceIdx;
