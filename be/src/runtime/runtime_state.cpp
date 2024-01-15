@@ -524,33 +524,33 @@ void RuntimeState::update_read_stats_map(const std::string& name, const std::uno
     std::lock_guard<std::mutex> l(_read_stats_lock);
     auto it = _read_stats_map.find(name);
     if (it == _read_stats_map.end()) {
-        _read_stats_map.emplace(name, {});
+        _read_stats_map[name] = std::map<std::string, int64_t>();
     }
 
     it = _read_stats_map.find(name);
     for (const auto& kv : map) {
-        auto jt = it.second.find(kv.first);
-        if (jt != it.second.end()) {
+        auto jt = it->second.find(kv.first);
+        if (jt != it->second.end()) {
             jt->second += kv.second;
         } else {
-            (it.second)[kv.first] = kv.second;
+            (it->second)[kv.first] = kv.second;
         }
     }
 }
 
-void RuntimeState::get_read_stats_map(std::map<std::string, <std::string, int64_t>>* output) {
+void RuntimeState::get_read_stats_map(std::map<std::string, std::map<std::string, int64_t>>* output) {
     for (const auto& kv : _read_stats_map) {
         auto it = output->find(kv.first);
         if (it == output->end()) {
-            output->emplace(kv.first, {});
+	    (*output)[kv.first] = std::map<std::string, int64_t>();
         }
         it = output->find(kv.first);
-        for (const auto& kv2 : (*output)) {
-            auto jt = it.second.find(kv2.first);
-            if (jt != it.second.end()) {
+        for (const auto& kv2 : kv.second) {
+            auto jt = it->second.find(kv2.first);
+            if (jt != it->second.end()) {
                 jt->second += kv2.second;
             } else {
-                (it.second)[kv2.first] = kv2.second;
+                (it->second)[kv2.first] = kv2.second;
             }
         }
     }

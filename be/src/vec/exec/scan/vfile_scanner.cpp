@@ -332,8 +332,9 @@ Status VFileScanner::_get_block_impl(RuntimeState* state, Block* block, bool* eo
         }
 
         if (_cur_reader_eof) {
-            if (_param.properties.find("resource") != _param.properties.end()) {
-                state->update_read_stats_map(_param.properties["resource"], _cur_reader->get_read_statistic());
+            if (_params->properties.find("resource") != _params->properties.end()) {
+		std::string name = _params->properties.at("resource");
+                state->update_read_stats_map(name,  _cur_reader->get_read_statistic());
             }
         }
         // use read_rows instead of _src_block_ptr->rows(), because the first column of _src_block_ptr

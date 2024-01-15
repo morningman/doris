@@ -54,8 +54,8 @@ public class AvroJNIScannerTest {
         requiredParams.put("is_get_table_schema", "false");
         requiredParams.put("file_type", "3");
         requiredParams.put("uri", "s3://zyk-gz-1316291683/path/all_type.avro");
-        requiredParams.put("s3.access_key", "AKIDpTwEF92zIMLC2iHbeQuGOJzQcJjsnUv6");
-        requiredParams.put("s3.secret_key", "1h9LH0LRGvMZWFo9GAqGXYLwHQM5Z1Tn");
+        requiredParams.put("s3.access_key", "");
+        requiredParams.put("s3.secret_key", "");
         requiredParams.put("s3.endpoint", "cos.ap-guangzhou.myqcloud.com");
         requiredParams.put("s3.region", "ap-guangzhou");
         // requiredParams.put("columns_types", "boolean#int#bigint#float#double#string#binary#binary#array<int>#map<string,int>#string#struct<c1:int,c2:double,c3:string>#struct<c1:string>");
@@ -72,8 +72,8 @@ public class AvroJNIScannerTest {
         requiredParams.put("is_get_table_schema", "false");
         requiredParams.put("file_type", "3");
         requiredParams.put("uri", "s3://zyk-gz-1316291683/path/avro_all_types");
-        requiredParams.put("s3.access_key", "AKIDpTwEF92zIMLC2iHbeQuGOJzQcJjsnUv6");
-        requiredParams.put("s3.secret_key", "1h9LH0LRGvMZWFo9GAqGXYLwHQM5Z1Tn");
+        requiredParams.put("s3.access_key", "");
+        requiredParams.put("s3.secret_key", "");
         requiredParams.put("s3.endpoint", "cos.ap-guangzhou.myqcloud.com");
         requiredParams.put("s3.region", "ap-guangzhou");
         //  required_fields##########t_null_string,t_null_varchar,t_null_char,t_null_array_int,t_null_decimal_precision_2,t_null_decimal_precision_4,t_null_decimal_precision_8,t_null_decimal_precision_17,t_null_decimal_precision_18,t_null_decimal_precision_38,t_empty_string,t_string,t_empty_varchar,t_varchar,t_varchar_max_length,t_char,t_int,t_bigint,t_float,t_double,t_boolean_true,t_boolean_false,t_date,t_timestamp,t_decimal_precision_2,t_decimal_precision_4,t_decimal_precision_8,t_decimal_precision_17,t_decimal_precision_18,t_decimal_precision_38,t_binary,t_map_string,t_array_empty,t_array_string,t_array_int,t_array_bigint,t_array_float,t_array_double,t_array_boolean,t_array_varchar,t_array_char,t_array_date,t_array_timestamp,t_array_decimal_precision_2,t_array_decimal_precision_4,t_array_decimal_precision_8,t_array_decimal_precision_17,t_array_decimal_precision_18,t_array_decimal_precision_38,t_struct_bigint,t_complex,t_struct_nested,t_struct_null,t_struct_non_nulls_after_nulls,t_array_string_starting_with_nulls,t_array_string_with_nulls_in_between,t_array_string_ending_with_nulls,t_array_string_all_nulls

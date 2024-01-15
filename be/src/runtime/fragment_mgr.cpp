@@ -324,7 +324,7 @@ void FragmentMgr::coordinator_callback(const ReportStatusRequest& req) {
 
         std::map<std::string, int64_t> read_map;
         for (auto* rs : req.runtime_states) {
-            rs->get_read_stats_map(&(params.read_stats);
+            rs->get_read_stats_map(&(params.read_stats));
         }
         req.runtime_state->get_read_stats_map(&(params.read_stats));
         params.__isset.read_stats = true;
@@ -340,7 +340,7 @@ void FragmentMgr::coordinator_callback(const ReportStatusRequest& req) {
         for (auto& kv : params.read_stats) {
             ss << ", read stats: " << kv.first << ": ";
             for (auto& kv2 : kv.second) {
-                ss << kv2.first << " = " << kv2.second;
+                ss << kv2.first << " = " << kv2.second << ", ";
             }
         }
         LOG(INFO) << ss.str();

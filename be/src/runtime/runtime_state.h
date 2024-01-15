@@ -569,7 +569,7 @@ public:
     }
 
     void update_read_stats_map(const std::string& name, const std::unordered_map<std::string, int64_t>& map);
-    void get_read_stats_map(std::map<std::string, <std::string, int64_t>>* output);
+    void get_read_stats_map(std::map<std::string, std::map<std::string, int64_t>>* output);
 
 private:
     Status create_error_log_file();
@@ -698,7 +698,7 @@ private:
     RuntimeState(const RuntimeState&);
     
     std::mutex _read_stats_lock;
-    std::map<std::string, <std::string, int64_t>> _read_stats_map;
+    std::map<std::string, std::map<std::string, int64_t>> _read_stats_map;
 };
 
 #define RETURN_IF_CANCELLED(state)                                                    \
