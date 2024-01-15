@@ -59,6 +59,7 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.annotations.SerializedName;
@@ -244,10 +245,12 @@ public class InsertJob extends AbstractJob<InsertTask, Map<Object, Object>> impl
 
     @Override
     public List<InsertTask> createTasks(TaskType taskType, Map<Object, Object> taskContext) {
+        Map<Long, InsertTask> newTasks = Maps.newHashMap();
         if (plans.isEmpty()) {
             InsertTask task = new InsertTask(labelName, getCurrentDbName(), getExecuteSql(), getCreateUser());
             idToTasks.put(task.getTaskId(), task);
             recordTask(task.getTaskId());
+            newTasks.put(task.getTaskId(), task);
         } else {
             // use for load stmt
             for (InsertIntoTableCommand logicalPlan : plans) {
@@ -257,10 +260,11 @@ public class InsertJob extends AbstractJob<InsertTask, Map<Object, Object>> impl
                 InsertTask task = new InsertTask(logicalPlan, ctx, stmtExecutor, loadStatistic);
                 idToTasks.put(task.getTaskId(), task);
                 recordTask(task.getTaskId());
+                newTasks.put(task.getTaskId(), task);
             }
         }
-        initTasks(idToTasks.values(), taskType);
-        return new ArrayList<>(idToTasks.values());
+        initTasks(newTasks.values(), taskType);
+        return new ArrayList<>(newTasks.values());
     }
 
     public void recordTask(long id) {

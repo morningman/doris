@@ -23,6 +23,7 @@ import org.apache.doris.planner.external.kafka.KafkaTopicInspector;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.gson.annotations.SerializedName;
@@ -79,15 +80,21 @@ public class KafkaResource extends Resource {
             replaceIfEffectiveValue(this.properties, kv.getKey(), kv.getValue());
         }
         super.modifyProperties(properties);
+        tryUpdateKafkaPartitionOffsets();
     }
 
     @Override
     protected void setProperties(Map<String, String> properties) throws DdlException {
         this.properties = properties;
-        if (!properties.containsKey(PARTITIONS) || !properties.containsKey(OFFSETS)) {
+        tryUpdateKafkaPartitionOffsets();
+    }
+
+    private void tryUpdateKafkaPartitionOffsets() throws DdlException {
+        if (Strings.isNullOrEmpty(this.properties.get(PARTITIONS))
+                || Strings.isNullOrEmpty(this.properties.get(OFFSETS))) {
             Properties prop = buildProp();
             KafkaTopicInspector inspector = new KafkaTopicInspector(prop);
-            Map<TopicPartition, Long> partitionOffsets = inspector.getEarliestOffsets(properties.get(TOPIC));
+            Map<TopicPartition, Long> partitionOffsets = inspector.getEarliestOffsets(this.properties.get(TOPIC));
             List<Integer> partitions = Lists.newArrayList();
             List<Long> offsets = Lists.newArrayList();
             for (Map.Entry<TopicPartition, Long> entry : partitionOffsets.entrySet()) {

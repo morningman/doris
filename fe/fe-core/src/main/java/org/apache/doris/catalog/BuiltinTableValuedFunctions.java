@@ -26,6 +26,7 @@ import org.apache.doris.nereids.trees.expressions.functions.table.Hdfs;
 import org.apache.doris.nereids.trees.expressions.functions.table.HttpStream;
 import org.apache.doris.nereids.trees.expressions.functions.table.IcebergMeta;
 import org.apache.doris.nereids.trees.expressions.functions.table.Jobs;
+import org.apache.doris.nereids.trees.expressions.functions.table.Kafka;
 import org.apache.doris.nereids.trees.expressions.functions.table.Local;
 import org.apache.doris.nereids.trees.expressions.functions.table.MvInfos;
 import org.apache.doris.nereids.trees.expressions.functions.table.Numbers;
@@ -56,6 +57,7 @@ public class BuiltinTableValuedFunctions implements FunctionHelper {
             tableValued(Numbers.class, "numbers"),
             tableValued(Queries.class, "queries"),
             tableValued(S3.class, "s3"),
+            tableValued(Kafka.class, "kafka"),
             tableValued(MvInfos.class, "mv_infos"),
             tableValued(Jobs.class, "jobs"),
             tableValued(Tasks.class, "tasks"),
