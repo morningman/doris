@@ -168,7 +168,7 @@ public abstract class ConnectProcessor {
         if (Config.enable_bdbje_debug_mode) {
             return;
         }
-        AuditLogHelper.logAuditLog(ctx, origStmt, parsedStmt, statistics, printFuzzyVariables);
+        AuditLogHelper.logQueryAuditLog(ctx, origStmt, parsedStmt, statistics, printFuzzyVariables);
     }
 
     // only throw an exception when there is a problem interacting with the requesting client

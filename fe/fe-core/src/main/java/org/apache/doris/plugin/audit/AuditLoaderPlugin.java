@@ -161,6 +161,9 @@ public class AuditLoaderPlugin extends Plugin implements AuditPlugin {
         logBuffer.append(event.sqlHash).append("\t");
         logBuffer.append(event.sqlDigest).append("\t");
         logBuffer.append(event.peakMemoryBytes).append("\t");
+        logBuffer.append(event.traceId).append("\t");
+        logBuffer.append(event.workloadGroup).append("\t");
+        logBuffer.append(event.fuzzyVariables).append("\t");
         // trim the query to avoid too long
         // use `getBytes().length` to get real byte length
         String stmt = truncateByBytes(event.stmt).replace("\n", " ")

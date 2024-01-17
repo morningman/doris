@@ -80,6 +80,10 @@ public class InternalSchemaInitializer extends Thread {
         AUDIT_TABLE_COLUMNS.add(new ColumnDef("sql_hash", TypeDef.createVarchar(128), true));
         AUDIT_TABLE_COLUMNS.add(new ColumnDef("sql_digest", TypeDef.createVarchar(128), true));
         AUDIT_TABLE_COLUMNS.add(new ColumnDef("peak_memory_bytes", TypeDef.create(PrimitiveType.BIGINT), true));
+        AUDIT_TABLE_COLUMNS.add(new ColumnDef("peak_memory_bytes", TypeDef.create(PrimitiveType.BIGINT), true));
+        AUDIT_TABLE_COLUMNS.add(new ColumnDef("trace_id", TypeDef.create(PrimitiveType.STRING), true));
+        AUDIT_TABLE_COLUMNS.add(new ColumnDef("workload_group", TypeDef.create(PrimitiveType.STRING), true));
+        AUDIT_TABLE_COLUMNS.add(new ColumnDef("fuzzy_variables", TypeDef.create(PrimitiveType.STRING), true));
         AUDIT_TABLE_COLUMNS.add(new ColumnDef("stmt", TypeDef.create(PrimitiveType.STRING), true));
     }
 

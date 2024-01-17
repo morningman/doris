@@ -36,7 +36,8 @@ import org.apache.commons.codec.digest.DigestUtils;
 
 public class AuditLogHelper {
 
-    public static void logAuditLog(ConnectContext ctx, String origStmt, StatementBase parsedStmt,
+    // build query audit event
+    public static void logQueryAuditLog(ConnectContext ctx, String origStmt, StatementBase parsedStmt,
             org.apache.doris.proto.Data.PQueryStatistics statistics, boolean printFuzzyVariables) {
         origStmt = origStmt.replace("\n", " ");
         // slow query
