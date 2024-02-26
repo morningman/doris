@@ -43,11 +43,52 @@ private:
     bool _is_loopback;
 };
 
+// Define a class for the DNS cache
+class DnsCache {
+private:
+    std::unordered_map<std::string, std::string> cache;
+    std::mutex mutex; // Mutex to ensure thread safety
+
+    // Private constructor to prevent external instantiation
+    DnsCache() {}
+
+public:
+    // Public method to get the singleton instance
+    static DnsCache& getInstance() {
+        static DnsCache instance; // Guaranteed to be destroyed, instantiated on first use
+        return instance;
+    }
+
+    // Function to add an entry to the cache
+    void addEntry(const std::string& host, const std::string& ip) {
+        std::lock_guard<std::mutex> lock(mutex); // Lock the mutex
+        cache[host] = ip; // Add the entry to the cache
+    }
+
+    // Function to check if an entry exists in the cache
+    bool hasEntry(const std::string& host) {
+        std::lock_guard<std::mutex> lock(mutex); // Lock the mutex
+        return cache.find(host) != cache.end(); // Check if the entry exists
+    }
+
+    // Function to retrieve an entry from the cache
+    std::string getEntry(const std::string& host) {
+        std::lock_guard<std::mutex> lock(mutex); // Lock the mutex
+        return cache[host]; // Retrieve the entry from the cache
+    }
+
+    // Prevent copying or assignment
+    DnsCache(const DnsCache&) = delete;
+    DnsCache& operator=(const DnsCache&) = delete;
+};
+
 bool is_valid_ip(const std::string& ip);
 
 bool parse_endpoint(const std::string& endpoint, std::string* host, uint16_t* port);
 
 Status hostname_to_ip(const std::string& host, std::string& ip);
+
+Status _hostname_to_ip(const std::string& host, std::string& ip);
 
 Status hostname_to_ipv4(const std::string& host, std::string& ip);
 
