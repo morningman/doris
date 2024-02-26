@@ -723,6 +723,7 @@ public class StatisticsUtil {
             columnStatisticBuilder.setAvgSizeByte(columnStatisticBuilder.getDataSize()
                     / columnStatisticBuilder.getCount());
         }
+        columnStatisticBuilder.setIsUnknown(true);
         return Optional.of(columnStatisticBuilder.build());
     }
 
