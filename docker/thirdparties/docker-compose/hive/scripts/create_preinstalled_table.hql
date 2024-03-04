@@ -1897,7 +1897,7 @@ OUTPUTFORMAT
 LOCATION
   '/user/doris/preinstalled_data/parquet_table/parquet_decimal90_table';
 
-CREATE TABLE `parquet_test2`(
+CREATE TABLE `parquet_spark_bucket_shuffle_test`(
     `user_id` int,
     `key` varchar(20))
 PARTITIONED BY (
@@ -1909,7 +1909,7 @@ STORED AS INPUTFORMAT
     OUTPUTFORMAT
         'org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat'
 LOCATION
-    '/user/doris/preinstalled_data/parquet_table/parquet_test2'
+    '/user/doris/preinstalled_data/parquet_table/parquet_spark_bucket_shuffle'
 TBLPROPERTIES (
     'spark.sql.statistics.colStats.user_id.nullCount'='0',
     'spark.sql.statistics.colStats.key.distinctCount'='4',
@@ -1941,7 +1941,7 @@ TBLPROPERTIES (
     'spark.sql.sources.provider'='PARQUET',
     'spark.sql.statistics.totalSize'='2873');
 
-msck repair table parquet_test2;
+msck repair table parquet_spark_bucket_shuffle_test;
 
 CREATE TABLE `fixed_length_byte_array_decimal_table`(
   `decimal_col1` decimal(7,2),

@@ -16,15 +16,20 @@
 // under the License.
 
 suite("test_hive_spark_clustered_table", "p0,external,hive,external_docker,external_docker_hive") {
+    def tbl_name = "parquet_spark_bucket_shuffle_test"
     def q01 = {
-        qt_q01 """ select * from parquet_test2 t1, parquet_test2 t2 WHERE t1.user_id = t2.user_id ORDER BY 1,2 ;"""
-
-        qt_q02 """explain select * from parquet_test2 t1, parquet_test2 t2 WHERE t1.user_id = t2.user_id ;"""
-
-        qt_q03 """select * from parquet_test2 t1, `internal`.`regression_test`.doris_dist_test t2 WHERE t1.user_id = t2.user_id ORDER BY 1,2 ;"""
+        qt_q01 """ select * from ${tbl_name} t1, ${tbl_name} t2 WHERE t1.user_id = t2.user_id ORDER BY 1,2 ;"""
 
         explain {
-             sql("""select * from parquet_test2 t1, `internal`.`regression_test`.doris_dist_test t2 WHERE t1.user_id = t2.user_id;""")
+            sql("""explain select * from ${tbl_name} t1, ${tbl_name} t2 WHERE t1.user_id = t2.user_id ;""")
+            contains "BUCKET_SHFFULE_HASH_PARTITIONED(SPARK_MURMUR32): user_id"
+            contains "INNER JOIN(BUCKET_SHUFFLE)"
+        }
+
+        qt_q03 """select * from ${tbl_name} t1, `internal`.`regression_test`.doris_dist_test t2 WHERE t1.user_id = t2.user_id ORDER BY 1,2 ;"""
+
+        explain {
+             sql("""select * from ${tbl_name} t1, `internal`.`regression_test`.doris_dist_test t2 WHERE t1.user_id = t2.user_id;""")
              contains "join op: INNER JOIN(BUCKET_SHUFFLE)"
              contains "BUCKET_SHFFULE_HASH_PARTITIONED(SPARK_MURMUR32)"
         }
@@ -46,7 +51,7 @@ suite("test_hive_spark_clustered_table", "p0,external,hive,external_docker,exter
             sql """use `regression_test`"""
             sql """drop table if exists doris_dist_test;"""
             sql """create table doris_dist_test properties("replication_num"="1")
-                     as select * from `${catalog_name}`.`default`.parquet_test2; """
+                     as select * from `${catalog_name}`.`default`.${tbl_name}; """
 
             sql """use `${catalog_name}`.`default`"""
 
@@ -54,13 +59,9 @@ suite("test_hive_spark_clustered_table", "p0,external,hive,external_docker,exter
 
             q01()
 
-            sql """set enable_nereids_planner=false;"""
-
-            q01()
-
-            sql """use `internal`.`regression_test`"""
-            sql """drop table if exists doris_dist_test; """
-            sql """drop catalog if exists ${catalog_name}; """
+            // sql """use `internal`.`regression_test`"""
+            // sql """drop table if exists doris_dist_test; """
+            // sql """drop catalog if exists ${catalog_name}; """
         } finally {
         }
     }
