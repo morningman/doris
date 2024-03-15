@@ -2524,6 +2524,9 @@ public class Config extends ConfigBase {
             options = {"default", "ranger-doris"})
     public static String access_controller_type = "default";
 
+    @ConfField
+    public static boolean enable_proxy_protocol = false;
+
     //==========================================================================
     //                    begin of cloud config
     //==========================================================================

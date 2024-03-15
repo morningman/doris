@@ -133,6 +133,10 @@ public abstract class PaimonExternalCatalog extends ExternalCatalog {
             options.set(kv.getKey(), kv.getValue());
         }
         CatalogContext context = CatalogContext.create(options, getConfiguration());
+        return createCatalogImpl(context);
+    }
+
+    protected Catalog createCatalogImpl(CatalogContext context) {
         return CatalogFactory.createCatalog(context);
     }
 

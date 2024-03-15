@@ -23,8 +23,16 @@ import org.apache.doris.datasource.property.constants.HMSProperties;
 import org.apache.doris.datasource.property.constants.PaimonProperties;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.hadoop.hive.conf.HiveConf;
+import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREWAREHOUSE;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.paimon.catalog.Catalog;
+import org.apache.paimon.catalog.CatalogContext;
+import org.apache.paimon.fs.Path;
+import org.apache.paimon.hive.HiveCatalog;
+import org.apache.paimon.hive.HiveCatalogFactory;
+import org.apache.paimon.options.CatalogOptions;
 
 import java.util.List;
 import java.util.Map;
@@ -39,6 +47,25 @@ public class PaimonHMSExternalCatalog extends PaimonExternalCatalog {
             Map<String, String> props, String comment) {
         super(catalogId, name, comment);
         catalogProperty = new CatalogProperty(resource, props);
+    }
+
+    @Override
+    protected Catalog createCatalogImpl(CatalogContext context) {
+        HiveConf hiveConf = HiveCatalog.createHiveConf(context);
+        String warehouseStr = context.options().get(CatalogOptions.WAREHOUSE);
+        if (warehouseStr == null) {
+            warehouseStr =
+                    hiveConf.get(METASTOREWAREHOUSE.varname, METASTOREWAREHOUSE.defaultStrVal);
+        }
+        Path warehouse = new Path(warehouseStr);
+        DorisHadoopFileIO fileIO = new DorisHadoopFileIO();
+        fileIO.configure(context);
+        return new HiveCatalog(
+                fileIO,
+                hiveConf,
+                context.options().get(HiveCatalogFactory.METASTORE_CLIENT_CLASS),
+                context.options(),
+                warehouse.toUri().toString());
     }
 
     @Override
