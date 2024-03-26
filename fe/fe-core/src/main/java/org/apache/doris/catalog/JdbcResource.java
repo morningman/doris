@@ -208,7 +208,7 @@ public class JdbcResource extends Resource {
     }
 
     public static String computeObjectChecksum(String driverPath) throws DdlException {
-        if (FeConstants.runningUnitTest) {
+        if (!FeConstants.runningUnitTest) {
             // skip checking checksum when running ut
             return "";
         }
