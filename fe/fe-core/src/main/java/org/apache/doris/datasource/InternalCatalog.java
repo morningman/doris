@@ -222,9 +222,9 @@ public class InternalCatalog implements CatalogIf<Database> {
     private ConcurrentHashMap<String, Cluster> nameToCluster = new ConcurrentHashMap<>();
 
     @Getter
-    private EsRepository esRepository = new EsRepository();
+    private transient EsRepository esRepository = new EsRepository();
     @Getter
-    private IcebergTableCreationRecordMgr icebergTableCreationRecordMgr = new IcebergTableCreationRecordMgr();
+    private transient IcebergTableCreationRecordMgr icebergTableCreationRecordMgr = new IcebergTableCreationRecordMgr();
 
     @Override
     public long getId() {
