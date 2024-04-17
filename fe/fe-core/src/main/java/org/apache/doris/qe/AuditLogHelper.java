@@ -46,6 +46,13 @@ public class AuditLogHelper {
     // query process. Ignore this error and just write warning log.
     public static void logAuditLog(ConnectContext ctx, String origStmt, StatementBase parsedStmt,
             org.apache.doris.proto.Data.PQueryStatistics statistics, boolean printFuzzyVariables) {
+        if (!MetricRepo.isInit) {
+            // The metric repo will be inited after the cluster is ready
+            // (Env.transferToMaster or Env.transferToNonMaster)
+            // So before the cluster is ready, we ignore any audit log to avoid unexpected behavior.
+            LOG.info("Cluster is not ready, skip writing audit log.");
+            return;
+        }
         try {
             logAuditLogImpl(ctx, origStmt, parsedStmt, statistics, printFuzzyVariables);
         } catch (Throwable t) {
