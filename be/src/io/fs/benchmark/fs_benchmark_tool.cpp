@@ -19,9 +19,25 @@
 
 #include <fstream>
 
+#include "common/config.h"
+#include "common/logging.h"
+#include "gtest/gtest_pred_impl.h"
+#include "http/ev_http_server.h"
 #include "io/fs/benchmark/benchmark_factory.hpp"
 #include "io/fs/s3_file_bufferpool.h"
+#include "olap/page_cache.h"
+#include "olap/segment_loader.h"
+#include "olap/tablet_schema_cache.h"
+#include "runtime/exec_env.h"
+#include "runtime/memory/cache_manager.h"
+#include "runtime/memory/thread_mem_tracker_mgr.h"
+#include "runtime/thread_context.h"
+#include "service/backend_options.h"
+#include "service/http_service.h"
+#include "testutil/http_utils.h"
 #include "util/cpu_info.h"
+#include "util/disk_info.h"
+#include "util/mem_info.h"
 #include "util/threadpool.h"
 
 DEFINE_string(fs_type, "hdfs", "Supported File System: s3, hdfs");
@@ -110,16 +126,54 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    std::cout << "yy debug 1" << std::endl;
+    doris::ThreadLocalHandle::create_thread_local_if_not_exits();
+    std::cout << "yy debug 2" << std::endl;
+    doris::ExecEnv::GetInstance()->init_mem_tracker();
+    std::cout << "yy debug 3" << std::endl;
+    doris::thread_context()->thread_mem_tracker_mgr->init();
+    std::cout << "yy debug 4" << std::endl;
+    std::shared_ptr<doris::MemTrackerLimiter> test_tracker =
+            doris::MemTrackerLimiter::create_shared(doris::MemTrackerLimiter::Type::GLOBAL,
+                                                    "BE-UT");
+    std::cout << "yy debug 5" << std::endl;
+    doris::thread_context()->thread_mem_tracker_mgr->attach_limiter_tracker(test_tracker);
+    // doris::ExecEnv::GetInstance()->set_cache_manager(doris::CacheManager::create_global_instance());
+    // doris::ExecEnv::GetInstance()->set_dummy_lru_cache(std::make_shared<doris::DummyLRUCache>());
+    // doris::ExecEnv::GetInstance()->set_storage_page_cache(
+    //         doris::StoragePageCache::create_global_cache(1 << 30, 10, 0));
+    // doris::ExecEnv::GetInstance()->set_segment_loader(new doris::SegmentLoader(1000));
+    std::cout << "yy debug 6" << std::endl;
+    std::string beconf = std::string(getenv("DORIS_HOME")) + "/conf/be.conf";
+    std::cout << "yy debug 7" << std::endl;
+    auto st = doris::config::init(beconf.c_str(), false);
+    // doris::ExecEnv::GetInstance()->set_tablet_schema_cache(
+    //         doris::TabletSchemaCache::create_global_schema_cache(
+    //                 doris::config::tablet_schema_cache_capacity));
+    LOG(INFO) << "init config " << st;
+
+    std::cout << "yy debug 2" << std::endl;
+    doris::init_glog("be-test");
+    ::testing::InitGoogleTest(&argc, argv);
     doris::CpuInfo::init();
-    int num_cores = doris::CpuInfo::num_cores();
+    doris::DiskInfo::init();
+    doris::MemInfo::init();
+    doris::BackendOptions::init();
+
+    // auto service = std::make_unique<doris::HttpService>(doris::ExecEnv::GetInstance(), 0, 1);
+    // service->register_debug_point_handler();
+    // service->_ev_http_server->start();
+    // doris::global_test_http_host = "http://127.0.0.1:" + std::to_string(service->get_real_port());
 
     // init s3 write buffer pool
+    std::cout << "yy debug 3" << std::endl;
+    int num_cores = doris::CpuInfo::num_cores();
     std::unique_ptr<doris::ThreadPool> s3_file_upload_thread_pool;
-    doris::Status st = doris::ThreadPoolBuilder("S3FileUploadThreadPool")
+    doris::Status status = doris::ThreadPoolBuilder("S3FileUploadThreadPool")
                                .set_min_threads(num_cores)
                                .set_max_threads(num_cores)
                                .build(&s3_file_upload_thread_pool);
-    if (!st.ok()) {
+    if (!status.ok()) {
         std::cerr << "init s3 write buffer pool failed" << std::endl;
         return 1;
     }

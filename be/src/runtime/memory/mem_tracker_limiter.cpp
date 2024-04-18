@@ -85,17 +85,17 @@ std::shared_ptr<MemTrackerLimiter> MemTrackerLimiter::create_shared(MemTrackerLi
                                                                     const std::string& label,
                                                                     int64_t byte_limit) {
     auto tracker = std::make_shared<MemTrackerLimiter>(type, label, byte_limit);
-#ifndef BE_TEST
-    DCHECK(ExecEnv::tracking_memory());
-    std::lock_guard<std::mutex> l(
-            ExecEnv::GetInstance()->mem_tracker_limiter_pool[tracker->group_num()].group_lock);
-    tracker->tracker_limiter_group_it =
-            ExecEnv::GetInstance()->mem_tracker_limiter_pool[tracker->group_num()].trackers.insert(
-                    ExecEnv::GetInstance()
-                            ->mem_tracker_limiter_pool[tracker->group_num()]
-                            .trackers.end(),
-                    tracker);
-#endif
+// #ifndef BE_TEST
+//     DCHECK(ExecEnv::tracking_memory());
+//     std::lock_guard<std::mutex> l(
+//             ExecEnv::GetInstance()->mem_tracker_limiter_pool[tracker->group_num()].group_lock);
+//     tracker->tracker_limiter_group_it =
+//             ExecEnv::GetInstance()->mem_tracker_limiter_pool[tracker->group_num()].trackers.insert(
+//                     ExecEnv::GetInstance()
+//                             ->mem_tracker_limiter_pool[tracker->group_num()]
+//                             .trackers.end(),
+//                     tracker);
+// #endif
     return tracker;
 }
 

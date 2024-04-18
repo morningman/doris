@@ -43,11 +43,17 @@ private:
 
 void ThreadMemTrackerMgr::attach_limiter_tracker(
         const std::shared_ptr<MemTrackerLimiter>& mem_tracker) {
+    std::cout << "yy debug xxx" << std::endl;
     DCHECK(mem_tracker);
+    std::cout << "yy debug 1 xxx" << std::endl;
     CHECK(init());
+    std::cout << "yy debug 2 xxx" << std::endl;
     flush_untracked_mem();
+    std::cout << "yy debug 3 xxx" << std::endl;
     _limiter_tracker = mem_tracker;
+    std::cout << "yy debug 4 xxx" << std::endl;
     _limiter_tracker_raw = mem_tracker.get();
+    std::cout << "yy debug 5 xxx" << std::endl;
 }
 
 void ThreadMemTrackerMgr::detach_limiter_tracker(

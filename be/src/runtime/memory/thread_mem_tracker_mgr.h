@@ -143,14 +143,22 @@ inline bool ThreadMemTrackerMgr::init() {
     // 1. Initialize in the thread context when the thread starts
     // 2. ExecEnv not initialized when thread start, initialized in limiter_mem_tracker().
     if (_init) return true;
-    if (ExecEnv::GetInstance()->orphan_mem_tracker() != nullptr) {
-        _limiter_tracker = ExecEnv::GetInstance()->orphan_mem_tracker();
-        _limiter_tracker_raw = ExecEnv::GetInstance()->orphan_mem_tracker_raw();
+    // if (ExecEnv::GetInstance()->orphan_mem_tracker() != nullptr) {
+    //     _limiter_tracker = ExecEnv::GetInstance()->orphan_mem_tracker();
+    //     _limiter_tracker_raw = ExecEnv::GetInstance()->orphan_mem_tracker_raw();
+    //     _wait_gc = true;
+    //     _init = true;
+    //     return true;
+    // } else {
+
+    _limiter_tracker =
+            MemTrackerLimiter::create_shared(MemTrackerLimiter::Type::GLOBAL, "Orphan");
+    _limiter_tracker_raw = _limiter_tracker.get();
         _wait_gc = true;
         _init = true;
         return true;
-    }
-    return false;
+    // }
+    // return false;
 }
 
 inline bool ThreadMemTrackerMgr::push_consumer_tracker(MemTracker* tracker) {

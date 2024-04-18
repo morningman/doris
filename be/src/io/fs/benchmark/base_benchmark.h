@@ -162,7 +162,9 @@ public:
                 _conf_map.contains("buffer_size") ? std::stol(_conf_map["buffer_size"]) : 1000000L;
         long remaining_size = write_size;
         std::vector<char> buffer;
+        bm_log("aaaaa");
         buffer.resize(buffer_size);
+        bm_log("bbbbb");
         doris::Slice data = {buffer.data(), buffer.size()};
 
         Status status;
@@ -170,7 +172,9 @@ public:
         while (remaining_size > 0) {
             size_t size = std::min(buffer_size, (size_t)remaining_size);
             data.size = size;
+        bm_log("ccccc");
             status = writer->append(data);
+        bm_log("ddddd");
             if (!status.ok()) {
                 bm_log("writer append error: {}", status.to_string());
                 break;
@@ -181,6 +185,7 @@ public:
             status = writer->close();
         }
 
+        bm_log("ffff");
         auto end = std::chrono::high_resolution_clock::now();
         auto elapsed_seconds =
                 std::chrono::duration_cast<std::chrono::duration<double>>(end - start);

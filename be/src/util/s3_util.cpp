@@ -156,6 +156,7 @@ std::shared_ptr<Aws::S3::S3Client> S3ClientFactory::create(const S3ClientConf& s
         return nullptr;
     }
 
+    std::cout << "33333 " << std::endl;
     uint64_t hash = s3_conf.get_hash();
     {
         std::lock_guard l(_lock);
@@ -164,6 +165,7 @@ std::shared_ptr<Aws::S3::S3Client> S3ClientFactory::create(const S3ClientConf& s
             return it->second;
         }
     }
+    std::cout << "333334 " << std::endl;
 
     Aws::Client::ClientConfiguration aws_config = S3ClientFactory::getClientConfiguration();
     aws_config.endpointOverride = s3_conf.endpoint;
@@ -178,10 +180,11 @@ std::shared_ptr<Aws::S3::S3Client> S3ClientFactory::create(const S3ClientConf& s
             aws_config.caFile = _ca_cert_file_path;
         }
     }
+    std::cout << "333335 " << std::endl;
     if (s3_conf.max_connections > 0) {
         aws_config.maxConnections = s3_conf.max_connections;
     } else {
-#ifdef BE_TEST
+#ifndef BE_TEST
         // the S3Client may shared by many threads.
         // So need to set the number of connections large enough.
         aws_config.maxConnections = config::doris_scanner_thread_pool_thread_num;
@@ -194,13 +197,18 @@ std::shared_ptr<Aws::S3::S3Client> S3ClientFactory::create(const S3ClientConf& s
     if (s3_conf.request_timeout_ms > 0) {
         aws_config.requestTimeoutMs = s3_conf.request_timeout_ms;
     }
+    std::cout << "3333352 " << std::endl;
     if (s3_conf.connect_timeout_ms > 0) {
         aws_config.connectTimeoutMs = s3_conf.connect_timeout_ms;
     }
+    std::cout << "3333353 " << std::endl;
     aws_config.retryStrategy =
             std::make_shared<Aws::Client::DefaultRetryStrategy>(config::max_s3_client_retry);
+    std::cout << "3333354 " << std::endl;
     std::shared_ptr<Aws::S3::S3Client> new_client;
+    std::cout << "333336 " << std::endl;
     if (!s3_conf.ak.empty() && !s3_conf.sk.empty()) {
+    std::cout << "333337 " << std::endl;
         Aws::Auth::AWSCredentials aws_cred(s3_conf.ak, s3_conf.sk);
         DCHECK(!aws_cred.IsExpiredOrEmpty());
         if (!s3_conf.token.empty()) {
@@ -211,6 +219,7 @@ std::shared_ptr<Aws::S3::S3Client> S3ClientFactory::create(const S3ClientConf& s
                 Aws::Client::AWSAuthV4Signer::PayloadSigningPolicy::Never,
                 s3_conf.use_virtual_addressing);
     } else {
+    std::cout << "333338 " << std::endl;
         std::shared_ptr<Aws::Auth::AWSCredentialsProvider> aws_provider_chain =
                 std::make_shared<Aws::Auth::DefaultAWSCredentialsProviderChain>();
         new_client = std::make_shared<Aws::S3::S3Client>(
@@ -223,6 +232,7 @@ std::shared_ptr<Aws::S3::S3Client> S3ClientFactory::create(const S3ClientConf& s
         std::lock_guard l(_lock);
         _cache[hash] = new_client;
     }
+    std::cout << "333339 " << std::endl;
     return new_client;
 }
 

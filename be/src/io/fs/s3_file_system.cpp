@@ -105,7 +105,9 @@ S3ClientHolder::S3ClientHolder(S3ClientConf conf) : _conf(std::move(conf)) {}
 S3ClientHolder::~S3ClientHolder() = default;
 
 Status S3ClientHolder::init() {
+    std::cout << "11111" << std::endl;
     auto client = S3ClientFactory::instance().create(_conf);
+    std::cout << "22222" << std::endl;
     if (!client) {
         return Status::InternalError("failed to init s3 client with conf {}", _conf.to_string());
     }
@@ -172,6 +174,7 @@ std::string S3FileSystem::full_s3_path(std::string_view key) const {
 
 Result<std::shared_ptr<S3FileSystem>> S3FileSystem::create(S3Conf s3_conf, std::string id) {
     std::shared_ptr<S3FileSystem> fs(new S3FileSystem(std::move(s3_conf), std::move(id)));
+    std::cout << "beforexxxx";
     RETURN_IF_ERROR_RESULT(fs->init());
     return fs;
 }

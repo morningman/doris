@@ -43,7 +43,9 @@ public:
         S3Conf s3_conf;
         RETURN_IF_ERROR(
                 S3ClientFactory::convert_properties_to_s3_conf(_conf_map, s3_uri, &s3_conf));
+        bm_log("before: ");
         *fs = DORIS_TRY(io::S3FileSystem::create(std::move(s3_conf), io::FileSystem::TMP_FS_ID));
+        bm_log("aflter: ");
         return Status::OK();
     }
 };
@@ -131,6 +133,7 @@ public:
 
     Status run(benchmark::State& state) override {
         auto file_path = get_file_path(state);
+        bm_log("file_path xxxx: {}", file_path);
         if (_file_size <= 0) {
             _file_size = 10 * 1024 * 1024; // default 10MB
         }
