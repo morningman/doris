@@ -58,7 +58,7 @@ public class S3FileSystemTest {
     private String testFile;
     private String content;
     // we use mocked s3 client to test s3 file system by default.
-    private boolean injectMockedClient = true;
+    private boolean injectMockedClient = false;
 
     @BeforeAll
     public static void init() {
