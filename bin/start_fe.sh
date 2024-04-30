@@ -91,10 +91,8 @@ export DORIS_HOME
 
 # export env variables from fe.conf
 #
-# JAVA_OPTS
 # LOG_DIR
 # PID_DIR
-export JAVA_OPTS="-Xmx1024m"
 export LOG_DIR="${DORIS_HOME}/log"
 PID_DIR="$(
     cd "${curdir}"
@@ -182,16 +180,40 @@ java_version="$(
     jdk_version "${JAVA}"
 )"
 if [[ "${java_version}" -eq 17 ]]; then
-    if [[ -z "${JAVA_OPTS_FOR_JDK_17}" ]]; then
-        echo "JAVA_OPTS_FOR_JDK_17 is not set in fe.conf" >>"${LOG_DIR}/fe.out"
+    if [[ -z "${JAVA_OPTS}" ]]; then
+        echo "JAVA_OPTS is not set in fe.conf" >>"${LOG_DIR}/fe.out"
         exit 1
     fi
-    final_java_opt="${JAVA_OPTS_FOR_JDK_17}"
+    final_java_opt="${JAVA_OPTS}"
 else
     echo "ERROR: The jdk_version is ${java_version}, must be 17." >>"${LOG_DIR}/fe.out"
     exit 1
 fi
 echo "Using Java version ${java_version}" >>"${LOG_DIR}/fe.out"
+
+# fill default JAVA_OPTS
+ensure_opt() {
+    # If JAVA_OPTS does not contain $opt,
+    # this function will add "$opt$value" to the end of JAVA_OPTS
+    local opt=$1
+    local value=$2
+    if [[ "$JAVA_OPTS" != *"$opt"* ]]; then
+        JAVA_OPTS="$JAVA_OPTS $opt$value"
+    fi
+}
+
+ensure_jvm_opt "-Xmx" "8192m"
+ensure_jvm_opt "-Xms" "8192m"
+ensure_jvm_opt "-XX:+HeapDumpOnOutOfMemoryError" ""
+ensure_jvm_opt "-XX:HeapDumpPath=" "$LOG_DIR"
+ensure_jvm_opt "-Xlog:gc*:" "$LOG_DIR/fe.gc.log.$CUR_DATE:time,uptime:filecount=10,filesize=50M"
+ensure_jvm_opt "-Djavax.security.auth.useSubjectCredsOnly=" "false"
+ensure_jvm_opt "-Dsun.security.krb5.debug=" "true"
+ensure_jvm_opt "--add-opens=java.base/java.nio=" "ALL-UNNAMED"
+ensure_jvm_opt "--add-opens=java.base/jdk.internal.ref=" "ALL-UNNAMED"
+
+final_java_opt="${JAVA_OPTS}"
+echo "${final_java_opt}"
 echo "${final_java_opt}" >>"${LOG_DIR}/fe.out"
 
 # add libs to CLASSPATH
