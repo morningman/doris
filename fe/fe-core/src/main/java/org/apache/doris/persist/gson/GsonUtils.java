@@ -78,11 +78,6 @@ import org.apache.doris.datasource.jdbc.JdbcExternalTable;
 import org.apache.doris.datasource.maxcompute.MaxComputeExternalCatalog;
 import org.apache.doris.datasource.maxcompute.MaxComputeExternalDatabase;
 import org.apache.doris.datasource.maxcompute.MaxComputeExternalTable;
-import org.apache.doris.datasource.paimon.PaimonExternalCatalog;
-import org.apache.doris.datasource.paimon.PaimonExternalDatabase;
-import org.apache.doris.datasource.paimon.PaimonExternalTable;
-import org.apache.doris.datasource.paimon.PaimonFileExternalCatalog;
-import org.apache.doris.datasource.paimon.PaimonHMSExternalCatalog;
 import org.apache.doris.datasource.test.TestExternalCatalog;
 import org.apache.doris.datasource.test.TestExternalDatabase;
 import org.apache.doris.datasource.test.TestExternalTable;
@@ -237,9 +232,6 @@ public class GsonUtils {
             .registerSubtype(IcebergRestExternalCatalog.class, IcebergRestExternalCatalog.class.getSimpleName())
             .registerSubtype(IcebergDLFExternalCatalog.class, IcebergDLFExternalCatalog.class.getSimpleName())
             .registerSubtype(IcebergHadoopExternalCatalog.class, IcebergHadoopExternalCatalog.class.getSimpleName())
-            .registerSubtype(PaimonExternalCatalog.class, PaimonExternalCatalog.class.getSimpleName())
-            .registerSubtype(PaimonHMSExternalCatalog.class, PaimonHMSExternalCatalog.class.getSimpleName())
-            .registerSubtype(PaimonFileExternalCatalog.class, PaimonFileExternalCatalog.class.getSimpleName())
             .registerSubtype(MaxComputeExternalCatalog.class, MaxComputeExternalCatalog.class.getSimpleName())
             .registerSubtype(TestExternalCatalog.class, TestExternalCatalog.class.getSimpleName());
 
@@ -266,7 +258,6 @@ public class GsonUtils {
             .registerSubtype(HMSExternalDatabase.class, HMSExternalDatabase.class.getSimpleName())
             .registerSubtype(JdbcExternalDatabase.class, JdbcExternalDatabase.class.getSimpleName())
             .registerSubtype(IcebergExternalDatabase.class, IcebergExternalDatabase.class.getSimpleName())
-            .registerSubtype(PaimonExternalDatabase.class, PaimonExternalDatabase.class.getSimpleName())
             .registerSubtype(MaxComputeExternalDatabase.class, MaxComputeExternalDatabase.class.getSimpleName())
             .registerSubtype(ExternalInfoSchemaDatabase.class, ExternalInfoSchemaDatabase.class.getSimpleName())
             .registerSubtype(ExternalMysqlDatabase.class, ExternalMysqlDatabase.class.getSimpleName())
@@ -279,7 +270,6 @@ public class GsonUtils {
             .registerSubtype(HMSExternalTable.class, HMSExternalTable.class.getSimpleName())
             .registerSubtype(JdbcExternalTable.class, JdbcExternalTable.class.getSimpleName())
             .registerSubtype(IcebergExternalTable.class, IcebergExternalTable.class.getSimpleName())
-            .registerSubtype(PaimonExternalTable.class, PaimonExternalTable.class.getSimpleName())
             .registerSubtype(MaxComputeExternalTable.class, MaxComputeExternalTable.class.getSimpleName())
             .registerSubtype(ExternalInfoSchemaTable.class, ExternalInfoSchemaTable.class.getSimpleName())
             .registerSubtype(ExternalMysqlTable.class, ExternalMysqlTable.class.getSimpleName())
