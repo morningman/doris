@@ -48,7 +48,6 @@ import org.apache.doris.datasource.jdbc.JdbcExternalDatabase;
 import org.apache.doris.datasource.maxcompute.MaxComputeExternalDatabase;
 import org.apache.doris.datasource.metacache.MetaCache;
 import org.apache.doris.datasource.operations.ExternalMetadataOps;
-import org.apache.doris.datasource.paimon.PaimonExternalDatabase;
 import org.apache.doris.datasource.property.PropertyConverter;
 import org.apache.doris.datasource.test.TestExternalDatabase;
 import org.apache.doris.fs.remote.dfs.DFSFileSystem;
@@ -655,8 +654,6 @@ public abstract class ExternalCatalog
                 //return new HudiExternalDatabase(this, dbId, dbName);
             case TEST:
                 return new TestExternalDatabase(this, dbId, dbName);
-            case PAIMON:
-                return new PaimonExternalDatabase(this, dbId, dbName);
             default:
                 break;
         }

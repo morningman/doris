@@ -25,7 +25,6 @@ under the License.
         <module>java-common</module>
         <module>java-udf</module>
         <module>jdbc-scanner</module>
-        <module>paimon-scanner</module>
         <module>max-compute-scanner</module>
         <module>avro-scanner</module>
         <module>preload-extensions</module>

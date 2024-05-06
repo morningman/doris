@@ -82,8 +82,6 @@ public abstract class JdbcClient {
                 return new JdbcOracleClient(jdbcClientConfig);
             case JdbcResource.SQLSERVER:
                 return new JdbcSQLServerClient(jdbcClientConfig);
-            case JdbcResource.CLICKHOUSE:
-                return new JdbcClickHouseClient(jdbcClientConfig);
             case JdbcResource.SAP_HANA:
                 return new JdbcSapHanaClient(jdbcClientConfig);
             case JdbcResource.TRINO:
