@@ -127,20 +127,16 @@ public class StatisticsCleaner extends MasterDaemon {
 
     private Map<Long, DatabaseIf> constructDbMap() {
         Map<Long, DatabaseIf> idToDb = Maps.newHashMap();
-        for (CatalogIf<? extends DatabaseIf> ctl : idToCatalog.values()) {
-            for (DatabaseIf db : ctl.getAllDbs()) {
-                idToDb.put(db.getId(), db);
-            }
+        for (CatalogIf ctl : idToCatalog.values()) {
+            idToDb.putAll(ctl.getIdToDb());
         }
         return idToDb;
     }
 
     private Map<Long, TableIf> constructTblMap() {
         Map<Long, TableIf> idToTbl = new HashMap<>();
-        for (DatabaseIf<? extends TableIf> db : idToDb.values()) {
-            for (TableIf tbl : db.getTables()) {
-                idToTbl.put(tbl.getId(), tbl);
-            }
+        for (DatabaseIf db : idToDb.values()) {
+            idToTbl.putAll(db.getIdToTable());
         }
         return idToTbl;
     }

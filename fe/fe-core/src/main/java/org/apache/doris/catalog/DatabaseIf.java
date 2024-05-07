@@ -31,6 +31,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -74,7 +75,7 @@ public interface DatabaseIf<T extends TableIf> {
 
     List<T> getTables();
 
-    default List<T> getTablesIgnoreException() {
+    default List<T> getTablesOrEmpty() {
         try {
             return getTables();
         } catch (Exception e) {
@@ -280,4 +281,6 @@ public interface DatabaseIf<T extends TableIf> {
     default long getLastUpdateTime() {
         return -1L;
     }
+
+    Map<Long, TableIf> getIdToTable();
 }

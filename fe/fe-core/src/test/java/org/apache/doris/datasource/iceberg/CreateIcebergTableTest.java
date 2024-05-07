@@ -67,21 +67,13 @@ public class CreateIcebergTableTest {
         // create catalog
         CreateCatalogStmt createCatalogStmt = new CreateCatalogStmt(true, "iceberg", "", param, "comment");
         icebergCatalog = (IcebergHadoopExternalCatalog) CatalogFactory.createFromStmt(1, createCatalogStmt);
-        if (icebergCatalog.getUseMetaCache().get()) {
-            icebergCatalog.makeSureInitialized();
-        } else {
-            icebergCatalog.setInitialized(true);
-        }
+        icebergCatalog.setInitialized(true);
 
         // create db
         ops = new IcebergMetadataOps(icebergCatalog, icebergCatalog.getCatalog());
         CreateDbStmt createDbStmt = new CreateDbStmt(true, new DbName("iceberg", dbName), null);
         ops.createDb(createDbStmt);
-        if (icebergCatalog.getUseMetaCache().get()) {
-            icebergCatalog.makeSureInitialized();
-        } else {
-            icebergCatalog.setInitialized(true);
-        }
+        icebergCatalog.setInitialized(true);
         IcebergExternalDatabase db = new IcebergExternalDatabase(icebergCatalog, 1L, dbName);
         icebergCatalog.addDatabaseForTest(db);
 

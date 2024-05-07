@@ -43,7 +43,6 @@ import org.apache.doris.common.io.Text;
 import org.apache.doris.common.io.Writable;
 import org.apache.doris.common.util.PrintableMap;
 import org.apache.doris.common.util.TimeUtils;
-import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalTable;
 import org.apache.doris.mysql.privilege.PrivPredicate;
@@ -67,7 +66,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -589,11 +587,11 @@ public class CatalogMgr implements Writable, GsonPostProcessable {
         if (catalog == null) {
             return;
         }
-        Optional<ExternalDatabase<? extends ExternalTable>> db = catalog.getDbForReplay(log.getDbId());
-        if (!db.isPresent()) {
+        ExternalDatabase db = catalog.getDbForReplay(log.getDbId());
+        if (db == null) {
             return;
         }
-        db.get().replayInitDb(log, catalog);
+        db.replayInitDb(log, catalog);
     }
 
     public void unregisterExternalTable(String dbName, String tableName, String catalogName, boolean ignoreIfExists)
@@ -665,13 +663,7 @@ public class CatalogMgr implements Writable, GsonPostProcessable {
             }
             return;
         }
-        long tblId;
-        HMSExternalCatalog hmsCatalog = (HMSExternalCatalog) catalog;
-        if (hmsCatalog.getUseMetaCache().get()) {
-            tblId = Util.genTableIdByName(tableName);
-        } else {
-            tblId = Env.getCurrentEnv().getExternalMetaIdMgr().getTblId(catalog.getId(), dbName, tableName);
-        }
+        long tblId = Env.getCurrentEnv().getExternalMetaIdMgr().getTblId(catalog.getId(), dbName, tableName);
         // -1L means it will be dropped later, ignore
         if (tblId == ExternalMetaIdMgr.META_ID_FOR_NOT_EXISTS) {
             return;
@@ -723,19 +715,13 @@ public class CatalogMgr implements Writable, GsonPostProcessable {
             return;
         }
 
-        HMSExternalCatalog hmsCatalog = (HMSExternalCatalog) catalog;
-        long dbId;
-        if (hmsCatalog.getUseMetaCache().get()) {
-            dbId = Env.getCurrentEnv().getExternalMetaIdMgr().getDbId(catalog.getId(), dbName);
-        } else {
-            dbId = Util.genTableIdByName(dbName);
-        }
+        long dbId = Env.getCurrentEnv().getExternalMetaIdMgr().getDbId(catalog.getId(), dbName);
         // -1L means it will be dropped later, ignore
         if (dbId == ExternalMetaIdMgr.META_ID_FOR_NOT_EXISTS) {
             return;
         }
 
-        hmsCatalog.registerDatabase(dbId, dbName);
+        ((HMSExternalCatalog) catalog).registerDatabase(dbId, dbName);
     }
 
     public void addExternalPartitions(String catalogName, String dbName, String tableName,

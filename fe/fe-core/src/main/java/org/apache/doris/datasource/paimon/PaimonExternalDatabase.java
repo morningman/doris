@@ -28,7 +28,7 @@ public class PaimonExternalDatabase extends ExternalDatabase<PaimonExternalTable
     }
 
     @Override
-    protected PaimonExternalTable buildTableForInit(String tableName, long tblId, ExternalCatalog catalog) {
+    protected PaimonExternalTable newExternalTable(String tableName, long tblId, ExternalCatalog catalog) {
         return new PaimonExternalTable(tblId, tableName, name, (PaimonExternalCatalog) extCatalog);
     }
 }

@@ -104,7 +104,13 @@ public class IcebergMetadataOps implements ExternalMetadataOps {
 
     @Override
     public void dropDb(DropDbStmt stmt) throws DdlException {
+        SupportsNamespaces nsCatalog = (SupportsNamespaces) catalog;
         String dbName = stmt.getDbName();
+        if (dorisCatalog.getDbNameToId().containsKey(dbName)) {
+            Long aLong = dorisCatalog.getDbNameToId().get(dbName);
+            dorisCatalog.getIdToDb().remove(aLong);
+            dorisCatalog.getDbNameToId().remove(dbName);
+        }
         if (!databaseExist(dbName)) {
             if (stmt.isSetIfExists()) {
                 LOG.info("drop database[{}] which does not exist", dbName);
@@ -113,7 +119,6 @@ public class IcebergMetadataOps implements ExternalMetadataOps {
                 ErrorReport.reportDdlException(ErrorCode.ERR_DB_DROP_EXISTS, dbName);
             }
         }
-        SupportsNamespaces nsCatalog = (SupportsNamespaces) catalog;
         nsCatalog.dropNamespace(Namespace.of(dbName));
         dorisCatalog.onRefresh(true);
     }
