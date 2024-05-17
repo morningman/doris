@@ -69,13 +69,15 @@ public final class HiveUtil {
      */
     public static InputFormat<?, ?> getInputFormat(JobConf jobConf,
             String inputFormatName, boolean symlinkTarget) throws UserException {
+
         try {
             Class<? extends InputFormat<?, ?>> inputFormatClass = getInputFormatClass(jobConf, inputFormatName);
             if (symlinkTarget && (inputFormatClass == SymlinkTextInputFormat.class)) {
                 // symlink targets are always TextInputFormat
                 inputFormatClass = TextInputFormat.class;
             }
-
+            LOG.debug("xx debug get inputformat name: {}, obj: {}",
+                    inputFormatName, inputFormatClass.getCanonicalName());
             return ReflectionUtils.newInstance(inputFormatClass, jobConf);
         } catch (ClassNotFoundException | RuntimeException e) {
             throw new UserException("Unable to create input format " + inputFormatName, e);
@@ -191,7 +193,7 @@ public final class HiveUtil {
             return ((BrokerFileSystem) remoteFileSystem)
                     .isSplittable(location, inputFormat.getClass().getCanonicalName());
         }
-
+        LOG.debug("xx debug isSplittable: {}", inputFormat);
         return HMSExternalTable.SUPPORTED_HIVE_FILE_FORMATS.contains(inputFormat);
     }
 

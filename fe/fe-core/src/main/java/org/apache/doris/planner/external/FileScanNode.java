@@ -223,10 +223,12 @@ public abstract class FileScanNode extends ExternalScanNode {
         if (blockLocations == null) {
             blockLocations = new BlockLocation[0];
         }
+        boolean forceSplit = ConnectContext.get().getSessionVariable().isForceSplit();
         List<Split> result = Lists.newArrayList();
         TFileCompressType compressType = Util.inferFileCompressTypeByPath(path.toString());
-        if (!splittable || compressType != TFileCompressType.PLAIN) {
-            LOG.debug("Path {} is not splittable.", path);
+        if (!forceSplit && (!splittable || compressType != TFileCompressType.PLAIN)) {
+            LOG.debug("Path {} is not splittable. splittable: {}, compress type: {}",
+                    path, splittable, compressType.name());
             String[] hosts = blockLocations.length == 0 ? null : blockLocations[0].getHosts();
             result.add(splitCreator.create(path, 0, length, length, modificationTime, hosts, partitionValues));
             return result;

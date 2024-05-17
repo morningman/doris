@@ -1404,6 +1404,9 @@ public class SessionVariable implements Serializable, Writable {
                     "用于控制结果反序列化时 thrift 字段的最大值，当遇到类似\"MaxMessageSize reached\"这样的错误时可以考虑修改该参数"})
     public int maxMsgSizeOfResultReceiver = TConfiguration.DEFAULT_MAX_MESSAGE_SIZE;
 
+    @VariableMgr.VarAttr(name = "is_force_split")
+    public boolean isForceSplit = false;
+
     // If this fe is in fuzzy mode, then will use initFuzzyModeVariables to generate some variables,
     // not the default value set in the code.
     public void initFuzzyModeVariables() {
@@ -2926,5 +2929,8 @@ public class SessionVariable implements Serializable, Writable {
         return this.maxMsgSizeOfResultReceiver;
     }
 
+    public boolean isForceSplit() {
+        return this.isForceSplit;
+    }
 }
 
