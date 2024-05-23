@@ -321,7 +321,11 @@ Status VFileScanner::_get_block_wrapped(RuntimeState* state, Block* block, bool*
     do {
         RETURN_IF_CANCELLED(state);
         if (_cur_reader == nullptr || _cur_reader_eof) {
-            RETURN_IF_ERROR(_get_next_reader());
+            Status st = _get_next_reader();
+            if (st.is<ErrorCode::NOT_FOUND>()) {
+                _cur_reader_eof = true;
+                continue;
+            }
         }
 
         if (_scanner_eof) {
