@@ -1367,6 +1367,12 @@ DECLARE_Int64(s3_file_system_local_upload_buffer_size);
 //JVM monitoring enable. To prevent be from crashing due to jvm compatibility issues.
 DECLARE_Bool(enable_jvm_monitor);
 
+// Whether to use file to record log. When starting BE with --console,
+// all logs will be written to both standard output and file.
+// Disable this option will no longer use file to record log.
+// Only works when starting BE with --console.
+DECLARE_Bool(enable_file_logger);
+
 #ifdef BE_TEST
 // test s3
 DECLARE_String(test_s3_resource);
