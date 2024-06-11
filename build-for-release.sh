@@ -123,7 +123,15 @@ echo "ARCH: ${ARCH}"
 
 ORI_OUTPUT="${ROOT}/output"
 rm -rf "${ORI_OUTPUT}"
-
+# Download selectdb jars
+SELECTDB_JARS=selectdb-enterprise-2.1-zero-trust-jars
+if [[ ! -f "${SELECTDB_JARS}.tar.xz" ]]; then
+    wget https://tencent-tbds-1308700295.cos.ap-beijing.myqcloud.com/zero-trust/${SELECTDB_JARS}.zip
+fi
+rm -rf "${SELECTDB_JARS}"
+unzip ${SELECTDB_JARS}.zip
+cd ${ROOT}/${SELECTDB_JARS}/ && bash install.sh
+cd ${ROOT}
 FE="fe"
 BE="be"
 EXT="extensions"
