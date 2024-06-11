@@ -150,10 +150,12 @@ under the License.
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
+            <version>${guava.version}</version>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava-testlib</artifactId>
+            <version>${guava.version}</version>
             <scope>test</scope>
         </dependency>
         <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-core -->
@@ -420,6 +422,14 @@ under the License.
                     <groupId>org.json</groupId>
                     <artifactId>json</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>com.qcloud</groupId>
+                    <artifactId>ofs-sdk-definition</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.squareup.okhttp</groupId>
+                    <artifactId>logging-interceptor</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <!-- antl4 The version of antlr-runtime in trino parser is need to be consistent with doris,
@@ -553,36 +563,6 @@ under the License.
             <scope>runtime</scope>
         </dependency>
         <dependency>
-            <groupId>org.apache.paimon</groupId>
-            <artifactId>paimon-core</artifactId>
-            <version>${paimon.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.paimon</groupId>
-            <artifactId>paimon-common</artifactId>
-            <version>${paimon.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.paimon</groupId>
-            <artifactId>paimon-format</artifactId>
-            <version>${paimon.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.paimon</groupId>
-            <artifactId>paimon-s3</artifactId>
-            <version>${paimon.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.paimon</groupId>
-            <artifactId>paimon-oss</artifactId>
-            <version>${paimon.version}</version>
-        </dependency>
-
-        <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>glue</artifactId>
             <version>${awssdk.version}</version>
@@ -650,11 +630,34 @@ under the License.
             <artifactId>HikariCP</artifactId>
         </dependency>
 
+        <!-- for aliyun dlf -->
+        <dependency>
+            <groupId>com.aliyun.datalake</groupId>
+            <artifactId>metastore-client-hive3</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.aliyun</groupId>
+                    <artifactId>tea</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.aliyun</groupId>
+                    <artifactId>tea-openapi</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.aliyun</groupId>
+                    <artifactId>tea-util</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+           <groupId>org.bouncycastle</groupId>
+           <artifactId>bcpkix-jdk18on</artifactId>
+        </dependency>
         <!-- for fe recognize files stored on gcs -->
         <dependency>
             <groupId>com.google.cloud.bigdataoss</groupId>
             <artifactId>gcs-connector</artifactId>
-            <version>hadoop2-2.2.8</version>
+            <version>hadoop3-2.2.21</version>
             <classifier>shaded</classifier>
             <exclusions>
                 <exclusion>
@@ -750,7 +753,7 @@ under the License.
             <artifactId>ap-loader-all</artifactId>
             <version>3.0-8</version>
         </dependency>
-        <dependency>
+<!--        <dependency>
             <groupId>org.apache.hbase</groupId>
             <artifactId>hbase-server</artifactId>
         </dependency>
@@ -758,7 +761,7 @@ under the License.
             <groupId>org.apache.hbase</groupId>
             <artifactId>hbase-hadoop-compat</artifactId>
             <version>2.5.2-hadoop3</version>
-        </dependency>
+        </dependency>-->
         <dependency>
             <groupId>me.bechberger</groupId>
             <artifactId>ap-loader-all</artifactId>

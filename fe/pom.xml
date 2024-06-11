@@ -228,7 +228,9 @@ under the License.
         <doris.home>${fe.dir}/../</doris.home>
         <revision>1.2-SNAPSHOT</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <doris.hive.catalog.shade.version>2.1.1</doris.hive.catalog.shade.version>
+        <doris.hive.catalog.shade.version>SELECTDB-25.2.0.1</doris.hive.catalog.shade.version>
+        <avro.version>SELECTDB-1.11.3</avro.version>
+        <spring-web.version>SELECTDB-5.3.33</spring-web.version>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <!--plugin parameters-->
@@ -248,7 +250,7 @@ under the License.
         <commons-validator.version>1.7</commons-validator.version>
         <gson.version>2.10.1</gson.version>
         <guava.version>32.1.2-jre</guava.version>
-        <jackson.version>2.15.2</jackson.version>
+        <jackson.version>2.15.4</jackson.version>
         <java-cup.version>0.11-a-czt02-cdh</java-cup.version>
         <javassist.version>3.18.2-GA</javassist.version>
         <javax.servlet-api.version>3.1.0</javax.servlet-api.version>
@@ -266,7 +268,7 @@ under the License.
         <slf4j.version>2.0.6</slf4j.version>
         <metrics-core.version>4.0.2</metrics-core.version>
         <!--Netty 4.1.94 is not compatible with arrow flight.-->
-        <netty-all.version>4.1.104.Final</netty-all.version>
+        <netty-all.version>4.1.109.Final</netty-all.version>
         <!--The dependence of transitive dependence cannot be ruled out, only Saving the nation through twisted ways.-->
         <netty-3-test.version>3.10.6.Final</netty-3-test.version>
         <objenesis.version>2.1</objenesis.version>
@@ -298,11 +300,10 @@ under the License.
         <javax.activation.version>1.2.0</javax.activation.version>
         <jaxws-api.version>2.3.0</jaxws-api.version>
         <RoaringBitmap.version>0.8.13</RoaringBitmap.version>
-        <spark.version>3.4.3</spark.version>
-        <hudi-spark.version>hudi-spark3.4.x</hudi-spark.version>
+        <spark.version>SELECTDB-3.4.3</spark.version>
         <hive.version>3.1.3</hive.version>
         <hive.common.version>2.3.9</hive.common.version>
-        <nimbusds.version>9.35</nimbusds.version>
+        <nimbusds.version>9.37.3</nimbusds.version>
         <mapreduce.client.version>2.10.1</mapreduce.client.version>
         <calcite.version>1.33.0</calcite.version>
         <avatica.version>1.22.0</avatica.version>
@@ -311,14 +312,15 @@ under the License.
          you can find avro version info in iceberg mvn repository -->
         <iceberg.version>1.4.3</iceberg.version>
         <maxcompute.version>0.45.2-public</maxcompute.version>
-        <avro.version>1.11.3</avro.version>
         <arrow.version>15.0.2</arrow.version>
+        <antlr4.version>4.9.3</antlr4.version>
         <!-- hudi -->
-        <hudi.version>0.14.1</hudi.version>
+        <hudi.version>SELECTDB-0.14.1</hudi.version>
+        <hudi-spark.version>hudi-spark3.4.x</hudi-spark.version>
         <presto.hadoop.version>2.7.4-11</presto.hadoop.version>
         <presto.hive.version>3.0.0-8</presto.hive.version>
 
-        <parquet.version>1.13.1</parquet.version>
+        <parquet.version>SELECTDB-1.13.1</parquet.version>
         <commons-collections.version>3.2.2</commons-collections.version>
         <commons-compress.version>1.22</commons-compress.version>
         <scala.version>2.12.10</scala.version>
@@ -330,13 +332,16 @@ under the License.
         <httpcore.version>4.4.15</httpcore.version>
         <aws-java-sdk.version>1.12.669</aws-java-sdk.version>
         <mariadb-java-client.version>3.0.9</mariadb-java-client.version>
+        <dlf-metastore-client-hive.version>0.2.14</dlf-metastore-client-hive.version>
         <hadoop.version>3.3.6</hadoop.version>
-        <hbase.version>2.4.9</hbase.version>
-        <antlr4.version>4.9.3</antlr4.version>
+        <hadoop.thirdparty.guava.version>1.2.0</hadoop.thirdparty.guava.version>
+        <hadoop.thirdparty.protobuf_3_7.version>1.1.1</hadoop.thirdparty.protobuf_3_7.version>
         <joda.version>2.8.1</joda.version>
         <project.scm.id>github</project.scm.id>
         <spring.version>2.7.13</spring.version>
         <orc.version>1.8.4</orc.version>
+        <ojdbc8.version>12.2.0.1</ojdbc8.version>
+        <hive-storage.version>SELECTDB-2.8.1</hive-storage.version>
         <zookeeper.version>3.9.1</zookeeper.version>
         <velocity-engine-core.version>2.3</velocity-engine-core.version>
         <ranger-plugins-common.version>2.4.0</ranger-plugins-common.version>
@@ -344,8 +349,10 @@ under the License.
         <woodstox.version>6.5.1</woodstox.version>
         <kerby.version>2.0.3</kerby.version>
         <jettison.version>1.5.4</jettison.version>
-        <jetty.version>9.4.53.v20231009</jetty.version>
+        <jetty.version>9.4.54.v20240208</jetty.version>
         <immutables.version>2.9.3</immutables.version>
+        <vesoft.client.version>3.0.0</vesoft.client.version>
+        <ivy.version>2.5.2</ivy.version>
         <!--todo waiting release-->
         <quartz.version>2.3.2</quartz.version>
         <aircompressor.version>0.27</aircompressor.version>
@@ -357,6 +364,8 @@ under the License.
         <flatbuffers.version>1.12.0</flatbuffers.version>
         <jacoco.version>0.8.10</jacoco.version>
         <airlift.version>202</airlift.version>
+        <!--bcpix jdk18-->
+        <bcpkix-jdk18.version>1.78.1</bcpkix-jdk18.version>
     </properties>
     <profiles>
         <profile>
@@ -416,9 +425,56 @@ under the License.
                 <version>${nimbusds.version}</version>
             </dependency>
             <dependency>
+                <groupId>org.apache.hive</groupId>
+                <artifactId>hive-storage-api</artifactId>
+                <version>${hive-storage.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.qcloud</groupId>
+                <artifactId>ofs-sdk-definition</artifactId>
+                <version>1.0.5</version>
+            </dependency>
+            <dependency>
+                <groupId>com.qcloud</groupId>
+                <artifactId>cos_api</artifactId>
+                <version>SELECTDB-5.6.210</version>
+            </dependency>
+            <dependency>
+                <groupId>com.qcloud</groupId>
+                <artifactId>cos_api-bundle</artifactId>
+                <version>SELECTDB-5.6.210</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.hadoop.thirdparty</groupId>
+                <artifactId>hadoop-shaded-guava</artifactId>
+                <version>${hadoop.thirdparty.guava.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.hadoop.thirdparty</groupId>
+                <artifactId>hadoop-shaded-protobuf_3_7</artifactId>
+                <version>${hadoop.thirdparty.protobuf_3_7.version}</version>
+            </dependency>
+            <!--apache ivy-->
+            <dependency>
+                <groupId>org.apache.ivy</groupId>
+                <artifactId>ivy</artifactId>
+                <version>${ivy.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>org.apache.orc</groupId>
                 <artifactId>orc-core</artifactId>
                 <version>${orc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.airlift</groupId>
+                <artifactId>aircompressor</artifactId>
+                <version>0.27</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.springframework</groupId>
+                <artifactId>spring-web</artifactId>
+                <version>${spring-web.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springframework.boot</groupId>
@@ -531,10 +587,14 @@ under the License.
                     <exclusion>
                         <groupId>javax.servlet</groupId>
                         <artifactId>servlet-api</artifactId>
-                    </exclusion>        
+                    </exclusion>
                     <exclusion>
                         <groupId>org.apache.hadoop</groupId>
                         <artifactId>hadoop-yarn-common</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.apache.hadoop</groupId>
+                        <artifactId>hadoop-mapreduce-client-core</artifactId>
                     </exclusion>
                     <exclusion>
                         <groupId>org.apache.hadoop</groupId>
@@ -570,29 +630,6 @@ under the License.
                 <version>${kerby.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.apache.hbase</groupId>
-                <artifactId>hbase-server</artifactId>
-                <version>${hbase.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>org.apache.hadoop</groupId>
-                        <artifactId>hadoop-yarn-api</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.apache.hadoop</groupId>
-                        <artifactId>hadoop-yarn-common</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.apache.hbase</groupId>
-                        <artifactId>hbase-hadoop2-compat</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.apache.hadoop</groupId>
-                        <artifactId>hadoop-annotations</artifactId>
-                    </exclusion>
-                </exclusions>
-            </dependency>
-            <dependency>
                 <groupId>org.apache.kerby</groupId>
                 <artifactId>kerb-core</artifactId>
                 <version>${kerby.version}</version>
@@ -609,6 +646,7 @@ under the License.
                     </exclusion>
                 </exclusions>
             </dependency>
+            <!--jetty-->
             <dependency>
                 <groupId>org.eclipse.jetty.websocket</groupId>
                 <artifactId>websocket-server</artifactId>
@@ -621,17 +659,93 @@ under the License.
             </dependency>
             <dependency>
                 <groupId>org.eclipse.jetty.websocket</groupId>
-                <artifactId>websocket-servlet</artifactId>
+                <artifactId>websocket-common</artifactId>
                 <version>${jetty.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.eclipse.jetty.websocket</groupId>
-                <artifactId>websocket-common</artifactId>
+                <artifactId>websocket-servlet</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.eclipse.jetty.websocket</groupId>
+                <artifactId>javax-websocket-server-impl</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-servlets</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-servlet</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-security</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-util-ajax</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-annotations</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-continuation</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-io</artifactId>
                 <version>${jetty.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-server</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-xml</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-http</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty.websocket</groupId>
+                <artifactId>javax-websocket-client-impl</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-plus</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-util</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-client</artifactId>
+                <version>${jetty.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.jetty</groupId>
+                <artifactId>jetty-webapp</artifactId>
                 <version>${jetty.version}</version>
             </dependency>
             <dependency>
@@ -716,22 +830,14 @@ under the License.
                 <artifactId>guava</artifactId>
                 <version>${guava.version}</version>
             </dependency>
-            <dependency>
-                <groupId>com.google.guava</groupId>
-                <artifactId>guava-testlib</artifactId>
-                <version>${guava.version}</version>
-            </dependency>
             <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-core -->
             <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson</artifactId>
-                <version>${jackson.version}</version>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>2.15.4</version>
+                <type>pom</type>
             </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-core</artifactId>
-                <version>${jackson.version}</version>
-            </dependency>
+
             <!-- https://mvnrepository.com/artifact/net.sourceforge.czt.dev/java-cup -->
             <dependency>
                 <groupId>net.sourceforge.czt.dev</groupId>
@@ -778,6 +884,11 @@ under the License.
                 <artifactId>json-simple</artifactId>
                 <version>${json-simple.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.oracle.database.jdbc</groupId>
+                <artifactId>ojdbc8</artifactId>
+                <version>${ojdbc8.version}</version>
+            </dependency>
             <!-- https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter-engine -->
             <dependency>
                 <groupId>org.junit.jupiter</groupId>
@@ -823,11 +934,6 @@ under the License.
             </dependency>
             <dependency>
                 <groupId>org.apache.logging.log4j</groupId>
-                <artifactId>log4j-iostreams</artifactId>
-                <version>${log4j2.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.logging.log4j</groupId>
                 <artifactId>log4j-slf4j-impl</artifactId>
                 <version>${log4j2.version}</version>
                 <exclusions>
@@ -869,6 +975,94 @@ under the License.
                 <artifactId>netty</artifactId>
                 <scope>test</scope>
                 <version>${netty-3-test.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-transport-udt</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-transport-rxtx</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-transport-native-epoll</artifactId>
+                <classifier>linux-aarch_64</classifier>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-transport-native-kqueue</artifactId>
+                <classifier>osx-x86_64</classifier>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-transport-native-kqueue</artifactId>
+                <classifier>osx-aarch_64</classifier>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-transport-native-epoll</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec-dns</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec-xml</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec-redis</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec-socks</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec-smtp</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec-stomp</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-resolver-dns</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-codec-haproxy</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-handler-proxy</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-handler-ssl-ocsp</artifactId>
+                <version>${netty-all.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-resolver-dns-classes-macos</artifactId>
+                <version>${netty-all.version}</version>
             </dependency>
             <dependency>
                 <groupId>io.netty</groupId>
@@ -1074,29 +1268,6 @@ under the License.
                 <version>${generex.version}</version>
             </dependency>
             <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-annotations -->
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-annotations</artifactId>
-                <version>${jackson.version}</version>
-            </dependency>
-            <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind -->
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-databind</artifactId>
-                <version>${jackson.version}</version>
-            </dependency>
-            <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.dataformat/jackson-dataformat-yaml -->
-            <dependency>
-                <groupId>com.fasterxml.jackson.dataformat</groupId>
-                <artifactId>jackson-dataformat-yaml</artifactId>
-                <version>${jackson.version}</version>
-            </dependency>
-            <!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.module/jackson-module-jaxb-annotations -->
-            <dependency>
-                <groupId>com.fasterxml.jackson.module</groupId>
-                <artifactId>jackson-module-jaxb-annotations</artifactId>
-                <version>${jackson.version}</version>
-            </dependency>
             <!-- https://mvnrepository.com/artifact/io.fabric8/kubernetes-client -->
             <dependency>
                 <groupId>io.fabric8</groupId>
