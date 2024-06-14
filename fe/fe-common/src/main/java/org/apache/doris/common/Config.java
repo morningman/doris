@@ -2047,5 +2047,8 @@ public class Config extends ConfigBase {
 
     @ConfField(mutable = true)
     public static boolean use_mysql_bigint_for_largeint = false;
+
+    @ConfField
+    public static boolean enable_extract_common_factors_rule = true;
 }
 

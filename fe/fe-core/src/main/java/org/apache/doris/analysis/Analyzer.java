@@ -433,7 +433,9 @@ public class Analyzer {
             rules.add(RewriteAliasFunctionRule.INSTANCE);
             rules.add(EliminateUnnecessaryFunctions.INSTANCE);
             List<ExprRewriteRule> onceRules = Lists.newArrayList();
-            onceRules.add(ExtractCommonFactorsRule.INSTANCE);
+            if (Config.enable_extract_common_factors_rule) {
+                onceRules.add(ExtractCommonFactorsRule.INSTANCE);
+            }
             onceRules.add(InferFiltersRule.INSTANCE);
             exprRewriter = new ExprRewriter(rules, onceRules);
             // init mv rewriter
