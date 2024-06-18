@@ -1212,6 +1212,8 @@ DEFINE_mInt32(thrift_client_open_num_tries, "1");
 
 DEFINE_mBool(ignore_schema_change_check, "false");
 
+DEFINE_mBool(enable_parquet_page_index, "true");
+
 // clang-format off
 #ifdef BE_TEST
 // test s3

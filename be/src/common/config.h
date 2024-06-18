@@ -1286,6 +1286,8 @@ DECLARE_mInt32(thrift_client_open_num_tries);
 
 DECLARE_mBool(ignore_schema_change_check);
 
+DECLARE_mBool(enable_parquet_page_index);
+
 #ifdef BE_TEST
 // test s3
 DECLARE_String(test_s3_resource);
