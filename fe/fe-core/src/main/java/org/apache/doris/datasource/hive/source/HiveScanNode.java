@@ -34,6 +34,7 @@ import org.apache.doris.common.util.LocationPath;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.FileQueryScanNode;
 import org.apache.doris.datasource.FileSplit;
+import org.apache.doris.datasource.TablePartitionValues.PartitionOrdering;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalTable;
 import org.apache.doris.datasource.hive.HiveMetaStoreCache;
@@ -57,6 +58,7 @@ import org.apache.doris.thrift.TFileType;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Ordering;
 import lombok.Setter;
 import org.apache.hadoop.hive.common.ValidWriteIdList;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
@@ -137,6 +139,17 @@ public class HiveScanNode extends FileQueryScanNode {
         }
     }
 
+    protected List<HivePartition> orderingPartitions(List<HivePartition> partitions) {
+        PartitionOrdering ordering = PartitionOrdering.parse(
+                ConnectContext.get().getSessionVariable().getPartitionOrdering());
+        if (ordering == PartitionOrdering.REVERSE) {
+            return Ordering.natural().onResultOf(HivePartition::getPath).reverse().sortedCopy(partitions);
+        } else if (ordering == PartitionOrdering.SHUFFLE) {
+            return Ordering.arbitrary().onResultOf(HivePartition::getPath).sortedCopy(partitions);
+        }
+        return partitions;
+    }
+
     protected List<HivePartition> getPartitions() throws AnalysisException {
         List<HivePartition> resPartitions = Lists.newArrayList();
         long start = System.currentTimeMillis();
@@ -211,7 +224,7 @@ public class HiveScanNode extends FileQueryScanNode {
         long start = System.currentTimeMillis();
         try {
             if (!partitionInit) {
-                prunedPartitions = getPartitions();
+                prunedPartitions = orderingPartitions(getPartitions());
                 partitionInit = true;
             }
             HiveMetaStoreCache cache = Env.getCurrentEnv().getExtMetaCacheMgr()
@@ -289,7 +302,7 @@ public class HiveScanNode extends FileQueryScanNode {
     public boolean isBatchMode() {
         if (!partitionInit) {
             try {
-                prunedPartitions = getPartitions();
+                prunedPartitions = orderingPartitions(getPartitions());
             } catch (Exception e) {
                 return false;
             }

@@ -386,9 +386,9 @@ public class HudiScanNode extends HiveScanNode {
             return getIncrementalSplits();
         }
         if (!partitionInit) {
-            prunedPartitions = HiveMetaStoreClientHelper.ugiDoAs(
+            prunedPartitions = orderingPartitions(HiveMetaStoreClientHelper.ugiDoAs(
                     HiveMetaStoreClientHelper.getConfiguration(hmsTable),
-                    () -> getPrunedPartitions(hudiClient, snapshotTimestamp));
+                    () -> getPrunedPartitions(hudiClient, snapshotTimestamp)));
             partitionInit = true;
         }
         List<Split> splits = Collections.synchronizedList(new ArrayList<>());
@@ -448,9 +448,9 @@ public class HudiScanNode extends HiveScanNode {
         }
         if (!partitionInit) {
             // Non partition table will get one dummy partition
-            prunedPartitions = HiveMetaStoreClientHelper.ugiDoAs(
+            prunedPartitions = orderingPartitions(HiveMetaStoreClientHelper.ugiDoAs(
                     HiveMetaStoreClientHelper.getConfiguration(hmsTable),
-                    () -> getPrunedPartitions(hudiClient, snapshotTimestamp));
+                    () -> getPrunedPartitions(hudiClient, snapshotTimestamp)));
             partitionInit = true;
         }
         int numPartitions = ConnectContext.get().getSessionVariable().getNumPartitionsInBatchMode();
