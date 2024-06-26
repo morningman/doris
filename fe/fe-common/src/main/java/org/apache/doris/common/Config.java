@@ -2786,6 +2786,12 @@ public class Config extends ConfigBase {
     @ConfField(mutable = true)
     public static boolean enable_cooldown_replica_affinity = true;
 
+    @ConfField
+    public static boolean enable_java_udf_static_load = true;
+
+    @ConfField
+    public static long java_udf_load_expiration_time_min = 360;
+
     //==========================================================================
     //                      end of cloud config
     //==========================================================================
