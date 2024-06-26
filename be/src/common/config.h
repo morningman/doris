@@ -1324,6 +1324,8 @@ DECLARE_Int64(min_row_group_size);
 
 DECLARE_mBool(enable_parquet_page_index);
 
+DECLARE_mBool(ignore_not_found_file);
+
 #ifdef BE_TEST
 // test s3
 DECLARE_String(test_s3_resource);

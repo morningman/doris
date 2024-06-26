@@ -1241,6 +1241,8 @@ DEFINE_mInt64(fetch_remote_schema_rpc_timeout_ms, "60000");
 
 DEFINE_mBool(enable_parquet_page_index, "true");
 
+DEFINE_mBool(ignore_not_found_file, "true");
+
 // clang-format off
 #ifdef BE_TEST
 // test s3
