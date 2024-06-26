@@ -507,10 +507,11 @@ public class HMSExternalTable extends ExternalTable implements MTMVRelatedTableI
         makeSureInitialized();
         // Get row count from hive metastore property.
         long rowCount = getRowCountFromExternalSource();
+        LOG.info("fetch row count {} for {}.{}.{}", rowCount, catalog.getName(), dbName, name);
         // Only hive table supports estimate row count by listing file.
         if (rowCount == -1 && dlaType.equals(DLAType.HIVE)) {
-            LOG.debug("Will estimate row count from file list.");
             rowCount = getRowCountFromFileList();
+            LOG.info("fetch row count {} from file list {}.{}.{}", rowCount, catalog.getName(), dbName, name);
         }
         return rowCount;
     }
