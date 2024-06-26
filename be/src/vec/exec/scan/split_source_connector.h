@@ -115,7 +115,12 @@ public:
         LOG(FATAL) << "Unreachable, params is got by file_scan_range_params_map";
     }
 
-    int64_t get_split_time() override { return _get_split_timer; }
+    int64_t get_split_time() override {
+        std::lock_guard<std::mutex> l(_range_lock);
+        int64_t update_time = _get_split_timer;
+        _get_split_timer = 0;
+        return update_time;
+    }
 };
 
 } // namespace doris::vectorized
