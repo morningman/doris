@@ -417,6 +417,10 @@ public class SessionVariable implements Serializable, Writable {
 
     public static final String NUM_PARTITIONS_IN_BATCH_MODE = "num_partitions_in_batch_mode";
 
+    public static final String FETCH_SPLITS_MAX_WAIT_TIME = "fetch_splits_max_wait_time";
+
+    public static final String PARTITION_ORDERING = "partition_ordering";
+
     /**
      * use insert stmt as the unified backend for all loads
      */
@@ -1460,6 +1464,20 @@ public class SessionVariable implements Serializable, Writable {
                     "If the number of partitions exceeds the threshold, scan ranges will be got through batch mode."},
             needForward = true)
     public int numPartitionsInBatchMode = 1024;
+
+    @VariableMgr.VarAttr(
+            name = FETCH_SPLITS_MAX_WAIT_TIME,
+            description = {"batch方式中BE获取splits的最大等待时间",
+                    "The max wait time of getting splits in batch mode."},
+            needForward = true)
+    public long fetchSplitsMaxWaitTime = 4000;
+
+    @VariableMgr.VarAttr(
+            name = PARTITION_ORDERING,
+            description = {"list partition的排序方式",
+                    "Ordering style of list partition."},
+            needForward = true)
+    public String partitionOrdering = "natural";
 
     @VariableMgr.VarAttr(
             name = ENABLE_PARQUET_LAZY_MAT,
@@ -2711,6 +2729,22 @@ public class SessionVariable implements Serializable, Writable {
 
     public void setNumSplitsInBatchMode(int numPartitionsInBatchMode) {
         this.numPartitionsInBatchMode = numPartitionsInBatchMode;
+    }
+
+    public long getFetchSplitsMaxWaitTime() {
+        return fetchSplitsMaxWaitTime;
+    }
+
+    public void setFetchSplitsMaxWaitTime(long fetchSplitsMaxWaitTime) {
+        this.fetchSplitsMaxWaitTime = fetchSplitsMaxWaitTime;
+    }
+
+    public String getPartitionOrdering() {
+        return partitionOrdering;
+    }
+
+    public void setPartitionOrdering(String partitionOrdering) {
+        this.partitionOrdering = partitionOrdering;
     }
 
     public boolean isEnableParquetLazyMat() {

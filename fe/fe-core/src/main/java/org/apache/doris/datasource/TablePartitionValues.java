@@ -49,6 +49,21 @@ import java.util.stream.Collectors;
 
 @Data
 public class TablePartitionValues {
+    public enum PartitionOrdering {
+        NATURAL,
+        REVERSE,
+        SHUFFLE;
+
+        public static PartitionOrdering parse(String ordering) {
+            for (PartitionOrdering order : PartitionOrdering.values()) {
+                if (order.name().equalsIgnoreCase(ordering)) {
+                    return order;
+                }
+            }
+            return null;
+        }
+    }
+
     public static final String HIVE_DEFAULT_PARTITION = "__HIVE_DEFAULT_PARTITION__";
 
     private final ReadWriteLock readWriteLock;
