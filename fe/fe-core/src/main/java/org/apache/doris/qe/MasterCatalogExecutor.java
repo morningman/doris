@@ -66,11 +66,12 @@ public class MasterCatalogExecutor {
         boolean isReturnToPool = false;
         try {
             TInitExternalCtlMetaResult result = client.initExternalCtlMeta(request);
-            Env.getCurrentEnv().getJournalObservable().waitOn(result.maxJournalId, waitTimeoutMs);
             if (!result.getStatus().equalsIgnoreCase(STATUS_OK)) {
                 throw new UserException(result.getStatus());
+            } else {
+                // Env.getCurrentEnv().getJournalObservable().waitOn(result.maxJournalId, timeoutMs);
+                isReturnToPool = true;
             }
-            isReturnToPool = true;
         } catch (Exception e) {
             LOG.warn("Failed to finish forward init operation, please try again. ", e);
             throw e;
