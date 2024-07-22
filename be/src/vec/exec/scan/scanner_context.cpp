@@ -56,10 +56,10 @@ ScannerContext::ScannerContext(
           _max_bytes_in_queue(std::max(max_bytes_in_blocks_queue, (int64_t)1024) *
                               num_parallel_instances),
           _scanner_scheduler(state->exec_env()->scanner_scheduler()),
-          _all_scanners(scanners.begin(), scanners.end()),
-          _num_parallel_instances(num_parallel_instances) {
+          _all_scanners(scanners.begin(), scanners.end()) {
     DCHECK(_output_row_descriptor == nullptr ||
            _output_row_descriptor->tuple_descriptors().size() == 1);
+    DCHECK(_local_state != nullptr);
     _query_id = _state->get_query_ctx()->query_id();
     ctx_id = UniqueId::gen_uid().to_string();
     // Provide more memory for wide tables, increase proportionally by multiples of 300
@@ -76,13 +76,12 @@ ScannerContext::ScannerContext(
     _max_thread_num = _state->num_scanner_threads() > 0
                               ? _state->num_scanner_threads()
                               : config::doris_scanner_thread_pool_thread_num /
-                                        (_local_state ? num_parallel_instances
-                                                      : state->query_parallel_instance_num());
+                                        num_parallel_instances;
     _max_thread_num = _max_thread_num == 0 ? 1 : _max_thread_num;
     _max_thread_num = std::min(_max_thread_num, (int32_t)scanners.size());
     // 1. Calculate max concurrency
     // For select * from table limit 10; should just use one thread.
-    if (_local_state && _local_state->should_run_serial()) {
+    if (_local_state->should_run_serial()) {
         _max_thread_num = 1;
     }
     // when user not specify scan_thread_num, so we can try downgrade _max_thread_num.

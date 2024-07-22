@@ -90,9 +90,6 @@ public class NereidsCoordinator extends Coordinator {
             boolean useLocalShuffle = useLocalShuffle(distributedPlan);
             if (useLocalShuffle) {
                 fragmentExecParams.ignoreDataDistribution = true;
-                fragmentExecParams.parallelTasksNum = 1;
-            } else {
-                fragmentExecParams.parallelTasksNum = instanceJobs.size();
             }
 
             for (AssignedJob instanceJob : instanceJobs) {

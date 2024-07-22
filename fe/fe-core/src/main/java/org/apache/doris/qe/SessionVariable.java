@@ -255,9 +255,6 @@ public class SessionVariable implements Serializable, Writable {
 
     public static final String IGNORE_STORAGE_DATA_DISTRIBUTION = "ignore_storage_data_distribution";
 
-    public static final String ENABLE_PARALLEL_SCAN = "enable_parallel_scan";
-
-    // Limit the max count of scanners to prevent generate too many scanners.
     public static final String PARALLEL_SCAN_MAX_SCANNERS_COUNT = "parallel_scan_max_scanners_count";
 
     // Avoid splitting small segments, each scanner should scan `parallel_scan_min_rows_per_scanner` rows.
@@ -270,8 +267,6 @@ public class SessionVariable implements Serializable, Writable {
     public static final String ENABLE_LOCAL_MERGE_SORT = "enable_local_merge_sort";
 
     public static final String ENABLE_AGG_STATE = "enable_agg_state";
-
-    public static final String ENABLE_RPC_OPT_FOR_PIPELINE = "enable_rpc_opt_for_pipeline";
 
     public static final String ENABLE_SINGLE_DISTINCT_COLUMN_OPT = "enable_single_distinct_column_opt";
 
@@ -979,24 +974,6 @@ public class SessionVariable implements Serializable, Writable {
 
     @VariableMgr.VarAttr(name = ENABLE_STRICT_CONSISTENCY_DML, needForward = true)
     public boolean enableStrictConsistencyDml = true;
-
-    @VariableMgr.VarAttr(name = ENABLE_VECTORIZED_ENGINE, varType = VariableAnnotation.REMOVED)
-    public boolean enableVectorizedEngine = true;
-
-    @VariableMgr.VarAttr(name = ENABLE_PIPELINE_ENGINE, fuzzy = true, needForward = true,
-            varType = VariableAnnotation.REMOVED)
-    private boolean enablePipelineEngine = true;
-
-    @VariableMgr.VarAttr(name = ENABLE_PIPELINE_X_ENGINE, fuzzy = false, varType = VariableAnnotation.REMOVED)
-    private boolean enablePipelineXEngine = true;
-
-    @VariableMgr.VarAttr(name = ENABLE_SHARED_SCAN, fuzzy = false, varType = VariableAnnotation.EXPERIMENTAL,
-            needForward = true)
-    private boolean enableSharedScan = false;
-
-    @VariableMgr.VarAttr(name = ENABLE_PARALLEL_SCAN, fuzzy = true, varType = VariableAnnotation.EXPERIMENTAL,
-            needForward = true)
-    private boolean enableParallelScan = true;
 
     @VariableMgr.VarAttr(name = PARALLEL_SCAN_MAX_SCANNERS_COUNT, fuzzy = true,
             varType = VariableAnnotation.EXPERIMENTAL, needForward = true)
@@ -2158,7 +2135,6 @@ public class SessionVariable implements Serializable, Writable {
             }
 
             this.runtimeFilterType = 1 << randomInt;
-            this.enableParallelScan = Config.pull_request_id % 2 == 0 ? randomInt % 2 == 0 : randomInt % 1 == 0;
             switch (randomInt) {
                 case 0:
                     this.parallelScanMaxScannersCount = 32;
@@ -3606,7 +3582,6 @@ public class SessionVariable implements Serializable, Writable {
 
         tResult.setInvertedIndexSkipThreshold(invertedIndexSkipThreshold);
 
-        tResult.setEnableParallelScan(enableParallelScan);
         tResult.setParallelScanMaxScannersCount(parallelScanMaxScannersCount);
         tResult.setParallelScanMinRowsPerScanner(parallelScanMinRowsPerScanner);
         tResult.setSkipBadTablet(skipBadTablet);
@@ -3958,14 +3933,6 @@ public class SessionVariable implements Serializable, Writable {
             }
         }
         return num;
-    }
-
-    public boolean getEnableSharedScan() {
-        return enableSharedScan;
-    }
-
-    public void setEnableSharedScan(boolean value) {
-        enableSharedScan = value;
     }
 
     public boolean getEnableParallelScan() {

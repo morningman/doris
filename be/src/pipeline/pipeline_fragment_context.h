@@ -147,6 +147,10 @@ private:
                                const DescriptorTbl& descs, OperatorXPtr parent, int* node_idx,
                                OperatorXPtr* root, PipelinePtr& cur_pipe, int child_idx);
 
+    void _set_ignore_data_distribution(const doris::TPipelineFragmentParams& request,
+                                                OperatorXPtr& op,
+                                            PipelinePtr& cur_pipe);
+
     Status _create_operator(ObjectPool* pool, const TPlanNode& tnode,
                             const doris::TPipelineFragmentParams& request,
                             const DescriptorTbl& descs, OperatorXPtr& op, PipelinePtr& cur_pipe,

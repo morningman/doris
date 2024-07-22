@@ -298,7 +298,9 @@ Status PipelineFragmentContext::prepare(const doris::TPipelineFragmentParams& re
             _query_ctx->init_runtime_predicates(local_params.topn_filter_descs);
         }
 
-        _need_local_merge = request.__isset.parallel_instances;
+        // TODO: parallel_instances should be removed in 3.1
+        _need_local_merge = request.__isset.parallel_instances 
+                || (request.__isset.ignore_data_distribution && request.ignore_data_distribution);
     }
 
     {
@@ -1100,6 +1102,16 @@ Status PipelineFragmentContext::_create_data_sink(ObjectPool* pool, const TDataS
     return Status::OK();
 }
 
+void PipelineFragmentContext::_set_ignore_data_distribution(const doris::TPipelineFragmentParams& request,
+                                                OperatorXPtr& op,
+                                            PipelinePtr& cur_pipe) {
+    // TODO: parallel_instances should be removed in 3.1
+    if (request.__isset.parallel_instances || (request.__isset.ignore_data_distribution && request.ignore_data_distribution)) {
+        cur_pipe->set_num_tasks(1);
+        op->set_ignore_data_distribution();
+    }
+}
+
 // NOLINTBEGIN(readability-function-size)
 // NOLINTBEGIN(readability-function-cognitive-complexity)
 Status PipelineFragmentContext::_create_operator(ObjectPool* pool, const TPlanNode& tnode,
@@ -1116,19 +1128,13 @@ Status PipelineFragmentContext::_create_operator(ObjectPool* pool, const TPlanNo
     case TPlanNodeType::OLAP_SCAN_NODE: {
         op.reset(new OlapScanOperatorX(pool, tnode, next_operator_id(), descs, _num_instances));
         RETURN_IF_ERROR(cur_pipe->add_operator(op));
-        if (request.__isset.parallel_instances) {
-            cur_pipe->set_num_tasks(request.parallel_instances);
-            op->set_ignore_data_distribution();
-        }
+        _set_ignore_data_distribution(request, op, cur_pipe);
         break;
     }
     case TPlanNodeType::GROUP_COMMIT_SCAN_NODE: {
         op.reset(new GroupCommitOperatorX(pool, tnode, next_operator_id(), descs, _num_instances));
         RETURN_IF_ERROR(cur_pipe->add_operator(op));
-        if (request.__isset.parallel_instances) {
-            cur_pipe->set_num_tasks(request.parallel_instances);
-            op->set_ignore_data_distribution();
-        }
+        _set_ignore_data_distribution(request, op, cur_pipe);
         break;
     }
     case doris::TPlanNodeType::JDBC_SCAN_NODE: {
@@ -1140,29 +1146,20 @@ Status PipelineFragmentContext::_create_operator(ObjectPool* pool, const TPlanNo
                     "Jdbc scan node is disabled, you can change be config enable_java_support "
                     "to true and restart be.");
         }
-        if (request.__isset.parallel_instances) {
-            cur_pipe->set_num_tasks(request.parallel_instances);
-            op->set_ignore_data_distribution();
-        }
+        _set_ignore_data_distribution(request, op, cur_pipe);
         break;
     }
     case doris::TPlanNodeType::FILE_SCAN_NODE: {
         op.reset(new FileScanOperatorX(pool, tnode, next_operator_id(), descs, _num_instances));
         RETURN_IF_ERROR(cur_pipe->add_operator(op));
-        if (request.__isset.parallel_instances) {
-            cur_pipe->set_num_tasks(request.parallel_instances);
-            op->set_ignore_data_distribution();
-        }
+        _set_ignore_data_distribution(request, op, cur_pipe);
         break;
     }
     case TPlanNodeType::ES_SCAN_NODE:
     case TPlanNodeType::ES_HTTP_SCAN_NODE: {
         op.reset(new EsScanOperatorX(pool, tnode, next_operator_id(), descs, _num_instances));
         RETURN_IF_ERROR(cur_pipe->add_operator(op));
-        if (request.__isset.parallel_instances) {
-            cur_pipe->set_num_tasks(request.parallel_instances);
-            op->set_ignore_data_distribution();
-        }
+        _set_ignore_data_distribution(request, op, cur_pipe);
         break;
     }
     case TPlanNodeType::EXCHANGE_NODE: {
@@ -1170,10 +1167,7 @@ Status PipelineFragmentContext::_create_operator(ObjectPool* pool, const TPlanNo
         DCHECK_GT(num_senders, 0);
         op.reset(new ExchangeSourceOperatorX(pool, tnode, next_operator_id(), descs, num_senders));
         RETURN_IF_ERROR(cur_pipe->add_operator(op));
-        if (request.__isset.parallel_instances) {
-            op->set_ignore_data_distribution();
-            cur_pipe->set_num_tasks(request.parallel_instances);
-        }
+        _set_ignore_data_distribution(request, op, cur_pipe);
         break;
     }
     case TPlanNodeType::AGGREGATION_NODE: {
@@ -1449,10 +1443,7 @@ Status PipelineFragmentContext::_create_operator(ObjectPool* pool, const TPlanNo
     case TPlanNodeType::DATA_GEN_SCAN_NODE: {
         op.reset(new DataGenSourceOperatorX(pool, tnode, next_operator_id(), descs));
         RETURN_IF_ERROR(cur_pipe->add_operator(op));
-        if (request.__isset.parallel_instances) {
-            cur_pipe->set_num_tasks(request.parallel_instances);
-            op->set_ignore_data_distribution();
-        }
+        _set_ignore_data_distribution(request, op, cur_pipe);
         break;
     }
     case TPlanNodeType::SCHEMA_SCAN_NODE: {

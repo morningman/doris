@@ -592,4 +592,8 @@ std::vector<std::shared_ptr<RuntimeProfile>> RuntimeState::build_pipeline_profil
     return _pipeline_id_to_profile;
 }
 
+int RuntimeState::get_max_scanner_num() {
+    
+}
+
 } // end namespace doris

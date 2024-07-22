@@ -487,19 +487,9 @@ public:
                _query_options.enable_hash_join_early_start_probe;
     }
 
-    bool enable_parallel_scan() const {
-        return _query_options.__isset.enable_parallel_scan && _query_options.enable_parallel_scan;
-    }
-
     bool is_read_csv_empty_line_as_null() const {
         return _query_options.__isset.read_csv_empty_line_as_null &&
                _query_options.read_csv_empty_line_as_null;
-    }
-
-    int parallel_scan_max_scanners_count() const {
-        return _query_options.__isset.parallel_scan_max_scanners_count
-                       ? _query_options.parallel_scan_max_scanners_count
-                       : 0;
     }
 
     int64_t parallel_scan_min_rows_per_scanner() const {
@@ -619,6 +609,8 @@ public:
     vectorized::ColumnInt64* partial_update_auto_inc_column() {
         return _partial_update_auto_inc_column;
     };
+
+    int get_max_scanner_num();
 
 private:
     Status create_error_log_file();

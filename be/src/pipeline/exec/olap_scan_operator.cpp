@@ -265,7 +265,6 @@ Status OlapScanLocalState::_init_scanners(std::list<vectorized::VScannerSPtr>* s
         _cond_ranges.emplace_back(new doris::OlapScanRange());
     }
 
-    bool enable_parallel_scan = state()->enable_parallel_scan();
     bool has_cpu_limit = state()->query_options().__isset.resource_limit &&
                          state()->query_options().resource_limit.__isset.cpu_limit;
 
@@ -293,7 +292,7 @@ Status OlapScanLocalState::_init_scanners(std::list<vectorized::VScannerSPtr>* s
     }
     _sync_rowset_timer->update(duration_ns);
 
-    if (enable_parallel_scan && !p._should_run_serial && !has_cpu_limit &&
+    if (!p._should_run_serial && !has_cpu_limit &&
         p._push_down_agg_type == TPushAggOp::NONE &&
         (_storage_no_merge() || p._olap_scan_node.is_preaggregation)) {
         std::vector<OlapScanRange*> key_ranges;

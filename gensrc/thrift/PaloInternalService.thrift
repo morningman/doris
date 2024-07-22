@@ -269,9 +269,11 @@ struct TQueryOptions {
 
   94: optional i32 inverted_index_skip_threshold = 50;
 
-  95: optional bool enable_parallel_scan = false;
+  // @Deprecated
+  // 95: optional bool enable_parallel_scan = false;
 
-  96: optional i32 parallel_scan_max_scanners_count = 0;
+  // @Deprecated
+  // 96: optional i32 parallel_scan_max_scanners_count = 0;
 
   97: optional i64 parallel_scan_min_rows_per_scanner = 0;
 
@@ -782,6 +784,7 @@ struct TPipelineFragmentParams {
   34: optional i32 num_buckets
   35: optional map<i32, i32> bucket_seq_to_instance_idx
   36: optional map<Types.TPlanNodeId, bool> per_node_shared_scans
+  // @Deprecated, use ignore_data_distribution
   37: optional i32 parallel_instances
   38: optional i32 total_instances
   39: optional map<i32, i32> shuffle_idx_to_instance_idx
@@ -789,6 +792,7 @@ struct TPipelineFragmentParams {
   41: optional i64 wal_id
   42: optional i64 content_length
   43: optional Types.TNetworkAddress current_connect_fe
+  44: optional bool ignore_data_distribution = false;
 
   // For cloud
   1000: optional bool is_mow_table;

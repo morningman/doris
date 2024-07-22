@@ -1910,7 +1910,6 @@ public class Coordinator implements CoordInterface {
                             params.instanceExecParams.add(instanceParam);
                         }
                         params.ignoreDataDistribution = sharedScan;
-                        params.parallelTasksNum = params.ignoreDataDistribution ? 1 : params.instanceExecParams.size();
                     }
                 }
             }
@@ -2767,7 +2766,6 @@ public class Coordinator implements CoordInterface {
             }
         }
         params.ignoreDataDistribution = ignoreStorageDataDistribution;
-        params.parallelTasksNum = params.ignoreDataDistribution ? 1 : params.instanceExecParams.size();
     }
 
     private final Map<PlanFragmentId, BucketSeqToScanRange> fragmentIdTobucketSeqToScanRangeMap = Maps.newHashMap();
@@ -3036,7 +3034,6 @@ public class Coordinator implements CoordInterface {
     // used to assemble TPlanFragmentExecParams
     protected class FragmentExecParams {
         public PlanFragment fragment;
-        public int parallelTasksNum = 0;
         public boolean ignoreDataDistribution = false;
         public List<TPlanFragmentDestination> destinations = Lists.newArrayList();
         public Map<Integer, Integer> perExchNumSenders = Maps.newHashMap();
@@ -3096,9 +3093,7 @@ public class Coordinator implements CoordInterface {
                     params.setNumBuckets(fragment.getBucketNum());
                     params.setPerNodeSharedScans(perNodeSharedScans);
                     params.setTotalInstances(instanceExecParams.size());
-                    if (ignoreDataDistribution) {
-                        params.setParallelInstances(parallelTasksNum);
-                    }
+                    params.setIgnoreDataDistribution(ignoreDataDistribution);
                     res.put(instanceExecParam.host, params);
                     res.get(instanceExecParam.host).setBucketSeqToInstanceIdx(new HashMap<Integer, Integer>());
                     res.get(instanceExecParam.host).setShuffleIdxToInstanceIdx(new HashMap<Integer, Integer>());
