@@ -306,7 +306,7 @@ Status OlapScanLocalState::_init_scanners(std::list<vectorized::VScannerSPtr>* s
 
         ParallelScannerBuilder scanner_builder(this, tablets, _scanner_profile, key_ranges, state(),
                                                p._limit, true, p._olap_scan_node.is_preaggregation);
-
+        // ignore_data_distribution
         int max_scanners_count = state()->parallel_scan_max_scanners_count();
 
         // If the `max_scanners_count` was not set,
@@ -314,6 +314,7 @@ Status OlapScanLocalState::_init_scanners(std::list<vectorized::VScannerSPtr>* s
         if (max_scanners_count <= 0) {
             max_scanners_count = config::doris_scanner_thread_pool_thread_num;
         }
+        int max_scanners_count = state()->get_max_scanner_num(p->ignore_data_distribution(), true);
 
         // Too small value of `min_rows_per_scanner` is meaningless.
         auto min_rows_per_scanner =
