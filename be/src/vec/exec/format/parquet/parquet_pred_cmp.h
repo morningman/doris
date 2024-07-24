@@ -131,6 +131,8 @@ private:
 
         CppType min_value;
         CppType max_value;
+        std::unique_ptr<std::string> encoded_min_copy;
+        std::unique_ptr<std::string> encoded_max_copy;
         tparquet::Type::type physical_type = col_schema->physical_type;
         switch (col_val_range.type()) {
 #define DISPATCH(REINTERPRET_TYPE, PARQUET_TYPE)                           \
@@ -186,13 +188,13 @@ private:
         case TYPE_STRING:
             if constexpr (std::is_same_v<CppType, StringRef>) {
                 if (!use_min_max_value) {
-                    std::string min_copy(encoded_min);
-                    std::string max_copy(encoded_max);
-                    if (!_try_read_old_utf8_stats(min_copy, max_copy)) {
+                    encoded_min_copy = std::make_unique<std::string>(encoded_min);
+                    encoded_max_copy = std::make_unique<std::string>(encoded_max);
+                    if (!_try_read_old_utf8_stats(*encoded_min_copy, *encoded_max_copy)) {
                         return false;
                     }
-                    min_value = StringRef(min_copy);
-                    max_value = StringRef(max_copy);
+                    min_value = StringRef(*encoded_min_copy);
+                    max_value = StringRef(*encoded_max_copy);
                 } else {
                     min_value = StringRef(encoded_min);
                     max_value = StringRef(encoded_max);
