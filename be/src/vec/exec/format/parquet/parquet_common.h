@@ -437,16 +437,16 @@ public:
 private:
     static void warn_parse_error_once(const std::string& createdBy, const std::string_view& msg) {
         //if (!already_logged.exchange(true)) {
-            LOG(WARNING) << "Ignoring statistics because created_by could not be parsed (see "
-                            "PARQUET-251)."
-                            " CreatedBy: "
-                         << createdBy << ", msg: " << msg;
+        LOG(WARNING) << "Ignoring statistics because created_by could not be parsed (see "
+                        "PARQUET-251)."
+                        " CreatedBy: "
+                     << createdBy << ", msg: " << msg;
         //}
     }
 
     static void warn_once(const std::string_view& msg) {
         //if (!already_logged.exchange(true)) {
-            LOG(WARNING) << msg;
+        LOG(WARNING) << msg;
         //}
     }
 
