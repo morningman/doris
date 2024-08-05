@@ -125,7 +125,7 @@ ORI_OUTPUT="${ROOT}/output"
 rm -rf "${ORI_OUTPUT}"
 # Download selectdb jars
 SELECTDB_JARS=selectdb-enterprise-2.1-zero-trust-jars
-if [[ ! -f "${SELECTDB_JARS}.tar.xz" ]]; then
+if [[ ! -f "${SELECTDB_JARS}.zip" ]]; then
     wget https://tencent-tbds-1308700295.cos.ap-beijing.myqcloud.com/zero-trust/${SELECTDB_JARS}.zip
 fi
 rm -rf "${SELECTDB_JARS}"
