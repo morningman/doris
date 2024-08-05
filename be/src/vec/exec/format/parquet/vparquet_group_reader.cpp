@@ -450,7 +450,7 @@ Status RowGroupReader::_do_lazy_read(Block* block, size_t batch_size, size_t* re
         columns_to_filter[i] = i;
     }
     IColumn::Filter result_filter;
-    while (true) {
+    while (!_state->is_cancelled()) {
         // read predicate columns
         pre_read_rows = 0;
         pre_eof = false;
@@ -523,6 +523,10 @@ Status RowGroupReader::_do_lazy_read(Block* block, size_t batch_size, size_t* re
             break;
         }
     }
+    if (_state->is_cancelled()) {
+        return Status::Cancelled("cancelled");
+    }
+
     if (select_vector_ptr == nullptr) {
         DCHECK_EQ(pre_read_rows + _cached_filtered_rows, 0);
         *read_rows = 0;
