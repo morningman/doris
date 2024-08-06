@@ -348,9 +348,9 @@ public class IcebergScanNode extends FileQueryScanNode {
 
     @Override
     public TFileType getLocationType(String location) throws UserException {
-        final String fLocation = normalizeLocation(location);
         return Optional.ofNullable(LocationPath.getTFileTypeForBE(location)).orElseThrow(() ->
-                new DdlException("Unknown file location " + fLocation + " for iceberg table " + icebergTable.name()));
+                new DdlException("Unknown file location " + location + " for iceberg table " + icebergTable.name()
+                    + ". Try adding 'fs.defaultFS' in catalog's properties"));
     }
 
     private String normalizeLocation(String location) {

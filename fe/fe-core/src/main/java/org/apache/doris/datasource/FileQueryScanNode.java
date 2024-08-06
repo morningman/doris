@@ -314,11 +314,13 @@ public abstract class FileQueryScanNode extends FileScanNode {
         }
 
         List<String> pathPartitionKeys = getPathPartitionKeys();
+        String defaultFS = (String) getTargetTable().getDatabase().getCatalog().getProperties().get("fs.defaultFS");
         if (isBatchMode()) {
             // File splits are generated lazily, and fetched by backends while scanning.
             // Only provide the unique ID of split source to backend.
             splitAssignment = new SplitAssignment(
-                    backendPolicy, this, this::splitToScanRange, locationProperties, pathPartitionKeys);
+                    backendPolicy, this, this::splitToScanRange, locationProperties, pathPartitionKeys,
+                    defaultFS);
             splitAssignment.init();
             if (ConnectContext.get().getExecutor() != null) {
                 ConnectContext.get().getExecutor().getSummaryProfile().setGetSplitsFinishTime();
@@ -334,7 +336,7 @@ public abstract class FileQueryScanNode extends FileScanNode {
                     && ((IcebergSplit) fileSplit).getConfig().containsKey(HMSExternalCatalog.BIND_BROKER_NAME)) {
                 locationType = TFileType.FILE_BROKER;
             } else {
-                locationType = getLocationType(fileSplit.getPath().toString());
+                locationType = getLocationType(fileSplit.getPath().toString(), defaultFS);
             }
             totalFileSize = fileSplit.getLength() * inputSplitsNum;
             long maxWaitTime = ConnectContext.get().getSessionVariable().getFetchSplitsMaxWaitTime();
@@ -372,7 +374,8 @@ public abstract class FileQueryScanNode extends FileScanNode {
             for (Backend backend : assignment.keySet()) {
                 Collection<Split> splits = assignment.get(backend);
                 for (Split split : splits) {
-                    scanRangeLocations.add(splitToScanRange(backend, locationProperties, split, pathPartitionKeys));
+                    scanRangeLocations.add(splitToScanRange(backend, locationProperties, split, pathPartitionKeys,
+                            defaultFS));
                     totalFileSize += split.getLength();
                 }
             }
@@ -391,14 +394,15 @@ public abstract class FileQueryScanNode extends FileScanNode {
             Backend backend,
             Map<String, String> locationProperties,
             Split split,
-            List<String> pathPartitionKeys) throws UserException {
+            List<String> pathPartitionKeys,
+            String defaultFS) throws UserException {
         FileSplit fileSplit = (FileSplit) split;
         TFileType locationType;
         if (fileSplit instanceof IcebergSplit
                 && ((IcebergSplit) fileSplit).getConfig().containsKey(HMSExternalCatalog.BIND_BROKER_NAME)) {
             locationType = TFileType.FILE_BROKER;
         } else {
-            locationType = getLocationType(fileSplit.getPath().toString());
+            locationType = getLocationType(fileSplit.getPath().toString(), defaultFS);
         }
 
         TScanRangeLocations curLocations = newLocations();
@@ -567,7 +571,7 @@ public abstract class FileQueryScanNode extends FileScanNode {
 
     protected abstract TFileType getLocationType() throws UserException;
 
-    protected abstract TFileType getLocationType(String location) throws UserException;
+    protected abstract TFileType getLocationType(String location, String defaultFS) throws UserException;
 
     protected abstract TFileFormatType getFileFormatType() throws UserException;
 

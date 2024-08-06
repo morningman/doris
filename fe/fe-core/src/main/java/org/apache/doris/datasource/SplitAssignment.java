@@ -48,6 +48,8 @@ public class SplitAssignment {
     private final SplitToScanRange splitToScanRange;
     private final Map<String, String> locationProperties;
     private final List<String> pathPartitionKeys;
+    private final String defaultFS;
+
     private final Object assignLock = new Object();
     private Split sampleSplit = null;
     private final AtomicBoolean isStop = new AtomicBoolean(false);
@@ -60,12 +62,14 @@ public class SplitAssignment {
             SplitGenerator splitGenerator,
             SplitToScanRange splitToScanRange,
             Map<String, String> locationProperties,
-            List<String> pathPartitionKeys) {
+            List<String> pathPartitionKeys,
+            String defaultFS) {
         this.backendPolicy = backendPolicy;
         this.splitGenerator = splitGenerator;
         this.splitToScanRange = splitToScanRange;
         this.locationProperties = locationProperties;
         this.pathPartitionKeys = pathPartitionKeys;
+        this.defaultFS = defaultFS;
     }
 
     public void init() throws UserException {
@@ -93,7 +97,8 @@ public class SplitAssignment {
             Collection<Split> splits = batch.get(backend);
             List<TScanRangeLocations> locations = new ArrayList<>(splits.size());
             for (Split split : splits) {
-                locations.add(splitToScanRange.getScanRange(backend, locationProperties, split, pathPartitionKeys));
+                locations.add(splitToScanRange.getScanRange(backend, locationProperties, split, pathPartitionKeys,
+                        defaultFS));
             }
             if (!assignment.computeIfAbsent(backend, be -> new LinkedBlockingQueue<>()).offer(locations)) {
                 throw new UserException("Failed to offer batch split");
