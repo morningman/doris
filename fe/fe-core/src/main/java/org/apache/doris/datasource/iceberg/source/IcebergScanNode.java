@@ -270,7 +270,7 @@ public class IcebergScanNode extends FileQueryScanNode {
             return splits.isEmpty() ? splits : Collections.singletonList(splits.get(0));
         }
 
-        readPartitionNum = partitionPathSet.size();
+        selectedPartitionNum = partitionPathSet.size();
 
         return splits;
     }
