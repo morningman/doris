@@ -301,7 +301,7 @@ FileBlocks LRUFileCache::split_range_into_cells(const Key& key, const CacheConte
     while (current_pos < end_pos_non_included) {
         current_size = std::min(remaining_size, _max_file_segment_size);
         remaining_size -= current_size;
-        state = try_reserve(key, context, current_pos, current_size, cache_lock)
+        state = try_reserve(key, context, current_pos, current_size, cache_lock, false)
                         ? state
                         : FileBlock::State::SKIP_CACHE;
         if (UNLIKELY(state == FileBlock::State::SKIP_CACHE)) {
@@ -520,16 +520,19 @@ const LRUFileCache::LRUQueue& LRUFileCache::get_queue(CacheType type) const {
 //     a. evict from query queue
 //     b. evict from other queue
 bool LRUFileCache::try_reserve(const Key& key, const CacheContext& context, size_t offset,
-                               size_t size, std::lock_guard<std::mutex>& cache_lock) {
+                               size_t size, std::lock_guard<std::mutex>& cache_lock,
+                               bool skip_round_check) {
     auto query_context =
             _enable_file_cache_query_limit && (context.query_id.hi != 0 || context.query_id.lo != 0)
                     ? get_query_context(context.query_id, cache_lock)
                     : nullptr;
     if (!query_context) {
-        return try_reserve_for_lru(key, nullptr, context, offset, size, cache_lock);
+        return try_reserve_for_lru(key, nullptr, context, offset, size, skip_round_check,
+                                   cache_lock);
     } else if (query_context->get_cache_size(cache_lock) + size <=
                query_context->get_max_cache_size()) {
-        return try_reserve_for_lru(key, query_context, context, offset, size, cache_lock);
+        return try_reserve_for_lru(key, query_context, context, offset, size, skip_round_check,
+                                   cache_lock);
     }
     int64_t cur_time = std::chrono::duration_cast<std::chrono::seconds>(
                                std::chrono::steady_clock::now().time_since_epoch())
@@ -692,6 +695,7 @@ bool LRUFileCache::try_reserve_from_other_queue(CacheType cur_cache_type, size_t
 
 bool LRUFileCache::try_reserve_for_lru(const Key& key, QueryFileCacheContextPtr query_context,
                                        const CacheContext& context, size_t offset, size_t size,
+                                       bool skip_round_check,
                                        std::lock_guard<std::mutex>& cache_lock) {
     int64_t cur_time = std::chrono::duration_cast<std::chrono::seconds>(
                                std::chrono::steady_clock::now().time_since_epoch())
@@ -713,8 +717,10 @@ bool LRUFileCache::try_reserve_for_lru(const Key& key, QueryFileCacheContextPtr 
 
         std::vector<FileBlockCell*> to_evict;
         std::vector<FileBlockCell*> trash;
+        size_t evict_num = 0;
         for (const auto& [entry_key, entry_offset, entry_size] : queue) {
-            if (!is_overflow()) {
+            if (!is_overflow() ||
+                (!skip_round_check && evict_num > config::file_cache_max_evict_num_per_round)) {
                 break;
             }
             auto* cell = get_cell(entry_key, entry_offset, cache_lock);
@@ -746,6 +752,7 @@ bool LRUFileCache::try_reserve_for_lru(const Key& key, QueryFileCacheContextPtr 
 
                 removed_size += cell_size;
                 --queue_element_size;
+                ++evict_num;
             }
         }
 
@@ -757,6 +764,9 @@ bool LRUFileCache::try_reserve_for_lru(const Key& key, QueryFileCacheContextPtr 
             }
         };
 
+        if (evict_num > config::file_cache_max_evict_num_per_round) {
+            LOG(INFO) << "debug evict from file cache number: " << evict_num;
+        }
         std::for_each(trash.begin(), trash.end(), remove_file_block_if);
         std::for_each(to_evict.begin(), to_evict.end(), remove_file_block_if);
 
@@ -902,7 +912,7 @@ Status LRUFileCache::load_cache_info_into_memory(std::lock_guard<std::mutex>& ca
                     continue;
                 }
                 context.cache_type = cache_type;
-                if (try_reserve(key, context, offset, size, cache_lock)) {
+                if (try_reserve(key, context, offset, size, cache_lock, true)) {
                     add_cell(key, context, offset, size, FileBlock::State::DOWNLOADED, cache_lock);
                     queue_entries.emplace_back(key, offset);
                 } else {
@@ -915,8 +925,8 @@ Status LRUFileCache::load_cache_info_into_memory(std::lock_guard<std::mutex>& ca
                 }
                 scan_file_num += 1;
                 if (scan_file_num % config::async_file_cache_init_file_num_interval == 0) {
-                    std::this_thread::sleep_for(
-                            std::chrono::milliseconds(config::async_file_cache_init_sleep_interval_ms));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(
+                            config::async_file_cache_init_sleep_interval_ms));
                 }
             }
         }
