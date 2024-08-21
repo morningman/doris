@@ -84,7 +84,9 @@ public enum SchemaTableType {
     SCH_WORKLOAD_GROUP_RESOURCE_USAGE("WORKLOAD_GROUP_RESOURCE_USAGE",
             "WORKLOAD_GROUP_RESOURCE_USAGE", TSchemaTableType.SCH_WORKLOAD_GROUP_RESOURCE_USAGE),
     SCH_TABLE_PROPERTIES("TABLE_PROPERTIES", "TABLE_PROPERTIES",
-            TSchemaTableType.SCH_TABLE_PROPERTIES);
+            TSchemaTableType.SCH_TABLE_PROPERTIES),
+    SCH_FILE_CACHE_STATISTICS("FILE_CACHE_STATISTICS", "FILE_CACHE_STATISTICS",
+            TSchemaTableType.SCH_FILE_CACHE_STATISTICS);
 
     private static final String dbName = "INFORMATION_SCHEMA";
     private static SelectList fullSelectLists;
@@ -121,3 +123,5 @@ public enum SchemaTableType {
         return tableType;
     }
 }
+
+
