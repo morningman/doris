@@ -17,7 +17,7 @@
 
 #include "exec/schema_scanner/schema_file_cache_statistics.h"
 
-#include "io/cache/block/block_file_cache_factory.h"
+#include "io/cache/block_file_cache_factory.h"
 #include "runtime/exec_env.h"
 #include "runtime/runtime_state.h"
 #include "vec/common/string_ref.h"

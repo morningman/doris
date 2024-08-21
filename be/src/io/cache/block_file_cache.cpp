@@ -82,18 +82,18 @@ BlockFileCache::BlockFileCache(const std::string& cache_base_path,
     _total_evict_size_metrics = std::make_shared<bvar::Adder<size_t>>(
             _cache_base_path.c_str(), "file_cache_total_evict_size");
 
-    _num_read_blocks = std::make_shared<bvar::Adder<size_t>>(
-            _cache_base_path.c_str(), "_num_read_blocks");
-    _num_hit_blocks = std::make_shared<bvar::Adder<size_t>>(
-            _cache_base_path.c_str(), "_num_hit_blocks");
-    _num_read_blocks_5m = std::make_shared<bvar::Window<bvar::Adder<int64_t>>>(
-            _num_read_blocks.get());
-    _num_hit_blocks_5m = std::make_shared<bvar::Window<bvar::Adder<int64_t>>>(
-            _num_hit_blocks.get());
-    _num_read_blocks_1h = std::make_shared<bvar::Window<bvar::Adder<int64_t>>>(
-            _num_read_blocks.get());
-    _num_hit_blocks_1h = std::make_shared<bvar::Window<bvar::Adder<int64_t>>>(
-            _num_hit_blocks.get());
+    _num_read_blocks =
+            std::make_shared<bvar::Adder<size_t>>(_cache_base_path.c_str(), "_num_read_blocks");
+    _num_hit_blocks =
+            std::make_shared<bvar::Adder<size_t>>(_cache_base_path.c_str(), "_num_hit_blocks");
+    _num_read_blocks_5m =
+            std::make_shared<bvar::Window<bvar::Adder<int64_t>>>(_num_read_blocks.get());
+    _num_hit_blocks_5m =
+            std::make_shared<bvar::Window<bvar::Adder<int64_t>>>(_num_hit_blocks.get());
+    _num_read_blocks_1h =
+            std::make_shared<bvar::Window<bvar::Adder<int64_t>>>(_num_read_blocks.get());
+    _num_hit_blocks_1h =
+            std::make_shared<bvar::Window<bvar::Adder<int64_t>>>(_num_hit_blocks.get());
 
     _disposable_queue = LRUQueue(cache_settings.disposable_queue_size,
                                  cache_settings.disposable_queue_elements, 60 * 60);
@@ -1793,30 +1793,29 @@ void BlockFileCache::update_ttl_atime(const UInt128Wrapper& hash) {
 }
 
 std::map<std::string, double> BlockFileCache::get_stats() {
-    update_cache_metrics();
     std::map<std::string, double> stats;
-    stats["hits_ratio"] = (double)file_cache_hits_ratio->value();
-    stats["hits_ratio_5m"] = (double)file_cache_hits_ratio_5m->value();
-    stats["hits_ratio_1h"] = (double)file_cache_hits_ratio_1h->value();
+    // stats["hits_ratio"] = (double)file_cache_hits_ratio->value();
+    // stats["hits_ratio_5m"] = (double)file_cache_hits_ratio_5m->value();
+    // stats["hits_ratio_1h"] = (double)file_cache_hits_ratio_1h->value();
 
-    stats["index_queue_max_size"] = (double)file_cache_index_queue_max_size->value();
-    stats["index_queue_curr_size"] = (double)file_cache_index_queue_curr_size->value();
-    stats["index_queue_max_elements"] = (double)file_cache_index_queue_max_elements->value();
-    stats["index_queue_curr_elements"] = (double)file_cache_index_queue_curr_elements->value();
+    // stats["index_queue_max_size"] = (double)file_cache_index_queue_max_size->value();
+    // stats["index_queue_curr_size"] = (double)file_cache_index_queue_curr_size->value();
+    // stats["index_queue_max_elements"] = (double)file_cache_index_queue_max_elements->value();
+    // stats["index_queue_curr_elements"] = (double)file_cache_index_queue_curr_elements->value();
 
-    stats["normal_queue_max_size"] = (double)file_cache_normal_queue_max_size->value();
-    stats["normal_queue_curr_size"] = (double)file_cache_normal_queue_curr_size->value();
-    stats["normal_queue_max_elements"] = (double)file_cache_normal_queue_max_elements->value();
-    stats["normal_queue_curr_elements"] = (double)file_cache_normal_queue_curr_elements->value();
+    // stats["normal_queue_max_size"] = (double)file_cache_normal_queue_max_size->value();
+    // stats["normal_queue_curr_size"] = (double)file_cache_normal_queue_curr_size->value();
+    // stats["normal_queue_max_elements"] = (double)file_cache_normal_queue_max_elements->value();
+    // stats["normal_queue_curr_elements"] = (double)file_cache_normal_queue_curr_elements->value();
 
-    stats["disposable_queue_max_size"] = (double)file_cache_disposable_queue_max_size->value();
-    stats["disposable_queue_curr_size"] = (double)file_cache_disposable_queue_curr_size->value();
-    stats["disposable_queue_max_elements"] =
-            (double)file_cache_disposable_queue_max_elements->value();
-    stats["disposable_queue_curr_elements"] =
-            (double)file_cache_disposable_queue_curr_elements->value();
+    // stats["disposable_queue_max_size"] = (double)file_cache_disposable_queue_max_size->value();
+    // stats["disposable_queue_curr_size"] = (double)file_cache_disposable_queue_curr_size->value();
+    // stats["disposable_queue_max_elements"] =
+    //         (double)file_cache_disposable_queue_max_elements->value();
+    // stats["disposable_queue_curr_elements"] =
+    //         (double)file_cache_disposable_queue_curr_elements->value();
 
-    stats["segment_reader_cache_size"] = (double)IFileCache::file_reader_cache_size();
+    // stats["segment_reader_cache_size"] = (double)IFileCache::file_reader_cache_size();
 
     return stats;
 }

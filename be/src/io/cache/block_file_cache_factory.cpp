@@ -34,6 +34,7 @@
 #include "common/config.h"
 #include "io/cache/file_cache_common.h"
 #include "io/fs/local_file_system.h"
+#include "service/backend_options.h"
 #include "runtime/exec_env.h"
 
 namespace doris {
