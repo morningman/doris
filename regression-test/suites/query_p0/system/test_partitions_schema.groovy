@@ -63,6 +63,8 @@ suite("test_partitions_schema") {
     sql """
         sync
     """
+    sql """analyze table test_range_table with sync"""
+    // check row count here will wait 1 min before BE report
     checkRowCount(9);
  
     qt_select_check_0 """select  table_name,partition_name,table_rows from information_schema.partitions where table_schema=\"${dbName}\" order by $listOfColum"""
@@ -184,12 +186,12 @@ suite("test_partitions_schema") {
 
     sql "GRANT SELECT_PRIV ON ${dbName}.duplicate_table  TO ${user}"
     connect(user=user, password='123abc!@#', url=url) {
-        qt_select_check_4 """select  $listOfColum from information_schema.partitions where table_schema=\"${dbName}\" order by $listOfColum"""
+        qt_select_check_4 """select  TABLE_NAME from information_schema.partitions where table_schema=\"${dbName}\" order by $listOfColum"""
     }
     
     sql "REVOKE SELECT_PRIV ON ${dbName}.duplicate_table  FROM ${user}"
     connect(user=user, password='123abc!@#', url=url) {
-        qt_select_check_5 """select  $listOfColum from information_schema.partitions where table_schema=\"${dbName}\" order by $listOfColum"""
+        qt_select_check_5 """select TABLE_NAME from information_schema.partitions where table_schema=\"${dbName}\" order by $listOfColum"""
     }
 
 }

@@ -1470,6 +1470,7 @@ public class MetadataGenerator {
         trow.addToColumnValue(new TCell().setStringVal("")); // PARTITION_COMMENT (not available)
         trow.addToColumnValue(new TCell().setStringVal("")); // NODEGROUP (not available)
         trow.addToColumnValue(new TCell().setStringVal("")); // TABLESPACE_NAME (not available)
+        return trow;
     }
 
     private static TFetchSchemaTableDataResult partitionsMetadataResult(TSchemaTableRequestParams params) {
