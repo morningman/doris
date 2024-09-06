@@ -62,6 +62,7 @@ import org.apache.doris.plsql.metastore.PlsqlManager;
 import org.apache.doris.plsql.metastore.PlsqlProcedureKey;
 import org.apache.doris.plsql.metastore.PlsqlStoredProcedure;
 import org.apache.doris.qe.ConnectContext;
+import org.apache.doris.qe.GlobalVariable;
 import org.apache.doris.qe.QeProcessorImpl;
 import org.apache.doris.qe.QeProcessorImpl.QueryInfo;
 import org.apache.doris.resource.workloadgroup.WorkloadGroupMgr;
@@ -1348,8 +1349,8 @@ public class MetadataGenerator {
                 trow.addToColumnValue(new TCell().setStringVal(partition.getName())); // PARTITION_NAME
                 trow.addToColumnValue(new TCell().setStringVal("NULL")); // SUBPARTITION_NAME (always null)
 
-                trow.addToColumnValue(new TCell().setIntVal(0)); //PARTITION_ORDINAL_POSITION (not available)
-                trow.addToColumnValue(new TCell().setIntVal(0)); //SUBPARTITION_ORDINAL_POSITION (not available)
+                trow.addToColumnValue(new TCell().setIntVal(0)); // PARTITION_ORDINAL_POSITION (not available)
+                trow.addToColumnValue(new TCell().setIntVal(0)); // SUBPARTITION_ORDINAL_POSITION (not available)
                 trow.addToColumnValue(new TCell().setStringVal(
                         olapTable.getPartitionInfo().getType().toString())); // PARTITION_METHOD
                 trow.addToColumnValue(new TCell().setStringVal("NULL")); // SUBPARTITION_METHOD(always null)
@@ -1357,7 +1358,7 @@ public class MetadataGenerator {
                 if ((olapTable.getPartitionInfo().getType() == PartitionType.UNPARTITIONED) || (item == null)) {
                     trow.addToColumnValue(new TCell().setStringVal("NULL")); // if unpartitioned, its null
                     trow.addToColumnValue(new TCell().setStringVal("NULL")); // SUBPARTITION_EXPRESSION (always null)
-                    trow.addToColumnValue(new TCell().setStringVal("NULL")); // PARITION DESC, its null
+                    trow.addToColumnValue(new TCell().setStringVal("NULL")); // PARTITION DESC, its null
                 } else {
                     trow.addToColumnValue(new TCell().setStringVal(
                             olapTable.getPartitionInfo()
@@ -1366,17 +1367,17 @@ public class MetadataGenerator {
                     trow.addToColumnValue(new TCell().setStringVal(
                             item.getItemsSql())); // PARTITION DESC
                 }
-                trow.addToColumnValue(new TCell().setLongVal(partition.getRowCount())); //TABLE_ROWS (PARTITION row)
-                trow.addToColumnValue(new TCell().setLongVal(partition.getAvgRowLength())); //AVG_ROW_LENGTH
-                trow.addToColumnValue(new TCell().setLongVal(partition.getDataLength())); //DATA_LENGTH
-                trow.addToColumnValue(new TCell().setIntVal(0)); //MAX_DATA_LENGTH (not available)
-                trow.addToColumnValue(new TCell().setIntVal(0)); //INDEX_LENGTH (not available)
-                trow.addToColumnValue(new TCell().setIntVal(0)); //DATA_FREE (not available)
-                trow.addToColumnValue(new TCell().setStringVal("NULL")); //CREATE_TIME (not available)
+                trow.addToColumnValue(new TCell().setLongVal(partition.getRowCount())); // TABLE_ROWS (PARTITION row)
+                trow.addToColumnValue(new TCell().setLongVal(partition.getAvgRowLength())); // AVG_ROW_LENGTH
+                trow.addToColumnValue(new TCell().setLongVal(partition.getDataLength())); // DATA_LENGTH
+                trow.addToColumnValue(new TCell().setIntVal(0)); // MAX_DATA_LENGTH (not available)
+                trow.addToColumnValue(new TCell().setIntVal(0)); // INDEX_LENGTH (not available)
+                trow.addToColumnValue(new TCell().setIntVal(0)); // DATA_FREE (not available)
+                trow.addToColumnValue(new TCell().setStringVal("NULL")); // CREATE_TIME (not available)
                 trow.addToColumnValue(new TCell().setStringVal(
                         TimeUtils.longToTimeString(partition.getVisibleVersionTime()))); //UPDATE_TIME
                 trow.addToColumnValue(new TCell().setStringVal("NULL")); // CHECK_TIME (not available)
-                trow.addToColumnValue(new TCell().setIntVal(0)); //CHECKSUM (not available)
+                trow.addToColumnValue(new TCell().setIntVal(0)); // CHECKSUM (not available)
                 trow.addToColumnValue(new TCell().setStringVal("")); // PARTITION_COMMENT (not available)
                 trow.addToColumnValue(new TCell().setStringVal("")); // NODEGROUP (not available)
                 trow.addToColumnValue(new TCell().setStringVal("")); // TABLESPACE_NAME (not available)
@@ -1514,7 +1515,9 @@ public class MetadataGenerator {
         } else if (catalog instanceof ExternalCatalog) {
             // TODO: support partitions for external catalog may cause too many results.
             // think twice before enable it.
-            // partitionsForExternalCatalog(currentUserIdentity, catalog, database, tables, dataBatch);
+            if (GlobalVariable.enablePartitionsTableForExternalCatalog) {
+                partitionsForExternalCatalog(currentUserIdentity, catalog, database, tables, dataBatch);
+            }
         }
         result.setDataBatch(dataBatch);
         result.setStatus(new TStatus(TStatusCode.OK));

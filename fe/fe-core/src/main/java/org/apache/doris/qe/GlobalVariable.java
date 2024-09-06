@@ -68,6 +68,8 @@ public final class GlobalVariable {
     public static final String HUGE_PARTITION_LOWER_BOUND_ROWS = "huge_partition_lower_bound_rows";
 
     public static final String ENABLE_FETCH_ICEBERG_STATS = "enable_fetch_iceberg_stats";
+    public static final String ENABLE_PARTITIONS_SYSTABLE_FOR_EXTERNAL_CATALOG
+            = "enable_partitions_systable_for_external_catalog";
 
 
     @VariableMgr.VarAttr(name = VERSION_COMMENT, flag = VariableMgr.READ_ONLY)
@@ -180,6 +182,13 @@ public final class GlobalVariable {
                 "当HMS catalog中的Iceberg表没有统计信息时，是否通过Iceberg Api获取统计信息",
                 "Enable fetch stats for HMS Iceberg table when it's not analyzed."})
     public static boolean enableFetchIcebergStats = false;
+
+    @VariableMgr.VarAttr(name = ENABLE_PARTITIONS_SYSTABLE_FOR_EXTERNAL_CATALOG, flag = VariableMgr.GLOBAL,
+            description = {
+                    "是否允许 information_schema 中的 partitions 表获取 external catalog 中的表分区信息",
+                    "Whether to allow the partitions table in information_schema to "
+                            + "get partition information of tables in external catalog"})
+    public static boolean enablePartitionsTableForExternalCatalog = false;
 
     // Don't allow creating instance.
     private GlobalVariable() {
