@@ -47,6 +47,7 @@ import org.apache.doris.datasource.ExternalCatalog;
 import org.apache.doris.datasource.ExternalMetaCacheMgr;
 import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
+import org.apache.doris.datasource.hive.HMSExternalTable;
 import org.apache.doris.datasource.hive.HiveMetaStoreCache;
 import org.apache.doris.datasource.hudi.source.HudiCachedPartitionProcessor;
 import org.apache.doris.datasource.iceberg.IcebergExternalCatalog;
@@ -87,6 +88,7 @@ import org.apache.doris.thrift.TStatusCode;
 import org.apache.doris.thrift.TTasksMetadataParams;
 import org.apache.doris.thrift.TUserIdentity;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
@@ -1362,7 +1364,7 @@ public class MetadataGenerator {
                                 .getDisplayPartitionColumns().toString())); // PARTITION_EXPRESSION
                     trow.addToColumnValue(new TCell().setStringVal("NULL")); // SUBPARTITION_EXPRESSION (always null)
                     trow.addToColumnValue(new TCell().setStringVal(
-                            item.getItemsSql())); // PARITION DESC
+                            item.getItemsSql())); // PARTITION DESC
                 }
                 trow.addToColumnValue(new TCell().setLongVal(partition.getRowCount())); //TABLE_ROWS (PARTITION row)
                 trow.addToColumnValue(new TCell().setLongVal(partition.getAvgRowLength())); //AVG_ROW_LENGTH
@@ -1385,13 +1387,88 @@ public class MetadataGenerator {
 
     private static void partitionsForExternalCatalog(UserIdentity currentUserIdentity,
             CatalogIf catalog, DatabaseIf database, List<TableIf> tables, List<TRow> dataBatch) {
-        for (TableIf table : tables) {
-            if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(currentUserIdentity, catalog.getName(),
-                    database.getFullName(), table.getName(), PrivPredicate.SHOW)) {
-                continue;
+        // Only HMSExternalCatalog is supported now.
+        if (catalog instanceof HMSExternalCatalog) {
+            HMSExternalCatalog hmsCatalog = (HMSExternalCatalog) catalog;
+            for (TableIf table : tables) {
+                if (!Env.getCurrentEnv().getAccessManager().checkTblPriv(currentUserIdentity, catalog.getName(),
+                        database.getFullName(), table.getName(), PrivPredicate.SHOW)) {
+                    continue;
+                }
+                if (table.isPartitionedTable()) {
+                    dataBatch.add(generatePartitionsRowForUnpartitionedTable(catalog.getName(), database.getFullName(),
+                            table));
+                } else {
+                    List<String> partitionNames = hmsCatalog.getClient()
+                            .listPartitionNames(database.getFullName(), table.getName());
+                    ((HMSExternalTable) table).getPartitionColumnNames();
+                    String displayPartColNames = Joiner.on(", ").join(((HMSExternalTable) table)
+                            .getPartitionColumnNames());
+                    for (String partition : partitionNames) {
+                        TRow trow = new TRow();
+                        trow.addToColumnValue(new TCell().setStringVal(catalog.getName())); // TABLE_CATALOG
+                        trow.addToColumnValue(new TCell().setStringVal(database.getFullName())); // TABLE_SCHEMA
+                        trow.addToColumnValue(new TCell().setStringVal(table.getName())); // TABLE_NAME
+                        trow.addToColumnValue(new TCell().setStringVal(partition)); // PARTITION_NAME
+                        trow.addToColumnValue(new TCell().setStringVal("NULL")); // SUBPARTITION_NAME (always null)
+                        trow.addToColumnValue(new TCell().setIntVal(0)); // PARTITION_ORDINAL_POSITION (not available)
+                        trow.addToColumnValue(
+                                new TCell().setIntVal(0)); // SUBPARTITION_ORDINAL_POSITION (not available)
+                        trow.addToColumnValue(new TCell().setStringVal(PartitionType.LIST.name())); // PARTITION_METHOD
+                        trow.addToColumnValue(new TCell().setStringVal("NULL")); // SUBPARTITION_METHOD(always null)
+                        trow.addToColumnValue(new TCell().setStringVal(displayPartColNames)); // PARTITION_EXPRESSION
+                        trow.addToColumnValue(
+                                new TCell().setStringVal("NULL")); // SUBPARTITION_EXPRESSION (always null)
+                        trow.addToColumnValue(new TCell().setStringVal(partition)); // PARTITION DESC
+                        trow.addToColumnValue(
+                                new TCell().setLongVal(0)); // TABLE_ROWS (PARTITION row) (not available)
+                        trow.addToColumnValue(new TCell().setLongVal(0)); // AVG_ROW_LENGTH (not available)
+                        trow.addToColumnValue(new TCell().setLongVal(0)); // DATA_LENGTH (not available)
+                        trow.addToColumnValue(new TCell().setIntVal(0)); // MAX_DATA_LENGTH (not available)
+                        trow.addToColumnValue(new TCell().setIntVal(0)); // INDEX_LENGTH (not available)
+                        trow.addToColumnValue(new TCell().setIntVal(0)); // DATA_FREE (not available)
+                        trow.addToColumnValue(new TCell().setStringVal("NULL")); // CREATE_TIME (not available)
+                        trow.addToColumnValue(new TCell().setStringVal("NULL")); // UPDATE_TIME (not available)
+                        trow.addToColumnValue(new TCell().setStringVal("NULL")); // CHECK_TIME (not available)
+                        trow.addToColumnValue(new TCell().setIntVal(0)); // CHECKSUM (not available)
+                        trow.addToColumnValue(new TCell().setStringVal("")); // PARTITION_COMMENT (not available)
+                        trow.addToColumnValue(new TCell().setStringVal("")); // NODEGROUP (not available)
+                        trow.addToColumnValue(new TCell().setStringVal("")); // TABLESPACE_NAME (not available)
+                        dataBatch.add(trow);
+                    }
+                }
+
             }
-            // TODO
-        } // for table
+        }
+    }
+
+    private static TRow generatePartitionsRowForUnpartitionedTable(String ctlName, String dbName, TableIf tbl) {
+        TRow trow = new TRow();
+        trow.addToColumnValue(new TCell().setStringVal(ctlName)); // TABLE_CATALOG
+        trow.addToColumnValue(new TCell().setStringVal(dbName)); // TABLE_SCHEMA
+        trow.addToColumnValue(new TCell().setStringVal(tbl.getName())); // TABLE_NAME
+        trow.addToColumnValue(new TCell().setStringVal(tbl.getName())); // PARTITION_NAME
+        trow.addToColumnValue(new TCell().setStringVal("NULL")); // SUBPARTITION_NAME (always null)
+        trow.addToColumnValue(new TCell().setIntVal(0)); // PARTITION_ORDINAL_POSITION (not available)
+        trow.addToColumnValue(new TCell().setIntVal(0)); // SUBPARTITION_ORDINAL_POSITION (not available)
+        trow.addToColumnValue(new TCell().setStringVal(PartitionType.UNPARTITIONED.name())); // PARTITION_METHOD
+        trow.addToColumnValue(new TCell().setStringVal("NULL")); // SUBPARTITION_METHOD(always null)
+        trow.addToColumnValue(new TCell().setStringVal("NULL")); // if unpartitioned, its null
+        trow.addToColumnValue(new TCell().setStringVal("NULL")); // SUBPARTITION_EXPRESSION (always null)
+        trow.addToColumnValue(new TCell().setStringVal("NULL")); // PARITION DESC, its null
+        trow.addToColumnValue(new TCell().setLongVal(tbl.getRowCount())); // TABLE_ROWS (PARTITION row)
+        trow.addToColumnValue(new TCell().setLongVal(tbl.getAvgRowLength())); // AVG_ROW_LENGTH
+        trow.addToColumnValue(new TCell().setLongVal(tbl.getDataLength())); // DATA_LENGTH
+        trow.addToColumnValue(new TCell().setIntVal(0)); // MAX_DATA_LENGTH (not available)
+        trow.addToColumnValue(new TCell().setIntVal(0)); // INDEX_LENGTH (not available)
+        trow.addToColumnValue(new TCell().setIntVal(0)); // DATA_FREE (not available)
+        trow.addToColumnValue(new TCell().setStringVal("NULL")); // CREATE_TIME (not available)
+        trow.addToColumnValue(new TCell().setStringVal(TimeUtils.longToTimeString(tbl.getUpdateTime()))); // UPDATE_TIME
+        trow.addToColumnValue(new TCell().setStringVal("NULL")); // CHECK_TIME (not available)
+        trow.addToColumnValue(new TCell().setIntVal(0)); // CHECKSUM (not available)
+        trow.addToColumnValue(new TCell().setStringVal("")); // PARTITION_COMMENT (not available)
+        trow.addToColumnValue(new TCell().setStringVal("")); // NODEGROUP (not available)
+        trow.addToColumnValue(new TCell().setStringVal("")); // TABLESPACE_NAME (not available)
     }
 
     private static TFetchSchemaTableDataResult partitionsMetadataResult(TSchemaTableRequestParams params) {
