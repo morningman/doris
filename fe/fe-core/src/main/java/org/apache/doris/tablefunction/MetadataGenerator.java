@@ -1512,7 +1512,9 @@ public class MetadataGenerator {
             // only olap tables
             partitionsForInternalCatalog(currentUserIdentity, catalog, database, tables, dataBatch);
         } else if (catalog instanceof ExternalCatalog) {
-            partitionsForExternalCatalog(currentUserIdentity, catalog, database, tables, dataBatch);
+            // TODO: support partitions for external catalog may cause too many results.
+            // think twice before enable it.
+            // partitionsForExternalCatalog(currentUserIdentity, catalog, database, tables, dataBatch);
         }
         result.setDataBatch(dataBatch);
         result.setStatus(new TStatus(TStatusCode.OK));
