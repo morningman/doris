@@ -47,8 +47,8 @@ import java.util.concurrent.TimeUnit;
 /*
  * This plugin will load audit log to specified doris table at specified interval
  */
-public class AuditLoaderPlugin extends Plugin implements AuditPlugin {
-    private static final Logger LOG = LogManager.getLogger(AuditLoaderPlugin.class);
+public class BuiltinAuditLoaderPlugin extends Plugin implements AuditPlugin {
+    private static final Logger LOG = LogManager.getLogger(BuiltinAuditLoaderPlugin.class);
 
     public static final String AUDIT_LOG_TABLE = "audit_log";
 
@@ -70,10 +70,10 @@ public class AuditLoaderPlugin extends Plugin implements AuditPlugin {
 
     private final PluginInfo pluginInfo;
 
-    public AuditLoaderPlugin() {
+    public BuiltinAuditLoaderPlugin() {
         pluginInfo = new PluginInfo(PluginMgr.BUILTIN_PLUGIN_PREFIX + "AuditLoader", PluginType.AUDIT,
                 "builtin audit loader, to load audit log to internal table", DigitalVersion.fromString("2.1.0"),
-                DigitalVersion.fromString("1.8.31"), AuditLoaderPlugin.class.getName(), null, null);
+                DigitalVersion.fromString("1.8.31"), BuiltinAuditLoaderPlugin.class.getName(), null, null);
     }
 
     public PluginInfo getPluginInfo() {
