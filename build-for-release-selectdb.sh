@@ -17,7 +17,7 @@
 # under the License.
 
 ##############################################################
-# This script is used to build for Apache Doris Release
+# This script is used to build for SelectDB Enterprise Core
 ##############################################################
 
 set -eo pipefail
@@ -58,7 +58,6 @@ eval set -- "${OPTS}"
 
 _USE_AVX2=1
 TAR=0
-HELP=0
 VERSION=
 if [[ "$#" == 1 ]]; then
     _USE_AVX2=1
@@ -95,11 +94,13 @@ fi
 
 if [[ "${HELP}" -eq 1 ]]; then
     usage
+    exit
 fi
 
 if [[ -z ${VERSION} ]]; then
     echo "Must specify version"
     usage
+    exit 1
 fi
 
 echo "Get params:
@@ -109,7 +110,6 @@ echo "Get params:
 "
 
 ARCH="$(uname -m)"
-
 if [[ "${ARCH}" == "aarch64" ]]; then
     ARCH="arm64"
 elif [[ "${ARCH}" == "x86_64" ]]; then
@@ -119,59 +119,63 @@ else
     exit 1
 fi
 
-echo "ARCH: ${ARCH}"
-
 ORI_OUTPUT="${ROOT}/output"
-rm -rf "${ORI_OUTPUT}"
-# Download selectdb jars
-SELECTDB_JARS=selectdb-enterprise-2.1-zero-trust-jars
-if [[ ! -f "${SELECTDB_JARS}.zip" ]]; then
-    wget https://tencent-tbds-1308700295.cos.ap-beijing.myqcloud.com/zero-trust/${SELECTDB_JARS}.zip
-fi
-rm -rf "${SELECTDB_JARS}"
-unzip ${SELECTDB_JARS}.zip
-cd ${ROOT}/${SELECTDB_JARS}/ && bash install.sh
-cd ${ROOT}
+
 FE="fe"
 BE="be"
-EXT="extensions"
-PACKAGE="apache-doris-${VERSION}-bin-${ARCH}"
+BROKER="apache_hdfs_broker"
+AUDIT="audit_loader"
 
-if [[ "${_USE_AVX2}" == "0" ]]; then
-    PACKAGE="${PACKAGE}-noavx2"
+PACKAGE_NAME="selectdb-doris-${VERSION}-bin-${ARCH}"
+if [[ "${_USE_AVX2}" == "0" && "${ARCH}" == "x64" ]]; then
+    PACKAGE_NAME="${PACKAGE_NAME}-noavx2"
+fi
+OUTPUT="${ORI_OUTPUT}/${PACKAGE_NAME}"
+
+rm -rf "${OUTPUT}" && mkdir -p "${OUTPUT}"
+echo "Package Path: ${OUTPUT}"
+
+# download and setup java
+JAVA8_DOWNLOAD_LINK=
+JAVA8_DIR_NAME=
+if [[ "${ARCH}" == "x64" ]]; then
+    JAVA8_DOWNLOAD_LINK="https://selectdb-doris-1308700295.cos.ap-beijing.myqcloud.com/release/jdbc_driver/openjdk-8u352-b08-linux-x64.tar.gz"
+    JAVA8_DIR_NAME="openjdk-8u352-b08-linux-x64"
+elif [[ "${ARCH}" == "arm64" ]]; then
+    JAVA8_DOWNLOAD_LINK="https://selectdb-doris-1308700295.cos.ap-beijing.myqcloud.com/release/jdbc_driver/bisheng-jdk-8u352-linux-aarch64.tar.gz"
+    JAVA8_DIR_NAME="bisheng-jdk1.8.0_352"
+else
+    echo "Unknown arch: ${ARCH}"
+    exit 1
 fi
 
-OUTPUT="${ORI_OUTPUT}/${PACKAGE}"
-OUTPUT_FE="${OUTPUT}/${FE}"
-OUTPUT_EXT="${OUTPUT}/${EXT}"
-OUTPUT_BE="${OUTPUT}/${BE}"
+OUTPUT_JAVA8="${OUTPUT}/java8"
+curl -# "${JAVA8_DOWNLOAD_LINK}" | tar xz -C "${OUTPUT}/" && mv "${OUTPUT}/${JAVA8_DIR_NAME}/" "${OUTPUT_JAVA8}"
+export JAVA_HOME="${OUTPUT_JAVA8}"
+export PATH="${JAVA_HOME}/bin:${PATH}"
 
-echo "Package Name:"
-echo "FE:   ${OUTPUT_FE}"
-echo "BE:   ${OUTPUT_BE}"
-echo "JAR:  ${OUTPUT_EXT}"
+# build core
+#sh build.sh --clean &&
+USE_AVX2="${_USE_AVX2}" sh build.sh && USE_AVX2="${_USE_AVX2}" sh build.sh --be --meta-tool
 
-sh build.sh --clean &&
-    USE_AVX2="${_USE_AVX2}" sh build.sh &&
-    USE_AVX2="${_USE_AVX2}" sh build.sh --be --meta-tool --be-extension-ignore avro-scanner
+echo "Begin to install"
+cp -r "${ORI_OUTPUT}/fe" "${OUTPUT}/fe"
+cp -r "${ORI_OUTPUT}/be" "${OUTPUT}/be"
+cp -r "${ORI_OUTPUT}/apache_hdfs_broker" "${OUTPUT}/apache_hdfs_broker"
+cp -r "${ORI_OUTPUT}/audit_loader" "${OUTPUT}/audit_loader"
 
-echo "Begin to pack"
-rm -rf "${OUTPUT}"
-mkdir -p "${OUTPUT_FE}" "${OUTPUT_BE}" "${OUTPUT_EXT}"
-
-# FE
-cp -R "${ORI_OUTPUT}"/fe/* "${OUTPUT_FE}"/
-
-# EXT
-cp -R "${ORI_OUTPUT}"/apache_hdfs_broker "${OUTPUT_EXT}"/apache_hdfs_broker
-
-# BE
-cp -R "${ORI_OUTPUT}"/be/* "${OUTPUT_BE}"/
+JDBC_DRIVERS_DIR="${OUTPUT}/jdbc_drivers/"
+mkdir -p "${JDBC_DRIVERS_DIR}"
+wget https://selectdb-doris-1308700295.cos.ap-beijing.myqcloud.com/release/jdbc_driver/clickhouse-jdbc-0.3.2-patch11-all.jar -P "${JDBC_DRIVERS_DIR}/"
+wget https://selectdb-doris-1308700295.cos.ap-beijing.myqcloud.com/release/jdbc_driver/mssql-jdbc-11.2.0.jre8.jar -P "${JDBC_DRIVERS_DIR}/"
+wget https://selectdb-doris-1308700295.cos.ap-beijing.myqcloud.com/release/jdbc_driver/mysql-connector-java-8.0.25.jar -P "${JDBC_DRIVERS_DIR}/"
+wget https://selectdb-doris-1308700295.cos.ap-beijing.myqcloud.com/release/jdbc_driver/ojdbc6.jar -P "${JDBC_DRIVERS_DIR}/"
+wget https://selectdb-doris-1308700295.cos.ap-beijing.myqcloud.com/release/jdbc_driver/postgresql-42.5.0.jar -P "${JDBC_DRIVERS_DIR}/"
 
 if [[ "${TAR}" -eq 1 ]]; then
     echo "Begin to compress"
     cd "${ORI_OUTPUT}"
-    tar -cf - "${PACKAGE}" | xz -T0 -z - >"${PACKAGE}".tar.xz
+    tar -cf - "${PACKAGE_NAME}" | xz -T0 -z - >"${PACKAGE_NAME}".tar.xz
     cd -
 fi
 

@@ -34,6 +34,8 @@ under the License.
             <unpackOptions>
                 <excludes>
                     <exclude>**/Log4j2Plugins.dat</exclude>
+                    <exclude>**/META-INF/maven/**</exclude>
+                    <exclude>**/META-INF/DEPENDENCIES</exclude>
                 </excludes>
             </unpackOptions>
         </dependencySet>
