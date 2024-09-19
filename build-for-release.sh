@@ -124,9 +124,9 @@ echo "ARCH: ${ARCH}"
 ORI_OUTPUT="${ROOT}/output"
 rm -rf "${ORI_OUTPUT}"
 # Download selectdb jars
-SELECTDB_JARS=selectdb-enterprise-2.1-zero-trust-jars
+SELECTDB_JARS=selectdb-enterprise-2.1-zero-trust-jars-20240827-version
 if [[ ! -f "${SELECTDB_JARS}.zip" ]]; then
-    wget https://tencent-tbds-1308700295.cos.ap-beijing.myqcloud.com/zero-trust/${SELECTDB_JARS}.zip
+    wget https://selectdb-doris-1308700295.cos.ap-beijing.myqcloud.com/zero-trust/${SELECTDB_JARS}.zip
 fi
 rm -rf "${SELECTDB_JARS}"
 unzip ${SELECTDB_JARS}.zip
