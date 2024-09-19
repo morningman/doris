@@ -246,28 +246,37 @@ void RuntimeQueryStatiticsMgr::get_active_be_tasks_block(vectorized::Block* bloc
     };
 
     // block's schema come from SchemaBackendActiveTasksScanner::_s_tbls_columns
+    // before 2.1.6, there are 12 columns in "backend_active_tasks" table.
+    // after 2.1.7, 2 new columns added.
+    // check this to make it compatible with version before 2.1.6
+    bool need_local_and_remote_bytes = (block->columns() > 12);
     for (auto& [query_id, qs_ctx_ptr] : _query_statistics_ctx_map) {
+        int col_idx = 0;
         TQueryStatistics tqs;
         qs_ctx_ptr->collect_query_statistics(&tqs);
-        insert_int_value(0, be_id, block);
-        insert_string_value(1, qs_ctx_ptr->_fe_addr.hostname, block);
-        insert_string_value(2, query_id, block);
+        insert_int_value(col_idx++, be_id, block);
+        insert_string_value(col_idx++, qs_ctx_ptr->_fe_addr.hostname, block);
+        insert_string_value(col_idx++, query_id, block);
 
         int64_t task_time = qs_ctx_ptr->_is_query_finished
                                     ? qs_ctx_ptr->_query_finish_time - qs_ctx_ptr->_query_start_time
                                     : MonotonicMillis() - qs_ctx_ptr->_query_start_time;
-        insert_int_value(3, task_time, block);
-        insert_int_value(4, tqs.cpu_ms, block);
-        insert_int_value(5, tqs.scan_rows, block);
-        insert_int_value(6, tqs.scan_bytes, block);
-        insert_int_value(7, tqs.max_peak_memory_bytes, block);
-        insert_int_value(8, tqs.current_used_memory_bytes, block);
-        insert_int_value(9, tqs.shuffle_send_bytes, block);
-        insert_int_value(10, tqs.shuffle_send_rows, block);
+        insert_int_value(col_idx++, task_time, block);
+        insert_int_value(col_idx++, tqs.cpu_ms, block);
+        insert_int_value(col_idx++, tqs.scan_rows, block);
+        insert_int_value(col_idx++, tqs.scan_bytes, block);
+        if (need_local_and_remote_bytes) {
+            insert_int_value(col_idx++, tqs.scan_bytes_from_local_storage, block);
+            insert_int_value(col_idx++, tqs.scan_bytes_from_remote_storage, block);
+        }
+        insert_int_value(col_idx++, tqs.max_peak_memory_bytes, block);
+        insert_int_value(col_idx++, tqs.current_used_memory_bytes, block);
+        insert_int_value(col_idx++, tqs.shuffle_send_bytes, block);
+        insert_int_value(col_idx++, tqs.shuffle_send_rows, block);
 
         std::stringstream ss;
         ss << qs_ctx_ptr->_query_type;
-        insert_string_value(11, ss.str(), block);
+        insert_string_value(col_idx++, ss.str(), block);
     }
 }
 
