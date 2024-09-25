@@ -23,6 +23,7 @@ import org.apache.doris.catalog.AuthorizationInfo;
 import org.apache.doris.catalog.Env;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.UserException;
+import org.apache.doris.common.util.ClassLoaderUtils;
 import org.apache.doris.datasource.CatalogIf;
 import org.apache.doris.datasource.ExternalCatalog;
 import org.apache.doris.datasource.InternalCatalog;
@@ -91,9 +92,20 @@ public class AccessControllerManager {
     }
 
     private void loadAccessControllerPlugins() {
-        ServiceLoader<AccessControllerFactory> loader = ServiceLoader.load(AccessControllerFactory.class);
+        ServiceLoader<AccessControllerFactory> loaderFromClasspath = ServiceLoader.load(AccessControllerFactory.class);
+        for (AccessControllerFactory factory : loaderFromClasspath) {
+            LOG.info("Found Authentication Plugin Factories: {} from class path.", factory.factoryIdentifier());
+            accessControllerFactoriesCache.put(factory.factoryIdentifier(), factory);
+            accessControllerClassNameMapping.put(factory.getClass().getName(), factory.factoryIdentifier());
+        }
+        List<AccessControllerFactory> loader = null;
+        try {
+            loader = ClassLoaderUtils.loadServicesFromDirectory(AccessControllerFactory.class);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load Authentication Plugin Factories", e);
+        }
         for (AccessControllerFactory factory : loader) {
-            LOG.info("Found Access Controller Plugin Factory: {}", factory.factoryIdentifier());
+            LOG.info("Found Access Controller Plugin Factory: {} from directory.", factory.factoryIdentifier());
             accessControllerFactoriesCache.put(factory.factoryIdentifier(), factory);
             accessControllerClassNameMapping.put(factory.getClass().getName(), factory.factoryIdentifier());
         }

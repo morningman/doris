@@ -2299,12 +2299,6 @@ public class Config extends ConfigBase {
     @ConfField
     public static long ranger_cache_size = 10000;
 
-    @ConfField(description = {
-            "鉴权插件配置文件路径，需在 DORIS_HOME 下，默认为 conf/authorization.conf",
-            "Authorization plugin configuration file path, need to be in DORIS_HOME,"
-                    + "default is conf/authorization.conf"})
-    public static String authorization_config_file_path = "conf/authorization.conf";
-
     /**
      * This configuration is used to enable the statistics of query information, which will record
      * the access status of databases, tables, and columns, and can be used to guide the
@@ -2813,5 +2807,26 @@ public class Config extends ConfigBase {
 
     @ConfField(mutable = true, description = {"表示最大锁持有时间，超过该时间会打印告警日志，单位秒",
             "Maximum lock hold time; logs a warning if exceeded"})
-    public static long  max_lock_hold_threshold_seconds = 10;
+    public static long max_lock_hold_threshold_seconds = 10;
+
+    @ConfField(description = {"认证插件目录",
+            "Authentication plugin directory"})
+    public static String authentication_plugins_dir = EnvUtils.getDorisHome() + "/plugins/authentication";
+
+    @ConfField(description = {"鉴权插件目录",
+            "Authorization plugin directory"})
+    public static String authorization_plugins_dir = EnvUtils.getDorisHome() + "/plugins/authorization";
+
+    @ConfField(description = {
+            "鉴权插件配置文件路径，需在 DORIS_HOME 下，默认为 conf/authorization.conf",
+            "Authorization plugin configuration file path, need to be in DORIS_HOME,"
+                    + "default is conf/authorization.conf"})
+    public static String authorization_config_file_path = "/conf/authorization.conf";
+
+    @ConfField(description = {
+            "认证插件配置文件路径，需在 DORIS_HOME 下，默认为 conf/authentication.conf",
+            "Authentication plugin configuration file path, need to be in DORIS_HOME,"
+                    + "default is conf/authentication.conf"})
+    public static String authentication_config_file_path = "/conf/authentication.conf";
+
 }
