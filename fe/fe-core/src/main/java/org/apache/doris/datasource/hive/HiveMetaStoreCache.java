@@ -424,7 +424,7 @@ public class HiveMetaStoreCache {
                     LOG.debug("load #{} splits for {} in catalog {}", result.getFiles().size(), key, catalog.getName());
                 }
                 long costMillis = System.currentTimeMillis() - start;
-                if (costMillis > ConnectContext.get().getSessionVariable().getLoadSplitFileSlowLogThresholdMillis()) {
+                if (costMillis > 4000) {
                     LOG.info("load #{} splits for {} in catalog {}, cost: {} ms",
                             result.getFiles().size(), key, catalog.getName(), costMillis);
                 }
