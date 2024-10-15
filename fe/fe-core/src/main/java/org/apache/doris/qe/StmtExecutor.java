@@ -1449,10 +1449,10 @@ public class StmtExecutor {
     }
 
     // Because this is called by other thread
-    public void cancel() {
+    public void cancel(String message) {
         Coordinator coordRef = coord;
         if (coordRef != null) {
-            coordRef.cancel();
+            coordRef.cancel(message);
         }
         if (mysqlLoadId != null) {
             Env.getCurrentEnv().getLoadManager().getMysqlLoadManager().cancelMySqlLoad(mysqlLoadId);

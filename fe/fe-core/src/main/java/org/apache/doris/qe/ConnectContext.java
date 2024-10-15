@@ -924,7 +924,7 @@ public class ConnectContext {
             closeChannel();
         }
         // Now, cancel running query.
-        cancelQuery();
+        cancelQuery("cancel query by user from " + getRemoteHostPortString());
     }
 
     // kill operation with no protect by timeout.
@@ -945,10 +945,10 @@ public class ConnectContext {
         }
     }
 
-    public void cancelQuery() {
+    public void cancelQuery(String cancelMessage) {
         StmtExecutor executorRef = executor;
         if (executorRef != null) {
-            executorRef.cancel();
+            executorRef.cancel(cancelMessage);
         }
     }
 
@@ -979,7 +979,7 @@ public class ConnectContext {
             long timeout = getExecTimeout() * 1000L;
             if (delta > timeout) {
                 LOG.warn("kill {} timeout, remote: {}, query timeout: {}, query id: {}",
-                        timeoutTag, getRemoteHostPortString(), timeout, queryId);
+                        timeoutTag, getRemoteHostPortString(), timeout, DebugUtil.printId(queryId));
                 killFlag = true;
             }
         }

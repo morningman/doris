@@ -240,7 +240,7 @@ public abstract class BaseAnalysisTask {
     public void cancel() {
         killed = true;
         if (stmtExecutor != null) {
-            stmtExecutor.cancel();
+            stmtExecutor.cancel("analysis task cancelled");
         }
         Env.getCurrentEnv().getAnalysisManager()
                 .updateTaskStatus(info, AnalysisState.FAILED,

@@ -144,11 +144,11 @@ public class ConnectScheduler {
         return null;
     }
 
-    public void cancelQuery(String queryId) {
+    public void cancelQuery(String queryId, String cancelReason) {
         for (ConnectContext ctx : connectionMap.values()) {
             TUniqueId qid = ctx.queryId();
             if (qid != null && DebugUtil.printId(qid).equals(queryId)) {
-                ctx.cancelQuery();
+                ctx.cancelQuery(cancelReason);
                 break;
             }
         }
