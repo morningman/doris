@@ -202,6 +202,7 @@ Status ParquetReader::_open_file() {
         return Status::EndOfFile("stop");
     }
     if (_file_reader == nullptr) {
+        LOG(INFO) << "yy debug : " << _scan_range.path << ", sys: " << _system_properties.system_type;
         SCOPED_RAW_TIMER(&_statistics.open_file_time);
         ++_statistics.open_file_num;
         _file_description.mtime =
@@ -214,6 +215,7 @@ Status ParquetReader::_open_file() {
     }
     if (_file_metadata == nullptr) {
         SCOPED_RAW_TIMER(&_statistics.parse_footer_time);
+        LOG(INFO) << "yy debug _file_metadata: " << _file_reader->size();
         if (_file_reader->size() <= sizeof(PARQUET_VERSION_NUMBER)) {
             // Some system may generate parquet file with only 4 bytes: PAR1
             // Should consider it as empty file.

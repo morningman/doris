@@ -840,8 +840,10 @@ Status VFileScanner::_get_next_reader() {
             if (push_down_predicates) {
                 RETURN_IF_ERROR(_process_late_arrival_conjuncts());
             }
+            LOG(INFO) << "yy debug parquet: " << range.path;
             if (range.__isset.table_format_params &&
                 range.table_format_params.table_format_type == "iceberg") {
+            LOG(INFO) << "yy debug iceberg";
                 std::unique_ptr<IcebergParquetReader> iceberg_reader =
                         IcebergParquetReader::create_unique(std::move(parquet_reader), _profile,
                                                             _state, *_params, range, _kv_cache,

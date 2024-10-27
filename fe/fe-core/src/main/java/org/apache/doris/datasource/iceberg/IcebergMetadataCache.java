@@ -113,7 +113,7 @@ public class IcebergMetadataCache {
             throw new RuntimeException("Only support 'hms' and 'iceberg' type for iceberg table");
         }
         Table icebergTable = HiveMetaStoreClientHelper.ugiDoAs(((ExternalCatalog) key.catalog).getConfiguration(),
-                () -> icebergCatalog.loadTable(TableIdentifier.of(key.dbName, key.tableName)));
+                () -> icebergCatalog.loadTable(TableIdentifier.of(key.dbName  + ".default", key.tableName)));
         initIcebergTableFileIO(icebergTable, key.catalog.getProperties());
         return icebergTable;
     }

@@ -175,6 +175,7 @@ Status HdfsFileSystem::open_file_internal(const Path& file, FileReaderSPtr* read
             std::static_pointer_cast<HdfsFileSystem>(shared_from_this()), real_path, opts.mtime,
             opts.file_size, &accessor));
 
+    LOG(INFO) << "yy debug hdfs file: " << real_path.native() << ", mtime: " << opts.mtime;
     *reader = std::make_shared<HdfsFileReader>(file, _fs_name, std::move(accessor), _profile);
     return Status::OK();
 }

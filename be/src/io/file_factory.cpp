@@ -128,8 +128,14 @@ Status FileFactory::create_file_reader(const io::FileSystemProperties& system_pr
     // FIXME(plat1ko): Maybe we can create reader without filesystem?
     switch (type) {
     case TFileType::FILE_LOCAL: {
-        RETURN_IF_ERROR(io::global_local_filesystem()->open_file(file_description.path, file_reader,
+        LOG(INFO) << "yy debug 1: " << file_description.path;
+        std::string final_file = file_description.path;
+        if (final_file.rfind("file:", 0) == 0) { // Check if 'str' starts with 'prefix'
+            final_file = final_file.substr(5);
+        }
+        RETURN_IF_ERROR(io::global_local_filesystem()->open_file(final_file, file_reader,
                                                                  &reader_options));
+        LOG(INFO) << "yy debug 2";
         break;
     }
     case TFileType::FILE_S3: {

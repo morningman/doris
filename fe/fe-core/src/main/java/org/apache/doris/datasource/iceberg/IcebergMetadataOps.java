@@ -39,6 +39,7 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.rest.RESTCatalog;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -89,7 +90,14 @@ public class IcebergMetadataOps implements ExternalMetadataOps {
 
     @Override
     public List<String> listTableNames(String dbName) {
-        List<TableIdentifier> tableIdentifiers = catalog.listTables(Namespace.of(dbName));
+        List<TableIdentifier> tableIdentifiers = null;
+        try {
+            tableIdentifiers = catalog.listTables(Namespace.of(dbName));
+        } catch (Exception e) {
+            if (e.getMessage().contains("Invalid two-part namespace")) {
+                tableIdentifiers = catalog.listTables(Namespace.of(dbName, "default"));
+            }
+        }
         return tableIdentifiers.stream().map(TableIdentifier::name).collect(Collectors.toList());
     }
 
@@ -194,3 +202,4 @@ public class IcebergMetadataOps implements ExternalMetadataOps {
         throw new UnsupportedOperationException("Truncate Iceberg table is not supported.");
     }
 }
+
