@@ -53,6 +53,8 @@ public class RuntimeProfile {
     public static String MIN_TIME_PRE = "min ";
     public static String AVG_TIME_PRE = "avg ";
     public static String SUM_TIME_PRE = "sum ";
+    public static String CNT_TIME_PRE = "count ";
+
     private Counter counterTotalTime;
     private double localTimePercent;
 

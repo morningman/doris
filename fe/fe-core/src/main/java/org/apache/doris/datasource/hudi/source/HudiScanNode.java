@@ -427,7 +427,7 @@ public class HudiScanNode extends HiveScanNode {
                         if (allFiles.size() > numSplitsPerPartition.get()) {
                             numSplitsPerPartition.set(allFiles.size());
                         }
-                        splitAssignment.addToQueue(allFiles);
+                        splitAssignment.addToQueue(allFiles, id.toString());
                         splitAssignment.incrementCompletedPartition();
                     } catch (IOException e) {
                         batchException.set(new UserException(e.getMessage(), e));
