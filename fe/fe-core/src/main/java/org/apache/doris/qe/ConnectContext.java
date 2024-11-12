@@ -53,7 +53,6 @@ import org.apache.doris.nereids.trees.expressions.literal.Literal;
 import org.apache.doris.plsql.Exec;
 import org.apache.doris.plsql.executor.PlSqlOperation;
 import org.apache.doris.plugin.audit.AuditEvent.AuditEventBuilder;
-import org.apache.doris.proto.Types;
 import org.apache.doris.resource.Tag;
 import org.apache.doris.service.arrowflight.results.FlightSqlChannel;
 import org.apache.doris.statistics.ColumnStatistic;
@@ -941,7 +940,7 @@ public class ConnectContext {
         // cancelQuery by time out
         StmtExecutor executorRef = executor;
         if (executorRef != null) {
-            executorRef.cancel(Types.PPlanFragmentCancelReason.TIMEOUT);
+            executorRef.cancel("Query timeout");
         }
     }
 
