@@ -547,11 +547,6 @@ public class NereidsPlanner extends Planner {
     }
 
     @Override
-    public boolean isBlockQuery() {
-        return true;
-    }
-
-    @Override
     public DescriptorTable getDescTable() {
         return descTable;
     }
