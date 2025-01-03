@@ -79,6 +79,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class IcebergScanNode extends FileQueryScanNode {
 
@@ -518,5 +519,10 @@ public class IcebergScanNode extends FileQueryScanNode {
             ((IcebergSplit) splits.get(i)).setTableLevelRowCount(countPerSplit);
         }
         ((IcebergSplit) splits.get(size - 1)).setTableLevelRowCount(countPerSplit + totalCount % size);
+    }
+
+    @Override
+    public int numApproximateSplits() {
+        return 1;
     }
 }
