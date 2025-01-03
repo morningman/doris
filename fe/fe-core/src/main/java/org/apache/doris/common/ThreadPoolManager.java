@@ -149,7 +149,7 @@ public class ThreadPoolManager {
             String poolName,
             boolean needRegisterMetric,
             PreExecutionAuthenticator preAuth) {
-        return newDaemonThreadPoolWithFixUgi(numThread, numThread, KEEP_ALIVE_TIME, TimeUnit.SECONDS,
+        return newDaemonThreadPoolWithPreAuth(numThread, numThread, KEEP_ALIVE_TIME, TimeUnit.SECONDS,
             new LinkedBlockingQueue<>(queueSize), new BlockedPolicy(poolName, 60),
             poolName, needRegisterMetric, preAuth);
     }
@@ -244,7 +244,7 @@ public class ThreadPoolManager {
     }
 
 
-    public static ThreadPoolExecutor newDaemonThreadPoolWithFixUgi(
+    public static ThreadPoolExecutor newDaemonThreadPoolWithPreAuth(
             int corePoolSize,
             int maximumPoolSize,
             long keepAliveTime,
@@ -254,7 +254,7 @@ public class ThreadPoolManager {
             String poolName,
             boolean needRegisterMetric,
             PreExecutionAuthenticator preAuth) {
-        ThreadFactory threadFactory = namedThreadFactoryWithFixUgi(poolName, preAuth);
+        ThreadFactory threadFactory = namedThreadFactoryWithPreAuth(poolName, preAuth);
         ThreadPoolExecutor threadPool = new ThreadPoolExecutor(corePoolSize, maximumPoolSize,
                 keepAliveTime, unit, workQueue, threadFactory, handler);
         if (needRegisterMetric) {
@@ -263,7 +263,7 @@ public class ThreadPoolManager {
         return threadPool;
     }
 
-    private static ThreadFactory namedThreadFactoryWithFixUgi(String poolName, PreExecutionAuthenticator preAuth) {
+    private static ThreadFactory namedThreadFactoryWithPreAuth(String poolName, PreExecutionAuthenticator preAuth) {
         return new ThreadFactoryBuilder()
             .setDaemon(true)
             .setNameFormat(poolName + "-%d")
