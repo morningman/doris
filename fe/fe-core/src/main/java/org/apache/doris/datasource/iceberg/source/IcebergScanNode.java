@@ -53,7 +53,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.iceberg.BaseTable;
-import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileScanTask;
@@ -79,7 +78,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class IcebergScanNode extends FileQueryScanNode {
 
@@ -217,11 +215,16 @@ public class IcebergScanNode extends FileQueryScanNode {
     public void doStartSplit() throws UserException {
         TableScan scan = createTableScan();
         CompletableFuture.runAsync(() -> {
-            try (CloseableIterable<CombinedScanTask> combinedScanTasks = planCombinedScanTask(scan)) {
-                combinedScanTasks.forEach(taskGrp ->  {
-                    List<Split> splits = createIcebergSplit(taskGrp);
-                    splitAssignment.addToQueue(splits);
+            try {
+                CloseableIterable<FileScanTask> fileScanTasks = planFileScanTask(scan);
+                // 1. this task should stop when all splits are assigned
+                // 2. if we want to stop this plan, we can close the fileScanTasks to stop
+                splitAssignment.addCloseable(fileScanTasks);
+
+                fileScanTasks.forEach(fileScanTask -> {
+                    splitAssignment.addToQueue(Lists.newArrayList(createIcebergSplit(fileScanTask)));
                 });
+
                 splitAssignment.finishSchedule();
             } catch (Exception e) {
                 splitAssignment.setException(new UserException(e.getMessage(), e));
@@ -256,7 +259,7 @@ public class IcebergScanNode extends FileQueryScanNode {
         return scan;
     }
 
-    public CloseableIterable<CombinedScanTask> planCombinedScanTask(TableScan scan) {
+    public CloseableIterable<FileScanTask> planFileScanTask(TableScan scan) {
         long targetSplitSize = getRealFileSplitSize(0);
         CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles();
         CloseableIterable<FileScanTask> splitFiles;
@@ -292,37 +295,33 @@ public class IcebergScanNode extends FileQueryScanNode {
             LOG.warn("Iceberg TableScanUtil.splitFiles throw NullPointerException. Cause : ", e);
             throw new NotSupportedException("Unable to read Iceberg table with dropped old partition column.");
         }
-        return TableScanUtil.planTasks(splitFiles, targetSplitSize, 1, 0);
+        return splitFiles;
     }
 
-    private List<Split> createIcebergSplit(CombinedScanTask taskGrp) {
-        List<Split> splits = new ArrayList<>();
-        taskGrp.files().forEach(splitTask -> {
-            if (isPartitionedTable) {
-                StructLike structLike = splitTask.file().partition();
-                // Counts the number of partitions read
-                partitionPathSet.add(structLike.toString());
-            }
-            String originalPath = splitTask.file().path().toString();
-            LocationPath locationPath = new LocationPath(originalPath, source.getCatalog().getProperties());
-            IcebergSplit split = new IcebergSplit(
-                    locationPath,
-                    splitTask.start(),
-                    splitTask.length(),
-                    splitTask.file().fileSizeInBytes(),
-                    new String[0],
-                    formatVersion,
-                    source.getCatalog().getProperties(),
-                    new ArrayList<>(),
-                    originalPath);
-            if (!splitTask.deletes().isEmpty()) {
-                split.setDeleteFileFilters(getDeleteFileFilters(splitTask));
-            }
-            split.setTableFormatType(TableFormatType.ICEBERG);
-            split.setTargetSplitSize(targetSplitSize);
-            splits.add(split);
-        });
-        return splits;
+    private Split createIcebergSplit(FileScanTask fileScanTask) {
+        if (isPartitionedTable) {
+            StructLike structLike = fileScanTask.file().partition();
+            // Counts the number of partitions read
+            partitionPathSet.add(structLike.toString());
+        }
+        String originalPath = fileScanTask.file().path().toString();
+        LocationPath locationPath = new LocationPath(originalPath, source.getCatalog().getProperties());
+        IcebergSplit split = new IcebergSplit(
+                locationPath,
+                fileScanTask.start(),
+                fileScanTask.length(),
+                fileScanTask.file().fileSizeInBytes(),
+                new String[0],
+                formatVersion,
+                source.getCatalog().getProperties(),
+                new ArrayList<>(),
+                originalPath);
+        if (!fileScanTask.deletes().isEmpty()) {
+            split.setDeleteFileFilters(getDeleteFileFilters(fileScanTask));
+        }
+        split.setTableFormatType(TableFormatType.ICEBERG);
+        split.setTargetSplitSize(targetSplitSize);
+        return split;
     }
 
     private List<Split> doGetSplits(int numBackends) throws UserException {
@@ -330,10 +329,10 @@ public class IcebergScanNode extends FileQueryScanNode {
         TableScan scan = createTableScan();
         List<Split> splits = new ArrayList<>();
 
-        try (CloseableIterable<CombinedScanTask> combinedScanTasks = planCombinedScanTask(scan)) {
-            combinedScanTasks.forEach(taskGrp ->  {
-                List<Split> split = createIcebergSplit(taskGrp);
-                splits.addAll(split);
+        try (CloseableIterable<FileScanTask> fileScanTasks = planFileScanTask(scan)) {
+            fileScanTasks.forEach(taskGrp ->  {
+                Split split = createIcebergSplit(taskGrp);
+                splits.add(split);
             });
         } catch (IOException e) {
             throw new UserException(e.getMessage(), e.getCause());
@@ -523,6 +522,6 @@ public class IcebergScanNode extends FileQueryScanNode {
 
     @Override
     public int numApproximateSplits() {
-        return 1;
+        return NUM_SPLITS_PER_PARTITION * partitionPathSet.size() > 0 ? partitionPathSet.size() : 1;
     }
 }
