@@ -261,10 +261,9 @@ public class IcebergScanNode extends FileQueryScanNode {
 
     public CloseableIterable<FileScanTask> planFileScanTask(TableScan scan) {
         long targetSplitSize = getRealFileSplitSize(0);
-        CloseableIterable<FileScanTask> fileScanTasks = scan.planFiles();
         CloseableIterable<FileScanTask> splitFiles;
         try {
-            splitFiles = TableScanUtil.splitFiles(fileScanTasks, targetSplitSize);
+            splitFiles = TableScanUtil.splitFiles(scan.planFiles(), targetSplitSize);
         } catch (NullPointerException e) {
             /*
         Caused by: java.lang.NullPointerException: Type cannot be null
