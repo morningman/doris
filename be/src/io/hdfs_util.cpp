@@ -229,4 +229,48 @@ THdfsParams to_hdfs_params(const cloud::HdfsVaultInfo& vault) {
     return params;
 }
 
+Status create_hdfs_with_kerberos(const std::string& namenode_url, const std::string& principal,
+                                const std::string& ticket_cache_path, hdfsFS* fs) {
+#ifdef USE_HADOOP_HDFS
+    // Create a new builder
+    hdfsBuilder* builder = hdfsNewBuilder();
+    if (builder == nullptr) {
+        return Status::InternalError("Failed to create HDFS builder");
+    }
+
+    // Set namenode
+    hdfsBuilderSetNameNode(builder, namenode_url.c_str());
+    
+    // Set Kerberos principal
+    hdfsBuilderSetPrincipal(builder, principal.c_str());
+    
+    // Set ticket cache path
+    hdfsBuilderConfSetStr(builder, "hadoop.security.kerberos.ticket.cache.path", 
+                         ticket_cache_path.c_str());
+    
+    // Enable Kerberos security
+    hdfsBuilderConfSetStr(builder, "hadoop.security.authentication", "kerberos");
+    
+    // Create new instance
+    hdfsBuilderSetForceNewInstance(builder);
+    
+    // Connect to HDFS
+    hdfsFS hdfs_fs = hdfsBuilderConnect(builder);
+    if (hdfs_fs == nullptr) {
+        std::string error_msg = "Failed to connect to HDFS: ";
+        error_msg += namenode_url;
+        if (errno != 0) {
+            error_msg += ", error: ";
+            error_msg += strerror(errno);
+        }
+        return Status::InternalError(error_msg);
+    }
+    
+    *fs = hdfs_fs;
+    return Status::OK();
+#else
+    return Status::InternalError("HDFS support is not built");
+#endif
+}
+
 } // namespace doris::io
