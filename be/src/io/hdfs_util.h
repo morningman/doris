@@ -137,5 +137,7 @@ bool is_hdfs(const std::string& path_or_fs);
 
 THdfsParams to_hdfs_params(const cloud::HdfsVaultInfo& vault);
 
+Status create_hdfs_with_kerberos();
+
 } // namespace io
 } // namespace doris

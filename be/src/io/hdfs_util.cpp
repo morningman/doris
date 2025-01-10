@@ -229,9 +229,7 @@ THdfsParams to_hdfs_params(const cloud::HdfsVaultInfo& vault) {
     return params;
 }
 
-Status create_hdfs_with_kerberos(const std::string& namenode_url, const std::string& principal,
-                                const std::string& ticket_cache_path, hdfsFS* fs) {
-#ifdef USE_HADOOP_HDFS
+Status create_hdfs_with_kerberos() {
     // Create a new builder
     hdfsBuilder* builder = hdfsNewBuilder();
     if (builder == nullptr) {
@@ -239,17 +237,30 @@ Status create_hdfs_with_kerberos(const std::string& namenode_url, const std::str
     }
 
     // Set namenode
-    hdfsBuilderSetNameNode(builder, namenode_url.c_str());
+    // hdfsBuilderSetNameNode(builder, namenode_url.c_str());
+    hdfsBuilderSetNameNode(builder, "hdfs://hdfs-cluster");
+
+    hdfsBuilderConfSetStr(builder, "dfs.nameservices", "hdfs-cluster");
+    hdfsBuilderConfSetStr(builder, "dfs.ha.namenodes.hdfs-cluster", "nn1,nn2,nn3");
+    hdfsBuilderConfSetStr(builder, "dfs.namenode.rpc-address.hdfs-cluster.nn1", "master-1-1.c-0596176698bd4d17.cn-beijing.emr.aliyuncs.com:8020");
+    hdfsBuilderConfSetStr(builder, "dfs.namenode.rpc-address.hdfs-cluster.nn2", "master-1-2.c-0596176698bd4d17.cn-beijing.emr.aliyuncs.com:8020");
+    hdfsBuilderConfSetStr(builder, "dfs.namenode.rpc-address.hdfs-cluster.nn3", "master-1-3.c-0596176698bd4d17.cn-beijing.emr.aliyuncs.com:8020");
+    hdfsBuilderConfSetStr(builder, "dfs.client.failover.proxy.provider.hdfs-cluster", "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider");
     
     // Set Kerberos principal
-    hdfsBuilderSetPrincipal(builder, principal.c_str());
+    // hdfsBuilderSetPrincipal(builder, principal.c_str());
+    hdfsBuilderSetPrincipal(builder, "hdfs/master-1-1.c-0596176698bd4d17.cn-beijing.emr.aliyuncs.com@EMR.C-0596176698BD4D17.COM");
     
     // Set ticket cache path
-    hdfsBuilderConfSetStr(builder, "hadoop.security.kerberos.ticket.cache.path", 
-                         ticket_cache_path.c_str());
+    // hdfsBuilderConfSetStr(builder, "hadoop.security.kerberos.ticket.cache.path", 
+    //                      ticket_cache_path.c_str());
+    // hdfsBuilderSetKerbTicketCachePath(builder, ticket_cache_path.c_str());
+    hdfsBuilderSetKerbTicketCachePath(builder, "/tmp/krb5cc_test");
     
     // Enable Kerberos security
     hdfsBuilderConfSetStr(builder, "hadoop.security.authentication", "kerberos");
+
+    hdfsBuilderSetKerb5Conf(builder, "/mnt/disk1/yy/ali-emr/krb5.conf");
     
     // Create new instance
     hdfsBuilderSetForceNewInstance(builder);
@@ -258,19 +269,16 @@ Status create_hdfs_with_kerberos(const std::string& namenode_url, const std::str
     hdfsFS hdfs_fs = hdfsBuilderConnect(builder);
     if (hdfs_fs == nullptr) {
         std::string error_msg = "Failed to connect to HDFS: ";
-        error_msg += namenode_url;
         if (errno != 0) {
             error_msg += ", error: ";
             error_msg += strerror(errno);
         }
+        LOG(INFO) << error_msg;
         return Status::InternalError(error_msg);
     }
     
-    *fs = hdfs_fs;
+    LOG(INFO) << "create hfdfs fs ok";
     return Status::OK();
-#else
-    return Status::InternalError("HDFS support is not built");
-#endif
 }
 
 } // namespace doris::io
