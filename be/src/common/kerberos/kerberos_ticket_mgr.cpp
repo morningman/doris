@@ -66,10 +66,8 @@ void KerberosTicketMgr::_cleanup_loop() {
                 std::lock_guard<std::mutex> lock(_mutex);
                 for (const auto& entry : _ticket_caches) {
                     // Check if this is the last reference to the ticket cache
-                    // use_count() == 2 means:
-                    // 1. One reference in the _ticket_caches map
-                    // 2. One temporary reference in entry.second.cache
-                    if (entry.second.cache.use_count() == 2) {
+                    // use_count() == 1 means it is only referenced in the _ticket_caches map
+                    if (entry.second.cache.use_count() == 1) {
                         LOG(INFO) << "Found unused Kerberos ticket cache for principal: "
                                   << entry.second.cache->get_config().get_principal()
                                   << ", keytab: "
