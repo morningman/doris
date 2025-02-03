@@ -273,7 +273,6 @@ TEST_F(HdfsMgrTest, SharedKerberosTicketCache) {
 // Test cleanup of KerberosTicketCache when handlers are destroyed
 TEST_F(HdfsMgrTest, KerberosTicketCacheCleanup) {
     THdfsParams params = create_test_params("user1", "principal1", "keytab1");
-    std::shared_ptr<HdfsHandler> handler;
 
     // Create a ticket manager that will be used by the handler
     auto ticket_mgr = std::make_shared<NiceMock<MockKerberosTicketMgr>>("/tmp/kerberos");
@@ -297,27 +296,23 @@ TEST_F(HdfsMgrTest, KerberosTicketCacheCleanup) {
             });
 
     // Create handler
+    std::shared_ptr<HdfsHandler> handler;
     ASSERT_TRUE(_hdfs_mgr->get_or_create_fs(params, "test_fs", &handler).ok());
     std::shared_ptr<kerberos::KerberosTicketCache> ticket_cache_holder = handler->ticket_cache;
     handler.reset();
     ASSERT_EQ(MockKerberosTicketCache::get_instance_count(), 1);
 
     // Wait for cleanup
+    ticket_cache_holder.reset();
     std::this_thread::sleep_for(std::chrono::seconds(6));
 
     // Verify handler and ticket cache are cleaned up
     ASSERT_EQ(_hdfs_mgr->get_fs_handlers_size(), 0);
-    ticket_cache_holder.reset();
     ASSERT_EQ(MockKerberosTicketCache::get_instance_count(), 0);
 }
 
 // Test multiple handlers with different Kerberos credentials
 TEST_F(HdfsMgrTest, DifferentKerberosCredentials) {
-    THdfsParams params1 = create_test_params("user1", "principal1", "keytab1");
-    THdfsParams params2 = create_test_params("user2", "principal2", "keytab2");
-    std::shared_ptr<HdfsHandler> handler1;
-    std::shared_ptr<HdfsHandler> handler2;
-
     // Create a ticket manager that will be used by both handlers
     auto ticket_mgr = std::make_shared<NiceMock<MockKerberosTicketMgr>>("/tmp/kerberos");
     // Set cleanup interval to 1 second for testing
@@ -340,6 +335,11 @@ TEST_F(HdfsMgrTest, DifferentKerberosCredentials) {
             });
 
     // Create handlers with different credentials
+    // std::cout << "xxx 6 MockKerberosTicketCache::get_instance_count(): " << MockKerberosTicketCache::get_instance_count() << std::endl;
+    THdfsParams params1 = create_test_params("user1", "principal1", "keytab1");
+    THdfsParams params2 = create_test_params("user2", "principal2", "keytab2");
+    std::shared_ptr<HdfsHandler> handler1;
+    std::shared_ptr<HdfsHandler> handler2;
     ASSERT_TRUE(_hdfs_mgr->get_or_create_fs(params1, "test_fs1", &handler1).ok());
     ASSERT_TRUE(_hdfs_mgr->get_or_create_fs(params2, "test_fs2", &handler2).ok());
 
@@ -348,14 +348,14 @@ TEST_F(HdfsMgrTest, DifferentKerberosCredentials) {
     ASSERT_NE(handler1->ticket_cache, handler2->ticket_cache);
 
     // Wait for cleanup
+    // Also need to reset this 2 temp references
+    handler1.reset();
+    handler2.reset();
     std::this_thread::sleep_for(std::chrono::seconds(6));
 
     // Verify all handlers and ticket caches are cleaned up
     ASSERT_EQ(_hdfs_mgr->get_fs_handlers_size(), 0);
 
-    // Also need to reset this 2 temp references
-    handler1.reset();
-    handler2.reset();
     ASSERT_EQ(MockKerberosTicketCache::get_instance_count(), 0);
 }
 
