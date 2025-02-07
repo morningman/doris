@@ -74,7 +74,7 @@ public:
 // Mock KerberosTicketMgr class to use MockKerberosTicketCache
 class MockKerberosTicketMgr : public kerberos::KerberosTicketMgr {
 public:
-    explicit MockKerberosTicketMgr(const std::string& root_path) : KerberosTicketMgr(root_path) {}
+    explicit MockKerberosTicketMgr() : KerberosTicketMgr() {}
 
 protected:
     std::shared_ptr<kerberos::KerberosTicketCache> _make_new_ticket_cache(
@@ -237,7 +237,8 @@ TEST_F(HdfsMgrTest, SharedKerberosTicketCache) {
     std::shared_ptr<HdfsHandler> handler2;
 
     // Create a shared ticket cache that will be used by both handlers
-    auto shared_ticket_mgr = std::make_shared<NiceMock<MockKerberosTicketMgr>>("/tmp/kerberos");
+    auto shared_ticket_mgr = std::make_shared<NiceMock<MockKerberosTicketMgr>>();
+    auto st = shared_ticket_mgr->init("/tmp/kerberos", "");
     // Set cleanup interval to 1 second for testing
     shared_ticket_mgr->set_cleanup_interval(std::chrono::seconds(1));
 
@@ -275,7 +276,8 @@ TEST_F(HdfsMgrTest, KerberosTicketCacheCleanup) {
     THdfsParams params = create_test_params("user1", "principal1", "keytab1");
 
     // Create a ticket manager that will be used by the handler
-    auto ticket_mgr = std::make_shared<NiceMock<MockKerberosTicketMgr>>("/tmp/kerberos");
+    auto ticket_mgr = std::make_shared<NiceMock<MockKerberosTicketMgr>>();
+    auto st = ticket_mgr->init("/tmp/kerberos", "");
     // Set cleanup interval to 1 second for testing
     ticket_mgr->set_cleanup_interval(std::chrono::seconds(1));
 
@@ -314,7 +316,8 @@ TEST_F(HdfsMgrTest, KerberosTicketCacheCleanup) {
 // Test multiple handlers with different Kerberos credentials
 TEST_F(HdfsMgrTest, DifferentKerberosCredentials) {
     // Create a ticket manager that will be used by both handlers
-    auto ticket_mgr = std::make_shared<NiceMock<MockKerberosTicketMgr>>("/tmp/kerberos");
+    auto ticket_mgr = std::make_shared<NiceMock<MockKerberosTicketMgr>>();
+    auto st = ticket_mgr->init("/tmp/kerberos", "");
     // Set cleanup interval to 1 second for testing
     ticket_mgr->set_cleanup_interval(std::chrono::seconds(1));
 

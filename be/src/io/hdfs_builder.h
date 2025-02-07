@@ -64,7 +64,6 @@ public:
 
     hdfsBuilder* get() { return hdfs_builder; }
     bool is_kerberos() const { return kerberos_login; }
-    Status check_krb_params();
 
     Status set_kerberos_ticket_cache();
     void set_hdfs_conf(const std::string& key, const std::string& val);

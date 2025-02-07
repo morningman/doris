@@ -50,7 +50,11 @@ struct KerberosTicketEntry {
 class KerberosTicketMgr {
 public:
     // Constructor that takes the expiration time for unused ticket caches
-    explicit KerberosTicketMgr(const std::string& root_path);
+    explicit KerberosTicketMgr();
+
+    // Init the cache path and start cleanup thread
+    // If config_path is empty, use root_path/kerberos_ticket_cache
+    Status init(const std::string& config_path, const std::string& root_path);
 
     // Get or create a ticket cache for the given Kerberos configuration
     // Logic: Checks if cache exists, if not creates new one, initializes it,

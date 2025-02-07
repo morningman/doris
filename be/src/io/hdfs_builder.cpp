@@ -109,22 +109,6 @@ Status HDFSCommonBuilder::init_hdfs_builder() {
     return Status::OK();
 }
 
-Status HDFSCommonBuilder::check_krb_params() {
-    std::string ticket_path = doris::config::kerberos_ccache_path;
-    if (!ticket_path.empty()) {
-        hdfsBuilderConfSetStr(hdfs_builder, "hadoop.security.kerberos.ticket.cache.path",
-                              ticket_path.c_str());
-        return Status::OK();
-    }
-    // we should check hdfs_kerberos_principal and hdfs_kerberos_keytab nonnull to login kdc.
-    if (hdfs_kerberos_principal.empty() || hdfs_kerberos_keytab.empty()) {
-        return Status::InvalidArgument("Invalid hdfs_kerberos_principal or hdfs_kerberos_keytab");
-    }
-    // enable auto-renew thread
-    hdfsBuilderConfSetStr(hdfs_builder, "hadoop.kerberos.keytab.login.autorenewal.enabled", "true");
-    return Status::OK();
-}
-
 void HDFSCommonBuilder::set_hdfs_conf(const std::string& key, const std::string& val) {
     hdfs_conf[key] = val;
 }

@@ -307,7 +307,8 @@ Status ExecEnv::_init(const std::vector<StorePath>& store_paths,
     _dns_cache = new DNSCache();
     _write_cooldown_meta_executors = std::make_unique<WriteCooldownMetaExecutors>();
     _spill_stream_mgr = new vectorized::SpillStreamManager(std::move(spill_store_map));
-    _kerberos_ticket_mgr = new kerberos::KerberosTicketMgr(config::kerberos_ccache_path);
+    _kerberos_ticket_mgr = new kerberos::KerberosTicketMgr();
+    RETURN_IF_ERROR(_kerberos_ticket_mgr->init(config::kerberos_ccache_path, _store_paths[0].path));
     _hdfs_mgr = new io::HdfsMgr();
     _backend_client_cache->init_metrics("backend");
     _frontend_client_cache->init_metrics("frontend");

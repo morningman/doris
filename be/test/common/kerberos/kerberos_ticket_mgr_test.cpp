@@ -42,7 +42,7 @@ public:
 
 class MockKerberosTicketMgr : public KerberosTicketMgr {
 public:
-    MockKerberosTicketMgr(const std::string& root_path) : KerberosTicketMgr(root_path) {}
+    MockKerberosTicketMgr() : KerberosTicketMgr() {}
 
     // by calling this, will first set _mock_cache_path in MockKerberosTicketMgr,
     // and _mock_cache_path will pass to KerberosTicketCache to set cache's ticket_cache_path.
@@ -80,7 +80,8 @@ protected:
         // Create a temporary directory for testing
         _test_dir = std::filesystem::temp_directory_path() / "kerberos_mgr_test";
         std::filesystem::create_directories(_test_dir);
-        _mgr = std::make_unique<MockKerberosTicketMgr>(_test_dir.string());
+        _mgr = std::make_unique<MockKerberosTicketMgr>();
+        Status st = _mgr->init(_test_dir.string(), "");
     }
 
     void TearDown() override {

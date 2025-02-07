@@ -22,18 +22,55 @@
 
 #include "common/logging.h"
 #include "exec/schema_scanner/schema_scanner_helper.h"
+#include "io/fs/local_file_system.h"
 #include "service/backend_options.h"
 #include "vec/core/block.h"
 
 namespace doris::kerberos {
 
-KerberosTicketMgr::KerberosTicketMgr(const std::string& root_path) {
-    _root_path = root_path;
-    _start_cleanup_thread();
-}
+KerberosTicketMgr::KerberosTicketMgr() {}
 
 KerberosTicketMgr::~KerberosTicketMgr() {
     _stop_cleanup_thread();
+}
+
+Status KerberosTicketMgr::init(const std::string& config_path, const std::string& root_path) {
+    if (config_path == "") {
+        // empty means user does not specify the cache path,
+        // so we use the first storage dir as cache path.
+        std::string tmp_cache_path = root_path + "/kerberos_ticket_cache";
+
+        // Check if base directory exists and has read/write permissions
+        bool exist = false;
+        RETURN_IF_ERROR(io::global_local_filesystem()->exists(root_path, &exist));
+        if (!exist) {
+            return Status::InternalError("storage path {} does not exist", root_path);
+        }
+
+        if (access(root_path.c_str(), R_OK | W_OK) != 0) {
+            return Status::InternalError("no read/write permissions for root path %s", root_path);
+        }
+
+        // Check if kerberso_cache directory exists
+        RETURN_IF_ERROR(io::global_local_filesystem()->exists(tmp_cache_path, &exist));
+        if (exist) {
+            // Check permissions for kerberso_cache directory
+            if (access(tmp_cache_path.c_str(), R_OK | W_OK) != 0) {
+                return Status::InternalError("no read/write permissions for root path %s",
+                                             tmp_cache_path);
+            }
+        } else {
+            // Create kerberso_cache directory
+            RETURN_IF_ERROR(io::global_local_filesystem()->create_directory(tmp_cache_path));
+            LOG(INFO) << "Kerberos cache path " << tmp_cache_path << " created successfully.";
+        }
+        _root_path = tmp_cache_path;
+    } else {
+        _root_path = config_path;
+    }
+
+    _start_cleanup_thread();
+    return Status::OK();
 }
 
 void KerberosTicketMgr::_start_cleanup_thread() {
