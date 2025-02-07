@@ -26,7 +26,7 @@ suite("test_two_hive_kerberos", "p0,external,kerberos,external_docker,external_d
     
     def output = process.in.text
 
-    def keytab_root_dir = "/mnt/disk1/yy/tools/kerberos/regression"
+    def keytab_root_dir = "/keytabs"
     
     println "Docker containers:"
     println output
