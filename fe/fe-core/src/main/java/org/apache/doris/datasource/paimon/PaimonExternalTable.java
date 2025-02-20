@@ -61,12 +61,13 @@ public class PaimonExternalTable extends ExternalTable implements MvccTable {
 
     private static final Logger LOG = LogManager.getLogger(PaimonExternalTable.class);
 
-    private final Table paimonTable;
+    private Table paimonTable;
+    private byte[] lock = new byte[0];
 
     public PaimonExternalTable(long id, String name, String remoteName, PaimonExternalCatalog catalog,
             PaimonExternalDatabase db) {
         super(id, name, remoteName, catalog, db, TableType.PAIMON_EXTERNAL_TABLE);
-        this.paimonTable = catalog.getPaimonTable(dbName, name);
+        // this.paimonTable = catalog.getPaimonTable(dbName, name);
     }
 
     public String getPaimonCatalogType() {
@@ -81,6 +82,13 @@ public class PaimonExternalTable extends ExternalTable implements MvccTable {
     }
 
     public Table getPaimonTable(Optional<MvccSnapshot> snapshot) {
+        if (paimonTable == null) {
+            synchronized (lock) {
+                if (paimonTable == null) {
+                    paimonTable = ((PaimonExternalCatalog) catalog).getPaimonTable(dbName, name);
+                }
+            }
+        }
         return paimonTable.copy(
                 Collections.singletonMap(CoreOptions.SCAN_VERSION.key(),
                         String.valueOf(getOrFetchSnapshotCacheValue(snapshot).getSnapshot().getSnapshotId())));
@@ -129,6 +137,13 @@ public class PaimonExternalTable extends ExternalTable implements MvccTable {
     @Override
     public long fetchRowCount() {
         makeSureInitialized();
+        if (paimonTable == null) {
+            synchronized (lock) {
+                if (paimonTable == null) {
+                    paimonTable = ((PaimonExternalCatalog) catalog).getPaimonTable(dbName, name);
+                }
+            }
+        }
         try {
             long rowCount = 0;
             List<Split> splits = paimonTable.newReadBuilder().newScan().plan().splits();
@@ -233,3 +248,4 @@ public class PaimonExternalTable extends ExternalTable implements MvccTable {
     }
 
 }
+
