@@ -954,6 +954,16 @@ under the License.
             <artifactId>sdk-core</artifactId>
             <version>${awssdk.version}</version>
         </dependency>
+        <!-- add jindo-core -->
+        <dependency>
+            <groupId>com.aliyun.jindodata</groupId>
+            <artifactId>jindo-core</artifactId>
+        </dependency>
+        <!-- add jindo-hadoop-sdk -->
+        <dependency>
+            <groupId>com.aliyun.jindodata</groupId>
+            <artifactId>jindo-sdk</artifactId>
+        </dependency>
     </dependencies>
     <repositories>
         <!-- for hive-catalog-shade -->

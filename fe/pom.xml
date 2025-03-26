@@ -383,6 +383,7 @@ under the License.
         <aliyun-sdk-oss.version>3.15.0</aliyun-sdk-oss.version>
         <awssdk.version>2.29.26</awssdk.version>
         <s3tables.catalog.version>0.1.4</s3tables.catalog.version>
+        <jindodata.version>6.3.4</jindodata.version>
     </properties>
     <profiles>
         <profile>
@@ -409,6 +410,11 @@ under the License.
                     <id>cloudera</id>
                     <url>https://repository.cloudera.com/repository/libs-release-local/</url>
                 </repository>
+                <!-- Add JindoData Maven Repository -->
+                <repository>
+                    <id>jindodata</id>
+                    <url>https://jindodata-binary.oss-cn-shanghai.aliyuncs.com/mvn-repo/</url>
+                </repository>
             </repositories>
             <pluginRepositories>
                 <pluginRepository>
@@ -426,6 +432,19 @@ under the License.
     </profiles>
     <dependencyManagement>
         <dependencies>
+            <!-- add jindo-core -->
+            <dependency>
+                <groupId>com.aliyun.jindodata</groupId>
+                <artifactId>jindo-core</artifactId>
+                <version>${jindodata.version}</version>
+            </dependency>
+                  
+            <!-- add jindo-hadoop-sdk -->
+            <dependency>
+                <groupId>com.aliyun.jindodata</groupId>
+                <artifactId>jindo-sdk</artifactId>
+                <version>${jindodata.version}</version>
+            </dependency>
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty-bom</artifactId>
