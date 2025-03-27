@@ -912,7 +912,7 @@ public class ColocateTableIndex implements Writable {
                     origDynamicProperties.put(DynamicPartitionProperty.REPLICATION_ALLOCATION,
                             replicaAlloc.toCreateStmt());
                     Map<String, String> analyzedDynamicPartition = DynamicPartitionUtil.analyzeDynamicPartition(
-                            origDynamicProperties, table, db);
+                            origDynamicProperties, table, db, !needEditLog);
                     tableProperty.modifyTableProperties(analyzedDynamicPartition);
                     tableProperty.buildDynamicProperty();
                 }

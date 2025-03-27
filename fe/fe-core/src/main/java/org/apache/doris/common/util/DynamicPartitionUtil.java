@@ -505,7 +505,7 @@ public class DynamicPartitionUtil {
 
     // Analyze all properties to check their validation
     public static Map<String, String> analyzeDynamicPartition(Map<String, String> properties,
-            OlapTable olapTable, Database db) throws UserException {
+            OlapTable olapTable, Database db, boolean isReplay) throws UserException {
         // properties should not be empty, check properties before call this function
         Map<String, String> analyzedProperties = new HashMap<>();
         if (properties.containsKey(DynamicPartitionProperty.TIME_UNIT)) {
@@ -648,7 +648,10 @@ public class DynamicPartitionUtil {
             throw new DdlException("Failed to check min load replica num [" + olapTable.getMinLoadReplicaNum()
                     + "]  <= dynamic partition replica num [" + replicaAlloc.getTotalReplicaNum() + "]");
         }
-        checkReplicaAllocation(replicaAlloc, hotPartitionNum, db);
+
+        if (!isReplay) {
+            checkReplicaAllocation(replicaAlloc, hotPartitionNum, db);
+        }
 
         if (properties.containsKey(DynamicPartitionProperty.RESERVED_HISTORY_PERIODS)) {
             String reservedHistoryPeriods = properties.get(DynamicPartitionProperty.RESERVED_HISTORY_PERIODS);
@@ -710,7 +713,7 @@ public class DynamicPartitionUtil {
             Database db) throws UserException {
         if (DynamicPartitionUtil.checkInputDynamicPartitionProperties(properties, olapTable)) {
             Map<String, String> dynamicPartitionProperties =
-                    DynamicPartitionUtil.analyzeDynamicPartition(properties, olapTable, db);
+                    DynamicPartitionUtil.analyzeDynamicPartition(properties, olapTable, db, false);
             TableProperty tableProperty = olapTable.getTableProperty();
             if (tableProperty != null) {
                 tableProperty.modifyTableProperties(dynamicPartitionProperties);
