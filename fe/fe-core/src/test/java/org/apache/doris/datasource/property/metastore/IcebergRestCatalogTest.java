@@ -17,8 +17,11 @@
 
 package org.apache.doris.datasource.property.metastore;
 
-import org.apache.iceberg.aws.glue.GlueCatalog;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.iceberg.CatalogUtil;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
+import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,48 +33,60 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Disabled("Disabled until AWS credentials are available")
-public class GlueCatalogTest {
+public class IcebergRestCatalogTest {
 
-    private GlueCatalog glueCatalog;
+    private Catalog catalog;
+    private SupportsNamespaces nsCatalog;
     private AWSGlueProperties glueProperties;
     private static final Namespace queryNameSpace = Namespace.of("test"); // Replace with your namespace
     private static final String AWS_ACCESS_KEY_ID = "ak"; // Replace with actual access key
-    private static final String AWS_SECRET_ACCESS_KEY = "sk";
+    private static final String AWS_SECRET_ACCESS_KEY = "sk/lht4rMIfbhVftujO2alFx";
     // Replace with actual secret key
     // private static final String AWS_GLUE_ENDPOINT = "https://glue.ap-northeast-1.amazonaws.com"; // Replace with your endpoint
     private static final String AWS_GLUE_ENDPOINT = "https://glue.us-west-1.amazonaws.com";
-    // Replace with your endpoint
+            // Replace with your endpoint
 
     @BeforeEach
     public void setUp() {
-        glueCatalog = new GlueCatalog();
-        System.setProperty("queryNameSpace", "lakes_test_glue");
 
+        // https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-glue-endpoint.html
         // Setup properties
         Map<String, String> props = new HashMap<>();
         // Use environment variables for sensitive keys
-        props.put("glue.access_key", AWS_ACCESS_KEY_ID);
-        props.put("glue.secret_key", AWS_SECRET_ACCESS_KEY);
-        props.put("glue.endpoint", AWS_GLUE_ENDPOINT);
-        props.put("type", "iceberg");
-        props.put("iceberg.catalog.type", "glue");
+        // "rest.sigv4-enabled": "true",
+        // "rest.signing-name": "glue",
+        // "rest.signing-region": region
+        props.put("rest.sigv4-enabled", "true");
+        props.put("rest.signing-name", "s3tables");
+        props.put("rest.signing-region", "us-west-1");
+        props.put("type", "rest");
+        props.put("iceberg.catalog.type", "rest");
+        // props.put("uri", "https://glue.us-west-1.amazonaws.com/iceberg");
+        props.put("uri", "https://s3tables.us-west-1.amazonaws.com/iceberg");
+        props.put("client.credentials-provider",
+                "com.amazonaws.glue.catalog.credentials.ConfigurationAWSCredentialsProvider2x");
+        props.put("client.credentials-provider.glue.access_key", AWS_ACCESS_KEY_ID);
+        props.put("client.credentials-provider.glue.secret_key", AWS_SECRET_ACCESS_KEY);
 
-        // Initialize AWSGlueProperties
-        glueProperties = (AWSGlueProperties) AWSGlueProperties.create(props);
+        Configuration conf = new Configuration();
 
-        // Convert to catalog properties
-        Map<String, String> catalogProps = new HashMap<>();
-        glueProperties.toIcebergGlueCatalogProperties(catalogProps);
+        catalog = CatalogUtil.buildIcebergCatalog("test", props, conf);
+        nsCatalog = (SupportsNamespaces) catalog;
+    }
 
-        // Initialize Glue Catalog
-        glueCatalog.initialize("ck", catalogProps);
+    @Test
+    public void testConnection() {
+        // Check if catalog can be initialized without errors
+        Assertions.assertNotNull(catalog, "Glue Catalog should be initialized");
+        // Ensure at least one namespace exists
+        Assertions.assertFalse(nsCatalog.listNamespaces(Namespace.empty()).isEmpty(),
+                "Namespace list should not be empty");
     }
 
     @Test
     public void testListNamespaces() {
-
         // List namespaces and assert
-        glueCatalog.listNamespaces(Namespace.empty()).forEach(namespace1 -> {
+        nsCatalog.listNamespaces(Namespace.empty()).forEach(namespace1 -> {
             System.out.println("Namespace: " + namespace1);
             Assertions.assertNotNull(namespace1, "Namespace should not be null");
         });
@@ -80,31 +95,19 @@ public class GlueCatalogTest {
     @Test
     public void testListTables() {
         // List tables in a given namespace
-        glueCatalog.listTables(queryNameSpace).forEach(tableIdentifier -> {
+        catalog.listTables(queryNameSpace).forEach(tableIdentifier -> {
             System.out.println("Table: " + tableIdentifier.name());
             Assertions.assertNotNull(tableIdentifier, "TableIdentifier should not be null");
 
             // Load table history and assert
-            glueCatalog.loadTable(tableIdentifier).history().forEach(snapshot -> {
+            catalog.loadTable(tableIdentifier).history().forEach(snapshot -> {
                 System.out.println("Snapshot: " + snapshot);
                 Assertions.assertNotNull(snapshot, "Snapshot should not be null");
             });
         });
     }
 
-    @Test
-    public void testConnection() {
-        // Check if catalog can be initialized without errors
-        Assertions.assertNotNull(glueCatalog, "Glue Catalog should be initialized");
-
-        // Ensure at least one namespace exists
-        Assertions.assertFalse(glueCatalog.listNamespaces(Namespace.empty()).isEmpty(),
-                "Namespace list should not be empty");
-    }
-
     @AfterEach
     public void tearDown() throws IOException {
-        // Close the Glue Catalog
-        glueCatalog.close();
     }
 }
