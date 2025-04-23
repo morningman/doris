@@ -4772,5 +4772,9 @@ public class SessionVariable implements Serializable, Writable {
             }
         }
     }
+
+    public boolean showSplitProfileInfo() {
+        return enableProfile() && getProfileLevel() > 1;
+    }
 }
 
