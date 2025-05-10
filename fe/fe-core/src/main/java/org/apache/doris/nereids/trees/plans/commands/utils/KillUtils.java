@@ -46,7 +46,7 @@ public class KillUtils {
     private static final Logger LOG = LogManager.getLogger(KillUtils.class);
 
     public static void kill(ConnectContext ctx, String queryId, int connectionId, OriginStatement stmt)
-            throws Exception {
+            throws UserException {
         if (connectionId == -1) {
             // kill by query id
             Preconditions.checkState(!Strings.isNullOrEmpty(queryId));
