@@ -58,7 +58,7 @@ public class KillUtils {
         }
     }
 
-    private static void killByQueryId(ConnectContext ctx, String queryId, OriginStatement stmt) throws Exception {
+    private static void killByQueryId(ConnectContext ctx, String queryId, OriginStatement stmt) throws UserException {
         // 1. First, try to find the query in the current FE and kill it
         if (killByQueryIdOnCurrentNode(ctx, queryId)) {
             return;
@@ -78,7 +78,11 @@ public class KillUtils {
 
             TNetworkAddress feAddr = new TNetworkAddress(fe.getHost(), fe.getRpcPort());
             FEOpExecutor executor = new FEOpExecutor(feAddr, stmt, ConnectContext.get(), false);
-            executor.execute();
+            try {
+                executor.execute();
+            } catch (Exception e) {
+                throw new DdlException(e.getMessage(), e);
+            }
             if (executor.getStatusCode() != TStatusCode.OK.getValue()) {
                 throw new DdlException(String.format("failed to apply to fe %s:%s, error message: %s",
                         fe.getHost(), fe.getRpcPort(), executor.getErrMsg()));
