@@ -35,6 +35,7 @@ import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TStatusCode;
 import org.apache.doris.thrift.TUniqueId;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import org.apache.logging.log4j.LogManager;
@@ -42,9 +43,20 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.Collection;
 
+/**
+ * Utility class for killing queries and connections.
+ */
 public class KillUtils {
     private static final Logger LOG = LogManager.getLogger(KillUtils.class);
 
+    /**
+     * Kill a query by query id or connection id.
+     *
+     * @param ctx the current connect context
+     * @param queryId the query id to kill
+     * @param connectionId the connection id to kill
+     * @param stmt the origin kill statement, which may need to be forwarded to other FE
+     */
     public static void kill(ConnectContext ctx, String queryId, int connectionId, OriginStatement stmt)
             throws UserException {
         if (connectionId == -1) {
@@ -58,6 +70,14 @@ public class KillUtils {
         }
     }
 
+    /**
+     * Kill a query by query id.
+     *
+     * @param ctx the current connect context
+     * @param queryId the query id to kill
+     * @param stmt the origin kill statement, which may need to be forwarded to other FE
+     */
+    @VisibleForTesting
     public static void killByQueryId(ConnectContext ctx, String queryId, OriginStatement stmt) throws UserException {
         // 1. First, try to find the query in the current FE and kill it
         if (killByQueryIdOnCurrentNode(ctx, queryId)) {
@@ -97,6 +117,14 @@ public class KillUtils {
         killToBackend(queryId);
     }
 
+    /**
+     * Kill a query by query id on the current FE.
+     *
+     * @param ctx the current connect context
+     * @param queryId the query id to kill
+     * @return true if the query is killed, false if not found
+     */
+    @VisibleForTesting
     public static boolean killByQueryIdOnCurrentNode(ConnectContext ctx, String queryId) throws DdlException {
         ConnectContext killCtx = ctx.getConnectScheduler().getContextWithQueryId(queryId);
         if (killCtx != null) {
@@ -112,6 +140,13 @@ public class KillUtils {
         return false;
     }
 
+    /**
+     * Kill a connection by connection id.
+     *
+     * @param ctx the current connect context
+     * @param connectionId the connection id to kill
+     */
+    @VisibleForTesting
     public static void killByConnection(ConnectContext ctx, int connectionId) throws DdlException {
         ConnectContext killCtx = ctx.getConnectScheduler().getContext(connectionId);
         if (killCtx == null) {
@@ -132,6 +167,12 @@ public class KillUtils {
         ctx.getState().setOk();
     }
 
+    /**
+     * Kill a query by query id on all backends.
+     *
+     * @param queryId the query id to kill
+     */
+    @VisibleForTesting
     public static void killToBackend(String queryId) throws UserException {
         Preconditions.checkState(!Strings.isNullOrEmpty(queryId));
         TUniqueId tQueryId = null;
