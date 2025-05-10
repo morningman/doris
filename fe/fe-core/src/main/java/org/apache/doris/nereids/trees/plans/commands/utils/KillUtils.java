@@ -58,7 +58,7 @@ public class KillUtils {
         }
     }
 
-    private static void killByQueryId(ConnectContext ctx, String queryId, OriginStatement stmt) throws UserException {
+    public static void killByQueryId(ConnectContext ctx, String queryId, OriginStatement stmt) throws UserException {
         // 1. First, try to find the query in the current FE and kill it
         if (killByQueryIdOnCurrentNode(ctx, queryId)) {
             return;
@@ -97,7 +97,7 @@ public class KillUtils {
         killToBackend(queryId);
     }
 
-    private static boolean killByQueryIdOnCurrentNode(ConnectContext ctx, String queryId) throws DdlException {
+    public static boolean killByQueryIdOnCurrentNode(ConnectContext ctx, String queryId) throws DdlException {
         ConnectContext killCtx = ctx.getConnectScheduler().getContextWithQueryId(queryId);
         if (killCtx != null) {
             // Check auth. Only user itself and user with admin priv can kill connection
@@ -112,7 +112,7 @@ public class KillUtils {
         return false;
     }
 
-    private static void killByConnection(ConnectContext ctx, int connectionId) throws DdlException {
+    public static void killByConnection(ConnectContext ctx, int connectionId) throws DdlException {
         ConnectContext killCtx = ctx.getConnectScheduler().getContext(connectionId);
         if (killCtx == null) {
             ErrorReport.reportDdlException(ErrorCode.ERR_NO_SUCH_THREAD, connectionId);
@@ -129,15 +129,16 @@ public class KillUtils {
             }
             killCtx.kill(true);
         }
+        ctx.getState().setOk();
     }
 
-    private static void killToBackend(String queryId) throws UserException {
+    public static void killToBackend(String queryId) throws UserException {
         Preconditions.checkState(!Strings.isNullOrEmpty(queryId));
         TUniqueId tQueryId = null;
         try {
             tQueryId = DebugUtil.parseTUniqueIdFromString(queryId);
         } catch (NumberFormatException e) {
-            throw new UserException(e.getMessage());
+            throw new UserException("Not found query id: " + queryId);
         }
 
         LOG.info("kill query {}", queryId);

@@ -66,6 +66,6 @@ public class KillConnectionCommandTest extends TestWithFeService {
         stmtExecutor.execute();
         KillConnectionCommand command = new KillConnectionCommand(stmtExecutor.getContext().getConnectionId());
         Assertions.assertDoesNotThrow(() -> command.doRun(connectContext, stmtExecutor));
-        Assertions.assertEquals(connectContext.getState().getStateType(), QueryState.MysqlStateType.OK);
+        Assertions.assertEquals(QueryState.MysqlStateType.OK, connectContext.getState().getStateType());
     }
 }
