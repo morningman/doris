@@ -42,6 +42,7 @@ public class KillUtils {
 
     public static void kill(ConnectContext ctx, String queryId, int connectionId) throws UserException {
         ConnectContext killCtx = null;
+        boolean killConnection = false;
         if (connectionId == -1) {
             // kill by query id
             Preconditions.checkState(!Strings.isNullOrEmpty(queryId));
@@ -53,6 +54,7 @@ public class KillUtils {
             if (killCtx == null) {
                 ErrorReport.reportDdlException(ErrorCode.ERR_NO_SUCH_THREAD, connectionId);
             }
+            killConnection = true;
         }
 
         if (killCtx == null) {
@@ -69,7 +71,7 @@ public class KillUtils {
                     && !Env.getCurrentEnv().getAccessManager().checkGlobalPriv(ctx, PrivPredicate.ADMIN)) {
                 ErrorReport.reportDdlException(ErrorCode.ERR_KILL_DENIED_ERROR, connectionId);
             }
-            killCtx.kill(false);
+            killCtx.kill(killConnection);
         }
     }
 
