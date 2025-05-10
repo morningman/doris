@@ -41,7 +41,7 @@ public class KillConnectionCommand extends KillCommand {
 
     @Override
     public void doRun(ConnectContext ctx, StmtExecutor executor) throws Exception {
-        KillUtils.kill(ctx, null, connectionId);
+        KillUtils.kill(ctx, null, connectionId, null);
     }
 
     @Override

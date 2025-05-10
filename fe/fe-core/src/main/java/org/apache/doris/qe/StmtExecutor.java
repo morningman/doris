@@ -1688,7 +1688,7 @@ public class StmtExecutor {
         KillStmt killStmt = (KillStmt) parsedStmt;
         String queryId = killStmt.getQueryId();
         int id = killStmt.getConnectionId();
-        KillUtils.kill(context, queryId, id);
+        KillUtils.kill(context, queryId, id, parsedStmt.getOrigStmt());
     }
 
     // Process set statement.

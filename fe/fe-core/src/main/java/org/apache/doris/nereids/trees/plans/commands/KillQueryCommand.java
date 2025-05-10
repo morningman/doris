@@ -41,7 +41,7 @@ public class KillQueryCommand extends KillCommand {
 
     @Override
     public void doRun(ConnectContext ctx, StmtExecutor executor) throws Exception {
-        KillUtils.kill(ctx, queryId, -1);
+        KillUtils.kill(ctx, queryId, -1, executor.getOriginStmt());
     }
 
     @Override
