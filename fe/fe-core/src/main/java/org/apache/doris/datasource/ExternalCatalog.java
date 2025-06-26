@@ -48,6 +48,8 @@ import org.apache.doris.datasource.infoschema.ExternalInfoSchemaDatabase;
 import org.apache.doris.datasource.infoschema.ExternalMysqlDatabase;
 import org.apache.doris.datasource.jdbc.JdbcExternalDatabase;
 import org.apache.doris.datasource.lakesoul.LakeSoulExternalDatabase;
+import org.apache.doris.datasource.mapping.IdentifierMapping;
+import org.apache.doris.datasource.mapping.JdbcIdentifierMapping;
 import org.apache.doris.datasource.maxcompute.MaxComputeExternalDatabase;
 import org.apache.doris.datasource.metacache.MetaCache;
 import org.apache.doris.datasource.operations.ExternalMetadataOps;
@@ -175,6 +177,7 @@ public abstract class ExternalCatalog
     protected MetaCache<ExternalDatabase<? extends ExternalTable>> metaCache;
     protected PreExecutionAuthenticator preExecutionAuthenticator;
     protected ThreadPoolExecutor threadPoolWithPreAuth;
+    protected IdentifierMapping identifierMapping;
 
     private volatile Configuration cachedConf = null;
     private byte[] confLock = new byte[0];
@@ -189,6 +192,10 @@ public abstract class ExternalCatalog
         this.name = name;
         this.logType = logType;
         this.comment = Strings.nullToEmpty(comment);
+        this.identifierMapping = new JdbcIdentifierMapping(
+                (Env.isTableNamesCaseInsensitive() || Env.isStoredTableNamesLowerCase()),
+                Boolean.parseBoolean(getLowerCaseMetaNames()),
+                getMetaNamesMapping());
     }
 
     /**
@@ -566,6 +573,11 @@ public abstract class ExternalCatalog
         onClose();
 
         refreshOnlyCatalogCache(invalidCache);
+
+        this.identifierMapping = new JdbcIdentifierMapping(
+                (Env.isTableNamesCaseInsensitive() || Env.isStoredTableNamesLowerCase()),
+                Boolean.parseBoolean(getLowerCaseMetaNames()),
+                getMetaNamesMapping());
     }
 
     public void onRefreshCache(boolean invalidCache) {
@@ -988,6 +1000,13 @@ public abstract class ExternalCatalog
         if (tableAutoAnalyzePolicy == null) {
             tableAutoAnalyzePolicy = Maps.newHashMap();
         }
+
+        if (this.identifierMapping == null) {
+            identifierMapping = new JdbcIdentifierMapping(
+                    (Env.isTableNamesCaseInsensitive() || Env.isStoredTableNamesLowerCase()),
+                    Boolean.parseBoolean(getLowerCaseMetaNames()),
+                    getMetaNamesMapping());
+        }
     }
 
     public void addDatabaseForTest(ExternalDatabase<? extends ExternalTable> db) {
@@ -1378,6 +1397,20 @@ public abstract class ExternalCatalog
         if (metadataOps != null) {
             metadataOps.afterCreateOrReplaceBranchOrTag(dbName, tblName);
         }
+    }
+
+    @Override
+    public String fromRemoteDatabaseName(String remoteDatabaseName) {
+        return identifierMapping.fromRemoteDatabaseName(remoteDatabaseName);
+    }
+
+    @Override
+    public String fromRemoteTableName(String remoteDatabaseName, String remoteTableName) {
+        return identifierMapping.fromRemoteTableName(remoteDatabaseName, remoteTableName);
+    }
+
+    public IdentifierMapping getIdentifierMapping() {
+        return identifierMapping;
     }
 }
 

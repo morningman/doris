@@ -35,8 +35,6 @@ import org.apache.doris.datasource.SessionContext;
 import org.apache.doris.datasource.jdbc.client.JdbcClient;
 import org.apache.doris.datasource.jdbc.client.JdbcClientConfig;
 import org.apache.doris.datasource.jdbc.client.JdbcClientException;
-import org.apache.doris.datasource.mapping.IdentifierMapping;
-import org.apache.doris.datasource.mapping.JdbcIdentifierMapping;
 import org.apache.doris.proto.InternalService;
 import org.apache.doris.proto.InternalService.PJdbcTestConnectionRequest;
 import org.apache.doris.proto.InternalService.PJdbcTestConnectionResult;
@@ -57,7 +55,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TException;
 import org.apache.thrift.TSerializer;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -75,7 +72,6 @@ public class JdbcExternalCatalog extends ExternalCatalog {
     // Must add "transient" for Gson to ignore this field,
     // or Gson will throw exception with HikariCP
     private transient JdbcClient jdbcClient;
-    private IdentifierMapping identifierMapping;
     private ExternalFunctionRules functionRules;
 
     public JdbcExternalCatalog(long catalogId, String name, String resource, Map<String, String> props,
@@ -83,10 +79,6 @@ public class JdbcExternalCatalog extends ExternalCatalog {
             throws DdlException {
         super(catalogId, name, InitCatalogLog.Type.JDBC, comment);
         this.catalogProperty = new CatalogProperty(resource, processCompatibleProperties(props));
-        this.identifierMapping = new JdbcIdentifierMapping(
-                (Env.isTableNamesCaseInsensitive() || Env.isStoredTableNamesLowerCase()),
-                Boolean.parseBoolean(getLowerCaseMetaNames()),
-                getMetaNamesMapping());
     }
 
     @Override
@@ -125,15 +117,6 @@ public class JdbcExternalCatalog extends ExternalCatalog {
             throw new IllegalArgumentException("Jdbc catalog property lower_case_table_names is not supported,"
                     + " please use lower_case_meta_names instead.");
         }
-    }
-
-    @Override
-    public synchronized void resetToUninitialized(boolean invalidCache) {
-        super.resetToUninitialized(invalidCache);
-        this.identifierMapping = new JdbcIdentifierMapping(
-                (Env.isTableNamesCaseInsensitive() || Env.isStoredTableNamesLowerCase()),
-                Boolean.parseBoolean(getLowerCaseMetaNames()),
-                getMetaNamesMapping());
     }
 
     @Override
@@ -251,35 +234,14 @@ public class JdbcExternalCatalog extends ExternalCatalog {
     }
 
     @Override
-    public void gsonPostProcess() throws IOException {
-        super.gsonPostProcess();
-        if (this.identifierMapping == null) {
-            identifierMapping = new JdbcIdentifierMapping(
-                    (Env.isTableNamesCaseInsensitive() || Env.isStoredTableNamesLowerCase()),
-                    Boolean.parseBoolean(getLowerCaseMetaNames()),
-                    getMetaNamesMapping());
-        }
-    }
-
-    @Override
     public List<String> listDatabaseNames() {
         return jdbcClient.getDatabaseNameList();
-    }
-
-    @Override
-    public String fromRemoteDatabaseName(String remoteDatabaseName) {
-        return identifierMapping.fromRemoteDatabaseName(remoteDatabaseName);
     }
 
     @Override
     public List<String> listTableNames(SessionContext ctx, String dbName) {
         makeSureInitialized();
         return jdbcClient.getTablesNameList(dbName);
-    }
-
-    @Override
-    public String fromRemoteTableName(String remoteDatabaseName, String remoteTableName) {
-        return identifierMapping.fromRemoteTableName(remoteDatabaseName, remoteTableName);
     }
 
     @Override
@@ -445,9 +407,5 @@ public class JdbcExternalCatalog extends ExternalCatalog {
 
     public ExternalFunctionRules getFunctionRules() {
         return functionRules;
-    }
-
-    public IdentifierMapping getIdentifierMapping() {
-        return identifierMapping;
     }
 }
