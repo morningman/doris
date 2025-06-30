@@ -39,7 +39,6 @@ import org.apache.doris.common.UserException;
 import org.apache.doris.common.Version;
 import org.apache.doris.common.security.authentication.PreExecutionAuthenticator;
 import org.apache.doris.common.util.Util;
-import org.apache.doris.datasource.ExternalSchemaCache.SchemaCacheKey;
 import org.apache.doris.datasource.es.EsExternalDatabase;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalDatabase;
@@ -589,18 +588,6 @@ public abstract class ExternalCatalog
         if (invalidCache) {
             Env.getCurrentEnv().getExtMetaCacheMgr().invalidateCatalogCache(id);
         }
-    }
-
-    public final Optional<SchemaCacheValue> getSchema(SchemaCacheKey key) {
-        makeSureInitialized();
-        Optional<ExternalDatabase<? extends ExternalTable>> db = getDb(key.getDbName());
-        if (db.isPresent()) {
-            Optional<? extends ExternalTable> table = db.get().getTable(key.getTblName());
-            if (table.isPresent()) {
-                return table.get().initSchemaAndUpdateTime(key);
-            }
-        }
-        return Optional.empty();
     }
 
     @Override
@@ -1340,37 +1327,43 @@ public abstract class ExternalCatalog
     }
 
     @Override
-    public void createOrReplaceBranch(String db, String tbl, CreateOrReplaceBranchInfo branchInfo)
+    public void createOrReplaceBranch(TableIf dorisTable, CreateOrReplaceBranchInfo branchInfo)
             throws UserException {
         makeSureInitialized();
+        Preconditions.checkState(dorisTable instanceof ExternalTable, dorisTable.getName());
+        ExternalTable externalTable = (ExternalTable) dorisTable;
         if (metadataOps == null) {
             throw new DdlException("branching operation is not supported for catalog: " + getName());
         }
         try {
-            metadataOps.createOrReplaceBranch(db, tbl, branchInfo);
-            TableBranchOrTagInfo info = new TableBranchOrTagInfo(getName(), db, tbl);
+            metadataOps.createOrReplaceBranch(externalTable, branchInfo);
+            TableBranchOrTagInfo info = new TableBranchOrTagInfo(getName(), externalTable.getDbName(),
+                    externalTable.getName());
             Env.getCurrentEnv().getEditLog().logBranchOrTag(info);
         } catch (Exception e) {
             LOG.warn("Failed to create or replace branch for table {}.{} in catalog {}",
-                    db, tbl, getName(), e);
+                    externalTable.getDbName(), externalTable.getName(), getName(), e);
             throw e;
         }
     }
 
     @Override
-    public void createOrReplaceTag(String db, String tbl, CreateOrReplaceTagInfo tagInfo)
+    public void createOrReplaceTag(TableIf dorisTable, CreateOrReplaceTagInfo tagInfo)
             throws UserException {
         makeSureInitialized();
+        Preconditions.checkState(dorisTable instanceof ExternalTable, dorisTable.getName());
+        ExternalTable externalTable = (ExternalTable) dorisTable;
         if (metadataOps == null) {
             throw new DdlException("Tagging operation is not supported for catalog: " + getName());
         }
         try {
-            metadataOps.createOrReplaceTag(db, tbl, tagInfo);
-            TableBranchOrTagInfo info = new TableBranchOrTagInfo(getName(), db, tbl);
+            metadataOps.createOrReplaceTag(externalTable, tagInfo);
+            TableBranchOrTagInfo info = new TableBranchOrTagInfo(getName(), externalTable.getDbName(),
+                    externalTable.getName());
             Env.getCurrentEnv().getEditLog().logBranchOrTag(info);
         } catch (Exception e) {
             LOG.warn("Failed to create or replace tag for table {}.{} in catalog {}",
-                    db, tbl, getName(), e);
+                    externalTable.getDbName(), externalTable.getName(), getName(), e);
             throw e;
         }
     }
@@ -1383,35 +1376,41 @@ public abstract class ExternalCatalog
     }
 
     @Override
-    public void dropBranch(String db, String tbl, DropBranchInfo branchInfo) throws UserException {
+    public void dropBranch(TableIf dorisTable, DropBranchInfo branchInfo) throws UserException {
         makeSureInitialized();
+        Preconditions.checkState(dorisTable instanceof ExternalTable, dorisTable.getName());
+        ExternalTable externalTable = (ExternalTable) dorisTable;
         if (metadataOps == null) {
             throw new DdlException("DropBranch operation is not supported for catalog: " + getName());
         }
         try {
-            metadataOps.dropBranch(db, tbl, branchInfo);
-            TableBranchOrTagInfo info = new TableBranchOrTagInfo(getName(), db, tbl);
+            metadataOps.dropBranch(externalTable, branchInfo);
+            TableBranchOrTagInfo info = new TableBranchOrTagInfo(getName(), externalTable.getDbName(),
+                    externalTable.getName());
             Env.getCurrentEnv().getEditLog().logBranchOrTag(info);
         } catch (Exception e) {
             LOG.warn("Failed to drop branch for table {}.{} in catalog {}",
-                    db, tbl, getName(), e);
+                    externalTable.getDbName(), externalTable.getName(), getName(), e);
             throw e;
         }
     }
 
     @Override
-    public void dropTag(String db, String tbl, DropTagInfo tagInfo) throws UserException {
+    public void dropTag(TableIf dorisTable, DropTagInfo tagInfo) throws UserException {
         makeSureInitialized();
+        Preconditions.checkState(dorisTable instanceof ExternalTable, dorisTable.getName());
+        ExternalTable externalTable = (ExternalTable) dorisTable;
         if (metadataOps == null) {
             throw new DdlException("DropTag operation is not supported for catalog: " + getName());
         }
         try {
-            metadataOps.dropTag(db, tbl, tagInfo);
-            TableBranchOrTagInfo info = new TableBranchOrTagInfo(getName(), db, tbl);
+            metadataOps.dropTag(externalTable, tagInfo);
+            TableBranchOrTagInfo info = new TableBranchOrTagInfo(getName(), externalTable.getDbName(),
+                    externalTable.getName());
             Env.getCurrentEnv().getEditLog().logBranchOrTag(info);
         } catch (Exception e) {
             LOG.warn("Failed to drop tag for table {}.{} in catalog {}",
-                    db, tbl, getName(), e);
+                    externalTable.getDbName(), externalTable.getName(), getName(), e);
             throw e;
         }
     }

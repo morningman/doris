@@ -78,7 +78,7 @@ public class PaimonExternalTable extends ExternalTable implements MTMVRelatedTab
     public PaimonExternalTable(long id, String name, String remoteName, PaimonExternalCatalog catalog,
             PaimonExternalDatabase db) {
         super(id, name, remoteName, catalog, db, TableType.PAIMON_EXTERNAL_TABLE);
-        this.paimonTable = catalog.getPaimonTable(dbName, name);
+        this.paimonTable = catalog.getPaimonTable(this);
     }
 
     public String getPaimonCatalogType() {
@@ -99,7 +99,7 @@ public class PaimonExternalTable extends ExternalTable implements MTMVRelatedTab
     public PaimonSchemaCacheValue getPaimonSchemaCacheValue(long schemaId) {
         ExternalSchemaCache cache = Env.getCurrentEnv().getExtMetaCacheMgr().getSchemaCache(catalog);
         Optional<SchemaCacheValue> schemaCacheValue = cache.getSchemaValue(
-                new PaimonSchemaCacheKey(dbName, name, schemaId));
+                new PaimonSchemaCacheKey(this, schemaId));
         if (!schemaCacheValue.isPresent()) {
             throw new CacheException("failed to getSchema for: %s.%s.%s.%s",
                     null, catalog.getName(), dbName, name, schemaId);
@@ -110,7 +110,7 @@ public class PaimonExternalTable extends ExternalTable implements MTMVRelatedTab
     private PaimonSnapshotCacheValue getPaimonSnapshotCacheValue() {
         makeSureInitialized();
         return Env.getCurrentEnv().getExtMetaCacheMgr().getPaimonMetadataCache()
-                .getPaimonSnapshot(catalog, dbName, name);
+                .getPaimonSnapshot(this);
     }
 
     @Override
@@ -251,7 +251,7 @@ public class PaimonExternalTable extends ExternalTable implements MTMVRelatedTab
         makeSureInitialized();
         PaimonSchemaCacheKey paimonSchemaCacheKey = (PaimonSchemaCacheKey) key;
         try {
-            Table table = ((PaimonExternalCatalog) getCatalog()).getPaimonTable(key.getDbName(), name);
+            Table table = ((PaimonExternalCatalog) getCatalog()).getPaimonTable(this);
             TableSchema tableSchema = ((DataTable) table).schemaManager().schema(paimonSchemaCacheKey.getSchemaId());
             List<DataField> columns = tableSchema.fields();
             List<Column> dorisColumns = Lists.newArrayListWithCapacity(columns.size());
@@ -269,7 +269,7 @@ public class PaimonExternalTable extends ExternalTable implements MTMVRelatedTab
             return Optional.of(new PaimonSchemaCacheValue(dorisColumns, partitionColumns, tableSchema));
         } catch (Exception e) {
             throw new CacheException("failed to initSchema for: %s.%s.%s.%s",
-                    null, getCatalog().getName(), key.getDbName(), key.getTblName(),
+                    null, getCatalog().getName(), key.getDorisTable().getDbName(), key.getDorisTable().getName(),
                     paimonSchemaCacheKey.getSchemaId());
         }
 

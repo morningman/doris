@@ -22,7 +22,7 @@ package org.apache.doris.datasource.iceberg;
 
 import org.apache.doris.common.UserException;
 import org.apache.doris.common.info.SimpleTableInfo;
-import org.apache.doris.datasource.ExternalCatalog;
+import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.iceberg.helper.IcebergWriterHelper;
 import org.apache.doris.nereids.trees.plans.commands.insert.BaseExternalTableInsertCommandContext;
 import org.apache.doris.nereids.trees.plans.commands.insert.InsertCommandContext;
@@ -48,7 +48,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 public class IcebergTransaction implements Transaction {
@@ -73,12 +72,11 @@ public class IcebergTransaction implements Transaction {
         }
     }
 
-    public void beginInsert(SimpleTableInfo tableInfo) throws UserException {
+    public void beginInsert(ExternalTable dorisTable) throws UserException {
         try {
             ops.getPreExecutionAuthenticator().execute(() -> {
                 // create and start the iceberg transaction
-                this.tableInfo = tableInfo;
-                this.table = getNativeTable(tableInfo);
+                this.table = IcebergUtils.getIcebergTable(dorisTable);
                 this.transaction = table.newTransaction();
             });
         } catch (Exception e) {
@@ -144,13 +142,6 @@ public class IcebergTransaction implements Transaction {
 
     public long getUpdateCnt() {
         return commitDataList.stream().mapToLong(TIcebergCommitData::getRowCount).sum();
-    }
-
-
-    private synchronized Table getNativeTable(SimpleTableInfo tableInfo) {
-        Objects.requireNonNull(tableInfo);
-        ExternalCatalog externalCatalog = ops.getExternalCatalog();
-        return IcebergUtils.getRemoteTable(externalCatalog, tableInfo);
     }
 
     private void commitAppendTxn(Table table, List<WriteResult> pendingResults) {

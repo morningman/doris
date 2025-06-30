@@ -22,8 +22,8 @@ import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.CacheFactory;
 import org.apache.doris.common.Config;
 import org.apache.doris.datasource.CacheException;
-import org.apache.doris.datasource.CatalogIf;
 import org.apache.doris.datasource.ExternalMetaCacheMgr;
+import org.apache.doris.datasource.ExternalTable;
 
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.Maps;
@@ -60,15 +60,15 @@ public class PaimonMetadataCache {
     private PaimonSnapshotCacheValue loadSnapshot(PaimonSnapshotCacheKey key) {
         try {
             PaimonSnapshot latestSnapshot = loadLatestSnapshot(key);
-            PaimonExternalTable table = (PaimonExternalTable) key.getCatalog().getDbOrAnalysisException(key.getDbName())
-                    .getTableOrAnalysisException(key.getTableName());
+            PaimonExternalTable table = (PaimonExternalTable) key.getDorisTable();
             List<Column> partitionColumns = table.getPaimonSchemaCacheValue(latestSnapshot.getSchemaId())
                     .getPartitionColumns();
             PaimonPartitionInfo partitionInfo = loadPartitionInfo(key, partitionColumns);
             return new PaimonSnapshotCacheValue(partitionInfo, latestSnapshot);
         } catch (IOException | AnalysisException e) {
             throw new CacheException("failed to loadSnapshot for: %s.%s.%s",
-                    e, key.getCatalog().getName(), key.getDbName(), key.getTableName());
+                    e, key.getDorisTable().getCatalog().getName(), key.getDorisTable().getDbName(),
+                    key.getDorisTable().getName());
         }
     }
 
@@ -77,13 +77,13 @@ public class PaimonMetadataCache {
         if (CollectionUtils.isEmpty(partitionColumns)) {
             return PaimonPartitionInfo.EMPTY;
         }
-        List<Partition> paimonPartitions = ((PaimonExternalCatalog) key.getCatalog())
-                .getPaimonPartitions(key.getDbName(), key.getTableName());
+        List<Partition> paimonPartitions = ((PaimonExternalCatalog) key.getDorisTable().getCatalog())
+                .getPaimonPartitions(key.getDorisTable());
         return PaimonUtil.generatePartitionInfo(partitionColumns, paimonPartitions);
     }
 
     private PaimonSnapshot loadLatestSnapshot(PaimonSnapshotCacheKey key) throws IOException {
-        Table table = ((PaimonExternalCatalog) key.getCatalog()).getPaimonTable(key.getDbName(), key.getTableName());
+        Table table = ((PaimonExternalCatalog) key.getDorisTable().getCatalog()).getPaimonTable(key.getDorisTable());
         Table snapshotTable = table;
         // snapshotId and schemaId
         Long latestSnapshotId = PaimonSnapshot.INVALID_SNAPSHOT_ID;
@@ -100,26 +100,27 @@ public class PaimonMetadataCache {
 
     public void invalidateCatalogCache(long catalogId) {
         snapshotCache.asMap().keySet().stream()
-                .filter(key -> key.getCatalog().getId() == catalogId)
+                .filter(key -> key.getDorisTable().getCatalog().getId() == catalogId)
                 .forEach(snapshotCache::invalidate);
     }
 
     public void invalidateTableCache(long catalogId, String dbName, String tblName) {
         snapshotCache.asMap().keySet().stream()
-                .filter(key -> key.getCatalog().getId() == catalogId && key.getDbName().equals(dbName)
-                        && key.getTableName().equals(
-                        tblName))
+                .filter(key -> key.getDorisTable().getCatalog().getId() == catalogId
+                        && key.getDorisTable().getDbName().equals(dbName)
+                        && key.getDorisTable().getName().equals(tblName))
                 .forEach(snapshotCache::invalidate);
     }
 
     public void invalidateDbCache(long catalogId, String dbName) {
         snapshotCache.asMap().keySet().stream()
-                .filter(key -> key.getCatalog().getId() == catalogId && key.getDbName().equals(dbName))
+                .filter(key -> key.getDorisTable().getCatalog().getId() == catalogId
+                        && key.getDorisTable().getDbName().equals(dbName))
                 .forEach(snapshotCache::invalidate);
     }
 
-    public PaimonSnapshotCacheValue getPaimonSnapshot(CatalogIf catalog, String dbName, String tbName) {
-        PaimonSnapshotCacheKey key = new PaimonSnapshotCacheKey(catalog, dbName, tbName);
+    public PaimonSnapshotCacheValue getPaimonSnapshot(ExternalTable dorisTable) {
+        PaimonSnapshotCacheKey key = new PaimonSnapshotCacheKey(dorisTable);
         return snapshotCache.get(key);
     }
 

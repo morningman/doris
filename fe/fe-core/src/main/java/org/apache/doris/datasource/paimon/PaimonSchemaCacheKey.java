@@ -18,14 +18,15 @@
 package org.apache.doris.datasource.paimon;
 
 import org.apache.doris.datasource.ExternalSchemaCache.SchemaCacheKey;
+import org.apache.doris.datasource.ExternalTable;
 
 import com.google.common.base.Objects;
 
 public class PaimonSchemaCacheKey extends SchemaCacheKey {
     private final long schemaId;
 
-    public PaimonSchemaCacheKey(String dbName, String tableName, long schemaId) {
-        super(dbName, tableName);
+    public PaimonSchemaCacheKey(ExternalTable dorisTable, long schemaId) {
+        super(dorisTable);
         this.schemaId = schemaId;
     }
 

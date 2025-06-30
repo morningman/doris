@@ -226,13 +226,13 @@ public interface CatalogIf<T extends DatabaseIf> {
     }
 
     // Create or replace branch operations, overridden by subclass if necessary
-    default void createOrReplaceBranch(String db, String tbl, CreateOrReplaceBranchInfo branchInfo)
+    default void createOrReplaceBranch(TableIf dorisTable, CreateOrReplaceBranchInfo branchInfo)
             throws UserException {
         throw new UserException("Not support create or replace branch operation");
     }
 
     // Create or replace tag operation, overridden by subclass if necessary
-    default void createOrReplaceTag(String db, String tbl, CreateOrReplaceTagInfo tagInfo) throws UserException {
+    default void createOrReplaceTag(TableIf dorisTable, CreateOrReplaceTagInfo tagInfo) throws UserException {
         throw new UserException("Not support create or replace tag operation");
     }
 
@@ -240,11 +240,11 @@ public interface CatalogIf<T extends DatabaseIf> {
 
     }
 
-    default void dropBranch(String db, String tbl, DropBranchInfo branchInfo) throws UserException {
+    default void dropBranch(TableIf dorisTable, DropBranchInfo branchInfo) throws UserException {
         throw new UserException("Not support drop branch operation");
     }
 
-    default void dropTag(String db, String tbl, DropTagInfo tagInfo) throws UserException {
+    default void dropTag(TableIf dorisTable, DropTagInfo tagInfo) throws UserException {
         throw new UserException("Not support drop tag operation");
     }
 }

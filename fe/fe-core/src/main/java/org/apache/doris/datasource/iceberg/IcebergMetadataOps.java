@@ -396,9 +396,9 @@ public class IcebergMetadataOps implements ExternalMetadataOps {
     }
 
     @Override
-    public void createOrReplaceBranchImpl(String dbName, String tblName, CreateOrReplaceBranchInfo branchInfo)
+    public void createOrReplaceBranchImpl(ExternalTable dorisTable, CreateOrReplaceBranchInfo branchInfo)
             throws UserException {
-        Table icebergTable = IcebergUtils.getIcebergTable(dorisCatalog, dbName, tblName);
+        Table icebergTable = IcebergUtils.getIcebergTable(dorisTable);
         BranchOptions branchOptions = branchInfo.getBranchOptions();
 
         Long snapshotId = branchOptions.getSnapshotId()
@@ -463,9 +463,9 @@ public class IcebergMetadataOps implements ExternalMetadataOps {
     }
 
     @Override
-    public void createOrReplaceTagImpl(String dbName, String tblName, CreateOrReplaceTagInfo tagInfo)
+    public void createOrReplaceTagImpl(ExternalTable dorisTable, CreateOrReplaceTagInfo tagInfo)
             throws UserException {
-        Table icebergTable = IcebergUtils.getIcebergTable(dorisCatalog, dbName, tblName);
+        Table icebergTable = IcebergUtils.getIcebergTable(dorisTable);
         TagOptions tagOptions = tagInfo.getTagOptions();
         Long snapshotId = tagOptions.getSnapshotId()
                 .orElse(
@@ -507,10 +507,10 @@ public class IcebergMetadataOps implements ExternalMetadataOps {
     }
 
     @Override
-    public void dropTagImpl(String dbName, String tblName, DropTagInfo tagInfo) throws UserException {
+    public void dropTagImpl(ExternalTable dorisTable, DropTagInfo tagInfo) throws UserException {
         String tagName = tagInfo.getTagName();
         boolean ifExists = tagInfo.getIfExists();
-        Table icebergTable = IcebergUtils.getIcebergTable(dorisCatalog, dbName, tblName);
+        Table icebergTable = IcebergUtils.getIcebergTable(dorisTable);
         SnapshotRef snapshotRef = icebergTable.refs().get(tagName);
 
         if (snapshotRef != null || !ifExists) {
@@ -526,10 +526,10 @@ public class IcebergMetadataOps implements ExternalMetadataOps {
     }
 
     @Override
-    public void dropBranchImpl(String dbName, String tblName, DropBranchInfo branchInfo) throws UserException {
+    public void dropBranchImpl(ExternalTable dorisTable, DropBranchInfo branchInfo) throws UserException {
         String branchName = branchInfo.getBranchName();
         boolean ifExists = branchInfo.getIfExists();
-        Table icebergTable = IcebergUtils.getIcebergTable(dorisCatalog, dbName, tblName);
+        Table icebergTable = IcebergUtils.getIcebergTable(dorisTable);
         SnapshotRef snapshotRef = icebergTable.refs().get(branchName);
 
         if (snapshotRef != null || !ifExists) {

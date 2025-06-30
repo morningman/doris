@@ -345,9 +345,9 @@ public class HMSExternalTable extends ExternalTable implements MTMVRelatedTableI
             return ((HudiDlaTable) dlaTable).getHudiSchemaCacheValue(MvccUtil.getSnapshotFromContext(this))
                     .getSchema();
         } else if (getDlaType() == DLAType.ICEBERG) {
-            return IcebergUtils.getIcebergSchema(this, getCatalog(), getDbName(), getName());
+            return IcebergUtils.getIcebergSchema(this);
         }
-        Optional<SchemaCacheValue> schemaCacheValue = cache.getSchemaValue(dbName, name);
+        Optional<SchemaCacheValue> schemaCacheValue = cache.getSchemaValue(new SchemaCacheKey(this));
         return schemaCacheValue.map(SchemaCacheValue::getSchema).orElse(null);
     }
 
@@ -365,7 +365,7 @@ public class HMSExternalTable extends ExternalTable implements MTMVRelatedTableI
         makeSureInitialized();
         ExternalSchemaCache cache = Env.getCurrentEnv().getExtMetaCacheMgr().getSchemaCache(catalog);
         Optional<SchemaCacheValue> schemaCacheValue = cache.getSchemaValue(
-                new HudiSchemaCacheKey(dbName, name, timestamp));
+                new HudiSchemaCacheKey(this, timestamp));
         return schemaCacheValue.map(value -> ((HMSSchemaCacheValue) value).getPartitionColTypes())
                 .orElse(Collections.emptyList());
     }
@@ -475,7 +475,7 @@ public class HMSExternalTable extends ExternalTable implements MTMVRelatedTableI
                     rowCount = StatisticsUtil.getHiveRowCount(this);
                     break;
                 case ICEBERG:
-                    rowCount = IcebergUtils.getIcebergRowCount(getCatalog(), getDbName(), getName());
+                    rowCount = IcebergUtils.getIcebergRowCount(this);
                     break;
                 default:
                     if (LOG.isDebugEnabled()) {
@@ -654,20 +654,20 @@ public class HMSExternalTable extends ExternalTable implements MTMVRelatedTableI
     public Optional<SchemaCacheValue> initSchema(SchemaCacheKey key) {
         makeSureInitialized();
         if (dlaType.equals(DLAType.ICEBERG)) {
-            return getIcebergSchema(key);
+            return initIcebergSchema(key);
         } else if (dlaType.equals(DLAType.HUDI)) {
-            return getHudiSchema(key);
+            return initHudiSchema(key);
         } else {
-            return getHiveSchema();
+            return initHiveSchema();
         }
     }
 
-    private Optional<SchemaCacheValue> getIcebergSchema(SchemaCacheKey key) {
+    private Optional<SchemaCacheValue> initIcebergSchema(SchemaCacheKey key) {
         return IcebergUtils.loadSchemaCacheValue(
-            catalog, dbName, name, ((IcebergSchemaCacheKey) key).getSchemaId(), isView());
+                this, ((IcebergSchemaCacheKey) key).getSchemaId(), isView());
     }
 
-    private Optional<SchemaCacheValue> getHudiSchema(SchemaCacheKey key) {
+    private Optional<SchemaCacheValue> initHudiSchema(SchemaCacheKey key) {
         boolean[] enableSchemaEvolution = {false};
         HudiSchemaCacheKey hudiSchemaCacheKey = (HudiSchemaCacheKey) key;
         InternalSchema hudiInternalSchema = HiveMetaStoreClientHelper.getHudiTableSchema(this, enableSchemaEvolution,
@@ -691,7 +691,7 @@ public class HMSExternalTable extends ExternalTable implements MTMVRelatedTableI
         return Optional.of(hudiSchemaCacheValue);
     }
 
-    private Optional<SchemaCacheValue> getHiveSchema() {
+    private Optional<SchemaCacheValue> initHiveSchema() {
         boolean getFromTable = catalog.getCatalogProperty()
                 .getOrDefault(HMSExternalCatalog.GET_SCHEMA_FROM_TABLE, "false")
                 .equalsIgnoreCase("true");
@@ -794,9 +794,7 @@ public class HMSExternalTable extends ExternalTable implements MTMVRelatedTableI
             case ICEBERG:
                 if (GlobalVariable.enableFetchIcebergStats) {
                     return StatisticsUtil.getIcebergColumnStats(colName,
-                            Env.getCurrentEnv().getExtMetaCacheMgr().getIcebergMetadataCache().getIcebergTable(
-                                    catalog, dbName, name
-                            ));
+                            Env.getCurrentEnv().getExtMetaCacheMgr().getIcebergMetadataCache().getIcebergTable(this));
                 } else {
                     break;
                 }
@@ -1145,8 +1143,7 @@ public class HMSExternalTable extends ExternalTable implements MTMVRelatedTableI
             return HudiUtils.getHudiMvccSnapshot(tableSnapshot, this);
         } else if (getDlaType() == DLAType.ICEBERG) {
             return new IcebergMvccSnapshot(
-                IcebergUtils.getIcebergSnapshotCacheValue(
-                    tableSnapshot, getCatalog(), getDbName(), getName(), scanParams));
+                    IcebergUtils.getIcebergSnapshotCacheValue(tableSnapshot, this, scanParams));
         } else {
             return new EmptyMvccSnapshot();
         }

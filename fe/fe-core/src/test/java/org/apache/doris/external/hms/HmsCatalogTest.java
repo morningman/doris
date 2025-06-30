@@ -142,7 +142,7 @@ public class HmsCatalogTest extends AnalyzeCheckTestBase {
                 result = TableIf.TableType.HMS_EXTERNAL_TABLE;
 
                 // mock initSchemaAndUpdateTime and do nothing
-                tbl.initSchemaAndUpdateTime(new ExternalSchemaCache.SchemaCacheKey("hms_db", "hms_tbl"));
+                tbl.initSchemaAndUpdateTime(new ExternalSchemaCache.SchemaCacheKey(tbl));
                 minTimes = 0;
 
                 tbl.getDatabase();

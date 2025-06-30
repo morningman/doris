@@ -34,6 +34,7 @@ import org.apache.doris.common.UserException;
 import org.apache.doris.common.info.SimpleTableInfo;
 import org.apache.doris.common.security.authentication.HadoopAuthenticator;
 import org.apache.doris.datasource.ExternalDatabase;
+import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.operations.ExternalMetadataOps;
 import org.apache.doris.datasource.property.constants.HMSProperties;
 import org.apache.doris.nereids.trees.plans.commands.CreateDatabaseCommand;
@@ -387,24 +388,24 @@ public class HiveMetadataOps implements ExternalMetadataOps {
     }
 
     @Override
-    public void createOrReplaceBranchImpl(String dbName, String tblName, CreateOrReplaceBranchInfo branchInfo)
+    public void createOrReplaceBranchImpl(ExternalTable dorisTable, CreateOrReplaceBranchInfo branchInfo)
             throws UserException {
         throw new UserException("Not support create or replace branch in hive catalog.");
     }
 
     @Override
-    public void createOrReplaceTagImpl(String dbName, String tblName, CreateOrReplaceTagInfo tagInfo)
+    public void createOrReplaceTagImpl(ExternalTable dorisTable, CreateOrReplaceTagInfo tagInfo)
             throws UserException {
         throw new UserException("Not support create or replace tag in hive catalog.");
     }
 
     @Override
-    public void dropTagImpl(String dbName, String tblName, DropTagInfo tagInfo) throws UserException {
+    public void dropTagImpl(ExternalTable dorisTable, DropTagInfo tagInfo) throws UserException {
         throw new UserException("Not support drop tag in hive catalog.");
     }
 
     @Override
-    public void dropBranchImpl(String dbName, String tblName, DropBranchInfo branchInfo) throws UserException {
+    public void dropBranchImpl(ExternalTable dorisTable, DropBranchInfo branchInfo) throws UserException {
         throw new UserException("Not support drop branch in hive catalog.");
     }
 

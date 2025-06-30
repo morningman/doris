@@ -246,7 +246,7 @@ class ConstraintPersistTest extends TestWithFeService implements PlanPatternMatc
         tbl.setNewFullSchema(schema);
         db.addTableForTest(tbl);
         esCatalog.addDatabaseForTest(db);
-        Env.getCurrentEnv().getExtMetaCacheMgr().getSchemaCache(esCatalog).addSchemaForTest(db.getFullName(), tbl.getName(), schema);
+        Env.getCurrentEnv().getExtMetaCacheMgr().getSchemaCache(esCatalog).addSchemaForTest(tbl, schema);
         new MockUp<RelationUtil>() {
             @Mock
             public TableIf getTable(List<String> qualifierName, Env env) {
@@ -309,7 +309,7 @@ class ConstraintPersistTest extends TestWithFeService implements PlanPatternMatc
         tbl.setNewFullSchema(schema);
         db.addTableForTest(tbl);
         esCatalog.addDatabaseForTest(db);
-        Env.getCurrentEnv().getExtMetaCacheMgr().getSchemaCache(esCatalog).addSchemaForTest(db.getFullName(), tbl.getName(), schema);
+        Env.getCurrentEnv().getExtMetaCacheMgr().getSchemaCache(esCatalog).addSchemaForTest(tbl, schema);
         new MockUp<RelationUtil>() {
             @Mock
             public TableIf getTable(List<String> qualifierName, Env env) {

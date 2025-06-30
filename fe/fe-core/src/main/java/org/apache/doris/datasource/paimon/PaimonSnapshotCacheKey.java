@@ -17,32 +17,19 @@
 
 package org.apache.doris.datasource.paimon;
 
-import org.apache.doris.datasource.CatalogIf;
+import org.apache.doris.datasource.ExternalTable;
 
-import java.util.Objects;
 import java.util.StringJoiner;
 
 public class PaimonSnapshotCacheKey {
-    private final CatalogIf catalog;
-    private final String dbName;
-    private final String tableName;
+    private final ExternalTable dorisTable;
 
-    public PaimonSnapshotCacheKey(CatalogIf catalog, String dbName, String tableName) {
-        this.catalog = catalog;
-        this.dbName = dbName;
-        this.tableName = tableName;
+    public PaimonSnapshotCacheKey(ExternalTable dorisTable) {
+        this.dorisTable = dorisTable;
     }
 
-    public CatalogIf getCatalog() {
-        return catalog;
-    }
-
-    public String getDbName() {
-        return dbName;
-    }
-
-    public String getTableName() {
-        return tableName;
+    public ExternalTable getDorisTable() {
+        return dorisTable;
     }
 
     @Override
@@ -54,22 +41,20 @@ public class PaimonSnapshotCacheKey {
             return false;
         }
         PaimonSnapshotCacheKey that = (PaimonSnapshotCacheKey) o;
-        return catalog.getId() == that.catalog.getId()
-                && Objects.equals(dbName, that.dbName)
-                && Objects.equals(tableName, that.tableName);
+        return dorisTable.equals(that.dorisTable);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(catalog.getId(), dbName, tableName);
+        return dorisTable.hashCode();
     }
 
     @Override
     public String toString() {
         return new StringJoiner(", ", PaimonSnapshotCacheKey.class.getSimpleName() + "[", "]")
-                .add("catalog=" + catalog)
-                .add("dbName='" + dbName + "'")
-                .add("tableName='" + tableName + "'")
+                .add("catalog=" + dorisTable.getCatalog().getName())
+                .add("dbName='" + dorisTable.getDbName() + "'")
+                .add("tableName='" + dorisTable.getName() + "'")
                 .toString();
     }
 }

@@ -23,6 +23,7 @@ import org.apache.doris.analysis.DropDbStmt;
 import org.apache.doris.analysis.DropTableStmt;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.UserException;
+import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.nereids.trees.plans.commands.CreateDatabaseCommand;
 import org.apache.doris.nereids.trees.plans.commands.info.CreateOrReplaceBranchInfo;
 import org.apache.doris.nereids.trees.plans.commands.info.CreateOrReplaceTagInfo;
@@ -153,18 +154,17 @@ public interface ExternalMetadataOps {
     /**
      * create or replace branch in external metastore
      *
-     * @param dbName
-     * @param tblName
+     * @param dorisTable
      * @param branchInfo
      * @throws UserException
      */
-    default void createOrReplaceBranch(String dbName, String tblName, CreateOrReplaceBranchInfo branchInfo)
+    default void createOrReplaceBranch(ExternalTable dorisTable, CreateOrReplaceBranchInfo branchInfo)
             throws UserException {
-        createOrReplaceBranchImpl(dbName, tblName, branchInfo);
-        afterOperateOnBranchOrTag(dbName, tblName);
+        createOrReplaceBranchImpl(dorisTable, branchInfo);
+        afterOperateOnBranchOrTag(dorisTable.getDbName(), dorisTable.getName());
     }
 
-    void createOrReplaceBranchImpl(String dbName, String tblName, CreateOrReplaceBranchInfo branchInfo)
+    void createOrReplaceBranchImpl(ExternalTable dorisTable, CreateOrReplaceBranchInfo branchInfo)
             throws UserException;
 
     default void afterOperateOnBranchOrTag(String dbName, String tblName) {
@@ -173,51 +173,48 @@ public interface ExternalMetadataOps {
     /**
      * create or replace tag in external metastore
      *
-     * @param dbName
-     * @param tblName
+     * @param dorisTable
      * @param tagInfo
      * @throws UserException
      */
-    default void createOrReplaceTag(String dbName, String tblName, CreateOrReplaceTagInfo tagInfo)
+    default void createOrReplaceTag(ExternalTable dorisTable, CreateOrReplaceTagInfo tagInfo)
             throws UserException {
-        createOrReplaceTagImpl(dbName, tblName, tagInfo);
-        afterOperateOnBranchOrTag(dbName, tblName);
+        createOrReplaceTagImpl(dorisTable, tagInfo);
+        afterOperateOnBranchOrTag(dorisTable.getDbName(), dorisTable.getName());
     }
 
-    void createOrReplaceTagImpl(String dbName, String tblName, CreateOrReplaceTagInfo tagInfo)
+    void createOrReplaceTagImpl(ExternalTable dorisTable, CreateOrReplaceTagInfo tagInfo)
             throws UserException;
 
     /**
      * drop tag in external metastore
      *
-     * @param dbName
-     * @param tblName
+     * @param dorisTable
      * @param tagInfo
      * @throws UserException
      */
-    default void dropTag(String dbName, String tblName, DropTagInfo tagInfo)
+    default void dropTag(ExternalTable dorisTable, DropTagInfo tagInfo)
             throws UserException {
-        dropTagImpl(dbName, tblName, tagInfo);
-        afterOperateOnBranchOrTag(dbName, tblName);
+        dropTagImpl(dorisTable, tagInfo);
+        afterOperateOnBranchOrTag(dorisTable.getDbName(), dorisTable.getName());
     }
 
-    void dropTagImpl(String dbName, String tblName, DropTagInfo tagInfo) throws UserException;
+    void dropTagImpl(ExternalTable dorisTable, DropTagInfo tagInfo) throws UserException;
 
     /**
      * drop branch in external metastore
      *
-     * @param dbName
-     * @param tblName
+     * @param dorisTable
      * @param branchInfo
      * @throws UserException
      */
-    default void dropBranch(String dbName, String tblName, DropBranchInfo branchInfo)
+    default void dropBranch(ExternalTable dorisTable, DropBranchInfo branchInfo)
             throws UserException {
-        dropBranchImpl(dbName, tblName, branchInfo);
-        afterOperateOnBranchOrTag(dbName, tblName);
+        dropBranchImpl(dorisTable, branchInfo);
+        afterOperateOnBranchOrTag(dorisTable.getDbName(), dorisTable.getName());
     }
 
-    void dropBranchImpl(String dbName, String tblName, DropBranchInfo branchInfo) throws UserException;
+    void dropBranchImpl(ExternalTable dorisTable, DropBranchInfo branchInfo) throws UserException;
 
     /**
      *
