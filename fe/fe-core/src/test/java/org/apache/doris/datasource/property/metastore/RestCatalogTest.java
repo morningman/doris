@@ -19,6 +19,7 @@ package org.apache.doris.datasource.property.metastore;
 
 import com.google.common.collect.Maps;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.FileScanTask;
@@ -29,8 +30,10 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.paimon.catalog.CatalogContext;
+import org.apache.paimon.catalog.CatalogFactory;
+import org.apache.paimon.options.Options;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
@@ -40,50 +43,16 @@ import java.util.Map;
 public class RestCatalogTest {
 
     // set your AWS access key and secret key
-    private String ak = "";
-    private String sk = "";
+    private String awsAk = "";
+    private String awsSk = "";
+    private String awsAcountId = "";
 
-    @BeforeEach
-    protected void initCatalog() {
-    }
-
-    private Catalog initGlueRestCatalog() {
-        Map<String, String> options = Maps.newHashMap();
-        options.put(CatalogUtil.ICEBERG_CATALOG_TYPE, CatalogUtil.ICEBERG_CATALOG_TYPE_REST);
-        options.put(CatalogProperties.URI, "https://glue.ap-east-1.amazonaws.com/iceberg");
-        options.put(CatalogProperties.WAREHOUSE_LOCATION, "169698404049:s3tablescatalog/s3-table-bucket-hk-glue-test");
-        // remove this endpoint prop, or, add https://
-        options.put(S3FileIOProperties.ENDPOINT, "https://s3.ap-east-1.amazonaws.com");
-        // must set:
-        // software.amazon.awssdk.core.exception.SdkClientException: Unable to load region from any of the providers in
-        // the chain software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain@627ff1b8:
-        // [software.amazon.awssdk.regions.providers.SystemSettingsRegionProvider@67d32a54:
-        // Unable to load region from system settings. Region must be specified either via environment variable
-        // (AWS_REGION) or  system property (aws.region).,
-        // software.amazon.awssdk.regions.providers.AwsProfileRegionProvider@2792b416: No region provided in profile:
-        // default, software.amazon.awssdk.regions.providers.InstanceProfileRegionProvider@5cff6b74:
-        // Unable to contact EC2 metadata service.]
-        options.put(AwsClientProperties.CLIENT_REGION, "ap-east-1");
-        // Forbidden: {"message":"Missing Authentication Token"}
-        options.put("rest.sigv4-enabled", "true");
-        // Forbidden: {"message":"Credential should be scoped to correct service: 'glue'. "}
-        options.put("rest.signing-name", "glue");
-        //  Forbidden: {"message":"The security token included in the request is invalid."}
-        options.put("rest.access-key-id", ak);
-        // Forbidden: {"message":"The request signature we calculated does not match the signature you provided.
-        // Check your AWS Secret Access Key and signing method. Consult the service documentation for details."}
-        options.put("rest.secret-access-key", sk);
-        // same as AwsClientProperties.CLIENT_REGION, "ap-east-1"
-        options.put("rest.signing-region", "ap-east-1");
-        // options.put("iceberg.catalog.warehouse", "<accountid>:s3tablescatalog/<table-bucket-name>");
-        // 4. Build iceberg catalog
-        Configuration conf = new Configuration();
-        return CatalogUtil.buildIcebergCatalog("glue_test", options, conf);
-    }
+    private String aliyunAk = "";
+    private String aliyunSk = "";
 
     @Test
-    public void testGlueRestCatalog() {
-        Catalog glueRestCatalog = initGlueRestCatalog();
+    public void testIcebergGlueRestCatalog() {
+        Catalog glueRestCatalog = initIcebergGlueRestCatalog();
         SupportsNamespaces nsCatalog = (SupportsNamespaces) glueRestCatalog;
         // List namespaces and assert
         nsCatalog.listNamespaces(Namespace.empty()).forEach(namespace1 -> {
@@ -108,5 +77,73 @@ public class RestCatalogTest {
                 });
             });
         });
+    }
+
+    private Catalog initIcebergGlueRestCatalog() {
+        Map<String, String> options = Maps.newHashMap();
+        options.put(CatalogUtil.ICEBERG_CATALOG_TYPE, CatalogUtil.ICEBERG_CATALOG_TYPE_REST);
+        options.put(CatalogProperties.URI, "https://glue.ap-east-1.amazonaws.com/iceberg");
+        options.put(CatalogProperties.WAREHOUSE_LOCATION,
+                awsAcountId + ":s3tablescatalog/s3-table-bucket-hk-glue-test");
+        // remove this endpoint prop, or, add https://
+        options.put(S3FileIOProperties.ENDPOINT, "https://s3.ap-east-1.amazonaws.com");
+        // must set:
+        // software.amazon.awssdk.core.exception.SdkClientException: Unable to load region from any of the providers in
+        // the chain software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain@627ff1b8:
+        // [software.amazon.awssdk.regions.providers.SystemSettingsRegionProvider@67d32a54:
+        // Unable to load region from system settings. Region must be specified either via environment variable
+        // (AWS_REGION) or  system property (aws.region).,
+        // software.amazon.awssdk.regions.providers.AwsProfileRegionProvider@2792b416: No region provided in profile:
+        // default, software.amazon.awssdk.regions.providers.InstanceProfileRegionProvider@5cff6b74:
+        // Unable to contact EC2 metadata service.]
+        options.put(AwsClientProperties.CLIENT_REGION, "ap-east-1");
+        // Forbidden: {"message":"Missing Authentication Token"}
+        options.put("rest.sigv4-enabled", "true");
+        // Forbidden: {"message":"Credential should be scoped to correct service: 'glue'. "}
+        options.put("rest.signing-name", "glue");
+        //  Forbidden: {"message":"The security token included in the request is invalid."}
+        options.put("rest.access-key-id", awsAk);
+        // Forbidden: {"message":"The request signature we calculated does not match the signature you provided.
+        // Check your AWS Secret Access Key and signing method. Consult the service documentation for details."}
+        options.put("rest.secret-access-key", awsSk);
+        // same as AwsClientProperties.CLIENT_REGION, "ap-east-1"
+        options.put("rest.signing-region", "ap-east-1");
+        // options.put("iceberg.catalog.warehouse", "<accountid>:s3tablescatalog/<table-bucket-name>");
+        // 4. Build iceberg catalog
+        Configuration conf = new Configuration();
+        return CatalogUtil.buildIcebergCatalog("glue_test", options, conf);
+    }
+
+    @Test
+    public void testPaimonDlfRestCatalog() {
+        org.apache.paimon.catalog.Catalog catalog = initPaimonDlfRestCatalog();
+        System.out.println(catalog);
+    }
+
+    /**
+     * CREATE CATALOG `paimon-rest-catalog`
+     * WITH (
+     * 'type' = 'paimon',
+     * 'uri' = '<catalog server url>',
+     * 'metastore' = 'rest',
+     * 'warehouse' = 'my_instance_name',
+     * 'token.provider' = 'dlf',
+     * 'dlf.access-key-id'='<access-key-id>',
+     * 'dlf.access-key-secret'='<access-key-secret>',
+     * );
+     *
+     * @return
+     */
+    private org.apache.paimon.catalog.Catalog initPaimonDlfRestCatalog() {
+        HiveConf hiveConf = new HiveConf();
+        Options catalogOptions = new Options();
+        catalogOptions.set("metastore", "rest");
+        catalogOptions.set("warehouse", "new_dfl_paimon_catalog");
+        catalogOptions.set("uri", "http://cn-beijing-vpc.dlf.aliyuncs.com");
+        catalogOptions.set("token.provider", "dlf");
+        catalogOptions.set("dlf.access-key-id", aliyunAk);
+        catalogOptions.set("dlf.access-key-secret", aliyunSk);
+        CatalogContext catalogContext = CatalogContext.create(catalogOptions, hiveConf);
+        return CatalogFactory.createCatalog(catalogContext);
     }
 }
