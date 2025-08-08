@@ -22,6 +22,7 @@ import org.apache.doris.catalog.Type;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.jdbc.util.JdbcFieldSchema;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
@@ -107,6 +108,22 @@ public class JdbcOracleClient extends JdbcClient {
                 .add("xdb")
                 .add("xs$null")
                 .build();
+    }
+
+    @Override
+    protected String getAdditionalTablesQuery(String remoteDbName, String remoteTableName, String[] tableTypes) {
+        StringBuilder sb = new StringBuilder("SELECT SYNONYM_NAME as TABLE_NAME FROM ALL_SYNONYMS");
+        List<String> conditions = Lists.newArrayList();
+        if (!Strings.isNullOrEmpty(remoteDbName)) {
+            conditions.add("OWNER = '" + remoteDbName + "'");
+        }
+        if (!Strings.isNullOrEmpty(remoteTableName)) {
+            conditions.add("SYNONYM_NAME = '" + remoteTableName + "'");
+        }
+        if (!conditions.isEmpty()) {
+            sb.append(" WHERE ").append(String.join(" AND ", conditions));
+        }
+        return sb.toString();
     }
 
     @Override
