@@ -20,6 +20,7 @@ package org.apache.doris.datasource.property.metastore;
 import org.apache.doris.backup.Status;
 import org.apache.doris.common.UserException;
 import org.apache.doris.common.util.S3URI;
+import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.property.storage.S3Properties;
 import org.apache.doris.fs.StorageTypeMapper;
 import org.apache.doris.fs.remote.S3FileSystem;
@@ -47,6 +48,7 @@ import org.apache.paimon.table.source.DataSplit;
 import org.apache.paimon.table.source.RawFile;
 import org.apache.paimon.table.source.ReadBuilder;
 import org.apache.paimon.table.source.Split;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -193,6 +195,8 @@ public class PaimonDlfRestCatalogTest {
         System.out.println(st);
         if (st.ok()) {
             System.out.println("test debug local path: " + localFile.getAbsolutePath());
+        } else {
+            Assertions.fail(st.toString());
         }
     }
 
@@ -220,6 +224,7 @@ public class PaimonDlfRestCatalogTest {
             System.out.println("Content: " + content);
         } catch (Exception e) {
             e.printStackTrace();
+            Assertions.fail(Util.getRootCauseMessage(e));
         }
     }
 
@@ -254,14 +259,15 @@ public class PaimonDlfRestCatalogTest {
             S3URI s3URI = S3URI.create(path);
             System.out.println("test debug s3uri: " + s3URI);
             downloadAndReadFileWithSdkV2(s3Client, s3URI.getBucket(), s3URI.getKey());
-        } catch (UserException e) {
-            throw new RuntimeException(e);
+        } catch (Exception e) {
+            Assertions.fail(Util.getRootCauseMessage(e));
         } finally {
             s3Client.close();
         }
     }
 
-    private void downloadAndReadFileWithSdkV2(S3Client s3Client, String bucketName, String objectKey) {
+    private void downloadAndReadFileWithSdkV2(S3Client s3Client, String bucketName, String objectKey)
+            throws IOException {
         software.amazon.awssdk.services.s3.model.GetObjectRequest request
                 = software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
                 .bucket(bucketName)
@@ -274,9 +280,6 @@ public class PaimonDlfRestCatalogTest {
             while ((line = reader.readLine()) != null) {
                 System.out.println(line);
             }
-        } catch (IOException e) {
-            System.err.println(e.getMessage());
-            e.printStackTrace();
         }
     }
 }

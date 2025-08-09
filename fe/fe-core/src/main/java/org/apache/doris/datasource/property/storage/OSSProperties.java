@@ -90,7 +90,7 @@ public class OSSProperties extends AbstractS3CompatibleProperties {
      * - s3.cn-hangzhou.aliyuncs.com              => region = cn-hangzhou
      * <p>
      */
-    private static final Set<Pattern> ENDPOINT_PATTERN = ImmutableSet.of(Pattern
+    public static final Set<Pattern> ENDPOINT_PATTERN = ImmutableSet.of(Pattern
                     .compile("^(?:https?://)?(?:s3\\.)?oss-([a-z0-9-]+?)(?:-internal)?\\.aliyuncs\\.com$"),
             Pattern.compile("(?:https?://)?([a-z]{2}-[a-z0-9-]+)\\.oss-dls\\.aliyuncs\\.com"),
             Pattern.compile("^(?:https?://)?dlf(?:-vpc)?\\.([a-z0-9-]+)\\.aliyuncs\\.com(?:/.*)?$"));

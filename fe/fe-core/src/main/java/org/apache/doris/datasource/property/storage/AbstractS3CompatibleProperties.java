@@ -223,8 +223,12 @@ public abstract class AbstractS3CompatibleProperties extends StorageProperties i
         throw new IllegalArgumentException("Not a valid region, and cannot be parsed from endpoint: " + endpoint);
     }
 
-    public Optional<String> extractRegion(String endpoint) {
-        for (Pattern pattern : endpointPatterns()) {
+    private Optional<String> extractRegion(String endpoint) {
+        return extractRegion(endpointPatterns(), endpoint);
+    }
+
+    public static Optional<String> extractRegion(Set<Pattern> endpointPatterns, String endpoint) {
+        for (Pattern pattern : endpointPatterns) {
             Matcher matcher = pattern.matcher(endpoint.toLowerCase());
             if (matcher.matches()) {
                 // Check all possible groups for region (group 1, 2, or 3)
