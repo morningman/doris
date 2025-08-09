@@ -17,6 +17,21 @@
 
 package org.apache.doris.datasource.property.metastore;
 
+import org.apache.doris.backup.Status;
+import org.apache.doris.common.UserException;
+import org.apache.doris.common.util.S3URI;
+import org.apache.doris.datasource.property.storage.S3Properties;
+import org.apache.doris.fs.StorageTypeMapper;
+import org.apache.doris.fs.remote.S3FileSystem;
+
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicSessionCredentials;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.S3Object;
 import com.google.common.collect.Maps;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hive.conf.HiveConf;
@@ -30,16 +45,41 @@ import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.paimon.catalog.Catalog.DatabaseNotExistException;
+import org.apache.paimon.catalog.Catalog.TableNotExistException;
 import org.apache.paimon.catalog.CatalogContext;
 import org.apache.paimon.catalog.CatalogFactory;
+import org.apache.paimon.catalog.Database;
+import org.apache.paimon.fs.FileIO;
 import org.apache.paimon.options.Options;
+import org.apache.paimon.rest.RESTToken;
+import org.apache.paimon.rest.RESTTokenFileIO;
+import org.apache.paimon.table.source.DataSplit;
+import org.apache.paimon.table.source.RawFile;
+import org.apache.paimon.table.source.ReadBuilder;
+import org.apache.paimon.table.source.Split;
+import org.junit.Ignore;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Configuration;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
-@Disabled("Disabled until fill ak/sk")
 public class RestCatalogTest {
 
     // set your AWS access key and secret key
@@ -50,7 +90,7 @@ public class RestCatalogTest {
     private String aliyunAk = "";
     private String aliyunSk = "";
 
-    @Test
+    @Ignore
     public void testIcebergGlueRestCatalog() {
         Catalog glueRestCatalog = initIcebergGlueRestCatalog();
         SupportsNamespaces nsCatalog = (SupportsNamespaces) glueRestCatalog;
@@ -115,9 +155,96 @@ public class RestCatalogTest {
     }
 
     @Test
-    public void testPaimonDlfRestCatalog() {
+    public void testPaimonDlfRestCatalog() throws DatabaseNotExistException, TableNotExistException, UserException {
         org.apache.paimon.catalog.Catalog catalog = initPaimonDlfRestCatalog();
         System.out.println(catalog);
+        List<String> dbs = catalog.listDatabases();
+        for (String dbName : dbs) {
+            System.out.println("yy debug get db: " + dbName);
+            Database db = catalog.getDatabase(dbName);
+            System.out.println("yy debug get db instance: " + db.name() + ", " + db.options() + ", " + db.comment());
+            List<String> tables = catalog.listTables(dbName);
+            for (String tblName : tables) {
+                System.out.println("yy debug get table: " + tblName);
+                if (!tblName.equalsIgnoreCase("users_samples")) {
+                    continue;
+                }
+                org.apache.paimon.table.Table table = catalog.getTable(
+                        org.apache.paimon.catalog.Identifier.create(dbName, tblName));
+                System.out.println("yy debug get table instance: " + table.name() + ", " + table.options() + ", "
+                        + table.comment());
+
+                FileIO fileIO = table.fileIO();
+                if (fileIO instanceof RESTTokenFileIO) {
+                    System.out.println("yy debug get file io instance: " + fileIO.getClass().getName());
+                    RESTTokenFileIO restTokenFileIO = (RESTTokenFileIO) fileIO;
+                    RESTToken restToken = restTokenFileIO.validToken();
+                    Map<String, String> tokens = restToken.token();
+                    for (Map.Entry<String, String> kv : tokens.entrySet()) {
+                        System.out.println("yy debug get token: " + kv.getKey() + ", " + kv.getValue());
+                    }
+                    String accType = tokens.get("fs.oss.token.access.type");
+                    String tmpAk = tokens.get("fs.oss.accessKeyId");
+                    String tmpSk = tokens.get("fs.oss.accessKeySecret");
+                    String stsToken = tokens.get("fs.oss.securityToken");
+                    String endpoint = tokens.get("fs.oss.endpoint");
+
+                    ReadBuilder readBuilder = table.newReadBuilder();
+                    List<Split> paimonSplits = readBuilder.newScan().plan().splits();
+                    for (Split split : paimonSplits) {
+                        System.out.println("yy debug get split: " + split);
+                        if (split instanceof DataSplit) {
+                            DataSplit dataSplit = (DataSplit) split;
+                            Optional<List<RawFile>> rawFiles = dataSplit.convertToRawFiles();
+                            if (rawFiles.isPresent()) {
+                                for (RawFile rawFile : rawFiles.get()) {
+                                    System.out.println("yy debug get raw file: " + rawFile.path());
+                                    readOssFile(rawFile.path(), tmpAk, tmpSk, stsToken, endpoint, "oss-cn-beijing");
+                                    // readFile(rawFile.path(), tmpAk, tmpSk, stsToken, endpoint,
+                                    //        "oss-cn-beijing");
+                                    // readFileWithS3Client(rawFile.path(), tmpAk, tmpSk, stsToken, endpoint,
+                                    //        "oss-cn-beijing");
+                                }
+                            } else {
+                                System.out.println("yy debug no raw files in this data split");
+                            }
+                        }
+                    }
+                } else {
+                    System.out.println("yy debug fileIO is not RESTTokenFileIO, it is: " + fileIO.getClass().getName());
+                }
+            }
+        }
+    }
+
+    private void readOssFile(String path, String tmpAk, String tmpSk, String stsToken, String endpoint, String region) {
+        // replace "oss://" with "s3://"
+        String finalPath = path.startsWith("oss://") ? path.replace("oss://", "s3://") : path;
+        System.out.println("yy debug final path: " + finalPath);
+        Map<String, String> props = Maps.newHashMap();
+        props.put("s3.endpoint", endpoint);
+        props.put("s3.region", region);
+        props.put("s3.access_key", tmpAk);
+        props.put("s3.secret_key", tmpSk);
+        props.put("s3.session_token", stsToken);
+        S3Properties s3Properties = S3Properties.of(props);
+        S3FileSystem s3Fs = (S3FileSystem) StorageTypeMapper.create(s3Properties);
+        File localFile = new File("/tmp/s3/" + System.currentTimeMillis() + ".data");
+        if (localFile.exists()) {
+            try {
+                Files.delete(localFile.toPath());
+            } catch (IOException e) {
+                System.err.println("Failed to delete existing local file: " + localFile.getAbsolutePath());
+                e.printStackTrace();
+            }
+        } else {
+            localFile.getParentFile().mkdirs(); // Ensure parent directories exist
+        }
+        Status st = s3Fs.getObjStorage().getObject(finalPath, localFile);
+        System.out.println(st);
+        if (st.ok()) {
+            System.out.println("yy debug local path: " + localFile.getAbsolutePath());
+        }
     }
 
     /**
@@ -145,5 +272,97 @@ public class RestCatalogTest {
         catalogOptions.set("dlf.access-key-secret", aliyunSk);
         CatalogContext catalogContext = CatalogContext.create(catalogOptions, hiveConf);
         return CatalogFactory.createCatalog(catalogContext);
+    }
+
+    private void readFile(String filePath, String accessKeyId, String secretAccessKey,
+            String sessionToken, String endpoint, String region) throws UserException {
+        // 创建STS临时凭证
+        BasicSessionCredentials sessionCredentials = new BasicSessionCredentials(
+                accessKeyId,
+                secretAccessKey,
+                sessionToken
+        );
+
+        // 配置客户端
+        ClientConfiguration clientConfig = new ClientConfiguration();
+        // 阿里云OSS需要使用V4签名
+        clientConfig.setSignerOverride("AWSS3V4SignerType");
+
+        // 构建S3客户端
+        AmazonS3 s3Client = AmazonS3ClientBuilder.standard()
+                .withCredentials(new AWSStaticCredentialsProvider(sessionCredentials))
+                .withEndpointConfiguration(new EndpointConfiguration(endpoint, region))
+                .withClientConfiguration(clientConfig)
+                // 对于阿里云OSS，需要禁用路径风格访问
+                .withPathStyleAccessEnabled(false)
+                .build();
+
+        S3URI s3URI = S3URI.create(filePath);
+        System.out.println("yy debug s3uri: " + s3URI);
+        try {
+            // 示例：从OSS下载文件并读取内容
+            String content = downloadAndReadFile(s3Client, s3URI.getBucket(), s3URI.getKey());
+            System.out.println("文件内容: " + content);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private String downloadAndReadFile(AmazonS3 s3Client, String bucketName, String objectKey) throws IOException {
+        S3Object s3Object = s3Client.getObject(new GetObjectRequest(bucketName, objectKey));
+        try (InputStream inputStream = s3Object.getObjectContent();
+                InputStreamReader reader = new InputStreamReader(inputStream, StandardCharsets.UTF_8)) {
+            StringBuilder content = new StringBuilder();
+            char[] buffer = new char[1024];
+            int bytesRead;
+            while ((bytesRead = reader.read(buffer)) != -1) {
+                content.append(buffer, 0, bytesRead);
+            }
+            return content.toString();
+        }
+    }
+
+    private void readFileWithS3Client(String path, String tmpAk, String tmpSk, String stsToken, String endpoint,
+            String region) {
+        // 3. 配置S3Client（核心：适配阿里云OSS）
+        S3Client s3Client = S3Client.builder()
+                .credentialsProvider(StaticCredentialsProvider.create(AwsSessionCredentials.create(tmpAk, tmpSk,
+                        stsToken)))
+                .region(Region.of(region)) // 阿里云不验证Region，随意填写一个有效Region即可
+                .endpointOverride(URI.create("https://" + endpoint)) // 阿里云OSS端点
+                .serviceConfiguration(S3Configuration.builder()
+                        .chunkedEncodingEnabled(false)
+                        .pathStyleAccessEnabled(false)
+                        .build())
+                .build();
+        try {
+            S3URI s3URI = S3URI.create(path);
+            System.out.println("yy debug s3uri: " + s3URI);
+            downloadObjectWithS3Client(s3Client, s3URI.getBucket(), s3URI.getKey());
+        } catch (UserException e) {
+            throw new RuntimeException(e);
+        } finally {
+            // 关闭客户端
+            s3Client.close();
+        }
+    }
+
+    private void downloadObjectWithS3Client(S3Client s3Client, String bucketName, String objectKey) {
+        software.amazon.awssdk.services.s3.model.GetObjectRequest request
+                = software.amazon.awssdk.services.s3.model.GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(objectKey)
+                .build();
+
+        try (ResponseInputStream inputStream = s3Client.getObject(request);
+                BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                System.out.println(line); // 逐行打印内容
+            }
+        } catch (IOException e) {
+            System.err.println("读取文件内容失败：" + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }

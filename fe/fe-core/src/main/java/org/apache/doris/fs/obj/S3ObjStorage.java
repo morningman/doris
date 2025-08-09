@@ -276,13 +276,16 @@ public class S3ObjStorage implements ObjStorage<S3Client> {
             }
             return Status.OK;
         } catch (S3Exception s3Exception) {
+            s3Exception.printStackTrace();
             return new Status(
                     Status.ErrCode.COMMON_ERROR,
                     "get file from s3 error: " + s3Exception.awsErrorDetails().errorMessage());
         } catch (UserException ue) {
+            ue.printStackTrace();
             LOG.warn("connect to s3 failed: ", ue);
             return new Status(Status.ErrCode.COMMON_ERROR, "connect to s3 failed: " + ue.getMessage());
         } catch (Exception e) {
+            e.printStackTrace();
             return new Status(Status.ErrCode.COMMON_ERROR, e.toString());
         }
     }
