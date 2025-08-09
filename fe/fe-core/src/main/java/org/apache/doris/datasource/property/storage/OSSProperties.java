@@ -147,7 +147,7 @@ public class OSSProperties extends AbstractS3CompatibleProperties {
     }
 
     @Override
-    protected void checkEndpoint() {
+    protected void setEndpointIfPossible() {
         if (StringUtils.isBlank(this.endpoint) && StringUtils.isNotBlank(this.region)) {
             Optional<String> uriValueOpt = origProps.entrySet().stream()
                     .filter(e -> URI_KEYWORDS.stream()
@@ -165,7 +165,7 @@ public class OSSProperties extends AbstractS3CompatibleProperties {
                 }
             }
         }
-        super.checkEndpoint();
+        super.setEndpointIfPossible();
     }
 
     @Override

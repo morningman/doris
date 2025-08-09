@@ -178,12 +178,11 @@ public abstract class AbstractS3CompatibleProperties extends StorageProperties i
     @Override
     public void initNormalizeAndCheckProps() {
         super.initNormalizeAndCheckProps();
-        checkEndpoint();
-        checkRequiredProperties();
-        initRegionIfNecessary();
-        if (StringUtils.isBlank(getRegion())) {
-            throw new IllegalArgumentException("region is required");
-        }
+        setEndpointIfPossible();
+        setRegionIfPossible();
+        // if (StringUtils.isBlank(getRegion())) {
+        //     throw new IllegalArgumentException("region is required");
+        // }
     }
 
     /**
@@ -202,27 +201,28 @@ public abstract class AbstractS3CompatibleProperties extends StorageProperties i
      *
      * @throws IllegalArgumentException if the endpoint format is invalid
      */
-    protected void checkEndpoint() {
+    protected void setEndpointIfPossible() {
         setEndpointIfNotSet();
         // if (!isValidEndpoint(getEndpoint())) {
         //     throw new IllegalArgumentException("Invalid endpoint format: " + getEndpoint());
         // }
     }
 
-    private void initRegionIfNecessary() {
+    private void setRegionIfPossible() {
         if (StringUtils.isNotBlank(getRegion())) {
             return;
         }
         String endpoint = getEndpoint();
         if (endpoint == null || endpoint.isEmpty()) {
-            throw new IllegalArgumentException("endpoint is required");
+            // throw new IllegalArgumentException("endpoint is required");
+            return;
         }
         Optional<String> regionOptional = extractRegion(endpoint);
         if (regionOptional.isPresent()) {
             setRegion(regionOptional.get());
             return;
         }
-        throw new IllegalArgumentException("Not a valid region, and cannot be parsed from endpoint: " + endpoint);
+        // throw new IllegalArgumentException("Not a valid region, and cannot be parsed from endpoint: " + endpoint);
     }
 
     private Optional<String> extractRegion(String endpoint) {
