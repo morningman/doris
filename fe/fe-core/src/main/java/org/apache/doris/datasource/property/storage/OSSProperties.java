@@ -185,7 +185,6 @@ public class OSSProperties extends AbstractS3CompatibleProperties {
         // If only one is provided, it's an error
         throw new StoragePropertiesException(
                 "Please set access_key and secret_key or omit both for anonymous access to public bucket.");
-
     }
 
     private static String getOssEndpoint(String region, boolean publicAccess) {

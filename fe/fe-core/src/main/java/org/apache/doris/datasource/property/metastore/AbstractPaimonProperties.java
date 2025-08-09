@@ -85,7 +85,6 @@ public abstract class AbstractPaimonProperties extends MetastoreProperties {
             catalogOptions.set("s3.endpoint", s3Properties.getEndpoint());
             catalogOptions.set("s3.region", s3Properties.getRegion());
         }
-
     }
 
     protected void appendCatalogOptions(List<StorageProperties> storagePropertiesList) {
