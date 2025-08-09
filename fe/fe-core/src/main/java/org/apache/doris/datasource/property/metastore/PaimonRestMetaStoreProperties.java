@@ -34,6 +34,10 @@ public class PaimonRestMetaStoreProperties extends AbstractPaimonProperties {
 
     private static final String PAIMON_REST_PROPERTY_PREFIX = "paimon.rest.";
 
+    @ConnectorProperty(names = {"paimon.rest.uri", "uri"},
+            description = "The uri of the Paimon rest catalog service.")
+    private String paimonRestUri = "";
+
     @Getter
     @ConnectorProperty(
             names = {"paimon.rest.token.provider"},
@@ -78,6 +82,7 @@ public class PaimonRestMetaStoreProperties extends AbstractPaimonProperties {
 
     @Override
     protected void appendCustomCatalogOptions() {
+        catalogOptions.set("uri", paimonRestUri);
         for (Map.Entry<String, String> entry : origProps.entrySet()) {
             if (entry.getKey().startsWith(PAIMON_REST_PROPERTY_PREFIX)) {
                 String key = entry.getKey().substring(PAIMON_REST_PROPERTY_PREFIX.length());
