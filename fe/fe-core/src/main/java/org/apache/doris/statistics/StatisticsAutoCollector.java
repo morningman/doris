@@ -202,6 +202,9 @@ public class StatisticsAutoCollector extends StatisticsCollector {
                 .setRowCount(rowCount)
                 .build();
         analysisInfos.add(jobInfo);
+        LOG.info("debug create auto analyze job for table {}.{}.{}, id: {}.{}.{}",
+                db.getCatalog().getName(), db.getFullName(), table.getName(),
+                jobInfo.catalogId, jobInfo.dbId, jobInfo.tblId);
     }
 
     @VisibleForTesting

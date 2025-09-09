@@ -624,6 +624,9 @@ public class Alter {
     private void replaceTableInternal(Database db, OlapTable origTable, OlapTable newTbl, boolean swapTable,
                                       boolean isReplay)
             throws DdlException {
+        LOG.info("debug replace table internal, origTable: {}, id: {}, newTable: {}, id: {},"
+                        + " isSwap: {}, isReplay: {}",
+                origTable.getName(), origTable.getId(), newTbl.getName(), newTbl.getId(), swapTable, isReplay);
         String oldTblName = origTable.getName();
         String newTblName = newTbl.getName();
 
