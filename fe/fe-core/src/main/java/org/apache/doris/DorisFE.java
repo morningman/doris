@@ -64,6 +64,7 @@ import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.StandardOpenOption;
 import java.time.LocalDate;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DorisFE {
     private static final Logger LOG = LogManager.getLogger(DorisFE.class);
@@ -81,6 +82,9 @@ public class DorisFE {
     private static final String LOCK_FILE_NAME = "process.lock";
     private static FileChannel processLockFileChannel;
     private static FileLock processFileLock;
+
+    // set to true when all servers are ready.
+    private static AtomicBoolean serverReady = new AtomicBoolean(false);
 
     public static void main(String[] args) {
         // Every doris version should have a final meta version, it should not change
@@ -231,6 +235,8 @@ public class DorisFE {
 
             ThreadPoolManager.registerAllThreadPoolMetric();
             startMonitor();
+
+            serverReady.set(true);
             while (true) {
                 Thread.sleep(2000);
             }
@@ -578,5 +584,9 @@ public class DorisFE {
     public static class StartupOptions {
         public boolean enableHttpServer = true;
         public boolean enableQeService = true;
+    }
+
+    public static boolean isServerReady() {
+        return serverReady.get();
     }
 }
