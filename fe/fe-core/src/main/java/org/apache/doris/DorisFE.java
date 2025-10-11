@@ -245,7 +245,7 @@ public class DorisFE {
             startMonitor();
 
             serverReady.set(true);
-            while (!serverReady.get()) {
+            while (serverReady.get()) {
                 Thread.sleep(2000);
             }
             LOG.info("Doris FE is shutting down gracefully...");
