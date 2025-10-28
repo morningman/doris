@@ -1036,9 +1036,8 @@ Status FileScanner::_get_next_reader() {
             break;
         }
         case TFileFormatType::FORMAT_PARQUET: {
-            auto file_meta_cache_ptr = _should_enable_file_meta_cache()
-                                               ? ExecEnv::GetInstance()->file_meta_cache()
-                                               : nullptr;
+            // Note: file_meta_cache_ptr is deprecated, now using global FileMetadataCache::instance()
+            auto file_meta_cache_ptr = nullptr;
             std::unique_ptr<ParquetReader> parquet_reader = ParquetReader::create_unique(
                     _profile, *_params, range, _state->query_options().batch_size,
                     &_state->timezone_obj(), _io_ctx.get(), _state, file_meta_cache_ptr,
@@ -1061,9 +1060,8 @@ Status FileScanner::_get_next_reader() {
             break;
         }
         case TFileFormatType::FORMAT_ORC: {
-            auto file_meta_cache_ptr = _should_enable_file_meta_cache()
-                                               ? ExecEnv::GetInstance()->file_meta_cache()
-                                               : nullptr;
+            // Note: file_meta_cache_ptr is deprecated, now using global FileMetadataCache::instance()
+            auto file_meta_cache_ptr = nullptr;
             std::unique_ptr<OrcReader> orc_reader = OrcReader::create_unique(
                     _profile, _state, *_params, range, _state->query_options().batch_size,
                     _state->timezone(), _io_ctx.get(), file_meta_cache_ptr,
@@ -1476,9 +1474,8 @@ Status FileScanner::read_lines_from_range(const TFileRangeDesc& range,
     TFileFormatType::type format_type = _get_current_format_type();
     Status init_status = Status::OK();
 
-    auto file_meta_cache_ptr = external_info.enable_file_meta_cache
-                                       ? ExecEnv::GetInstance()->file_meta_cache()
-                                       : nullptr;
+    // Note: file_meta_cache_ptr is deprecated, now using global FileMetadataCache::instance()
+    auto file_meta_cache_ptr = nullptr;
 
     RETURN_IF_ERROR(scope_timer_run(
             [&]() -> Status {

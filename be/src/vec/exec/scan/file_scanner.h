@@ -30,6 +30,7 @@
 #include "common/global_types.h"
 #include "common/status.h"
 #include "exec/olap_common.h"
+#include "io/fs/file_metadata_cache.h"
 #include "io/io_common.h"
 #include "pipeline/exec/file_scan_operator.h"
 #include "runtime/descriptors.h"
@@ -292,7 +293,8 @@ private:
     // 2. the file number is less than 1/3 of cache's capacibility
     // Otherwise, the cache miss rate will be high
     bool _should_enable_file_meta_cache() {
-        return ExecEnv::GetInstance()->file_meta_cache()->enabled() &&
+        auto* cache = FileMetadataCache::instance();
+        return cache && cache->enabled() &&
                _split_source->num_scan_ranges() < config::max_external_file_meta_cache_num / 3;
     }
 };
