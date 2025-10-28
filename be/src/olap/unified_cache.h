@@ -148,11 +148,20 @@ public:
         return value->data();
     }
 
-    // Get Slice data (for page cache)
-    Slice get_slice() const {
-        using ValueType = UnifiedCacheValue<char*>;
-        auto* value = static_cast<ValueType*>(_cache->value(_handle));
-        return Slice(value->data(), value->size());
+    // Get Slice data (for page cache - DataPage is stored directly, not wrapped)
+    Slice get_slice() const;
+
+    // Backward compatibility: data() is an alias for get_slice()
+    Slice data() const { return get_slice(); }
+
+    // Backward compatibility: get<T>() for shared_ptr types
+    template <typename T>
+    T get() const {
+        static_assert(std::is_same<typename std::remove_cv<T>::type,
+                                   std::shared_ptr<typename T::element_type>>::value,
+                      "T must be a std::shared_ptr");
+        using ValueType = typename T::element_type; // Type that shared_ptr points to
+        return get_shared_ptr<ValueType>();
     }
 
     LRUCachePolicy* cache() const { return _cache; }

@@ -27,6 +27,14 @@
 
 namespace doris {
 
+// Implementation of UnifiedCacheHandle::get_slice() for DataPage
+// This must be in page_cache.cpp because it needs the complete definition of DataPage
+Slice UnifiedCacheHandle::get_slice() const {
+    auto* cache_value = static_cast<DataPage*>(_cache->value(_handle));
+    return Slice(cache_value->data(), cache_value->size());
+}
+
+
 template <typename T>
 MemoryTrackedPageBase<T>::MemoryTrackedPageBase(size_t size, bool use_cache,
                                                 segment_v2::PageTypePB page_type)
