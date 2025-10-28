@@ -84,6 +84,9 @@ public class IcebergHMSMetaStoreProperties extends AbstractIcebergProperties {
                 }
             }*/
         });
+
+        catalogProps.put(HiveCatalog.LIST_ALL_TABLES, String.valueOf(listAllTables));
+
         try {
             this.executionAuthenticator.execute(() -> hiveCatalog.initialize(catalogName, catalogProps));
             return hiveCatalog;
@@ -105,22 +108,6 @@ public class IcebergHMSMetaStoreProperties extends AbstractIcebergProperties {
             }
         }
         return conf;
-    }
-
-    /**
-     * Constructs HiveCatalog's property map.
-     */
-    private Map<String, String> buildCatalogProperties() {
-        Map<String, String> props = new HashMap<>();
-        props.put(HiveCatalog.LIST_ALL_TABLES, String.valueOf(listAllTables));
-
-        if (StringUtils.isNotBlank(warehouse)) {
-            props.put(CatalogProperties.WAREHOUSE_LOCATION, warehouse);
-        }
-
-        props.put("uri", hmsBaseProperties.getHiveMetastoreUri());
-        props.putAll(origProps); // Keep at end to allow override, but risky if overlaps exist
-        return props;
     }
 
     private void checkInitialized() {
