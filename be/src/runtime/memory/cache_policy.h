@@ -57,6 +57,9 @@ public:
         TABLET_COLUMN_OBJECT_POOL = 21,
         SCHEMA_CLOUD_DICTIONARY_CACHE = 22,
         CONDITION_CACHE = 23,
+        FILE_METADATA_CACHE = 24,
+        PARQUET_FOOTER_CACHE = 25,
+        ORC_FOOTER_CACHE = 26,
     };
 
     static std::string type_string(CacheType type) {
@@ -107,6 +110,12 @@ public:
             return "SchemaCloudDictionaryCache";
         case CacheType::CONDITION_CACHE:
             return "ConditionCache";
+        case CacheType::FILE_METADATA_CACHE:
+            return "FileMetadataCache";
+        case CacheType::PARQUET_FOOTER_CACHE:
+            return "ParquetFooterCache";
+        case CacheType::ORC_FOOTER_CACHE:
+            return "OrcFooterCache";
         default:
             throw Exception(Status::FatalError("not match type of cache policy :{}",
                                                static_cast<int>(type)));
@@ -136,6 +145,9 @@ public:
             {"ForUTCacheNumber", CacheType::FOR_UT_CACHE_NUMBER},
             {"QueryCache", CacheType::QUERY_CACHE},
             {"TabletColumnObjectPool", CacheType::TABLET_COLUMN_OBJECT_POOL},
+            {"FileMetadataCache", CacheType::FILE_METADATA_CACHE},
+            {"ParquetFooterCache", CacheType::PARQUET_FOOTER_CACHE},
+            {"OrcFooterCache", CacheType::ORC_FOOTER_CACHE},
     };
 
     static CacheType string_to_type(std::string type) {

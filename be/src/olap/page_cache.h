@@ -27,6 +27,7 @@
 #include <utility>
 
 #include "olap/lru_cache.h"
+#include "olap/unified_cache.h"
 #include "runtime/memory/lru_cache_policy.h"
 #include "runtime/memory/mem_tracker_limiter.h"
 #include "util/slice.h"
@@ -35,7 +36,8 @@
 
 namespace doris {
 
-class PageCacheHandle;
+// Forward declaration - use UnifiedCacheHandle as PageCacheHandle
+using PageCacheHandle = UnifiedCacheHandle;
 
 template <typename T>
 class MemoryTrackedPageBase : public LRUCacheValueBase {
@@ -87,16 +89,14 @@ using SemgnetFooterPBPage = MemoryTrackedPageWithPagePtr<segment_v2::SegmentFoot
 using DataPage = MemoryTrackedPageWithPageEntity;
 
 // Wrapper around Cache, and used for cache page of column data
-// in Segment.
-// TODO(zc): We should add some metric to see cache hit/miss rate.
+// in Segment. Now refactored to use UnifiedCacheManager.
 class StoragePageCache {
 public:
+    using CacheType = CachePolicy::CacheType;
+
     // The unique key identifying entries in the page cache.
     // Each cached page corresponds to a specific offset within
     // a file.
-    //
-    // TODO(zc): Now we use file name(std::string) as a part of
-    // key, which is not efficient. We should make it better later
     struct CacheKey {
         CacheKey(std::string fname_, size_t fsize_, int64_t offset_)
                 : fname(std::move(fname_)), fsize(fsize_), offset(offset_) {}
@@ -106,10 +106,12 @@ public:
 
         // Encode to a flat binary which can be used as LRUCache's key
         std::string encode() const {
-            std::string key_buf(fname);
-            key_buf.append((char*)&fsize, sizeof(fsize));
-            key_buf.append((char*)&offset, sizeof(offset));
-            return key_buf;
+            return to_unified_key().encode();
+        }
+
+        // Convert to UnifiedCacheKey
+        UnifiedCacheKey to_unified_key() const {
+            return UnifiedCacheKey::create_page_key(fname, fsize, offset);
         }
     };
 
@@ -161,7 +163,10 @@ public:
     // Cache type selection is determined by page_type argument
     //
     // Return true if entry is found, otherwise return false.
-    bool lookup(const CacheKey& key, PageCacheHandle* handle, segment_v2::PageTypePB page_type);
+    bool lookup(const CacheKey& key, PageCacheHandle* handle, segment_v2::PageTypePB page_type) {
+        CacheType cache_type = _page_type_to_cache_type(page_type);
+        return UnifiedCacheManager::instance()->lookup(cache_type, key.to_unified_key(), handle);
+    }
 
     // Insert a page with key into this cache.
     // Given handle will be set to valid reference.
@@ -183,7 +188,9 @@ public:
                 segment_v2::PageTypePB page_type, bool in_memory = false);
 
     std::shared_ptr<MemTrackerLimiter> mem_tracker(segment_v2::PageTypePB page_type) {
-        return _get_page_cache(page_type)->mem_tracker();
+        CacheType cache_type = _page_type_to_cache_type(page_type);
+        auto* cache = UnifiedCacheManager::instance()->get_cache(cache_type);
+        return cache ? cache->mem_tracker() : nullptr;
     }
 
 private:
@@ -196,6 +203,20 @@ private:
     // page cache to make it for flexible. we need this cache When construct
     // delete bitmap in unique key with mow
     std::unique_ptr<PKIndexPageCache> _pk_index_page_cache;
+
+    // Helper function to convert page type to cache type
+    static CacheType _page_type_to_cache_type(segment_v2::PageTypePB page_type) {
+        switch (page_type) {
+        case segment_v2::DATA_PAGE:
+            return CacheType::DATA_PAGE_CACHE;
+        case segment_v2::INDEX_PAGE:
+            return CacheType::INDEXPAGE_CACHE;
+        case segment_v2::PRIMARY_KEY_INDEX_PAGE:
+            return CacheType::PK_INDEX_PAGE_CACHE;
+        default:
+            throw Exception(Status::InternalError("Unknown page type"));
+        }
+    }
 
     LRUCachePolicy* _get_page_cache(segment_v2::PageTypePB page_type) {
         switch (page_type) {
@@ -215,52 +236,16 @@ private:
     }
 };
 
-// A handle for StoragePageCache entry. This class make it easy to handle
-// Cache entry. Users don't need to release the obtained cache entry. This
-// class will release the cache entry when it is destroyed.
-class PageCacheHandle {
-public:
-    PageCacheHandle() = default;
-    PageCacheHandle(LRUCachePolicy* cache, Cache::Handle* handle)
-            : _cache(cache), _handle(handle) {}
-    ~PageCacheHandle() {
-        if (_handle != nullptr) {
-            _cache->release(_handle);
-        }
-    }
+// Helper function to get Slice data from PageCacheHandle (for backward compatibility)
+// This is used in page_cache.cpp
+inline Slice page_cache_handle_data(const PageCacheHandle& handle) {
+    return handle.get_slice();
+}
 
-    PageCacheHandle(PageCacheHandle&& other) noexcept {
-        // we can use std::exchange if we switch c++14 on
-        std::swap(_cache, other._cache);
-        std::swap(_handle, other._handle);
-    }
-
-    PageCacheHandle& operator=(PageCacheHandle&& other) noexcept {
-        std::swap(_cache, other._cache);
-        std::swap(_handle, other._handle);
-        return *this;
-    }
-
-    LRUCachePolicy* cache() const { return _cache; }
-    Slice data() const;
-
-    template <typename T>
-    T get() const {
-        static_assert(std::is_same<typename std::remove_cv<T>::type,
-                                   std::shared_ptr<typename T::element_type>>::value,
-                      "T must be a std::shared_ptr");
-        using ValueType = typename T::element_type; // Type that shared_ptr points to
-        MemoryTrackedPageWithPagePtr<ValueType>* page =
-                (MemoryTrackedPageWithPagePtr<ValueType>*)_cache->value(_handle);
-        return page->data();
-    }
-
-private:
-    LRUCachePolicy* _cache = nullptr;
-    Cache::Handle* _handle = nullptr;
-
-    // Don't allow copy and assign
-    DISALLOW_COPY_AND_ASSIGN(PageCacheHandle);
-};
+// Helper function to get shared_ptr data from PageCacheHandle (for backward compatibility)
+template <typename T>
+inline std::shared_ptr<T> page_cache_handle_get(const PageCacheHandle& handle) {
+    return handle.get_shared_ptr<T>();
+}
 
 } // namespace doris

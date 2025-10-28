@@ -32,11 +32,11 @@
 #include "common/status.h"
 #include "exec/olap_common.h"
 #include "io/file_factory.h"
-#include "io/fs/file_meta_cache.h"
+#include "io/fs/file_metadata_cache.h"
 #include "io/fs/file_reader.h"
 #include "io/fs/file_reader_writer_fwd.h"
+#include "olap/unified_cache.h"
 #include "parquet_pred_cmp.h"
-#include "util/obj_lru_cache.h"
 #include "util/runtime_profile.h"
 #include "vec/exec/format/generic_reader.h"
 #include "vec/exec/format/parquet/parquet_common.h"
@@ -98,11 +98,15 @@ public:
         int64_t dict_filter_rewrite_time = 0;
     };
 
+    // Note: meta_cache parameter is deprecated but kept for backward compatibility
+    // Now using global FileMetadataCache::instance()
     ParquetReader(RuntimeProfile* profile, const TFileScanRangeParams& params,
                   const TFileRangeDesc& range, size_t batch_size, const cctz::time_zone* ctz,
                   io::IOContext* io_ctx, RuntimeState* state, FileMetaCache* meta_cache = nullptr,
                   bool enable_lazy_mat = true);
 
+    // Note: meta_cache parameter is deprecated but kept for backward compatibility
+    // Now using global FileMetadataCache::instance()
     ParquetReader(const TFileScanRangeParams& params, const TFileRangeDesc& range,
                   io::IOContext* io_ctx, RuntimeState* state, FileMetaCache* meta_cache = nullptr,
                   bool enable_lazy_mat = true);
@@ -243,13 +247,12 @@ private:
     io::FileDescription _file_description;
 
     // the following fields are for parquet meta data cache.
-    // if _meta_cache is not null, the _file_metadata will be got from _meta_cache,
-    // and it is owned by _meta_cache_handle.
-    // if _meta_cache is null, _file_metadata will be managed by _file_metadata_ptr,
-    // which will be released when deconstructing.
+    // Now using unified cache framework (FileMetadataCache).
+    // _file_metadata will be obtained from the global FileMetadataCache and owned by _meta_cache_handle.
+    // If cache miss, _file_metadata_ptr temporarily holds the metadata before inserting to cache.
     // ATTN: these fields must be before _file_reader, to make sure they will be released
     // after _file_reader. Otherwise, there may be heap-use-after-free bug.
-    ObjLRUCache::CacheHandle _meta_cache_handle;
+    UnifiedCacheHandle _meta_cache_handle;
     std::unique_ptr<FileMetaData> _file_metadata_ptr;
     const FileMetaData* _file_metadata = nullptr;
     const tparquet::FileMetaData* _t_metadata = nullptr;

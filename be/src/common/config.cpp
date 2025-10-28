@@ -423,6 +423,12 @@ DEFINE_mInt32(data_page_cache_stale_sweep_time_sec, "300");
 DEFINE_mInt32(index_page_cache_stale_sweep_time_sec, "600");
 DEFINE_mInt32(pk_index_page_cache_stale_sweep_time_sec, "600");
 
+// File metadata cache (for Parquet/ORC footer, etc.)
+// Default 256MB for file metadata cache
+DEFINE_String(file_metadata_cache_capacity, "268435456");
+// Stale sweep time for file metadata cache (default 5 minutes)
+DEFINE_mInt32(file_metadata_cache_stale_sweep_time_sec, "300");
+
 DEFINE_mBool(enable_low_cardinality_optimize, "true");
 DEFINE_Bool(enable_low_cardinality_cache_code, "true");
 

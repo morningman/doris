@@ -22,6 +22,7 @@
 
 #include <ostream>
 
+#include "olap/unified_cache.h"
 #include "runtime/exec_env.h"
 
 namespace doris {
@@ -82,6 +83,7 @@ StoragePageCache* StoragePageCache::create_global_cache(size_t capacity,
 StoragePageCache::StoragePageCache(size_t capacity, int32_t index_cache_percentage,
                                    int64_t pk_index_cache_capacity, uint32_t num_shards)
         : _index_cache_percentage(index_cache_percentage) {
+    // Create cache instances
     if (index_cache_percentage == 0) {
         _data_page_cache = std::make_unique<DataPageCache>(capacity, num_shards);
     } else if (index_cache_percentage == 100) {
@@ -96,17 +98,26 @@ StoragePageCache::StoragePageCache(size_t capacity, int32_t index_cache_percenta
     }
 
     _pk_index_page_cache = std::make_unique<PKIndexPageCache>(pk_index_cache_capacity, num_shards);
-}
 
-bool StoragePageCache::lookup(const CacheKey& key, PageCacheHandle* handle,
-                              segment_v2::PageTypePB page_type) {
-    auto* cache = _get_page_cache(page_type);
-    auto* lru_handle = cache->lookup(key.encode());
-    if (lru_handle == nullptr) {
-        return false;
+    // Register caches with UnifiedCacheManager
+    auto* manager = UnifiedCacheManager::instance();
+    if (_data_page_cache) {
+        // Note: We don't transfer ownership since StoragePageCache still manages these caches
+        // UnifiedCacheManager will use raw pointers
+        manager->register_cache(CachePolicy::CacheType::DATA_PAGE_CACHE,
+                               std::unique_ptr<LRUCachePolicy>(_data_page_cache.get()));
+        _data_page_cache.release(); // Release ownership to manager
     }
-    *handle = PageCacheHandle(cache, lru_handle);
-    return true;
+    if (_index_page_cache) {
+        manager->register_cache(CachePolicy::CacheType::INDEXPAGE_CACHE,
+                               std::unique_ptr<LRUCachePolicy>(_index_page_cache.get()));
+        _index_page_cache.release(); // Release ownership to manager
+    }
+    if (_pk_index_page_cache) {
+        manager->register_cache(CachePolicy::CacheType::PK_INDEX_PAGE_CACHE,
+                               std::unique_ptr<LRUCachePolicy>(_pk_index_page_cache.get()));
+        _pk_index_page_cache.release(); // Release ownership to manager
+    }
 }
 
 void StoragePageCache::insert(const CacheKey& key, DataPage* data, PageCacheHandle* handle,
@@ -146,11 +157,6 @@ void StoragePageCache::insert(const CacheKey& key, T data, size_t size, PageCach
     *handle = PageCacheHandle(cache, lru_handle);
     // Now page is managed by StoragePageCache.
     page.release();
-}
-
-Slice PageCacheHandle::data() const {
-    auto* cache_value = (DataPage*)_cache->value(_handle);
-    return {cache_value->data(), cache_value->size()};
 }
 
 template void StoragePageCache::insert(const CacheKey& key,
