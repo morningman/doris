@@ -633,7 +633,7 @@ public abstract class ExternalCatalog
             makeSureInitialized();
         } catch (Exception e) {
             LOG.warn("failed to get db {} in catalog {}", dbName, name, e);
-            return null;
+            throw e;
         }
         String realDbName = ClusterNamespace.getNameFromFullName(dbName);
 
@@ -657,7 +657,7 @@ public abstract class ExternalCatalog
             makeSureInitialized();
         } catch (Exception e) {
             LOG.warn("failed to get db {} in catalog {}", dbId, name, e);
-            return null;
+            throw e;
         }
 
         return metaCache.getMetaObjById(dbId).orElse(null);
