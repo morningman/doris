@@ -41,8 +41,8 @@ public class HttpProperties extends StorageProperties {
 
     @Override
     public String validateAndNormalizeUri(String url) throws UserException {
-        if (url == null || (!url.startsWith("http://") && !url.startsWith("https://"))) {
-            throw new UserException("Invalid http url: " + url);
+        if (url == null || (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("hf://"))) {
+            throw new UserException("Invalid http/hf url: " + url);
         }
         return url;
     }
