@@ -177,4 +177,30 @@ suite("test_http_tvf", "p2") {
             "http.max.request.size.bytes" = "2000"
         ) order by id;
     """
+
+    // hf
+    qt_sql15 """
+        select count(*) from
+        http(
+            "uri" = "hf://datasets/fka/awesome-chatgpt-prompts/blob/main/prompts.csv",
+            "format" = "csv"
+        );
+    """
+
+    qt_sql16 """
+        select count(*) from
+        http(
+            "uri" = "hf://datasets/fka/awesome-chatgpt-prompts/blob/main/*.csv",
+            "format" = "csv"
+        );
+    """
+    
+    qt_sql17 """
+        desc function
+        http(
+            "uri" = "hf://datasets/fka/awesome-chatgpt-prompts/blob/main/*.csv",
+            "format" = "csv"
+        );
+    """
 }
+
