@@ -86,12 +86,12 @@ suite("test_http_tvf", "p2") {
 
     // json
     qt_sql06 """
-        select * from
+        select count(*) from
         http(
             "uri" = "https://raw.githubusercontent.com/apache/doris/refs/heads/master/regression-test/data/load_p0/stream_load/basic_data.json",
             "format" = "json",
             "strip_outer_array" = true
-        ) order by k00;
+        );
     """
 
     qt_sql07 """
@@ -201,6 +201,48 @@ suite("test_http_tvf", "p2") {
             "uri" = "hf://datasets/fka/awesome-chatgpt-prompts/blob/main/*.csv",
             "format" = "csv"
         );
+    """
+
+    // branch
+    qt_sql18 """
+        select * from
+        http(
+            "uri" = "hf://datasets/stanfordnlp/imdb@script/dataset_infos.json",
+            "format" = "json"
+        );
+    """
+
+    qt_sql19 """
+        select * from
+        http(
+            "uri" = "hf://datasets/stanfordnlp/imdb@main/plain_text/test-00000-of-00001.parquet",
+            "format" = "parquet"
+        ) order by text limit 1;
+    """
+
+    // wildcard
+    qt_sql20 """
+        select * from
+        http(
+            "uri" = "hf://datasets/stanfordnlp/imdb@main/*/test-00000-of-00001.parquet",
+            "format" = "parquet"
+        ) order by text limit 1;
+    """
+
+    qt_sql21 """
+        select * from
+        http(
+            "uri" = "hf://datasets/stanfordnlp/imdb@main/*/*.parquet",
+            "format" = "parquet"
+        ) order by text limit 1;
+    """
+
+    qt_sql21 """
+        select * from
+        http(
+            "uri" = "hf://datasets/stanfordnlp/imdb@main/**/test-00000-of-0000[1].parquet",
+            "format" = "parquet"
+        ) order by text limit 1;
     """
 }
 

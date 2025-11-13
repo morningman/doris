@@ -44,15 +44,15 @@ import java.util.Map;
 
 /**
  * Utility class for handling HuggingFace URLs and converting them to HTTP URLs.
- * 
+ *
  * This class provides functionality to parse hf:// URLs and convert them to
  * actual HTTP URLs that can be used to access files on HuggingFace Hub.
- * 
+ *
  * Supported URL formats:
  * - hf://datasets/username/dataset-name/path/to/file.parquet
  * - hf://datasets/username/dataset-name@revision/path/to/file.parquet
  * - hf://spaces/username/space-name/path/to/file.txt
- * 
+ *
  * Example usage:
  * String hfUrl = "hf://datasets/lhoestq/demo1/default/train/0000.parquet";
  * String httpUrl = HFUtils.convertHfUrlToHttpUrl(hfUrl);
@@ -132,7 +132,7 @@ public class HFUtils {
 
     /**
      * Convert a HuggingFace URL to an HTTP URL
-     * 
+     *
      * @param hfUrl The hf:// URL to convert
      * @return The corresponding HTTP URL
      * @throws AnalysisException if the URL format is invalid
@@ -149,7 +149,7 @@ public class HFUtils {
 
     /**
      * Parse a HuggingFace URL into its components
-     * 
+     *
      * @param url The hf:// URL to parse
      * @return ParsedHFUrl object containing the parsed components
      * @throws AnalysisException if the URL format is invalid
@@ -251,7 +251,7 @@ public class HFUtils {
 
     /**
      * Build HTTP URL from parsed HF URL components
-     * 
+     *
      * @param parsedUrl The parsed HF URL components
      * @return The HTTP URL string
      */
@@ -277,7 +277,7 @@ public class HFUtils {
 
     /**
      * Validate if a URL is a valid HuggingFace URL
-     * 
+     *
      * @param url The URL to validate
      * @return true if it's a valid hf:// URL, false otherwise
      */
@@ -299,7 +299,7 @@ public class HFUtils {
     /**
      * Get the tree API URL for listing files in a repository
      * This is useful for implementing glob patterns or directory listing
-     * 
+     *
      * @param parsedUrl The parsed HF URL components
      * @param limit Optional limit for the number of results (0 means no limit)
      * @return The tree API URL
@@ -311,7 +311,7 @@ public class HFUtils {
 
     /**
      * Get the tree API URL for listing files in a specific path
-     * 
+     *
      * @param parsedUrl The parsed HF URL components
      * @param path The specific path to list
      * @param limit Optional limit for the number of results (0 means no limit)
@@ -351,7 +351,7 @@ public class HFUtils {
 
     /**
      * Extract repository information from HF URL for display purposes
-     * 
+     *
      * @param hfUrl The hf:// URL
      * @return A human-readable repository description
      * @throws AnalysisException if the URL is invalid
@@ -364,7 +364,7 @@ public class HFUtils {
 
     /**
      * Expand a HuggingFace URL with glob patterns to matching file URLs
-     * 
+     *
      * @param hfGlobUrl The hf:// URL with glob patterns
      * @return List of HTTP URLs that match the glob pattern
      * @throws AnalysisException if the URL format is invalid or glob processing fails
@@ -375,7 +375,7 @@ public class HFUtils {
 
     /**
      * Expand a HuggingFace URL with glob patterns to matching file URLs
-     * 
+     *
      * @param hfGlobUrl The hf:// URL with glob patterns
      * @param authToken Optional authentication token for private repositories
      * @return List of HTTP URLs that match the glob pattern
@@ -416,9 +416,27 @@ public class HFUtils {
 
             List<String> allFilePaths = new ArrayList<>();
 
+            // Calculate the depth needed for recursion
+            // Count the number of path components in the pattern after the shared prefix
+            String remainingPattern = path.substring(sharedPath.length());
+            int patternDepth = splitPath(remainingPattern).size();
+
+            // If pattern contains **, we need unlimited recursion
+            boolean unlimitedRecursion = path.contains("**");
+
+            // For a pattern like /*/*.parquet (depth=2), we need to recurse into depth 1
+            // to list files at depth 2. So maxRecursionDepth = patternDepth - 1
+            // But if patternDepth is 1 or less, we still need depth 0, so use Math.max
+            int maxRecursionDepth = unlimitedRecursion ? Integer.MAX_VALUE : Math.max(0, patternDepth - 1);
+
+            // Track depth for each path being processed
+            Map<String, Integer> pathDepths = new HashMap<>();
+            pathDepths.put(sharedPath, 0);
+
             // Process directories recursively if needed
             while (!pathsToProcess.isEmpty()) {
                 String currentPath = pathsToProcess.remove(0);
+                int currentDepth = pathDepths.getOrDefault(currentPath, 0);
 
                 // List files in current directory
                 List<String> files = new ArrayList<>();
@@ -428,9 +446,13 @@ public class HFUtils {
                 // Add all file paths
                 allFilePaths.addAll(files);
 
-                // Add directories for recursive processing if pattern contains **
-                if (path.contains("**")) {
-                    pathsToProcess.addAll(directories);
+                // Add directories for recursive processing based on pattern depth
+                // We need to recurse if current depth is less than max recursion depth
+                if (currentDepth < maxRecursionDepth) {
+                    for (String dir : directories) {
+                        pathsToProcess.add(dir);
+                        pathDepths.put(dir, currentDepth + 1);
+                    }
                 }
             }
 
@@ -509,7 +531,7 @@ public class HFUtils {
     /**
      * List files from HuggingFace API with pagination support
      */
-    private static void listHuggingFaceFiles(ParsedHFUrl parsedUrl, String path, 
+    private static void listHuggingFaceFiles(ParsedHFUrl parsedUrl, String path,
                                            Map<String, String> headers,
                                            List<String> files, List<String> directories) throws AnalysisException {
         // Build API URL
@@ -551,7 +573,7 @@ public class HFUtils {
 
     /**
      * Check if a path contains wildcard characters
-     * 
+     *
      * @param path The path to check
      * @return true if the path contains wildcards, false otherwise
      */
@@ -565,7 +587,7 @@ public class HFUtils {
 
     /**
      * Get the longest prefix of a path that doesn't contain wildcards
-     * 
+     *
      * @param path The path to analyze
      * @return The longest prefix without wildcards
      */
@@ -602,7 +624,7 @@ public class HFUtils {
     /**
      * Match a file path against a glob pattern
      * This is a simplified implementation based on DuckDB's Match function
-     * 
+     *
      * @param filePath The file path to match
      * @param globPattern The glob pattern
      * @return true if the file matches the pattern, false otherwise
@@ -618,7 +640,7 @@ public class HFUtils {
             PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + globPattern);
             return matcher.matches(Paths.get(filePath));
         } catch (Exception e) {
-            LOG.warn("Failed to match glob pattern: {} against file: {}, error: {}", 
+            LOG.warn("Failed to match glob pattern: {} against file: {}, error: {}",
                     globPattern, filePath, e.getMessage());
             return false;
         }
@@ -626,7 +648,7 @@ public class HFUtils {
 
     /**
      * Split a path into components for pattern matching
-     * 
+     *
      * @param path The path to split
      * @return List of path components
      */
@@ -649,7 +671,7 @@ public class HFUtils {
     /**
      * Advanced pattern matching similar to DuckDB's Match function
      * Supports ** for recursive matching
-     * 
+     *
      * @param pathComponents The path components to match
      * @param patternComponents The pattern components
      * @return true if the path matches the pattern, false otherwise
@@ -705,7 +727,7 @@ public class HFUtils {
 
     /**
      * Validate if a URL contains valid glob patterns
-     * 
+     *
      * @param hfUrl The hf:// URL to validate
      * @return true if it's a valid glob URL, false otherwise
      */
@@ -725,8 +747,9 @@ public class HFUtils {
 
     private static void throwParseError(String url) throws AnalysisException {
         throw new AnalysisException(
-            String.format("Failed to parse HuggingFace URL: '%s'. " +
-                "Please format URL like: 'hf://datasets/username/dataset-name/path/to/file.parquet' " +
-                "or 'hf://datasets/username/dataset-name@revision/path/to/file.parquet'", url));
+            String.format("Failed to parse HuggingFace URL: '%s'. "
+                + "Please format URL like: 'hf://datasets/username/dataset-name/path/to/file.parquet' "
+                + "or 'hf://datasets/username/dataset-name@revision/path/to/file.parquet'", url));
     }
 }
+
