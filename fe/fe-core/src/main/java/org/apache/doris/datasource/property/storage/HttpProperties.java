@@ -20,6 +20,7 @@ package org.apache.doris.datasource.property.storage;
 import org.apache.doris.common.UserException;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import org.apache.hudi.common.util.MapUtils;
 
 import java.util.Map;
@@ -76,5 +77,16 @@ public class HttpProperties extends StorageProperties {
     @Override
     protected Set<String> schemas() {
         return ImmutableSet.of("http");
+    }
+
+    public Map<String, String> getHeaders() {
+        Map<String, String> headers = Maps.newHashMap();
+        for (Map.Entry<String, String> entry : origProps.entrySet()) {
+            if (entry.getKey().toLowerCase().startsWith("http.header.")) {
+                String headerKey = entry.getKey().substring("http.header.".length());
+                headers.put(headerKey, entry.getValue());
+            }
+        }
+        return headers;
     }
 }

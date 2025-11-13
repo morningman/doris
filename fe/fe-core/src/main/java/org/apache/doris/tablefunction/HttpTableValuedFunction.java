@@ -61,7 +61,8 @@ public class HttpTableValuedFunction extends ExternalFileTableValuedFunction {
     private void generateFileStatus() throws Exception {
         this.fileStatuses.clear();
         if (this.uri.startsWith("http://") || this.uri.startsWith("https://")) {
-            this.fileStatuses.add(new TBrokerFileStatus(this.uri, false, HttpUtils.getHttpFileSize(this.uri), true));
+            this.fileStatuses.add(new TBrokerFileStatus(this.uri, false,
+                    HttpUtils.getHttpFileSize(this.uri, this.httpProperties.getHeaders()), true));
         } else if (this.uri.startsWith("hf://")) {
             List<String> fileUrls = HFUtils.expandGlob(this.uri);
             if (LOG.isDebugEnabled()) {
@@ -70,7 +71,8 @@ public class HttpTableValuedFunction extends ExternalFileTableValuedFunction {
                 }
             }
             for (String fileUrl : fileUrls) {
-                this.fileStatuses.add(new TBrokerFileStatus(fileUrl, false, HttpUtils.getHttpFileSize(fileUrl), true));
+                this.fileStatuses.add(new TBrokerFileStatus(fileUrl, false,
+                        HttpUtils.getHttpFileSize(fileUrl, this.httpProperties.getHeaders()), true));
             }
         } else {
             throw new AnalysisException("HttpTableValuedFunction uri is invalid: " + this.uri);
