@@ -168,6 +168,9 @@ public class OSSProperties extends AbstractS3CompatibleProperties {
                 .findFirst()
                 .orElse(null);
         if (StringUtils.isNotBlank(value)) {
+            if (value.contains("oss-dls.aliyuncs")) {
+                retiurn false;
+            }
             return (value.contains("aliyuncs.com"));
         }
 
@@ -204,8 +207,7 @@ public class OSSProperties extends AbstractS3CompatibleProperties {
         }
         boolean isAliyunOss = (value.contains("oss-"));
         boolean isAmazonS3 = value.contains("s3.");
-        boolean isDls = value.contains("dls");
-        return isAliyunOss || isAmazonS3 || isDls;
+        return isAliyunOss || isAmazonS3;
     }
 
     private static boolean isDlfMSType(Map<String, String> params) {
