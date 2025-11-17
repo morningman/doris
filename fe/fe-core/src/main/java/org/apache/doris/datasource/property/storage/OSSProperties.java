@@ -199,6 +199,9 @@ public class OSSProperties extends AbstractS3CompatibleProperties {
         if (value == null) {
             return false;
         }
+        if (value.contains("oss-dls")) {
+            return false;
+        }
         if (value.startsWith("oss://")) {
             return true;
         }
