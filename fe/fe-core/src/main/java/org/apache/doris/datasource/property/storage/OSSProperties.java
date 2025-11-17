@@ -169,7 +169,7 @@ public class OSSProperties extends AbstractS3CompatibleProperties {
                 .orElse(null);
         if (StringUtils.isNotBlank(value)) {
             if (value.contains("oss-dls.aliyuncs")) {
-                retiurn false;
+                return false;
             }
             return (value.contains("aliyuncs.com"));
         }
