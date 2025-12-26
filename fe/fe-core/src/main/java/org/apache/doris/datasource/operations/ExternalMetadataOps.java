@@ -140,14 +140,14 @@ public interface ExternalMetadataOps {
      * @param dorisTable
      * @param partitions
      */
-    default void truncateTable(ExternalTable dorisTable, List<String> partitions) throws DdlException {
+    default void truncateTable(ExternalTable dorisTable, List<String> partitions, long updateTime) throws DdlException {
         truncateTableImpl(dorisTable, partitions);
-        afterTruncateTable(dorisTable.getDbName(), dorisTable.getName());
+        afterTruncateTable(dorisTable.getDbName(), dorisTable.getName(), updateTime);
     }
 
     void truncateTableImpl(ExternalTable dorisTable, List<String> partitions) throws DdlException;
 
-    default void afterTruncateTable(String dbName, String tblName) {
+    default void afterTruncateTable(String dbName, String tblName, long updateTime) {
     }
 
     /**

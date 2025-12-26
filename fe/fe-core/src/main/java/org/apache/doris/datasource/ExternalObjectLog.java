@@ -72,11 +72,13 @@ public class ExternalObjectLog implements Writable {
         return externalObjectLog;
     }
 
-    public static ExternalObjectLog createForRefreshTable(long catalogId, String dbName, String tblName) {
+    public static ExternalObjectLog createForRefreshTable(long catalogId, String dbName, String tblName,
+            long updateTime) {
         ExternalObjectLog externalObjectLog = new ExternalObjectLog();
         externalObjectLog.setCatalogId(catalogId);
         externalObjectLog.setDbName(dbName);
         externalObjectLog.setTableName(tblName);
+        externalObjectLog.setLastUpdateTime(updateTime);
         return externalObjectLog;
     }
 

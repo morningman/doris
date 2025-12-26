@@ -56,6 +56,8 @@ public class TruncateTableInfo implements Writable {
     private Map<Long, String> oldPartitions = new HashMap<>();
     @SerializedName(value = "ur")
     private Map<Long, Long> updateRecords;
+    @SerializedName(value = "ut")
+    private long updateTime;
 
     public TruncateTableInfo() {
 
@@ -78,11 +80,12 @@ public class TruncateTableInfo implements Writable {
     }
 
     // for external table
-    public TruncateTableInfo(String ctl, String db, String table, List<String> partNames) {
+    public TruncateTableInfo(String ctl, String db, String table, List<String> partNames, long updateTime) {
         this.ctl = ctl;
         this.db = db;
         this.table = table;
         this.extPartNames = partNames;
+        this.updateTime = updateTime;
     }
 
     public String getCtl() {
@@ -127,6 +130,10 @@ public class TruncateTableInfo implements Writable {
 
     public Map<Long, Long> getUpdateRecords() {
         return updateRecords;
+    }
+
+    public long getUpdateTime() {
+        return updateTime;
     }
 
     public static TruncateTableInfo read(DataInput in) throws IOException {

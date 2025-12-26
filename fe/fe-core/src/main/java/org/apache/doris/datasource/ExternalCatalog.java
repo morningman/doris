@@ -1331,8 +1331,9 @@ public abstract class ExternalCatalog
                 partitions = partitionNames.getPartitionNames();
             }
             ExternalTable dorisTable = getDbOrDdlException(dbName).getTableOrDdlException(tableName);
-            metadataOps.truncateTable(dorisTable, partitions);
-            TruncateTableInfo info = new TruncateTableInfo(getName(), dbName, tableName, partitions);
+            long updateTime = System.currentTimeMillis();
+            metadataOps.truncateTable(dorisTable, partitions, updateTime);
+            TruncateTableInfo info = new TruncateTableInfo(getName(), dbName, tableName, partitions, updateTime);
             Env.getCurrentEnv().getEditLog().logTruncateTable(info);
         } catch (Exception e) {
             LOG.warn("Failed to truncate table {}.{} in catalog {}", dbName, tableName, getName(), e);
@@ -1342,7 +1343,7 @@ public abstract class ExternalCatalog
 
     public void replayTruncateTable(TruncateTableInfo info) {
         if (metadataOps != null) {
-            metadataOps.afterTruncateTable(info.getDb(), info.getTable());
+            metadataOps.afterTruncateTable(info.getDb(), info.getTable(), info.getUpdateTime());
         }
     }
 
@@ -1522,7 +1523,7 @@ public abstract class ExternalCatalog
         Env.getCurrentEnv().getEditLog()
                 .logRefreshExternalTable(
                         ExternalObjectLog.createForRefreshTable(dorisTable.getCatalog().getId(),
-                                dorisTable.getDbName(), dorisTable.getName()));
+                                dorisTable.getDbName(), dorisTable.getName(), 0));
     }
 
     @Override

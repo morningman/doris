@@ -143,7 +143,7 @@ public class CacheAnalyzer {
                 enableSqlCache = true;
             }
         }
-        // alread remove the entrance of partition cache, so we force set to false
+        // already remove the entrance of partition cache, so we force set to false
         enablePartitionCache = false;
     }
 

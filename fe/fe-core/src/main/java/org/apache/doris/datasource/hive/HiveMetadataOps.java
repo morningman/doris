@@ -338,7 +338,7 @@ public class HiveMetadataOps implements ExternalMetadataOps {
     }
 
     @Override
-    public void afterTruncateTable(String dbName, String tblName) {
+    public void afterTruncateTable(String dbName, String tblName, long updateTime) {
         try {
             // Invalidate cache.
             Optional<ExternalDatabase<?>> db = catalog.getDbForReplay(dbName);
@@ -346,7 +346,7 @@ public class HiveMetadataOps implements ExternalMetadataOps {
                 Optional tbl = db.get().getTableForReplay(tblName);
                 if (tbl.isPresent()) {
                     Env.getCurrentEnv().getRefreshManager()
-                            .refreshTableInternal(db.get(), (ExternalTable) tbl.get(), 0);
+                            .refreshTableInternal(db.get(), (ExternalTable) tbl.get(), updateTime);
                 }
             }
         } catch (Exception e) {
