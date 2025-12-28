@@ -978,7 +978,7 @@ public class AnalysisManager implements Writable {
             return table.createAnalysisTask(analysisInfo);
         } catch (Throwable t) {
             LOG.warn("Failed to create task.", t);
-            throw new DdlException("Failed to create task", t);
+            throw new DdlException("Failed to create task: " + Util.getRootCauseMessage(t), t);
         }
     }
 

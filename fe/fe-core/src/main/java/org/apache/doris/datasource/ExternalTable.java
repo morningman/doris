@@ -309,7 +309,8 @@ public class ExternalTable implements TableIf, Writable, GsonPostProcessable {
 
     @Override
     public BaseAnalysisTask createAnalysisTask(AnalysisInfo info) {
-        throw new NotImplementedException("createAnalysisTask not implemented");
+        throw new NotImplementedException(
+                "createAnalysisTask is not implemented for table type: " + this.getClass().getSimpleName());
     }
 
     @Override
