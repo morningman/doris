@@ -3650,7 +3650,9 @@ public class Config extends ConfigBase {
     public static long resource_not_ready_sleep_seconds = 5;
 
     @ConfField(mutable = true, description = {
-            "设置为 true，如果查询无法选择到健康副本时，会打印出该 tablet 所有副本的详细信息，"})
+            "设置为 true，当使用 admin 或 root 用户进行操作时，会忽略 SQL Block Rule 中的 SQL 正则匹配规则。",
+            "Set to true to ignore SQL regex matching rules in SQL Block Rule "
+                    + "when using admin or root user for operations."})
     public static boolean sql_block_rule_ignore_admin = false;
 
     @ConfField(description = {"认证插件目录",
