@@ -129,7 +129,13 @@ public:
 
     virtual Status schedule_scan_task(std::shared_ptr<ScannerContext> scanner_ctx,
                                       std::shared_ptr<ScanTask> current_scan_task,
-                                      std::unique_lock<std::mutex>& transfer_lock) = 0;
+                                      std::unique_lock<std::mutex>& transfer_lock,
+                                      RuntimeProfile::Counter* s1,
+                                      RuntimeProfile::Counter* s2,
+                                      RuntimeProfile::Counter* s3,
+                                      RuntimeProfile::Counter* s4,
+                                      RuntimeProfile::Counter* s5
+                                      ) = 0;
 
 protected:
     int _min_active_scan_threads;
@@ -231,7 +237,14 @@ public:
 
     Status schedule_scan_task(std::shared_ptr<ScannerContext> scanner_ctx,
                               std::shared_ptr<ScanTask> current_scan_task,
-                              std::unique_lock<std::mutex>& transfer_lock) override;
+                              std::unique_lock<std::mutex>& transfer_lock,
+                                      RuntimeProfile::Counter* s1,
+                                      RuntimeProfile::Counter* s2,
+                                      RuntimeProfile::Counter* s3,
+                                      RuntimeProfile::Counter* s4,
+                                      RuntimeProfile::Counter* s5
+
+) override;
 
 private:
     std::unique_ptr<ThreadPool> _scan_thread_pool;
@@ -404,7 +417,12 @@ public:
 
     Status schedule_scan_task(std::shared_ptr<ScannerContext> scanner_ctx,
                               std::shared_ptr<ScanTask> current_scan_task,
-                              std::unique_lock<std::mutex>& transfer_lock) override;
+                              std::unique_lock<std::mutex>& transfer_lock,
+                                      RuntimeProfile::Counter* s1,
+                                      RuntimeProfile::Counter* s2,
+                                      RuntimeProfile::Counter* s3,
+                                      RuntimeProfile::Counter* s4,
+                                      RuntimeProfile::Counter* s5) override;
 
 private:
     std::atomic<bool> _is_stop;

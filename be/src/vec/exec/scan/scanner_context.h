@@ -131,7 +131,12 @@ public:
     );
 
     ~ScannerContext() override;
-    Status init();
+    Status init(
+        RuntimeProfile::Counter* s1,
+        RuntimeProfile::Counter* s2,
+        RuntimeProfile::Counter* s3,
+        RuntimeProfile::Counter* s4,
+        RuntimeProfile::Counter* s5);
 
     vectorized::BlockUPtr get_free_block(bool force);
     void return_free_block(vectorized::BlockUPtr block);
@@ -145,7 +150,12 @@ public:
 
     // Get next block from blocks queue. Called by ScanNode/ScanOperator
     // Set eos to true if there is no more data to read.
-    Status get_block_from_queue(RuntimeState* state, vectorized::Block* block, bool* eos, int id);
+    Status get_block_from_queue(RuntimeState* state, vectorized::Block* block, bool* eos, int id,
+            RuntimeProfile::Counter* c1,
+            RuntimeProfile::Counter* c2,
+            RuntimeProfile::Counter* c3,
+            RuntimeProfile::Counter* c4,
+            RuntimeProfile::Counter* c5);
 
     [[nodiscard]] Status validate_block_schema(Block* block);
 
@@ -199,7 +209,12 @@ public:
 
     Status schedule_scan_task(std::shared_ptr<ScanTask> current_scan_task,
                               std::unique_lock<std::mutex>& transfer_lock,
-                              std::unique_lock<std::shared_mutex>& scheduler_lock);
+                              std::unique_lock<std::shared_mutex>& scheduler_lock,
+                                      RuntimeProfile::Counter* s1,
+                                      RuntimeProfile::Counter* s2,
+                                      RuntimeProfile::Counter* s3,
+                                      RuntimeProfile::Counter* s4,
+                                      RuntimeProfile::Counter* s5);
 
 protected:
     /// Four criteria to determine whether to increase the parallelism of the scanners

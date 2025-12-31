@@ -26,15 +26,35 @@ class ScanTask;
 
 Status TaskExecutorSimplifiedScanScheduler::schedule_scan_task(
         std::shared_ptr<ScannerContext> scanner_ctx, std::shared_ptr<ScanTask> current_scan_task,
-        std::unique_lock<std::mutex>& transfer_lock) {
+        std::unique_lock<std::mutex>& transfer_lock,
+                                      RuntimeProfile::Counter* s1,
+                                      RuntimeProfile::Counter* s2,
+                                      RuntimeProfile::Counter* s3,
+                                      RuntimeProfile::Counter* s4,
+                                      RuntimeProfile::Counter* s5) {
+    // SCOPED_TIMER(s1);
+    MonotonicStopWatch watch;
+    watch.start();
     std::unique_lock<std::shared_mutex> wl(_lock);
-    return scanner_ctx->schedule_scan_task(current_scan_task, transfer_lock, wl);
+    LOG(INFO) << "yy debug lock time: " << watch.elapsed_time_microseconds();
+    SCOPED_TIMER(s2);
+    return scanner_ctx->schedule_scan_task(current_scan_task, transfer_lock, wl,s1,s2,s3,s4,s5);
 }
 
 Status ThreadPoolSimplifiedScanScheduler::schedule_scan_task(
         std::shared_ptr<ScannerContext> scanner_ctx, std::shared_ptr<ScanTask> current_scan_task,
-        std::unique_lock<std::mutex>& transfer_lock) {
+        std::unique_lock<std::mutex>& transfer_lock,
+                                      RuntimeProfile::Counter* s1,
+                                      RuntimeProfile::Counter* s2,
+                                      RuntimeProfile::Counter* s3,
+                                      RuntimeProfile::Counter* s4,
+                                      RuntimeProfile::Counter* s5) {
+    // SCOPED_TIMER(s1);
+    MonotonicStopWatch watch;
+    watch.start();
     std::unique_lock<std::shared_mutex> wl(_lock);
-    return scanner_ctx->schedule_scan_task(current_scan_task, transfer_lock, wl);
+    LOG(INFO) << "yy debug 2 lock time: " << watch.elapsed_time_microseconds();
+    SCOPED_TIMER(s2);
+    return scanner_ctx->schedule_scan_task(current_scan_task, transfer_lock, wl,s1,s2,s3,s4,s5);
 }
 } // namespace doris::vectorized

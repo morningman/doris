@@ -115,6 +115,7 @@ Status ScanLocalState<Derived>::init(RuntimeState* state, LocalStateInfo& info) 
     _wait_for_dependency_timer = ADD_TIMER_WITH_LEVEL(
             common_profile(), "WaitForDependency[" + _scan_dependency->name() + "]Time", 1);
     SCOPED_TIMER(exec_time_counter());
+    SCOPED_TIMER(c_timer_counter1());
     SCOPED_TIMER(_init_timer);
     auto& p = _parent->cast<typename Derived::Parent>();
     RETURN_IF_ERROR(_helper.init(state, p.is_serial_operator(), p.node_id(), p.operator_id(),
@@ -129,6 +130,7 @@ Status ScanLocalState<Derived>::init(RuntimeState* state, LocalStateInfo& info) 
 template <typename Derived>
 Status ScanLocalState<Derived>::open(RuntimeState* state) {
     SCOPED_TIMER(exec_time_counter());
+    SCOPED_TIMER(c_timer_counter2());
     SCOPED_TIMER(_open_timer);
     if (_opened) {
         return Status::OK();
@@ -174,7 +176,7 @@ Status ScanLocalState<Derived>::open(RuntimeState* state) {
     RETURN_IF_ERROR(status);
     if (_scanner_ctx) {
         DCHECK(!_eos && _num_scanners->value() > 0);
-        RETURN_IF_ERROR(_scanner_ctx->init());
+        RETURN_IF_ERROR(_scanner_ctx->init(c_timer_scan2(), c_timer_scan3(), c_timer_scan4(),c_timer_scan5(), nullptr));
     }
     _opened = true;
     return status;
@@ -1351,6 +1353,7 @@ Status ScanLocalState<Derived>::close(RuntimeState* state) {
     }
     COUNTER_UPDATE(exec_time_counter(), rf_time);
     SCOPED_TIMER(_close_timer);
+    SCOPED_TIMER(c_timer_counter3());
 
     SCOPED_TIMER(exec_time_counter());
     if (_scanner_ctx) {
@@ -1382,7 +1385,15 @@ Status ScanOperatorX<LocalStateType>::get_block(RuntimeState* state, vectorized:
     }
 
     DCHECK(local_state._scanner_ctx != nullptr);
-    RETURN_IF_ERROR(local_state._scanner_ctx->get_block_from_queue(state, block, eos, 0));
+    {
+        SCOPED_TIMER(local_state.c_timer_counter4());
+        RETURN_IF_ERROR(local_state._scanner_ctx->get_block_from_queue(state, block, eos, 0,
+                local_state.c_timer_scan1(),
+                local_state.c_timer_scan2(),
+                local_state.c_timer_scan3(),
+                local_state.c_timer_scan4(),
+                local_state.c_timer_scan5()));
+    }
 
     local_state.reached_limit(block, eos);
     if (*eos) {

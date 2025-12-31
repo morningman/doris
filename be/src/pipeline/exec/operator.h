@@ -211,6 +211,18 @@ public:
     RuntimeProfile* custom_profile() { return _custom_profile.get(); }
 
     RuntimeProfile::Counter* exec_time_counter() { return _exec_timer; }
+    RuntimeProfile::Counter* c_timer_counter1() { return _c_timer1; }
+    RuntimeProfile::Counter* c_timer_counter2() { return _c_timer2; }
+    RuntimeProfile::Counter* c_timer_counter3() { return _c_timer3; }
+    RuntimeProfile::Counter* c_timer_counter4() { return _c_timer4; }
+    RuntimeProfile::Counter* c_timer_counter5() { return _c_timer5; }
+
+    RuntimeProfile::Counter* c_timer_scan1() { return _c_timer_scan1; }
+    RuntimeProfile::Counter* c_timer_scan2() { return _c_timer_scan2; }
+    RuntimeProfile::Counter* c_timer_scan3() { return _c_timer_scan3; }
+    RuntimeProfile::Counter* c_timer_scan4() { return _c_timer_scan4; }
+    RuntimeProfile::Counter* c_timer_scan5() { return _c_timer_scan5; }
+
     RuntimeProfile::Counter* memory_used_counter() { return _memory_used_counter; }
     OperatorXBase* parent() { return _parent; }
     RuntimeState* state() { return _state; }
@@ -282,6 +294,17 @@ protected:
     RuntimeProfile::Counter* _init_timer = nullptr;
     RuntimeProfile::Counter* _open_timer = nullptr;
     RuntimeProfile::Counter* _close_timer = nullptr;
+    RuntimeProfile::Counter* _c_timer1 = nullptr;
+    RuntimeProfile::Counter* _c_timer2 = nullptr;
+    RuntimeProfile::Counter* _c_timer3 = nullptr;
+    RuntimeProfile::Counter* _c_timer4 = nullptr;
+    RuntimeProfile::Counter* _c_timer5 = nullptr;
+
+    RuntimeProfile::Counter* _c_timer_scan1 = nullptr;
+    RuntimeProfile::Counter* _c_timer_scan2 = nullptr;
+    RuntimeProfile::Counter* _c_timer_scan3 = nullptr;
+    RuntimeProfile::Counter* _c_timer_scan4 = nullptr;
+    RuntimeProfile::Counter* _c_timer_scan5 = nullptr;
 
     OperatorXBase* _parent = nullptr;
     RuntimeState* _state = nullptr;

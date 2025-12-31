@@ -235,14 +235,14 @@ void PipelineTask::_init_profile() {
 
     static const char* exec_time = "ExecuteTime";
     _exec_timer = ADD_TIMER(_task_profile, exec_time);
-    _prepare_timer = ADD_CHILD_TIMER(_task_profile, "PrepareTime", exec_time);
-    _open_timer = ADD_CHILD_TIMER(_task_profile, "OpenTime", exec_time);
-    _get_block_timer = ADD_CHILD_TIMER(_task_profile, "GetBlockTime", exec_time);
-    _get_block_counter = ADD_COUNTER(_task_profile, "GetBlockCounter", TUnit::UNIT);
-    _sink_timer = ADD_CHILD_TIMER(_task_profile, "SinkTime", exec_time);
-    _close_timer = ADD_CHILD_TIMER(_task_profile, "CloseTime", exec_time);
+    _prepare_timer = ADD_CHILD_TIMER(_task_profile, "PrepareTime_p", exec_time);
+    _open_timer = ADD_CHILD_TIMER(_task_profile, "OpenTime_p", exec_time);
+    _get_block_timer = ADD_CHILD_TIMER(_task_profile, "GetBlockTime_p", exec_time);
+    _get_block_counter = ADD_COUNTER(_task_profile, "GetBlockCounter_p", TUnit::UNIT);
+    _sink_timer = ADD_CHILD_TIMER(_task_profile, "SinkTime_p", exec_time);
+    _close_timer = ADD_CHILD_TIMER(_task_profile, "CloseTime_p", exec_time);
 
-    _wait_worker_timer = ADD_TIMER_WITH_LEVEL(_task_profile, "WaitWorkerTime", 1);
+    _wait_worker_timer = ADD_TIMER_WITH_LEVEL(_task_profile, "WaitWorkerTime_p", 1);
 
     _schedule_counts = ADD_COUNTER(_task_profile, "NumScheduleTimes", TUnit::UNIT);
     _yield_counts = ADD_COUNTER(_task_profile, "NumYieldTimes", TUnit::UNIT);
