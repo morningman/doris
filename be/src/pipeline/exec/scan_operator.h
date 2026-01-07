@@ -96,6 +96,8 @@ public:
 
     [[nodiscard]] std::string get_name() { return _parent->get_name(); }
 
+    int parent_id() { return _parent->node_id(); }
+
     uint64_t get_condition_cache_digest() const { return _condition_cache_digest; }
 
 protected:
@@ -201,6 +203,8 @@ class ScanLocalState : public ScanLocalStateBase {
         }
         return result;
     }
+
+    int parent_id() { return _parent->node_id(); }
 
 protected:
     template <typename LocalStateType>

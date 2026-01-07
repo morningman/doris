@@ -105,14 +105,15 @@ FileScanner::FileScanner(RuntimeState* state, pipeline::FileScanLocalState* loca
                          int64_t limit,
                          std::shared_ptr<vectorized::SplitSourceConnector> split_source,
                          RuntimeProfile* profile, ShardedKVCache* kv_cache,
-                         const std::unordered_map<std::string, int>* colname_to_slot_id)
+                         const std::unordered_map<std::string, int>* colname_to_slot_id, int64_t idx)
         : Scanner(state, local_state, limit, profile),
           _split_source(split_source),
           _cur_reader(nullptr),
           _cur_reader_eof(false),
           _kv_cache(kv_cache),
           _strict_mode(false),
-          _col_name_to_slot_id(colname_to_slot_id) {
+          _col_name_to_slot_id(colname_to_slot_id),
+          _idx(idx) {
     if (state->get_query_ctx() != nullptr &&
         state->get_query_ctx()->file_scan_range_params_map.count(local_state->parent_id()) > 0) {
         _params = &(state->get_query_ctx()->file_scan_range_params_map[local_state->parent_id()]);
@@ -401,8 +402,10 @@ Status FileScanner::open(RuntimeState* state) {
             _init_runtime_filter_partition_prune_ctxs();
             _init_runtime_filter_partition_prune_block();
         }
+        LOG(INFO) << "yy debug scanner open get range: " << ((pipeline::FileScanLocalState*)_local_state)->parent_id() << ", idx: " << _idx;
     } else {
         // there's no scan range in split source. stop scanner directly.
+        LOG(INFO) << "yy debug scanner open empty: " << ((pipeline::FileScanLocalState*)_local_state)->parent_id() << ", idx: " << _idx;
         _scanner_eof = true;
     }
 
@@ -939,6 +942,7 @@ Status FileScanner::_get_next_reader() {
         if (!_first_scan_range) {
             RETURN_IF_ERROR(_split_source->get_next(&has_next, &_current_range));
         }
+        LOG(INFO) << "yy debug scanner get next reader: " << ((pipeline::FileScanLocalState*)_local_state)->parent_id() << ", idx: " << _idx << ", has_next: " << has_next;
         _first_scan_range = false;
         if (!has_next || _should_stop) {
             _scanner_eof = true;

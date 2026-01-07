@@ -90,7 +90,7 @@ Status FileScanLocalState::_init_scanners(std::list<vectorized::ScannerSPtr>* sc
     for (int i = 0; i < _max_scanners; ++i) {
         std::unique_ptr<vectorized::FileScanner> scanner = vectorized::FileScanner::create_unique(
                 state(), this, p._limit, _split_source, _scanner_profile.get(), _kv_cache.get(),
-                &p._colname_to_slot_id);
+                &p._colname_to_slot_id, i);
         RETURN_IF_ERROR(scanner->init(state(), _conjuncts));
         scanners->push_back(std::move(scanner));
     }
@@ -141,6 +141,7 @@ void FileScanLocalState::set_scan_ranges(RuntimeState* state,
         // currently the total number of splits in the bach split mode cannot be accurately obtained,
         // so we don't do it in the batch split mode.
         _max_scanners = std::min(_max_scanners, _split_source->num_scan_ranges());
+        _max_scanners = 16;
     }
 
     if (!scan_ranges.empty() &&

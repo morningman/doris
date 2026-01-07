@@ -52,7 +52,7 @@ public:
     Status _init_scanners(std::list<vectorized::ScannerSPtr>* scanners) override;
     void set_scan_ranges(RuntimeState* state,
                          const std::vector<TScanRangeParams>& scan_ranges) override;
-    int parent_id() { return _parent->node_id(); }
+    // int parent_id() { return _parent->node_id(); }
     std::string name_suffix() const override;
     int max_scanners_concurrency(RuntimeState* state) const override;
     int min_scanners_concurrency(RuntimeState* state) const override;

@@ -69,7 +69,7 @@ public:
     FileScanner(RuntimeState* state, pipeline::FileScanLocalState* parent, int64_t limit,
                 std::shared_ptr<vectorized::SplitSourceConnector> split_source,
                 RuntimeProfile* profile, ShardedKVCache* kv_cache,
-                const std::unordered_map<std::string, int>* colname_to_slot_id);
+                const std::unordered_map<std::string, int>* colname_to_slot_id, int64_t idx = -1);
 
     Status open(RuntimeState* state) override;
 
@@ -234,6 +234,8 @@ private:
                                                                                            -1};
     int64_t _last_bytes_read_from_local = 0;
     int64_t _last_bytes_read_from_remote = 0;
+
+    int64_t _idx = -1;
 
 private:
     Status _init_expr_ctxes();

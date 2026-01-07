@@ -576,8 +576,8 @@ Status ScannerContext::schedule_scan_task(std::shared_ptr<ScanTask> current_scan
         return Status::OK();
     }
 
-    VLOG_DEBUG << fmt::format("[{}:{}] submit {} scan tasks to scheduler, remaining scanner: {}",
-                              print_id(_query_id), ctx_id, tasks_to_submit.size(),
+    LOG(INFO) << fmt::format("yy debug [{}:{}:{}] submit {} scan tasks to scheduler, remaining scanner: {}",
+                              print_id(_query_id), ctx_id, _local_state->parent_id(), tasks_to_submit.size(),
                               _pending_scanners.size());
 
     for (auto& scan_task_iter : tasks_to_submit) {
