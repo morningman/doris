@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "common/status.h"
+#include "util/cpu_info.h"
 #include "util/rle_encoding.h"
 #include "util/slice.h"
 #include "vec/columns/column.h"
@@ -93,7 +94,13 @@ protected:
 
 class BaseDictDecoder : public Decoder {
 public:
-    BaseDictDecoder() = default;
+    BaseDictDecoder() {
+        // Initialize cache-aware threshold with L2 cache size
+        const auto& cache_sizes = CpuInfo::get_cache_sizes();
+        _dict_size_threshold = cache_sizes[CpuInfo::L2_CACHE] > 0
+                                       ? cache_sizes[CpuInfo::L2_CACHE]
+                                       : DEFAULT_L2_CACHE_SIZE;
+    }
     ~BaseDictDecoder() override = default;
 
     // Set the data to be decoded
@@ -152,10 +159,23 @@ protected:
         return Status::OK();
     }
 
+protected:
+    // Get dictionary size in bytes (to be implemented by subclasses)
+    virtual size_t _get_dict_size() const = 0;
+
+    // Check if cache-aware optimization should be enabled
+    bool _should_use_cache_aware_optimization() const {
+        return _get_dict_size() > _dict_size_threshold;
+    }
+
     // For dictionary encoding
     DorisUniqueBufferPtr<uint8_t> _dict;
     std::unique_ptr<RleBatchDecoder<uint32_t>> _index_batch_decoder;
     std::vector<uint32_t> _indexes;
+
+private:
+    static constexpr size_t DEFAULT_L2_CACHE_SIZE = 1 * 1024 * 1024; // 1MB
+    size_t _dict_size_threshold = DEFAULT_L2_CACHE_SIZE;
 };
 #include "common/compile_check_end.h"
 

@@ -17,7 +17,9 @@
 
 #pragma once
 
+#include "common/config.h"
 #include "util/bit_util.h"
+#include "util/memcpy_inlined.h"
 #include "vec/columns/column_dictionary.h"
 #include "vec/columns/column_nullable.h"
 #include "vec/data_types/data_type_nullable.h"
@@ -100,10 +102,85 @@ public:
             return _decode_dict_values<has_filter>(doris_column, select_vector, is_dict_filter);
         }
 
+        // Apply cache-aware optimization: if dictionary is small, decode all values
+        // regardless of filter to leverage cache locality and vectorization
+        bool use_cache_aware = _should_use_cache_aware_optimization() &&
+                               config::parquet_cache_aware_dict_decoder_enable;
+        if (use_cache_aware && has_filter) {
+            // For small dictionaries, decode all values ignoring filter
+            return _decode_fixed_values_batch(doris_column, data_type, select_vector);
+        }
         return _decode_fixed_values<has_filter>(doris_column, data_type, select_vector);
     }
 
 protected:
+    // Get dictionary size in bytes
+    size_t _get_dict_size() const override {
+        if constexpr (PhysicalType == tparquet::Type::FIXED_LEN_BYTE_ARRAY) {
+            return _dict_items.size() * _type_length;
+        } else {
+            return _dict_items.size() * sizeof(cppType);
+        }
+    }
+
+    // Batch decode all values ignoring filter (for small dictionaries)
+    // This leverages cache locality and vectorization for small dictionaries.
+    // For small dictionaries, the cost of dictionary lookup is low, so we decode
+    // all values (including filtered ones) to benefit from sequential access patterns.
+    // Note: _indexes should already be populated by _decode_values before calling this method.
+    Status _decode_fixed_values_batch(MutableColumnPtr& doris_column, DataTypePtr& data_type,
+                                      ColumnSelectVector& select_vector) {
+        size_t primitive_length = remove_nullable(data_type)->get_size_of_value_in_memory();
+        size_t data_index = doris_column->size() * primitive_length;
+        size_t total_values = select_vector.num_values();
+        size_t scale_size = total_values * (_type_length / primitive_length);
+        doris_column->resize(doris_column->size() + scale_size);
+        char* raw_data = const_cast<char*>(doris_column->get_raw_data().data);
+        
+        // Decode all non-null values in batch (including filtered ones)
+        // The filter will be applied later in the pipeline to remove unwanted values
+        // _indexes is already populated in _decode_values
+        if constexpr (PhysicalType == tparquet::Type::FIXED_LEN_BYTE_ARRAY) {
+            char* dst_ptr = raw_data + data_index;
+            size_t dict_index = 0;
+            ColumnSelectVector::DataReadType read_type;
+            // Process all values including filtered ones for cache-aware optimization
+            while (size_t run_length = select_vector.get_next_run<true>(&read_type)) {
+                if (read_type == ColumnSelectVector::CONTENT ||
+                    read_type == ColumnSelectVector::FILTERED_CONTENT) {
+                    // Decode both content and filtered content
+                    for (size_t i = 0; i < run_length; ++i) {
+                        auto& slice = _dict_items[_indexes[dict_index++]];
+                        doris::memcpy_inlined(dst_ptr, slice.get_data(), _type_length);
+                        dst_ptr += _type_length;
+                    }
+                } else if (read_type == ColumnSelectVector::NULL_DATA ||
+                           read_type == ColumnSelectVector::FILTERED_NULL) {
+                    // Skip null positions
+                    dst_ptr += run_length * _type_length;
+                }
+            }
+        } else {
+            cppType* dst_ptr = reinterpret_cast<cppType*>(raw_data + data_index);
+            size_t dict_index = 0;
+            ColumnSelectVector::DataReadType read_type;
+            while (size_t run_length = select_vector.get_next_run<true>(&read_type)) {
+                if (read_type == ColumnSelectVector::CONTENT ||
+                    read_type == ColumnSelectVector::FILTERED_CONTENT) {
+                    // Decode both content and filtered content
+                    for (size_t i = 0; i < run_length; ++i) {
+                        *dst_ptr++ = _dict_items[_indexes[dict_index++]];
+                    }
+                } else if (read_type == ColumnSelectVector::NULL_DATA ||
+                           read_type == ColumnSelectVector::FILTERED_NULL) {
+                    // Skip null positions
+                    dst_ptr += run_length;
+                }
+            }
+        }
+        
+        return Status::OK();
+    }
     template <bool has_filter>
     Status _decode_fixed_values(MutableColumnPtr& doris_column, DataTypePtr& data_type,
                                 ColumnSelectVector& select_vector) {
@@ -120,14 +197,41 @@ protected:
         while (size_t run_length = select_vector.get_next_run<has_filter>(&read_type)) {
             switch (read_type) {
             case ColumnSelectVector::CONTENT: {
-                for (size_t i = 0; i < run_length; ++i) {
-                    if constexpr (PhysicalType == tparquet::Type::FIXED_LEN_BYTE_ARRAY) {
-                        auto& slice = _dict_items[_indexes[dict_index++]];
-                        memcpy(raw_data + data_index, slice.get_data(), _type_length);
-                    } else {
-                        *(cppType*)(raw_data + data_index) = _dict_items[_indexes[dict_index++]];
+                if constexpr (PhysicalType == tparquet::Type::FIXED_LEN_BYTE_ARRAY) {
+                    // Optimized path: use memcpy_inlined and reduce address calculations
+                    char* dst_ptr = raw_data + data_index;
+                    size_t i = 0;
+                    // Loop unrolling: process 4 elements at a time
+                    for (; i + 4 <= run_length; i += 4) {
+                        auto& slice0 = _dict_items[_indexes[dict_index++]];
+                        doris::memcpy_inlined(dst_ptr, slice0.get_data(), _type_length);
+                        dst_ptr += _type_length;
+                        
+                        auto& slice1 = _dict_items[_indexes[dict_index++]];
+                        doris::memcpy_inlined(dst_ptr, slice1.get_data(), _type_length);
+                        dst_ptr += _type_length;
+                        
+                        auto& slice2 = _dict_items[_indexes[dict_index++]];
+                        doris::memcpy_inlined(dst_ptr, slice2.get_data(), _type_length);
+                        dst_ptr += _type_length;
+                        
+                        auto& slice3 = _dict_items[_indexes[dict_index++]];
+                        doris::memcpy_inlined(dst_ptr, slice3.get_data(), _type_length);
+                        dst_ptr += _type_length;
                     }
-                    data_index += _type_length;
+                    // Process remaining elements
+                    for (; i < run_length; ++i) {
+                        auto& slice = _dict_items[_indexes[dict_index++]];
+                        doris::memcpy_inlined(dst_ptr, slice.get_data(), _type_length);
+                        dst_ptr += _type_length;
+                    }
+                    data_index = dst_ptr - raw_data;
+                } else {
+                    // Original path for non-FIXED_LEN_BYTE_ARRAY types
+                    for (size_t i = 0; i < run_length; ++i) {
+                        *(cppType*)(raw_data + data_index) = _dict_items[_indexes[dict_index++]];
+                        data_index += _type_length;
+                    }
                 }
                 break;
             }

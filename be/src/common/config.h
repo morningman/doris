@@ -1035,6 +1035,8 @@ DECLARE_mInt32(in_memory_file_size);
 
 // Max size of parquet page header in bytes
 DECLARE_mInt32(parquet_header_max_size_mb);
+// Enable cache-aware dictionary decoder optimization
+DECLARE_mBool(parquet_cache_aware_dict_decoder_enable);
 // Max buffer size for parquet row group
 DECLARE_mInt32(parquet_rowgroup_max_buffer_mb);
 // Max buffer size for parquet chunk column
