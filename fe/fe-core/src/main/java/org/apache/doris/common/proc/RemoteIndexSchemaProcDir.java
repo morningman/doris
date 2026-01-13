@@ -70,7 +70,7 @@ public class RemoteIndexSchemaProcDir implements ProcDirInterface {
         }
         List<Column> remoteSchema = new FetchRemoteTabletSchemaUtil(tablets).fetch();
         this.schema.addAll(remoteSchema);
-        return IndexSchemaProcNode.createResult(this.schema, this.bfColumns);
+        return IndexSchemaProcNode.createResult(this.table, this.schema, this.bfColumns);
     }
 
     @Override

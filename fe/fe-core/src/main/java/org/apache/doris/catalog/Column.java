@@ -373,6 +373,14 @@ public class Column implements Writable, GsonPostProcessable {
         }
     }
 
+    public String getDisplayName(boolean isOlap) {
+        if (isOlap) {
+            return getDisplayName();
+        } else {
+            return name;
+        }
+    }
+
     public String getNameWithoutPrefix(String prefix) {
         if (isNameWithPrefix(prefix)) {
             return name.substring(prefix.length());

@@ -105,7 +105,7 @@ public class TableSchemaAction extends RestBaseController {
                         }
                         baseInfo.put("type", primitiveType.toString());
                         baseInfo.put("comment", column.getComment());
-                        baseInfo.put("name", column.getDisplayName());
+                        baseInfo.put("name", column.getDisplayName(table instanceof OlapTable));
                         Optional aggregationType = Optional.ofNullable(column.getAggregationType());
                         baseInfo.put("aggregation_type", aggregationType.isPresent()
                                 ? column.getAggregationType().toSql() : "");

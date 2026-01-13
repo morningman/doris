@@ -25,6 +25,7 @@ import org.apache.doris.catalog.DatabaseIf;
 import org.apache.doris.catalog.KeysType;
 import org.apache.doris.catalog.OlapTable;
 import org.apache.doris.catalog.Partition;
+import org.apache.doris.catalog.Table;
 import org.apache.doris.catalog.TableIf;
 import org.apache.doris.common.Pair;
 import org.apache.doris.datasource.hive.HMSExternalDatabase;
@@ -295,12 +296,14 @@ public class BindSink implements AnalysisRuleFactory {
         List<Column> shadowColumns = Lists.newArrayList();
         // generate slots not mentioned in sql, mv slots and shaded slots.
         for (Column column : boundSink.getTargetTable().getFullSchema()) {
-            if (column.isMaterializedViewColumn()) {
-                materializedViewColumn.add(column);
-                continue;
-            } else if (Column.isShadowColumn(column.getName())) {
-                shadowColumns.add(column);
-                continue;
+            if (table instanceof OlapTable) {
+                if (column.isMaterializedViewColumn()) {
+                    materializedViewColumn.add(column);
+                    continue;
+                } else if (Column.isShadowColumn(column.getName())) {
+                    shadowColumns.add(column);
+                    continue;
+                }
             }
             if (columnToChildOutput.containsKey(column)
                     // do not process explicitly use DEFAULT value here:
@@ -404,27 +407,29 @@ public class BindSink implements AnalysisRuleFactory {
                 }
             }
         }
-        for (Column column : materializedViewColumn) {
-            if (column.isMaterializedViewColumn()) {
-                List<SlotRef> refs = column.getRefColumns();
-                // now we have to replace the column to slots.
-                Preconditions.checkArgument(refs != null,
-                        "mv column %s 's ref column cannot be null", column);
-                Expression parsedExpression = expressionParser.parseExpression(
-                        column.getDefineExpr().toSqlWithoutTbl());
-                // the boundSlotExpression is an expression whose slots are bound but function
-                // may not be bound, we have to bind it again.
-                // for example: to_bitmap.
-                Expression boundExpression = new CustomExpressionAnalyzer(
-                        boundSink, ctx.cascadesContext, columnToReplaced).analyze(parsedExpression);
-                if (boundExpression instanceof Alias) {
-                    boundExpression = ((Alias) boundExpression).child();
+        if (table instanceof  OlapTable) {
+            for (Column column : materializedViewColumn) {
+                if (column.isMaterializedViewColumn()) {
+                    List<SlotRef> refs = column.getRefColumns();
+                    // now we have to replace the column to slots.
+                    Preconditions.checkArgument(refs != null,
+                            "mv column %s 's ref column cannot be null", column);
+                    Expression parsedExpression = expressionParser.parseExpression(
+                            column.getDefineExpr().toSqlWithoutTbl());
+                    // the boundSlotExpression is an expression whose slots are bound but function
+                    // may not be bound, we have to bind it again.
+                    // for example: to_bitmap.
+                    Expression boundExpression = new CustomExpressionAnalyzer(
+                            boundSink, ctx.cascadesContext, columnToReplaced).analyze(parsedExpression);
+                    if (boundExpression instanceof Alias) {
+                        boundExpression = ((Alias) boundExpression).child();
+                    }
+                    boundExpression = ExpressionUtils.replace(boundExpression, replaceMap);
+                    boundExpression = TypeCoercionUtils.castIfNotSameType(boundExpression,
+                            DataType.fromCatalogType(column.getType()));
+                    Alias output = new Alias(boundExpression, column.getDefineExpr().toSqlWithoutTbl());
+                    columnToOutput.put(column.getName(), output);
                 }
-                boundExpression = ExpressionUtils.replace(boundExpression, replaceMap);
-                boundExpression = TypeCoercionUtils.castIfNotSameType(boundExpression,
-                        DataType.fromCatalogType(column.getType()));
-                Alias output = new Alias(boundExpression, column.getDefineExpr().toSqlWithoutTbl());
-                columnToOutput.put(column.getName(), output);
             }
         }
         for (Column column : shadowColumns) {

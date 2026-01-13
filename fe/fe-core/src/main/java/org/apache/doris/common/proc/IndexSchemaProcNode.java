@@ -18,6 +18,8 @@
 package org.apache.doris.common.proc;
 
 import org.apache.doris.catalog.Column;
+import org.apache.doris.catalog.OlapTable;
+import org.apache.doris.catalog.TableIf;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.FeConstants;
 
@@ -40,15 +42,17 @@ public class IndexSchemaProcNode implements ProcNodeInterface {
             .add("Default").add("Extra")
             .build();
 
+    private final TableIf table;
     private final List<Column> schema;
     private final Set<String> bfColumns;
 
-    public IndexSchemaProcNode(List<Column> schema, Set<String> bfColumns) {
+    public IndexSchemaProcNode(TableIf table, List<Column> schema, Set<String> bfColumns) {
+        this.table = table;
         this.schema = schema;
         this.bfColumns = bfColumns;
     }
 
-    public static ProcResult createResult(List<Column> schema, Set<String> bfColumns) throws AnalysisException {
+    public static ProcResult createResult(TableIf table, List<Column> schema, Set<String> bfColumns) throws AnalysisException {
         Preconditions.checkNotNull(schema);
         BaseProcResult result = new BaseProcResult();
         result.setNames(TITLE_NAMES);
@@ -67,7 +71,7 @@ public class IndexSchemaProcNode implements ProcNodeInterface {
             }
             String extraStr = StringUtils.join(extras, ",");
 
-            List<String> rowList = Arrays.asList(column.getDisplayName(),
+            List<String> rowList = Arrays.asList(column.getDisplayName(table == null || table instanceof OlapTable),
                                                  column.getOriginType().hideVersionForVersionColumn(true),
                                                  column.isAllowNull() ? "Yes" : "No",
                                                  ((Boolean) column.isKey()).toString(),
@@ -81,6 +85,6 @@ public class IndexSchemaProcNode implements ProcNodeInterface {
 
     @Override
     public ProcResult fetchResult() throws AnalysisException {
-        return createResult(this.schema, this.bfColumns);
+        return createResult(this.table, this.schema, this.bfColumns);
     }
 }
