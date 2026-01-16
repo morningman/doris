@@ -240,13 +240,12 @@ Status JdbcConnector::get_next(bool* eos, Block* block, int batch_size) {
         has_next = env->CallNonvirtualBooleanMethod(_executor_obj, _executor_clazz,
                                                     _executor_has_next_id);
     } // _has_next_timer stops here
+    RETURN_IF_ERROR(JniUtil::GetJniExceptionMsg(env));
 
     if (has_next != JNI_TRUE) {
         *eos = true;
         return Status::OK();
     }
-
-    RETURN_IF_ERROR(JniUtil::GetJniExceptionMsg(env));
 
     auto column_size = _tuple_desc->slots().size();
     auto slots = _tuple_desc->slots();

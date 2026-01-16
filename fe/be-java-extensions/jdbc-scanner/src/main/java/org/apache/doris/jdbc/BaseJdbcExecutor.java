@@ -241,29 +241,29 @@ public abstract class BaseJdbcExecutor implements JdbcExecutor {
                 }
             }
 
-            do {
-                // Check connection and resultSet validity before processing each row
-                if (conn != null) {
-                    try {
-                        if (conn.isClosed()) {
-                            throw new SQLException("Connection has been closed");
-                        }
-                    } catch (SQLException e) {
-                        throw new SQLException("Failed to check connection status: " + e.getMessage(), e);
-                    }
-                }
-                if (resultSet == null) {
-                    throw new SQLException("ResultSet is null");
-                }
+            // Check connection and resultSet validity before processing each row
+            if (conn != null) {
                 try {
-                    if (resultSet.isClosed()) {
-                        throw new SQLException("ResultSet has been closed");
+                    if (conn.isClosed()) {
+                        throw new SQLException("Connection has been closed");
                     }
                 } catch (SQLException e) {
-                    // ResultSet.isClosed() may throw SQLException if connection is invalid
-                    throw new SQLException("Failed to check ResultSet status (connection may be invalid): " + e.getMessage(), e);
+                    throw new SQLException("Failed to check connection status: " + e.getMessage(), e);
                 }
-                
+            }
+            if (resultSet == null) {
+                throw new SQLException("ResultSet is null");
+            }
+            try {
+                if (resultSet.isClosed()) {
+                    throw new SQLException("ResultSet has been closed");
+                }
+            } catch (SQLException e) {
+                // ResultSet.isClosed() may throw SQLException if connection is invalid
+                throw new SQLException("Failed to check ResultSet status (connection may be invalid): " + e.getMessage(), e);
+            }
+
+            do {
                 for (int i = 0; i < outputColumnCount; ++i) {
                     String outputColumnName = outputTable.getFields()[i];
                     int columnIndex = getRealColumnIndex(outputColumnName, i);
@@ -294,6 +294,11 @@ public abstract class BaseJdbcExecutor implements JdbcExecutor {
                     }
                 }
                 curBlockRows++;
+
+                // Check if we've filled the batch before advancing cursor
+                if (curBlockRows >= batchSize) {
+                    break;
+                }
                 
                 // Check if there are more rows, with explicit exception handling
                 boolean hasNext;
@@ -322,6 +327,29 @@ public abstract class BaseJdbcExecutor implements JdbcExecutor {
                     break;
                 }
             } while (curBlockRows < batchSize);
+
+            if (conn != null) {
+                try {
+                    if (conn.isClosed() || !conn.isValid(1)) {
+                        throw new SQLException(
+                            String.format("Connection is closed or invalid while calling resultSet.next() " +
+                                "(read %d rows so far)", curBlockRows));
+                    }
+                } catch (SQLException connCheckEx) {
+                    throw new SQLException("Failed to check connection validity: " + connCheckEx.getMessage());
+                }
+            }
+
+            if (resultSet != null) {
+                try {
+                    if (resultSet.isClosed()) {
+                        throw new SQLException("ResultSet has been closed");
+                    }
+                } catch (SQLException e) {
+                    // ResultSet.isClosed() may throw SQLException if connection is invalid
+                    throw new SQLException("Failed to check ResultSet status (connection may be invalid): " + e.getMessage(), e);
+                }
+            }
 
             for (int i = 0; i < outputColumnCount; ++i) {
                 String outputColumnName = outputTable.getFields()[i];
