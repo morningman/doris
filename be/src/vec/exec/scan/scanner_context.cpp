@@ -424,12 +424,12 @@ void ScannerContext::stop_scanners(RuntimeState* state) {
                                             TUnit::TIME_NS)
                     << ", ";
             // Per-scanner statistics for debugging data distribution
-            scanner_raw_rows_read << PrettyPrinter::print(scanner->_scanner->get_raw_rows_read(),
-                                                          TUnit::UNIT)
-                                  << ", ";
-            scanner_rows_filtered << PrettyPrinter::print(scanner->_scanner->get_rows_filtered(),
-                                                          TUnit::UNIT)
-                                  << ", ";
+            int64_t raw_rows = scanner->_scanner->get_raw_rows_read();
+            int64_t rows_read = scanner->_scanner->get_rows_read();
+            int64_t rows_filtered = (raw_rows > rows_read) ? (raw_rows - rows_read) : 0;
+            scanner_raw_rows_read << PrettyPrinter::print(raw_rows, TUnit::UNIT) << ", ";
+            // Use raw number for rows_filtered to show exact difference (avoid precision loss like 4.60M vs 4.60M)
+            scanner_rows_filtered << rows_filtered << ", ";
             scanner_files_read << scanner->_scanner->get_num_files_read() << ", ";
             scanner_schedule_times << scanner->_scanner->get_num_schedule_times() << ", ";
             // since there are all scanners, some scanners is running, so that could not call scanner
