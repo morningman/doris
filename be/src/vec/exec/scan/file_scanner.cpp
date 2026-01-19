@@ -1784,6 +1784,9 @@ void FileScanner::update_realtime_counters() {
     DorisMetrics::instance()->query_scan_bytes->increment(_file_reader_stats->read_bytes);
     DorisMetrics::instance()->query_scan_rows->increment(_file_reader_stats->read_rows);
 
+    // Accumulate per-scanner raw rows read before reset
+    _raw_rows_read += _file_reader_stats->read_rows;
+
     _file_reader_stats->read_bytes = 0;
     _file_reader_stats->read_rows = 0;
     _last_bytes_read_from_local = _file_cache_statistics->bytes_read_from_local;
@@ -1809,8 +1812,8 @@ void FileScanner::_collect_profile_before_close() {
     COUNTER_UPDATE(local_state->_scan_bytes, _file_reader_stats->read_bytes);
     COUNTER_UPDATE(local_state->_scan_rows, _file_reader_stats->read_rows);
 
-    // Update per-scanner statistics for raw rows read
-    _raw_rows_read = _file_reader_stats->read_rows;
+    // Accumulate final per-scanner raw rows read (in case update_realtime_counters was not called)
+    _raw_rows_read += _file_reader_stats->read_rows;
     // Calculate filtered rows = raw_rows_read - rows_read (after filter)
     if (_raw_rows_read > _num_rows_read) {
         _rows_filtered = _raw_rows_read - _num_rows_read;
