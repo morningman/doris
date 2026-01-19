@@ -149,7 +149,10 @@ Status ScanLocalState<Derived>::open(RuntimeState* state) {
         RETURN_IF_ERROR(
                 p._common_expr_ctxs_push_down[i]->clone(state, _common_expr_ctxs_push_down[i]));
     }
-    RETURN_IF_ERROR(_helper.acquire_runtime_filter(state, _conjuncts, p.row_descriptor()));
+    {
+        SCOPED_TIMER(_open_acquire_runtime_filter_timer);
+        RETURN_IF_ERROR(_helper.acquire_runtime_filter(state, _conjuncts, p.row_descriptor()));
+    }
 
     // Disable condition cache in topn filter valid. TODO:: Try to support the topn filter in condition cache
     if (state->query_options().condition_cache_digest && p._topn_filter_source_node_ids.empty()) {
@@ -168,7 +171,10 @@ Status ScanLocalState<Derived>::open(RuntimeState* state) {
     for (size_t i = 0; i < _stale_expr_ctxs.size(); i++) {
         RETURN_IF_ERROR(p._stale_expr_ctxs[i]->clone(state, _stale_expr_ctxs[i]));
     }
-    RETURN_IF_ERROR(_process_conjuncts(state));
+    {
+        SCOPED_TIMER(_open_process_conjuncts_timer);
+        RETURN_IF_ERROR(_process_conjuncts(state));
+    }
 
     if (state->enable_adjust_conjunct_order_by_cost()) {
         std::ranges::sort(_conjuncts, [](const auto& a, const auto& b) {
@@ -176,9 +182,14 @@ Status ScanLocalState<Derived>::open(RuntimeState* state) {
         });
     };
 
-    auto status = _eos ? Status::OK() : _prepare_scanners();
+    Status status;
+    {
+        SCOPED_TIMER(_open_prepare_scanners_timer);
+        status = _eos ? Status::OK() : _prepare_scanners();
+    }
     RETURN_IF_ERROR(status);
     if (_scanner_ctx) {
+        SCOPED_TIMER(_open_scanner_ctx_init_timer);
         DCHECK(!_eos && _num_scanners->value() > 0);
         RETURN_IF_ERROR(_scanner_ctx->init());
     }
@@ -1180,6 +1191,22 @@ Status ScanLocalState<Derived>::_init_profile() {
     // Size of data that read from storage.
     // Does not include rows that are cached by doris page cache.
     _scan_bytes = ADD_COUNTER_WITH_LEVEL(custom_profile(), "ScanBytes", TUnit::BYTES, 1);
+
+    // Timers for diagnosing OpenTime breakdown
+    _open_acquire_runtime_filter_timer =
+            ADD_TIMER_WITH_LEVEL(common_profile(), "OpenAcquireRuntimeFilterTime", 1);
+    _open_process_conjuncts_timer =
+            ADD_TIMER_WITH_LEVEL(common_profile(), "OpenProcessConjunctsTime", 1);
+    _open_prepare_scanners_timer =
+            ADD_TIMER_WITH_LEVEL(common_profile(), "OpenPrepareScannerTime", 1);
+    _open_scanner_ctx_init_timer =
+            ADD_TIMER_WITH_LEVEL(common_profile(), "OpenScannerContextInitTime", 1);
+
+    // Timers for ScannerContext::init() breakdown
+    _scanner_ctx_create_task_timer =
+            ADD_TIMER_WITH_LEVEL(common_profile(), "ScannerCtxCreateTaskTime", 1);
+    _scanner_ctx_first_schedule_timer =
+            ADD_TIMER_WITH_LEVEL(common_profile(), "ScannerCtxFirstScheduleTime", 1);
     return Status::OK();
 }
 

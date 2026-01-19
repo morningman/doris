@@ -136,6 +136,10 @@ protected:
     std::mutex _conjunct_lock;
     // magic number as seed to generate hash value for condition cache
     uint64_t _condition_cache_digest = 0;
+
+    // Timers for ScannerContext::init() breakdown (accessed by ScannerContext)
+    RuntimeProfile::Counter* _scanner_ctx_create_task_timer = nullptr;
+    RuntimeProfile::Counter* _scanner_ctx_first_schedule_timer = nullptr;
 };
 
 template <typename LocalStateType>
@@ -349,6 +353,12 @@ protected:
 
     // ScanLocalState owns the ownership of scanner, scanner context only has its weakptr
     std::list<std::shared_ptr<vectorized::ScannerDelegate>> _scanners;
+
+    // Timers for diagnosing OpenTime breakdown
+    RuntimeProfile::Counter* _open_acquire_runtime_filter_timer = nullptr;
+    RuntimeProfile::Counter* _open_process_conjuncts_timer = nullptr;
+    RuntimeProfile::Counter* _open_prepare_scanners_timer = nullptr;
+    RuntimeProfile::Counter* _open_scanner_ctx_init_timer = nullptr;
 };
 
 template <typename LocalStateType>

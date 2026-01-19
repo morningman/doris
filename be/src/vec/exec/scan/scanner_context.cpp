@@ -120,14 +120,17 @@ Status ScannerContext::init() {
     auto scanner = _all_scanners.front().lock();
     DCHECK(scanner != nullptr);
 
-    if (auto* task_executor_scheduler =
-                dynamic_cast<TaskExecutorSimplifiedScanScheduler*>(_scanner_scheduler)) {
-        std::shared_ptr<TaskExecutor> task_executor = task_executor_scheduler->task_executor();
-        vectorized::TaskId task_id(fmt::format("{}-{}", print_id(_state->query_id()), ctx_id));
-        _task_handle = DORIS_TRY(task_executor->create_task(
-                task_id, []() { return 0.0; },
-                config::task_executor_initial_max_concurrency_per_task,
-                std::chrono::milliseconds(100), std::nullopt));
+    {
+        SCOPED_TIMER(_local_state->_scanner_ctx_create_task_timer);
+        if (auto* task_executor_scheduler =
+                    dynamic_cast<TaskExecutorSimplifiedScanScheduler*>(_scanner_scheduler)) {
+            std::shared_ptr<TaskExecutor> task_executor = task_executor_scheduler->task_executor();
+            vectorized::TaskId task_id(fmt::format("{}-{}", print_id(_state->query_id()), ctx_id));
+            _task_handle = DORIS_TRY(task_executor->create_task(
+                    task_id, []() { return 0.0; },
+                    config::task_executor_initial_max_concurrency_per_task,
+                    std::chrono::milliseconds(100), std::nullopt));
+        }
     }
 #endif
     // _max_bytes_in_queue controls the maximum memory that can be used by a single scan operator.
@@ -169,7 +172,10 @@ Status ScannerContext::init() {
     COUNTER_SET(_local_state->_min_scan_concurrency, (int64_t)_min_scan_concurrency);
 
     std::unique_lock<std::mutex> l(_transfer_lock);
-    RETURN_IF_ERROR(_scanner_scheduler->schedule_scan_task(shared_from_this(), nullptr, l));
+    {
+        SCOPED_TIMER(_local_state->_scanner_ctx_first_schedule_timer);
+        RETURN_IF_ERROR(_scanner_scheduler->schedule_scan_task(shared_from_this(), nullptr, l));
+    }
 
     return Status::OK();
 }
