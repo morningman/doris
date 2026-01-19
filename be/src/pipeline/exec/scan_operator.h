@@ -98,6 +98,11 @@ public:
 
     uint64_t get_condition_cache_digest() const { return _condition_cache_digest; }
 
+    // Getter for scheduler lock wait timer (used by ScannerScheduler)
+    RuntimeProfile::Counter* scanner_ctx_sched_lock_wait_timer() const {
+        return _scanner_ctx_sched_lock_wait_timer;
+    }
+
 protected:
     friend class vectorized::ScannerContext;
     friend class vectorized::Scanner;

@@ -32,7 +32,7 @@ Status TaskExecutorSimplifiedScanScheduler::schedule_scan_task(
     MonotonicStopWatch lock_watch;
     lock_watch.start();
     std::unique_lock<std::shared_mutex> wl(_lock);
-    COUNTER_UPDATE(scanner_ctx->local_state()->_scanner_ctx_sched_lock_wait_timer,
+    COUNTER_UPDATE(scanner_ctx->local_state()->scanner_ctx_sched_lock_wait_timer(),
                    lock_watch.elapsed_time());
     return scanner_ctx->schedule_scan_task(current_scan_task, transfer_lock, wl);
 }
@@ -43,7 +43,7 @@ Status ThreadPoolSimplifiedScanScheduler::schedule_scan_task(
     MonotonicStopWatch lock_watch;
     lock_watch.start();
     std::unique_lock<std::shared_mutex> wl(_lock);
-    COUNTER_UPDATE(scanner_ctx->local_state()->_scanner_ctx_sched_lock_wait_timer,
+    COUNTER_UPDATE(scanner_ctx->local_state()->scanner_ctx_sched_lock_wait_timer(),
                    lock_watch.elapsed_time());
     return scanner_ctx->schedule_scan_task(current_scan_task, transfer_lock, wl);
 }
