@@ -525,7 +525,11 @@ Status ScannerContext::schedule_scan_task(std::shared_ptr<ScanTask> current_scan
 
     std::list<std::shared_ptr<ScanTask>> tasks_to_submit;
 
-    int32_t margin = _get_margin(transfer_lock, scheduler_lock);
+    int32_t margin = 0;
+    {
+        SCOPED_TIMER(_local_state->_scanner_ctx_sched_get_margin_timer);
+        margin = _get_margin(transfer_lock, scheduler_lock);
+    }
 
     // margin is less than zero. Means this scan operator could not submit any scan task for now.
     if (margin <= 0) {
@@ -554,41 +558,45 @@ Status ScannerContext::schedule_scan_task(std::shared_ptr<ScanTask> current_scan
 
     bool first_pull = true;
 
-    while (margin-- > 0) {
-        std::shared_ptr<ScanTask> task_to_run;
-        const int32_t current_concurrency = cast_set<int32_t>(
-                _tasks_queue.size() + _num_scheduled_scanners + tasks_to_submit.size());
-        VLOG_DEBUG << fmt::format("{} currenct concurrency: {} = {} + {} + {}", ctx_id,
-                                  current_concurrency, _tasks_queue.size(), _num_scheduled_scanners,
-                                  tasks_to_submit.size());
-        if (first_pull) {
-            task_to_run = _pull_next_scan_task(current_scan_task, current_concurrency);
-            if (task_to_run == nullptr) {
-                // In two situations we will get nullptr.
-                // 1. current_concurrency already reached _max_scan_concurrency.
-                // 2. all scanners are finished.
-                if (current_scan_task) {
-                    DCHECK(current_scan_task->cached_blocks.empty());
-                    DCHECK(!current_scan_task->is_eos());
-                    if (!current_scan_task->cached_blocks.empty() || current_scan_task->is_eos()) {
-                        // This should not happen.
-                        throw doris::Exception(ErrorCode::INTERNAL_ERROR,
-                                               "Scanner scheduler logical error.");
+    {
+        SCOPED_TIMER(_local_state->_scanner_ctx_sched_pull_task_timer);
+        while (margin-- > 0) {
+            std::shared_ptr<ScanTask> task_to_run;
+            const int32_t current_concurrency = cast_set<int32_t>(
+                    _tasks_queue.size() + _num_scheduled_scanners + tasks_to_submit.size());
+            VLOG_DEBUG << fmt::format("{} currenct concurrency: {} = {} + {} + {}", ctx_id,
+                                      current_concurrency, _tasks_queue.size(),
+                                      _num_scheduled_scanners, tasks_to_submit.size());
+            if (first_pull) {
+                task_to_run = _pull_next_scan_task(current_scan_task, current_concurrency);
+                if (task_to_run == nullptr) {
+                    // In two situations we will get nullptr.
+                    // 1. current_concurrency already reached _max_scan_concurrency.
+                    // 2. all scanners are finished.
+                    if (current_scan_task) {
+                        DCHECK(current_scan_task->cached_blocks.empty());
+                        DCHECK(!current_scan_task->is_eos());
+                        if (!current_scan_task->cached_blocks.empty() ||
+                            current_scan_task->is_eos()) {
+                            // This should not happen.
+                            throw doris::Exception(ErrorCode::INTERNAL_ERROR,
+                                                   "Scanner scheduler logical error.");
+                        }
+                        // Current scan task is not eos, but we can not resubmit it.
+                        // Add current_scan_task back to task queue, so that we have chance to resubmit it in the future.
+                        _pending_scanners.push(current_scan_task);
                     }
-                    // Current scan task is not eos, but we can not resubmit it.
-                    // Add current_scan_task back to task queue, so that we have chance to resubmit it in the future.
-                    _pending_scanners.push(current_scan_task);
                 }
+                first_pull = false;
+            } else {
+                task_to_run = _pull_next_scan_task(nullptr, current_concurrency);
             }
-            first_pull = false;
-        } else {
-            task_to_run = _pull_next_scan_task(nullptr, current_concurrency);
-        }
 
-        if (task_to_run) {
-            tasks_to_submit.push_back(task_to_run);
-        } else {
-            break;
+            if (task_to_run) {
+                tasks_to_submit.push_back(task_to_run);
+            } else {
+                break;
+            }
         }
     }
 
@@ -600,12 +608,15 @@ Status ScannerContext::schedule_scan_task(std::shared_ptr<ScanTask> current_scan
                               print_id(_query_id), ctx_id, tasks_to_submit.size(),
                               _pending_scanners.size());
 
-    for (auto& scan_task_iter : tasks_to_submit) {
-        Status submit_status = submit_scan_task(scan_task_iter, transfer_lock);
-        if (!submit_status.ok()) {
-            _process_status = submit_status;
-            _set_scanner_done();
-            return _process_status;
+    {
+        SCOPED_TIMER(_local_state->_scanner_ctx_sched_submit_task_timer);
+        for (auto& scan_task_iter : tasks_to_submit) {
+            Status submit_status = submit_scan_task(scan_task_iter, transfer_lock);
+            if (!submit_status.ok()) {
+                _process_status = submit_status;
+                _set_scanner_done();
+                return _process_status;
+            }
         }
     }
 

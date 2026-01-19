@@ -140,6 +140,11 @@ protected:
     // Timers for ScannerContext::init() breakdown (accessed by ScannerContext)
     RuntimeProfile::Counter* _scanner_ctx_create_task_timer = nullptr;
     RuntimeProfile::Counter* _scanner_ctx_first_schedule_timer = nullptr;
+    // Sub-timers for schedule_scan_task breakdown
+    RuntimeProfile::Counter* _scanner_ctx_sched_lock_wait_timer = nullptr;
+    RuntimeProfile::Counter* _scanner_ctx_sched_get_margin_timer = nullptr;
+    RuntimeProfile::Counter* _scanner_ctx_sched_pull_task_timer = nullptr;
+    RuntimeProfile::Counter* _scanner_ctx_sched_submit_task_timer = nullptr;
 };
 
 template <typename LocalStateType>

@@ -17,7 +17,9 @@
 
 #include <memory>
 
+#include "pipeline/exec/scan_operator.h"
 #include "scanner_scheduler.h"
+#include "util/stopwatch.hpp"
 #include "vec/exec/scan/scanner_context.h"
 
 namespace doris::vectorized {
@@ -27,14 +29,22 @@ class ScanTask;
 Status TaskExecutorSimplifiedScanScheduler::schedule_scan_task(
         std::shared_ptr<ScannerContext> scanner_ctx, std::shared_ptr<ScanTask> current_scan_task,
         std::unique_lock<std::mutex>& transfer_lock) {
+    MonotonicStopWatch lock_watch;
+    lock_watch.start();
     std::unique_lock<std::shared_mutex> wl(_lock);
+    COUNTER_UPDATE(scanner_ctx->local_state()->_scanner_ctx_sched_lock_wait_timer,
+                   lock_watch.elapsed_time());
     return scanner_ctx->schedule_scan_task(current_scan_task, transfer_lock, wl);
 }
 
 Status ThreadPoolSimplifiedScanScheduler::schedule_scan_task(
         std::shared_ptr<ScannerContext> scanner_ctx, std::shared_ptr<ScanTask> current_scan_task,
         std::unique_lock<std::mutex>& transfer_lock) {
+    MonotonicStopWatch lock_watch;
+    lock_watch.start();
     std::unique_lock<std::shared_mutex> wl(_lock);
+    COUNTER_UPDATE(scanner_ctx->local_state()->_scanner_ctx_sched_lock_wait_timer,
+                   lock_watch.elapsed_time());
     return scanner_ctx->schedule_scan_task(current_scan_task, transfer_lock, wl);
 }
 } // namespace doris::vectorized
