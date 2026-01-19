@@ -388,10 +388,18 @@ void ScannerContext::stop_scanners(RuntimeState* state) {
         std::stringstream scanner_rows_read;
         std::stringstream scanner_wait_worker_time;
         std::stringstream scanner_projection;
+        std::stringstream scanner_raw_rows_read;
+        std::stringstream scanner_rows_filtered;
+        std::stringstream scanner_files_read;
+        std::stringstream scanner_schedule_times;
         scanner_statistics << "[";
         scanner_rows_read << "[";
         scanner_wait_worker_time << "[";
         scanner_projection << "[";
+        scanner_raw_rows_read << "[";
+        scanner_rows_filtered << "[";
+        scanner_files_read << "[";
+        scanner_schedule_times << "[";
         // Scanners can in 3 state
         //  state 1: in scanner context, not scheduled
         //  state 2: in scanner worker pool's queue, scheduled but not running
@@ -415,6 +423,15 @@ void ScannerContext::stop_scanners(RuntimeState* state) {
                     << PrettyPrinter::print(scanner->_scanner->get_scanner_wait_worker_timer(),
                                             TUnit::TIME_NS)
                     << ", ";
+            // Per-scanner statistics for debugging data distribution
+            scanner_raw_rows_read << PrettyPrinter::print(scanner->_scanner->get_raw_rows_read(),
+                                                          TUnit::UNIT)
+                                  << ", ";
+            scanner_rows_filtered << PrettyPrinter::print(scanner->_scanner->get_rows_filtered(),
+                                                          TUnit::UNIT)
+                                  << ", ";
+            scanner_files_read << scanner->_scanner->get_num_files_read() << ", ";
+            scanner_schedule_times << scanner->_scanner->get_num_schedule_times() << ", ";
             // since there are all scanners, some scanners is running, so that could not call scanner
             // close here.
         }
@@ -422,10 +439,18 @@ void ScannerContext::stop_scanners(RuntimeState* state) {
         scanner_rows_read << "]";
         scanner_wait_worker_time << "]";
         scanner_projection << "]";
+        scanner_raw_rows_read << "]";
+        scanner_rows_filtered << "]";
+        scanner_files_read << "]";
+        scanner_schedule_times << "]";
         _scanner_profile->add_info_string("PerScannerRunningTime", scanner_statistics.str());
         _scanner_profile->add_info_string("PerScannerRowsRead", scanner_rows_read.str());
         _scanner_profile->add_info_string("PerScannerWaitTime", scanner_wait_worker_time.str());
         _scanner_profile->add_info_string("PerScannerProjectionTime", scanner_projection.str());
+        _scanner_profile->add_info_string("PerScannerRawRowsRead", scanner_raw_rows_read.str());
+        _scanner_profile->add_info_string("PerScannerRowsFiltered", scanner_rows_filtered.str());
+        _scanner_profile->add_info_string("PerScannerFilesRead", scanner_files_read.str());
+        _scanner_profile->add_info_string("PerScannerScheduleTimes", scanner_schedule_times.str());
     }
 }
 

@@ -156,6 +156,7 @@ void ScannerScheduler::_scanner_scan(std::shared_ptr<ScannerContext> ctx,
     MonotonicStopWatch max_run_time_watch;
     max_run_time_watch.start();
     scanner->update_wait_worker_timer();
+    scanner->inc_schedule_times();
     scanner->start_scan_cpu_timer();
     Status status = Status::OK();
     bool eos = false;

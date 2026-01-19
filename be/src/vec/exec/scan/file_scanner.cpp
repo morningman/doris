@@ -1158,6 +1158,7 @@ Status FileScanner::_get_next_reader() {
                     to_string(_params->format_type));
         }
         COUNTER_UPDATE(_file_counter, 1);
+        ++_num_files_read;  // Per-scanner statistics
         // The FileScanner for external table may try to open not exist files,
         // Because FE file cache for external table may out of date.
         // So, NOT_FOUND for FileScanner is not a fail case.
@@ -1807,6 +1808,13 @@ void FileScanner::_collect_profile_before_close() {
             static_cast<pipeline::FileScanLocalState*>(_local_state);
     COUNTER_UPDATE(local_state->_scan_bytes, _file_reader_stats->read_bytes);
     COUNTER_UPDATE(local_state->_scan_rows, _file_reader_stats->read_rows);
+
+    // Update per-scanner statistics for raw rows read
+    _raw_rows_read = _file_reader_stats->read_rows;
+    // Calculate filtered rows = raw_rows_read - rows_read (after filter)
+    if (_raw_rows_read > _num_rows_read) {
+        _rows_filtered = _raw_rows_read - _num_rows_read;
+    }
 
     COUNTER_UPDATE(_file_read_bytes_counter, _file_reader_stats->read_bytes);
     COUNTER_UPDATE(_file_read_calls_counter, _file_reader_stats->read_calls);

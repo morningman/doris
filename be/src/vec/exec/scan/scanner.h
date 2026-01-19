@@ -131,6 +131,13 @@ public:
     int64_t projection_time() const { return _projection_timer; }
     int64_t get_rows_read() const { return _num_rows_read; }
 
+    // For per-scanner statistics
+    int64_t get_raw_rows_read() const { return _raw_rows_read; }
+    int64_t get_rows_filtered() const { return _rows_filtered; }
+    int32_t get_num_files_read() const { return _num_files_read; }
+    int32_t get_num_schedule_times() const { return _num_schedule_times; }
+    void inc_schedule_times() { ++_num_schedule_times; }
+
     bool has_prepared() const { return _has_prepared; }
 
     Status try_append_late_arrival_runtime_filter();
@@ -239,6 +246,16 @@ protected:
     int64_t _num_rows_read = 0;
 
     int64_t _num_byte_read = 0;
+
+    // For per-scanner statistics
+    // raw rows read before filtering (e.g. before runtime filter)
+    int64_t _raw_rows_read = 0;
+    // rows filtered by predicate/runtime filter
+    int64_t _rows_filtered = 0;
+    // number of files read by this scanner
+    int32_t _num_files_read = 0;
+    // number of times this scanner is scheduled
+    int32_t _num_schedule_times = 0;
 
     // num of rows return from scanner, after filter block
     int64_t _num_rows_return = 0;
