@@ -230,12 +230,20 @@ void ScannerContext::return_free_block(vectorized::BlockUPtr block) {
 Status ScannerContext::submit_scan_task(std::shared_ptr<ScanTask> scan_task,
                                         std::unique_lock<std::mutex>& /*transfer_lock*/) {
     SCOPED_TIMER(_local_state->scanner_submit_timer());
-    // increase _num_finished_scanners no matter the scan_task is submitted successfully or not.
+    // increase _num_scheduled_scanners no matter the scan_task is submitted successfully or not.
     // since if submit failed, it will be added back by ScannerContext::push_back_scan_task
-    // and _num_finished_scanners will be reduced.
+    // and _num_scheduled_scanners will be reduced.
     // if submit succeed, it will be also added back by ScannerContext::push_back_scan_task
     // see ScannerScheduler::_scanner_scan.
     _num_scheduled_scanners++;
+    return _scanner_scheduler->submit(shared_from_this(), scan_task);
+}
+
+Status ScannerContext::_do_submit_scan_task(std::shared_ptr<ScanTask> scan_task) {
+    SCOPED_TIMER(_local_state->scanner_submit_timer());
+    // Note: _num_scheduled_scanners is already incremented by the caller
+    // This function is called without holding the scheduler lock to avoid
+    // blocking other queries while waiting for thread pool submission.
     return _scanner_scheduler->submit(shared_from_this(), scan_task);
 }
 
@@ -514,8 +522,10 @@ int32_t ScannerContext::_get_margin(std::unique_lock<std::mutex>& transfer_lock,
 }
 
 // This function must be called with:
-// 1. _transfer_lock held.
-// 2. ScannerScheduler::_lock held.
+// 1. _transfer_lock held (via transfer_lock parameter).
+// 2. ScannerScheduler::_lock held (via scheduler_lock parameter).
+// Note: scheduler_lock may be released before this function returns to avoid
+// blocking other queries while submitting tasks to the thread pool.
 Status ScannerContext::schedule_scan_task(std::shared_ptr<ScanTask> current_scan_task,
                                           std::unique_lock<std::mutex>& transfer_lock,
                                           std::unique_lock<std::shared_mutex>& scheduler_lock) {
@@ -612,11 +622,21 @@ Status ScannerContext::schedule_scan_task(std::shared_ptr<ScanTask> current_scan
                               print_id(_query_id), ctx_id, tasks_to_submit.size(),
                               _pending_scanners.size());
 
+    // Update _num_scheduled_scanners while holding the lock
+    _num_scheduled_scanners += tasks_to_submit.size();
+
+    // Release scheduler lock before submitting tasks to thread pool
+    // This is critical for performance: submit_scan_task may block waiting for
+    // thread pool's internal lock, and we don't want to hold the global scheduler
+    // lock during that time.
+    scheduler_lock.unlock();
+
     {
         SCOPED_TIMER(_local_state->_scanner_ctx_sched_submit_task_timer);
         for (auto& scan_task_iter : tasks_to_submit) {
-            Status submit_status = submit_scan_task(scan_task_iter, transfer_lock);
+            Status submit_status = _do_submit_scan_task(scan_task_iter);
             if (!submit_status.ok()) {
+                // Note: transfer_lock is still held by the caller
                 _process_status = submit_status;
                 _set_scanner_done();
                 return _process_status;

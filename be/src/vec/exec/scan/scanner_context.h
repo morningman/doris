@@ -155,6 +155,9 @@ public:
     // set the `eos` to `ScanTask::eos` if there is no more data in current scanner
     Status submit_scan_task(std::shared_ptr<ScanTask> scan_task, std::unique_lock<std::mutex>&);
 
+    // Submit scan task without holding scheduler lock (for performance optimization)
+    Status _do_submit_scan_task(std::shared_ptr<ScanTask> scan_task);
+
     // Push back a scan task.
     void push_back_scan_task(std::shared_ptr<ScanTask> scan_task);
 
