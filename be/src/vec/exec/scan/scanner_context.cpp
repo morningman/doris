@@ -623,7 +623,7 @@ Status ScannerContext::schedule_scan_task(std::shared_ptr<ScanTask> current_scan
                               _pending_scanners.size());
 
     // Update _num_scheduled_scanners while holding the lock
-    _num_scheduled_scanners += tasks_to_submit.size();
+    _num_scheduled_scanners += static_cast<int32_t>(tasks_to_submit.size());
 
     // Release scheduler lock before submitting tasks to thread pool
     // This is critical for performance: submit_scan_task may block waiting for

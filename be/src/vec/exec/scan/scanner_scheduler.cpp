@@ -33,6 +33,7 @@
 #include "common/status.h"
 #include "file_scanner.h"
 #include "olap/tablet.h"
+#include "pipeline/exec/scan_operator.h"
 #include "pipeline/pipeline_task.h"
 #include "runtime/exec_env.h"
 #include "runtime/runtime_state.h"
@@ -85,6 +86,7 @@ Status ScannerScheduler::submit(std::shared_ptr<ScannerContext> ctx,
             return scanner_ref->is_eos();
         };
         SimplifiedScanTask simple_scan_task = {work_func, ctx, scan_task};
+        SCOPED_TIMER(ctx->local_state()->scanner_submit_to_pool_timer());
         return this->submit_scan_task(simple_scan_task);
     };
 

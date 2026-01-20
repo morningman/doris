@@ -110,6 +110,9 @@ public:
     RuntimeProfile::Counter* scanner_sched_lock_wait_timer() const {
         return _scanner_sched_lock_wait_timer;
     }
+    RuntimeProfile::Counter* scanner_submit_to_pool_timer() const {
+        return _scanner_submit_to_pool_timer;
+    }
 
 protected:
     friend class vectorized::ScannerContext;
@@ -164,6 +167,9 @@ protected:
     RuntimeProfile::Counter* _scanner_sched_cnt = nullptr;
     RuntimeProfile::Counter* _scanner_submit_timer = nullptr;
     RuntimeProfile::Counter* _scanner_sched_lock_wait_timer = nullptr;
+
+    // Sub-timers for submit breakdown
+    RuntimeProfile::Counter* _scanner_submit_to_pool_timer = nullptr;
 };
 
 template <typename LocalStateType>

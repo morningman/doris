@@ -1224,6 +1224,9 @@ Status ScanLocalState<Derived>::_init_profile() {
     _scanner_submit_timer = ADD_TIMER_WITH_LEVEL(_scanner_profile, "TotalSubmitTime", 1);
     _scanner_sched_lock_wait_timer =
             ADD_TIMER_WITH_LEVEL(_scanner_profile, "TotalSchedLockWaitTime", 1);
+    // Sub-timer for submit to thread pool
+    _scanner_submit_to_pool_timer =
+            ADD_TIMER_WITH_LEVEL(_scanner_profile, "SubmitToThreadPoolTime", 1);
     return Status::OK();
 }
 
