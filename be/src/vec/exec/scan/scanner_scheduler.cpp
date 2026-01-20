@@ -86,6 +86,11 @@ Status ScannerScheduler::submit(std::shared_ptr<ScannerContext> ctx,
             return scanner_ref->is_eos();
         };
         SimplifiedScanTask simple_scan_task = {work_func, ctx, scan_task};
+        // Log current thread pool status before submit
+        int active_threads = get_active_threads();
+        int queue_size = get_queue_size();
+        LOG(INFO) << "ScannerScheduler submit one task to pool, active_threads=" << active_threads
+                  << ", queue_size=" << queue_size;
         SCOPED_TIMER(ctx->local_state()->scanner_submit_to_pool_timer());
         return this->submit_scan_task(simple_scan_task);
     };
@@ -153,6 +158,11 @@ Status ScannerScheduler::submit_batch(std::shared_ptr<ScannerContext> ctx,
 
     // Batch submit all tasks at once
     SCOPED_TIMER(ctx->local_state()->scanner_submit_to_pool_timer());
+    // Log current thread pool status before batch submit
+    int active_threads = get_active_threads();
+    int queue_size = get_queue_size();
+    LOG(INFO) << "ScannerScheduler submit batch tasks to pool, batch_size=" << simple_tasks.size()
+              << ", active_threads=" << active_threads << ", queue_size=" << queue_size;
     Status submit_status = this->submit_scan_tasks_batch(simple_tasks);
     if (!submit_status.ok()) {
         Status scan_task_status = Status::TooManyTasks(
