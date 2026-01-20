@@ -103,6 +103,14 @@ public:
         return _scanner_ctx_sched_lock_wait_timer;
     }
 
+    // Getters for schedule_scan_task breakdown timers (used by ScannerContext)
+    RuntimeProfile::Counter* scanner_sched_total_timer() const { return _scanner_sched_total_timer; }
+    RuntimeProfile::Counter* scanner_sched_cnt() const { return _scanner_sched_cnt; }
+    RuntimeProfile::Counter* scanner_submit_timer() const { return _scanner_submit_timer; }
+    RuntimeProfile::Counter* scanner_sched_lock_wait_timer() const {
+        return _scanner_sched_lock_wait_timer;
+    }
+
 protected:
     friend class vectorized::ScannerContext;
     friend class vectorized::Scanner;
@@ -145,11 +153,17 @@ protected:
     // Timers for ScannerContext::init() breakdown (accessed by ScannerContext)
     RuntimeProfile::Counter* _scanner_ctx_create_task_timer = nullptr;
     RuntimeProfile::Counter* _scanner_ctx_first_schedule_timer = nullptr;
-    // Sub-timers for schedule_scan_task breakdown
+    // Sub-timers for schedule_scan_task breakdown (first schedule only)
     RuntimeProfile::Counter* _scanner_ctx_sched_lock_wait_timer = nullptr;
     RuntimeProfile::Counter* _scanner_ctx_sched_get_margin_timer = nullptr;
     RuntimeProfile::Counter* _scanner_ctx_sched_pull_task_timer = nullptr;
     RuntimeProfile::Counter* _scanner_ctx_sched_submit_task_timer = nullptr;
+
+    // Cumulative timers for all schedule_scan_task calls (not just first)
+    RuntimeProfile::Counter* _scanner_sched_total_timer = nullptr;
+    RuntimeProfile::Counter* _scanner_sched_cnt = nullptr;
+    RuntimeProfile::Counter* _scanner_submit_timer = nullptr;
+    RuntimeProfile::Counter* _scanner_sched_lock_wait_timer = nullptr;
 };
 
 template <typename LocalStateType>

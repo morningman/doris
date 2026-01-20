@@ -32,8 +32,11 @@ Status TaskExecutorSimplifiedScanScheduler::schedule_scan_task(
     MonotonicStopWatch lock_watch;
     lock_watch.start();
     std::unique_lock<std::shared_mutex> wl(_lock);
-    COUNTER_UPDATE(scanner_ctx->local_state()->scanner_ctx_sched_lock_wait_timer(),
-                   lock_watch.elapsed_time());
+    int64_t lock_wait_time = lock_watch.elapsed_time();
+    // Update first schedule lock wait timer (for OpenTime breakdown)
+    COUNTER_UPDATE(scanner_ctx->local_state()->scanner_ctx_sched_lock_wait_timer(), lock_wait_time);
+    // Update cumulative lock wait timer (for all schedules)
+    COUNTER_UPDATE(scanner_ctx->local_state()->scanner_sched_lock_wait_timer(), lock_wait_time);
     return scanner_ctx->schedule_scan_task(current_scan_task, transfer_lock, wl);
 }
 
@@ -43,8 +46,11 @@ Status ThreadPoolSimplifiedScanScheduler::schedule_scan_task(
     MonotonicStopWatch lock_watch;
     lock_watch.start();
     std::unique_lock<std::shared_mutex> wl(_lock);
-    COUNTER_UPDATE(scanner_ctx->local_state()->scanner_ctx_sched_lock_wait_timer(),
-                   lock_watch.elapsed_time());
+    int64_t lock_wait_time = lock_watch.elapsed_time();
+    // Update first schedule lock wait timer (for OpenTime breakdown)
+    COUNTER_UPDATE(scanner_ctx->local_state()->scanner_ctx_sched_lock_wait_timer(), lock_wait_time);
+    // Update cumulative lock wait timer (for all schedules)
+    COUNTER_UPDATE(scanner_ctx->local_state()->scanner_sched_lock_wait_timer(), lock_wait_time);
     return scanner_ctx->schedule_scan_task(current_scan_task, transfer_lock, wl);
 }
 } // namespace doris::vectorized

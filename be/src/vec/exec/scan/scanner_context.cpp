@@ -229,6 +229,7 @@ void ScannerContext::return_free_block(vectorized::BlockUPtr block) {
 
 Status ScannerContext::submit_scan_task(std::shared_ptr<ScanTask> scan_task,
                                         std::unique_lock<std::mutex>& /*transfer_lock*/) {
+    SCOPED_TIMER(_local_state->scanner_submit_timer());
     // increase _num_finished_scanners no matter the scan_task is submitted successfully or not.
     // since if submit failed, it will be added back by ScannerContext::push_back_scan_task
     // and _num_finished_scanners will be reduced.
@@ -518,6 +519,9 @@ int32_t ScannerContext::_get_margin(std::unique_lock<std::mutex>& transfer_lock,
 Status ScannerContext::schedule_scan_task(std::shared_ptr<ScanTask> current_scan_task,
                                           std::unique_lock<std::mutex>& transfer_lock,
                                           std::unique_lock<std::shared_mutex>& scheduler_lock) {
+    SCOPED_TIMER(_local_state->scanner_sched_total_timer());
+    COUNTER_UPDATE(_local_state->scanner_sched_cnt(), 1);
+
     if (current_scan_task &&
         (!current_scan_task->cached_blocks.empty() || current_scan_task->is_eos())) {
         throw doris::Exception(ErrorCode::INTERNAL_ERROR, "Scanner scheduler logical error.");

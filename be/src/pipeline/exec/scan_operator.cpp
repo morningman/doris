@@ -1207,7 +1207,7 @@ Status ScanLocalState<Derived>::_init_profile() {
             ADD_TIMER_WITH_LEVEL(common_profile(), "ScannerCtxCreateTaskTime", 1);
     _scanner_ctx_first_schedule_timer =
             ADD_TIMER_WITH_LEVEL(common_profile(), "ScannerCtxFirstScheduleTime", 1);
-    // Sub-timers for schedule_scan_task breakdown
+    // Sub-timers for schedule_scan_task breakdown (first schedule only)
     _scanner_ctx_sched_lock_wait_timer =
             ADD_TIMER_WITH_LEVEL(common_profile(), "ScannerCtxSchedLockWaitTime", 1);
     _scanner_ctx_sched_get_margin_timer =
@@ -1216,6 +1216,14 @@ Status ScanLocalState<Derived>::_init_profile() {
             ADD_TIMER_WITH_LEVEL(common_profile(), "ScannerCtxSchedPullTaskTime", 1);
     _scanner_ctx_sched_submit_task_timer =
             ADD_TIMER_WITH_LEVEL(common_profile(), "ScannerCtxSchedSubmitTaskTime", 1);
+
+    // Cumulative timers for all schedule_scan_task calls
+    _scanner_sched_total_timer =
+            ADD_TIMER_WITH_LEVEL(_scanner_profile, "TotalScheduleTime", 1);
+    _scanner_sched_cnt = ADD_COUNTER_WITH_LEVEL(_scanner_profile, "ScheduleCount", TUnit::UNIT, 1);
+    _scanner_submit_timer = ADD_TIMER_WITH_LEVEL(_scanner_profile, "TotalSubmitTime", 1);
+    _scanner_sched_lock_wait_timer =
+            ADD_TIMER_WITH_LEVEL(_scanner_profile, "TotalSchedLockWaitTime", 1);
     return Status::OK();
 }
 
