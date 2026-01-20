@@ -200,6 +200,11 @@ public:
     // Submits a function bound using std::bind(&FuncName, args...).
     Status submit_func(std::function<void()> f);
 
+    // Batch submit multiple functions at once.
+    // This is more efficient than calling submit_func multiple times
+    // because it only acquires the lock once.
+    Status submit_func_batch(const std::vector<std::function<void()>>& funcs);
+
     // Waits until all the tasks are completed.
     void wait();
 

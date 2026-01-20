@@ -103,6 +103,71 @@ Status ScannerScheduler::submit(std::shared_ptr<ScannerContext> ctx,
     return Status::OK();
 }
 
+Status ScannerScheduler::submit_batch(std::shared_ptr<ScannerContext> ctx,
+                                      const std::list<std::shared_ptr<ScanTask>>& scan_tasks) {
+    if (scan_tasks.empty()) {
+        return Status::OK();
+    }
+
+    if (ctx->done()) {
+        return Status::OK();
+    }
+    auto task_lock = ctx->task_exec_ctx();
+    if (task_lock == nullptr) {
+        LOG(INFO) << "could not lock task execution context, query " << ctx->debug_string()
+                  << " maybe finished";
+        return Status::OK();
+    }
+
+    // Prepare all tasks
+    std::vector<SimplifiedScanTask> simple_tasks;
+    simple_tasks.reserve(scan_tasks.size());
+
+    for (const auto& scan_task : scan_tasks) {
+        std::shared_ptr<ScannerDelegate> scanner_delegate = scan_task->scanner.lock();
+        if (scanner_delegate == nullptr) {
+            continue;
+        }
+
+        scanner_delegate->_scanner->start_wait_worker_timer();
+
+        auto work_func = [scanner_ref = scan_task, ctx]() {
+            auto status = [&] {
+                RETURN_IF_CATCH_EXCEPTION(_scanner_scan(ctx, scanner_ref));
+                return Status::OK();
+            }();
+
+            if (!status.ok()) {
+                scanner_ref->set_status(status);
+                ctx->push_back_scan_task(scanner_ref);
+                return true;
+            }
+            return scanner_ref->is_eos();
+        };
+        simple_tasks.push_back({work_func, ctx, scan_task});
+    }
+
+    if (simple_tasks.empty()) {
+        return Status::OK();
+    }
+
+    // Batch submit all tasks at once
+    SCOPED_TIMER(ctx->local_state()->scanner_submit_to_pool_timer());
+    Status submit_status = this->submit_scan_tasks_batch(simple_tasks);
+    if (!submit_status.ok()) {
+        Status scan_task_status = Status::TooManyTasks(
+                "Failed to submit scanner batch to scanner pool reason:" +
+                std::string(submit_status.msg()));
+        // Mark all tasks as failed
+        for (const auto& scan_task : scan_tasks) {
+            scan_task->set_status(scan_task_status);
+        }
+        return scan_task_status;
+    }
+
+    return Status::OK();
+}
+
 void handle_reserve_memory_failure(RuntimeState* state, std::shared_ptr<ScannerContext> ctx,
                                    const Status& st, size_t reserve_size) {
     ctx->clear_free_blocks();

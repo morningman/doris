@@ -421,6 +421,99 @@ Status ThreadPool::submit_func(std::function<void()> f) {
     return submit(std::make_shared<FunctionRunnable>(std::move(f)));
 }
 
+Status ThreadPool::submit_func_batch(const std::vector<std::function<void()>>& funcs) {
+    if (funcs.empty()) {
+        return Status::OK();
+    }
+
+    ThreadPoolToken* token = _tokenless.get();
+    DCHECK(token);
+
+    std::unique_lock<std::mutex> l(_lock);
+    if (!_pool_status.ok()) [[unlikely]] {
+        return _pool_status;
+    }
+
+    if (!token->may_submit_new_tasks()) [[unlikely]] {
+        return Status::Error<SERVICE_UNAVAILABLE>("Thread pool({}) token was shut down", _name);
+    }
+
+    // Size limit check for all tasks
+    int64_t capacity_remaining = static_cast<int64_t>(_max_threads) - _active_threads +
+                                 static_cast<int64_t>(_max_queue_size) - _total_queued_tasks;
+    if (capacity_remaining < static_cast<int64_t>(funcs.size())) {
+        thread_pool_submit_failed->increment(1);
+        return Status::Error<SERVICE_UNAVAILABLE>(
+                "Thread pool {} is at capacity ({}/{} tasks running, {}/{} tasks queued), "
+                "cannot submit {} tasks",
+                _name, _num_threads + _num_threads_pending_start, _max_threads, _total_queued_tasks,
+                _max_queue_size, funcs.size());
+    }
+
+    // Calculate how many threads we need to create
+    int inactive_threads = _num_threads + _num_threads_pending_start - _active_threads;
+    int threads_needed = static_cast<int>(_queue.size()) + static_cast<int>(funcs.size()) -
+                         inactive_threads;
+    int threads_to_create = 0;
+    if (threads_needed > 0) {
+        threads_to_create =
+                std::min(threads_needed, _max_threads - _num_threads - _num_threads_pending_start);
+        if (threads_to_create > 0) {
+            _num_threads_pending_start += threads_to_create;
+        }
+    }
+
+    // Batch add all tasks
+    ThreadPoolToken::State state = token->state();
+    DCHECK(state == ThreadPoolToken::State::IDLE || state == ThreadPoolToken::State::RUNNING);
+
+    for (const auto& f : funcs) {
+        Task task;
+        task.runnable = std::make_shared<FunctionRunnable>(f);
+        task.submit_time_wather.start();
+        token->_entries.emplace_back(std::move(task));
+
+        if (token->need_dispatch()) {
+            _queue.emplace_back(token);
+            ++token->_num_submitted_tasks;
+            if (state == ThreadPoolToken::State::IDLE) {
+                token->transition(ThreadPoolToken::State::RUNNING);
+                state = ThreadPoolToken::State::RUNNING;
+            }
+        } else {
+            ++token->_num_unsubmitted_tasks;
+        }
+        _total_queued_tasks++;
+    }
+
+    // Wake up idle threads (up to the number of tasks submitted)
+    size_t threads_to_wake = std::min(funcs.size(), _idle_threads.size());
+    for (size_t i = 0; i < threads_to_wake; ++i) {
+        _idle_threads.front().not_empty.notify_one();
+        _idle_threads.pop_front();
+    }
+
+    l.unlock();
+
+    // Create new threads if needed (outside the lock)
+    for (int i = 0; i < threads_to_create; ++i) {
+        Status status = create_thread();
+        if (!status.ok()) {
+            l.lock();
+            _num_threads_pending_start--;
+            if (_num_threads + _num_threads_pending_start == 0 && i == 0) {
+                // If we have no threads at all, we can't do any work.
+                return status;
+            }
+            l.unlock();
+            LOG(WARNING) << "Thread pool " << _name
+                         << " failed to create thread: " << status.to_string();
+        }
+    }
+
+    return Status::OK();
+}
+
 Status ThreadPool::do_submit(std::shared_ptr<Runnable> r, ThreadPoolToken* token) {
     DCHECK(token);
 

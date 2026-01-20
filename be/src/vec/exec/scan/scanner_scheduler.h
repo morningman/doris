@@ -108,6 +108,10 @@ public:
 
     Status submit(std::shared_ptr<ScannerContext> ctx, std::shared_ptr<ScanTask> scan_task);
 
+    // Batch submit multiple scan tasks at once (more efficient due to reduced lock contention)
+    Status submit_batch(std::shared_ptr<ScannerContext> ctx,
+                        const std::list<std::shared_ptr<ScanTask>>& scan_tasks);
+
     static int get_remote_scan_thread_num();
 
     static int get_remote_scan_thread_queue_size();
@@ -118,6 +122,7 @@ public:
     virtual Status submit_scan_task(SimplifiedScanTask scan_task) = 0;
     virtual Status submit_scan_task(SimplifiedScanTask scan_task,
                                     const std::string& task_id_string) = 0;
+    virtual Status submit_scan_tasks_batch(const std::vector<SimplifiedScanTask>& tasks) = 0;
 
     virtual void reset_thread_num(int new_max_thread_num, int new_min_thread_num,
                                   int min_active_scan_threads) = 0;
@@ -183,6 +188,18 @@ public:
         } else {
             return Status::InternalError<false>("scanner pool {} is shutdown.", _sched_name);
         }
+    }
+
+    Status submit_scan_tasks_batch(const std::vector<SimplifiedScanTask>& tasks) override {
+        if (_is_stop) {
+            return Status::InternalError<false>("scanner pool {} is shutdown.", _sched_name);
+        }
+        std::vector<std::function<void()>> funcs;
+        funcs.reserve(tasks.size());
+        for (const auto& task : tasks) {
+            funcs.emplace_back([task] { task.scan_func(); });
+        }
+        return _scan_thread_pool->submit_func_batch(funcs);
     }
 
     Status submit_scan_task(SimplifiedScanTask scan_task,
@@ -405,6 +422,14 @@ public:
     Status schedule_scan_task(std::shared_ptr<ScannerContext> scanner_ctx,
                               std::shared_ptr<ScanTask> current_scan_task,
                               std::unique_lock<std::mutex>& transfer_lock) override;
+
+    Status submit_scan_tasks_batch(const std::vector<SimplifiedScanTask>& tasks) override {
+        // TaskExecutor doesn't have batch submit, fall back to sequential submission
+        for (const auto& task : tasks) {
+            RETURN_IF_ERROR(submit_scan_task(task));
+        }
+        return Status::OK();
+    }
 
 private:
     std::atomic<bool> _is_stop;

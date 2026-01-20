@@ -633,14 +633,13 @@ Status ScannerContext::schedule_scan_task(std::shared_ptr<ScanTask> current_scan
 
     {
         SCOPED_TIMER(_local_state->_scanner_ctx_sched_submit_task_timer);
-        for (auto& scan_task_iter : tasks_to_submit) {
-            Status submit_status = _do_submit_scan_task(scan_task_iter);
-            if (!submit_status.ok()) {
-                // Note: transfer_lock is still held by the caller
-                _process_status = submit_status;
-                _set_scanner_done();
-                return _process_status;
-            }
+        // Use batch submit to reduce lock contention in thread pool
+        Status submit_status = _scanner_scheduler->submit_batch(shared_from_this(), tasks_to_submit);
+        if (!submit_status.ok()) {
+            // Note: transfer_lock is still held by the caller
+            _process_status = submit_status;
+            _set_scanner_done();
+            return _process_status;
         }
     }
 
