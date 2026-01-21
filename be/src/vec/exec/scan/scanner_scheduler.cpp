@@ -291,6 +291,7 @@ void ScannerScheduler::_scanner_scan(std::shared_ptr<ScannerContext> ctx,
                    (!has_first_full_block || doris::thread_context()
                                                      ->thread_mem_tracker_mgr->limiter_mem_tracker()
                                                      ->check_limit(1))) {
+                scanner->inc_scan_loops();
                 if (UNLIKELY(ctx->done())) {
                     eos = true;
                     break;

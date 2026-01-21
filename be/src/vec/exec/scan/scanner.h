@@ -137,6 +137,8 @@ public:
     int32_t get_num_files_read() const { return _num_files_read; }
     int32_t get_num_schedule_times() const { return _num_schedule_times; }
     void inc_schedule_times() { ++_num_schedule_times; }
+    int64_t get_num_scan_loops() const { return _num_scan_loops; }
+    void inc_scan_loops() { ++_num_scan_loops; }
 
     bool has_prepared() const { return _has_prepared; }
 
@@ -256,6 +258,8 @@ protected:
     int32_t _num_files_read = 0;
     // number of times this scanner is scheduled
     int32_t _num_schedule_times = 0;
+    // number of while loop iterations in _scanner_scan
+    int64_t _num_scan_loops = 0;
 
     // num of rows return from scanner, after filter block
     int64_t _num_rows_return = 0;

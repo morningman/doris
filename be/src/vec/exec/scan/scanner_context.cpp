@@ -407,6 +407,7 @@ void ScannerContext::stop_scanners(RuntimeState* state) {
         std::stringstream scanner_rows_filtered;
         std::stringstream scanner_files_read;
         std::stringstream scanner_schedule_times;
+        std::stringstream scanner_scan_loops;
         scanner_statistics << "[";
         scanner_rows_read << "[";
         scanner_wait_worker_time << "[";
@@ -415,6 +416,7 @@ void ScannerContext::stop_scanners(RuntimeState* state) {
         scanner_rows_filtered << "[";
         scanner_files_read << "[";
         scanner_schedule_times << "[";
+        scanner_scan_loops << "[";
         // Scanners can in 3 state
         //  state 1: in scanner context, not scheduled
         //  state 2: in scanner worker pool's queue, scheduled but not running
@@ -448,6 +450,7 @@ void ScannerContext::stop_scanners(RuntimeState* state) {
             scanner_rows_filtered << rows_filtered << ", ";
             scanner_files_read << scanner->_scanner->get_num_files_read() << ", ";
             scanner_schedule_times << scanner->_scanner->get_num_schedule_times() << ", ";
+            scanner_scan_loops << scanner->_scanner->get_num_scan_loops() << ", ";
             // since there are all scanners, some scanners is running, so that could not call scanner
             // close here.
         }
@@ -459,6 +462,7 @@ void ScannerContext::stop_scanners(RuntimeState* state) {
         scanner_rows_filtered << "]";
         scanner_files_read << "]";
         scanner_schedule_times << "]";
+        scanner_scan_loops << "]";
         _scanner_profile->add_info_string("PerScannerRunningTime", scanner_statistics.str());
         _scanner_profile->add_info_string("PerScannerRowsRead", scanner_rows_read.str());
         _scanner_profile->add_info_string("PerScannerWaitTime", scanner_wait_worker_time.str());
@@ -467,6 +471,7 @@ void ScannerContext::stop_scanners(RuntimeState* state) {
         _scanner_profile->add_info_string("PerScannerRowsFiltered", scanner_rows_filtered.str());
         _scanner_profile->add_info_string("PerScannerFilesRead", scanner_files_read.str());
         _scanner_profile->add_info_string("PerScannerScheduleTimes", scanner_schedule_times.str());
+        _scanner_profile->add_info_string("PerScannerScanLoops", scanner_scan_loops.str());
     }
 }
 
