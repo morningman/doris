@@ -89,8 +89,12 @@ Status ScannerScheduler::submit(std::shared_ptr<ScannerContext> ctx,
         // Log current thread pool status before submit
         int active_threads = get_active_threads();
         int queue_size = get_queue_size();
-        LOG(INFO) << "ScannerScheduler submit one task to pool, active_threads=" << active_threads
-                  << ", queue_size=" << queue_size;
+        LOG(INFO) << "ScannerScheduler submit one task to pool"
+                  << ", node_id=" << ctx->local_state()->parent()->node_id()
+                  << ", name=" << ctx->local_state()->get_name()
+                  << ", total_scanners=" << ctx->num_total_scanners()
+                  << ", submit_batch_size=1"
+                  << ", active_threads=" << active_threads << ", queue_size=" << queue_size;
         SCOPED_TIMER(ctx->local_state()->scanner_submit_to_pool_timer());
         return this->submit_scan_task(simple_scan_task);
     };
@@ -161,7 +165,11 @@ Status ScannerScheduler::submit_batch(std::shared_ptr<ScannerContext> ctx,
     // Log current thread pool status before batch submit
     int active_threads = get_active_threads();
     int queue_size = get_queue_size();
-    LOG(INFO) << "ScannerScheduler submit batch tasks to pool, batch_size=" << simple_tasks.size()
+    LOG(INFO) << "ScannerScheduler submit batch tasks to pool"
+              << ", node_id=" << ctx->local_state()->parent()->node_id()
+              << ", name=" << ctx->local_state()->get_name()
+              << ", total_scanners=" << ctx->num_total_scanners()
+              << ", submit_batch_size=" << simple_tasks.size()
               << ", active_threads=" << active_threads << ", queue_size=" << queue_size;
     Status submit_status = this->submit_scan_tasks_batch(simple_tasks);
     if (!submit_status.ok()) {

@@ -200,6 +200,8 @@ public:
         return _num_scheduled_scanners;
     }
 
+    size_t num_total_scanners() const { return _all_scanners.size(); }
+
     Status schedule_scan_task(std::shared_ptr<ScanTask> current_scan_task,
                               std::unique_lock<std::mutex>& transfer_lock,
                               std::unique_lock<std::shared_mutex>& scheduler_lock);
