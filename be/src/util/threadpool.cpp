@@ -452,8 +452,8 @@ Status ThreadPool::submit_func_batch(const std::vector<std::function<void()>>& f
 
     // Calculate how many threads we need to create
     int inactive_threads = _num_threads + _num_threads_pending_start - _active_threads;
-    int threads_needed = static_cast<int>(_queue.size()) + static_cast<int>(funcs.size()) -
-                         inactive_threads;
+    int threads_needed =
+            static_cast<int>(_queue.size()) + static_cast<int>(funcs.size()) - inactive_threads;
     int threads_to_create = 0;
     if (threads_needed > 0) {
         threads_to_create =

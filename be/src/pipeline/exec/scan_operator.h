@@ -104,7 +104,9 @@ public:
     }
 
     // Getters for schedule_scan_task breakdown timers (used by ScannerContext)
-    RuntimeProfile::Counter* scanner_sched_total_timer() const { return _scanner_sched_total_timer; }
+    RuntimeProfile::Counter* scanner_sched_total_timer() const {
+        return _scanner_sched_total_timer;
+    }
     RuntimeProfile::Counter* scanner_sched_cnt() const { return _scanner_sched_cnt; }
     RuntimeProfile::Counter* scanner_submit_timer() const { return _scanner_submit_timer; }
     RuntimeProfile::Counter* scanner_sched_lock_wait_timer() const {

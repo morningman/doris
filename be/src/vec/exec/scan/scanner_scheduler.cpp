@@ -92,8 +92,7 @@ Status ScannerScheduler::submit(std::shared_ptr<ScannerContext> ctx,
         LOG(INFO) << "ScannerScheduler submit one task to pool"
                   << ", node_id=" << ctx->local_state()->parent()->node_id()
                   << ", name=" << ctx->local_state()->get_name()
-                  << ", total_scanners=" << ctx->num_total_scanners()
-                  << ", submit_batch_size=1"
+                  << ", total_scanners=" << ctx->num_total_scanners() << ", submit_batch_size=1"
                   << ", active_threads=" << active_threads << ", queue_size=" << queue_size;
         SCOPED_TIMER(ctx->local_state()->scanner_submit_to_pool_timer());
         return this->submit_scan_task(simple_scan_task);
@@ -173,9 +172,9 @@ Status ScannerScheduler::submit_batch(std::shared_ptr<ScannerContext> ctx,
               << ", active_threads=" << active_threads << ", queue_size=" << queue_size;
     Status submit_status = this->submit_scan_tasks_batch(simple_tasks);
     if (!submit_status.ok()) {
-        Status scan_task_status = Status::TooManyTasks(
-                "Failed to submit scanner batch to scanner pool reason:" +
-                std::string(submit_status.msg()));
+        Status scan_task_status =
+                Status::TooManyTasks("Failed to submit scanner batch to scanner pool reason:" +
+                                     std::string(submit_status.msg()));
         // Mark all tasks as failed
         for (const auto& scan_task : scan_tasks) {
             scan_task->set_status(scan_task_status);

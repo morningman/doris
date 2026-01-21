@@ -1158,7 +1158,7 @@ Status FileScanner::_get_next_reader() {
                     to_string(_params->format_type));
         }
         COUNTER_UPDATE(_file_counter, 1);
-        ++_num_files_read;  // Per-scanner statistics
+        ++_num_files_read; // Per-scanner statistics
         // The FileScanner for external table may try to open not exist files,
         // Because FE file cache for external table may out of date.
         // So, NOT_FOUND for FileScanner is not a fail case.
