@@ -149,6 +149,8 @@ private:
             std::make_shared<RuntimeProfile::Counter>(TUnit::UNIT, 0, 1);
     std::shared_ptr<RuntimeProfile::Counter> _always_true_counter =
             std::make_shared<RuntimeProfile::Counter>(TUnit::UNIT, 0, 1);
+    std::shared_ptr<RuntimeProfile::Counter> _rf_filter_time =
+            std::make_shared<RuntimeProfile::Counter>(TUnit::TIME_NS, 0);
 
     int32_t _rf_wait_time_ms;
     const int64_t _registration_time;

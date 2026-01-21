@@ -98,6 +98,7 @@ Status VRuntimeFilterWrapper::execute_filter(VExprContext* context, const Block*
                                              uint8_t* __restrict result_filter_data, size_t rows,
                                              bool accept_null, bool* can_filter_all) const {
     DCHECK(_open_finished);
+    SCOPED_TIMER(_rf_filter_time.get());
     if (accept_null) {
         return Status::InternalError(
                 "Runtime filter does not support accept_null in execute_filter");

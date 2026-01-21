@@ -39,7 +39,8 @@ Status RuntimeFilterConsumer::_apply_ready_expr(
     RETURN_IF_ERROR(_get_push_exprs(push_exprs, _probe_expr));
 
     for (auto i = origin_size; i < push_exprs.size(); i++) {
-        push_exprs[i]->attach_profile_counter(_rf_input, _rf_filter, _always_true_counter);
+        push_exprs[i]->attach_profile_counter(_rf_input, _rf_filter, _always_true_counter,
+                                              _rf_filter_time);
     }
     return Status::OK();
 }
@@ -241,6 +242,10 @@ void RuntimeFilterConsumer::collect_realtime_profile(RuntimeProfile* parent_oper
     c = parent_operator_profile->add_counter(fmt::format("RF{} AlwaysTrueFilterRows", filter_id),
                                              TUnit::UNIT, "RuntimeFilterInfo", 1);
     c->update(_always_true_counter->value());
+
+    c = parent_operator_profile->add_counter(fmt::format("RF{} FilterTime", filter_id),
+                                             TUnit::TIME_NS, "RuntimeFilterInfo", 1);
+    c->update(_rf_filter_time->value());
 }
 
 } // namespace doris

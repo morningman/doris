@@ -81,10 +81,12 @@ public:
 
     void attach_profile_counter(std::shared_ptr<RuntimeProfile::Counter> rf_input_rows,
                                 std::shared_ptr<RuntimeProfile::Counter> rf_filter_rows,
-                                std::shared_ptr<RuntimeProfile::Counter> always_true_filter_rows) {
+                                std::shared_ptr<RuntimeProfile::Counter> always_true_filter_rows,
+                                std::shared_ptr<RuntimeProfile::Counter> rf_filter_time) {
         DCHECK(rf_input_rows != nullptr);
         DCHECK(rf_filter_rows != nullptr);
         DCHECK(always_true_filter_rows != nullptr);
+        DCHECK(rf_filter_time != nullptr);
 
         if (rf_input_rows != nullptr) {
             _rf_input_rows = rf_input_rows;
@@ -94,6 +96,9 @@ public:
         }
         if (always_true_filter_rows != nullptr) {
             _always_true_filter_rows = always_true_filter_rows;
+        }
+        if (rf_filter_time != nullptr) {
+            _rf_filter_time = rf_filter_time;
         }
     }
 
@@ -120,6 +125,8 @@ private:
             std::make_shared<RuntimeProfile::Counter>(TUnit::UNIT, 0);
     std::shared_ptr<RuntimeProfile::Counter> _always_true_filter_rows =
             std::make_shared<RuntimeProfile::Counter>(TUnit::UNIT, 0);
+    std::shared_ptr<RuntimeProfile::Counter> _rf_filter_time =
+            std::make_shared<RuntimeProfile::Counter>(TUnit::TIME_NS, 0);
 
     std::string _expr_name;
     double _ignore_thredhold;
