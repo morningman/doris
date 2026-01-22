@@ -762,7 +762,8 @@ Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_s
 
             // Initialize result_filter to all 1s if not already done by _read_and_filter_single_column
             if (result_filter.empty()) {
-                result_filter.assign(first_column_read_rows, 1);
+                result_filter.resize(first_column_read_rows);
+                memset(result_filter.data(), 1, first_column_read_rows);
             }
         }
 
@@ -823,7 +824,8 @@ Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_s
         if (rows_after_filter < result_filter.size() && col_idx < predicate_columns.size() - 1) {
             // Save original filter before filtering for lazy column reading later
             if (original_filter.empty()) {
-                original_filter = result_filter;
+                original_filter.resize(result_filter.size());
+                memcpy(original_filter.data(), result_filter.data(), result_filter.size());
             } else {
                 // Merge with previous filter
                 for (size_t i = 0; i < original_filter.size(); ++i) {
@@ -848,8 +850,8 @@ Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_s
             RETURN_IF_ERROR(filter_map.init(result_filter.data(), first_column_read_rows, false));
 
             // Compact result_filter: remove filtered rows, keep only 1s
-            IColumn::Filter new_filter(rows_after_filter, 1);
-            result_filter = std::move(new_filter);
+            result_filter.resize(rows_after_filter);
+            memset(result_filter.data(), 1, rows_after_filter);
 
             // Update batch_size for next column
             batch_size = rows_after_filter;
