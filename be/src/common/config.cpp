@@ -1551,6 +1551,10 @@ DEFINE_mInt64(compaction_batch_size, "-1");
 // filter wrong data.
 DEFINE_mBool(enable_parquet_page_index, "true");
 
+// Enable round-by-round lazy read optimization for parquet.
+// Default is false for safety, can be enabled after testing.
+DEFINE_mBool(enable_parquet_lazy_read_round_by_round, "false");
+
 DEFINE_mBool(ignore_not_found_file_in_external_table, "true");
 
 DEFINE_mBool(enable_hdfs_mem_limiter, "true");

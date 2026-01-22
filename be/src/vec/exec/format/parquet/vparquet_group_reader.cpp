@@ -61,6 +61,7 @@
 #include "vec/exprs/vliteral.h"
 #include "vec/exprs/vslot_ref.h"
 #include "vparquet_column_reader.h"
+#include "util/simd/bits.h"
 
 namespace cctz {
 class time_zone;
@@ -190,6 +191,19 @@ Status RowGroupReader::init(
         _filter_conjuncts.insert(_filter_conjuncts.end(),
                                  _lazy_read_ctx.missing_columns_conjuncts.begin(),
                                  _lazy_read_ctx.missing_columns_conjuncts.end());
+
+        // Build predicate conjuncts by column for round-by-round lazy read
+        // This allows us to apply filters incrementally as we read each column
+        for (size_t i = 0; i < predicate_col_names.size(); ++i) {
+            const std::string& col_name = predicate_col_names[i];
+            int slot_id = predicate_col_slot_ids[i];
+            auto iter = _slot_id_to_filter_conjuncts->find(slot_id);
+            if (iter != _slot_id_to_filter_conjuncts->end() && !iter->second.empty()) {
+                _predicate_conjuncts_by_column[col_name] = iter->second;
+            }
+            _predicate_column_read_order.push_back(col_name);
+        }
+
         RETURN_IF_ERROR(_rewrite_dict_predicates());
     }
     // _state is nullptr in some ut.
@@ -464,6 +478,14 @@ Status RowGroupReader::_read_column_data(Block* block,
 
 Status RowGroupReader::_do_lazy_read(Block* block, size_t batch_size, size_t* read_rows,
                                      bool* batch_eof) {
+    // Use round-by-round lazy read if enabled and there are multiple predicate columns
+    // Round-by-round reads predicate columns one by one and filters incrementally,
+    // which can reduce I/O when early columns have high selectivity.
+    if (config::enable_parquet_lazy_read_round_by_round &&
+        _predicate_column_read_order.size() > 1 && !_lazy_read_ctx.has_complex_type) {
+        return _do_lazy_read_round_by_round(block, batch_size, read_rows, batch_eof);
+    }
+
     std::unique_ptr<FilterMap> filter_map_ptr = nullptr;
     size_t pre_read_rows;
     bool pre_eof;
@@ -640,6 +662,275 @@ Status RowGroupReader::_do_lazy_read(Block* block, size_t batch_size, size_t* re
     *batch_eof = pre_eof;
     RETURN_IF_ERROR(_fill_partition_columns(block, column_size, _lazy_read_ctx.partition_columns));
     RETURN_IF_ERROR(_fill_missing_columns(block, column_size, _lazy_read_ctx.missing_columns));
+    return Status::OK();
+}
+
+Status RowGroupReader::_read_and_filter_single_column(
+        Block* block, const std::string& col_name, size_t batch_size, FilterMap& filter_map,
+        IColumn::Filter& result_filter, std::vector<std::string>& columns_already_read,
+        size_t* read_rows, bool* eof, bool* can_filter_all) {
+    // Read single column
+    std::vector<std::string> single_column = {col_name};
+    size_t col_read_rows = 0;
+    bool col_eof = false;
+
+    RETURN_IF_ERROR(
+            _read_column_data(block, single_column, batch_size, &col_read_rows, &col_eof, filter_map));
+
+    *read_rows = col_read_rows;
+    *eof = col_eof;
+    *can_filter_all = false;
+
+    columns_already_read.push_back(col_name);
+
+    // Apply filter conjuncts for this column if any
+    auto conjuncts_iter = _predicate_conjuncts_by_column.find(col_name);
+    if (conjuncts_iter == _predicate_conjuncts_by_column.end() || conjuncts_iter->second.empty()) {
+        return Status::OK();
+    }
+
+    SCOPED_RAW_TIMER(&_predicate_filter_time);
+
+    auto name_to_idx = block->get_name_to_pos_map();
+    size_t col_pos = name_to_idx[col_name];
+
+    // Build temporary block with single column for filter execution
+    Block temp_block;
+    temp_block.insert(block->get_by_position(col_pos));
+
+    // Ensure temp_block has correct row count for VExprContext::execute_conjuncts
+    size_t current_filter_size = result_filter.size();
+    if (temp_block.rows() == 0 && current_filter_size > 0) {
+        temp_block.get_by_position(0).column->assume_mutable()->resize(current_filter_size);
+    }
+
+    // Execute filter conjuncts for this column
+    VExprContextSPtrs& column_conjuncts = conjuncts_iter->second;
+    RETURN_IF_ERROR(VExprContext::execute_conjuncts(column_conjuncts, nullptr, &temp_block,
+                                                    &result_filter, can_filter_all));
+
+    // Clean up temporary resize
+    if (temp_block.rows() > 0) {
+        temp_block.get_by_position(0).column->assume_mutable()->clear();
+    }
+
+    return Status::OK();
+}
+
+Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_size,
+                                                    size_t* read_rows, bool* batch_eof) {
+    uint32_t origin_column_num = block->columns();
+    auto name_to_idx = block->get_name_to_pos_map();
+
+    // Initialize variables
+    size_t first_column_read_rows = 0;
+    bool first_column_eof = false;
+    IColumn::Filter result_filter;
+    FilterMap filter_map;
+    std::vector<std::string> columns_already_read;
+
+    // Store original filter for lazy column reading
+    IColumn::Filter original_filter;
+
+    const std::vector<std::string>& predicate_columns = _predicate_column_read_order;
+
+    // ========================================
+    // Step 1: Read predicate columns one by one
+    // ========================================
+    for (size_t col_idx = 0; col_idx < predicate_columns.size(); ++col_idx) {
+        const std::string& col_name = predicate_columns[col_idx];
+
+        size_t col_read_rows = 0;
+        bool col_eof = false;
+        bool can_filter_all = false;
+
+        RETURN_IF_ERROR(_read_and_filter_single_column(block, col_name, batch_size, filter_map,
+                                                       result_filter, columns_already_read,
+                                                       &col_read_rows, &col_eof, &can_filter_all));
+
+        if (col_idx == 0) {
+            // First column: record actual rows read and initialize filter
+            first_column_read_rows = col_read_rows;
+            first_column_eof = col_eof;
+
+            if (first_column_read_rows == 0) {
+                DCHECK_EQ(first_column_eof, true);
+                *read_rows = 0;
+                *batch_eof = true;
+                return Status::OK();
+            }
+
+            // Initialize result_filter to all 1s if not already done by _read_and_filter_single_column
+            if (result_filter.empty()) {
+                result_filter.assign(first_column_read_rows, 1);
+            }
+        }
+
+        // Check if all rows are filtered
+        if (can_filter_all) {
+            // Clear all read columns
+            for (const auto& read_col : columns_already_read) {
+                if (name_to_idx.contains(read_col)) {
+                    block->get_by_position(name_to_idx[read_col]).column->assume_mutable()->clear();
+                }
+            }
+
+            if (!first_column_eof) {
+                // Continue to next batch
+                _cached_filtered_rows += first_column_read_rows;
+                *read_rows = 0;
+                _convert_dict_cols_to_string_cols(block);
+                return Status::OK();
+            } else {
+                // End of data
+                *read_rows = 0;
+                *batch_eof = true;
+                _lazy_read_filtered_rows += first_column_read_rows;
+                _convert_dict_cols_to_string_cols(block);
+                return Status::OK();
+            }
+        }
+
+        // Count remaining rows after filter
+        size_t rows_after_filter =
+                result_filter.size() -
+                simd::count_zero_num(reinterpret_cast<const int8_t*>(result_filter.data()),
+                                     result_filter.size());
+
+        if (rows_after_filter == 0) {
+            // All filtered, clear and return
+            for (const auto& read_col : columns_already_read) {
+                if (name_to_idx.contains(read_col)) {
+                    block->get_by_position(name_to_idx[read_col]).column->assume_mutable()->clear();
+                }
+            }
+
+            if (!first_column_eof) {
+                _cached_filtered_rows += first_column_read_rows;
+                *read_rows = 0;
+                _convert_dict_cols_to_string_cols(block);
+                return Status::OK();
+            } else {
+                *read_rows = 0;
+                *batch_eof = true;
+                _lazy_read_filtered_rows += first_column_read_rows;
+                _convert_dict_cols_to_string_cols(block);
+                return Status::OK();
+            }
+        }
+
+        // Filter already read columns if needed (align row counts)
+        if (rows_after_filter < result_filter.size() && col_idx < predicate_columns.size() - 1) {
+            // Save original filter before filtering for lazy column reading later
+            if (original_filter.empty()) {
+                original_filter = result_filter;
+            } else {
+                // Merge with previous filter
+                for (size_t i = 0; i < original_filter.size(); ++i) {
+                    original_filter[i] = original_filter[i] && result_filter[i];
+                }
+            }
+
+            // Filter all already read columns
+            std::vector<uint32_t> columns_to_filter;
+            for (const auto& read_col : columns_already_read) {
+                if (name_to_idx.contains(read_col)) {
+                    columns_to_filter.push_back(name_to_idx[read_col]);
+                }
+            }
+
+            if (!columns_to_filter.empty()) {
+                RETURN_IF_CATCH_EXCEPTION(
+                        Block::filter_block_internal(block, columns_to_filter, result_filter));
+            }
+
+            // Update filter_map for subsequent column reads
+            RETURN_IF_ERROR(filter_map.init(result_filter.data(), first_column_read_rows, false));
+
+            // Compact result_filter: remove filtered rows, keep only 1s
+            IColumn::Filter new_filter(rows_after_filter, 1);
+            result_filter = std::move(new_filter);
+
+            // Update batch_size for next column
+            batch_size = rows_after_filter;
+        }
+    }
+
+    // ========================================
+    // Step 2: Handle partition and missing columns for predicates
+    // ========================================
+    size_t current_rows = result_filter.size();
+
+    RETURN_IF_ERROR(_fill_partition_columns(block, current_rows,
+                                            _lazy_read_ctx.predicate_partition_columns));
+    RETURN_IF_ERROR(
+            _fill_missing_columns(block, current_rows, _lazy_read_ctx.predicate_missing_columns));
+
+    // ========================================
+    // Step 3: Build position delete filter
+    // ========================================
+    RETURN_IF_ERROR(_build_pos_delete_filter(first_column_read_rows));
+
+    // ========================================
+    // Step 4: Read lazy columns
+    // ========================================
+    if (!_lazy_read_ctx.lazy_read_columns.empty()) {
+        // Rebuild filter_map for lazy columns (include cached filtered rows)
+        FilterMap lazy_filter_map;
+        DorisUniqueBufferPtr<uint8_t> rebuild_filter_map_data = nullptr;
+
+        // Use original_filter if available, otherwise use result_filter
+        const IColumn::Filter& filter_for_lazy =
+                original_filter.empty() ? result_filter : original_filter;
+
+        if (_cached_filtered_rows != 0) {
+            RETURN_IF_ERROR(_rebuild_filter_map(lazy_filter_map, rebuild_filter_map_data,
+                                                first_column_read_rows));
+        } else {
+            RETURN_IF_ERROR(
+                    lazy_filter_map.init(filter_for_lazy.data(), first_column_read_rows, false));
+        }
+
+        size_t lazy_read_rows = 0;
+        bool lazy_eof = false;
+        RETURN_IF_ERROR(_read_column_data(block, _lazy_read_ctx.lazy_read_columns,
+                                          first_column_read_rows, &lazy_read_rows, &lazy_eof,
+                                          lazy_filter_map));
+
+        _cached_filtered_rows = 0;
+    }
+
+    // ========================================
+    // Step 5: Fill remaining partition and missing columns
+    // ========================================
+    RETURN_IF_ERROR(
+            _fill_partition_columns(block, current_rows, _lazy_read_ctx.partition_columns));
+    RETURN_IF_ERROR(_fill_missing_columns(block, current_rows, _lazy_read_ctx.missing_columns));
+
+    // ========================================
+    // Step 6: Convert dict columns and cleanup
+    // ========================================
+    _convert_dict_cols_to_string_cols(block);
+
+    // Verify all columns have same row count
+    size_t column_num = block->columns();
+    size_t column_size = 0;
+    for (size_t i = 0; i < column_num; ++i) {
+        size_t cz = block->get_by_position(i).column->size();
+        if (column_size != 0 && cz != 0) {
+            DCHECK_EQ(column_size, cz);
+        }
+        if (cz != 0) {
+            column_size = cz;
+        }
+    }
+
+    Block::erase_useless_column(block, origin_column_num);
+
+    _lazy_read_filtered_rows += first_column_read_rows - column_size;
+    *read_rows = column_size;
+    *batch_eof = first_column_eof;
+
     return Status::OK();
 }
 

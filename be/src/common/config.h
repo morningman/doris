@@ -1597,6 +1597,11 @@ DECLARE_mInt64(compaction_batch_size);
 
 DECLARE_mBool(enable_parquet_page_index);
 
+// Enable round-by-round lazy read optimization for parquet.
+// When enabled, predicate columns are read one by one and filtered incrementally,
+// which can reduce I/O when early columns have high selectivity.
+DECLARE_mBool(enable_parquet_lazy_read_round_by_round);
+
 // Wheather to ignore not found file in external teble(eg, hive)
 // Default is true, if set to false, the not found file will result in query failure.
 DECLARE_mBool(ignore_not_found_file_in_external_table);

@@ -202,6 +202,15 @@ private:
                              FilterMap& filter_map);
 
     Status _do_lazy_read(Block* block, size_t batch_size, size_t* read_rows, bool* batch_eof);
+    // Round-by-round lazy read: read predicate columns one by one and filter incrementally
+    Status _do_lazy_read_round_by_round(Block* block, size_t batch_size, size_t* read_rows,
+                                        bool* batch_eof);
+    // Read a single predicate column and apply its filter conditions
+    Status _read_and_filter_single_column(Block* block, const std::string& col_name,
+                                          size_t batch_size, FilterMap& filter_map,
+                                          IColumn::Filter& result_filter,
+                                          std::vector<std::string>& columns_already_read,
+                                          size_t* read_rows, bool* eof, bool* can_filter_all);
     Status _rebuild_filter_map(FilterMap& filter_map,
                                DorisUniqueBufferPtr<uint8_t>& filter_map_data,
                                size_t pre_read_rows) const;
@@ -257,6 +266,10 @@ private:
     VExprContextSPtrs _filter_conjuncts;
     // std::pair<col_name, slot_id>
     std::vector<std::pair<std::string, int>> _dict_filter_cols;
+    // For round-by-round lazy read: map from column name to its filter conjuncts
+    std::unordered_map<std::string, VExprContextSPtrs> _predicate_conjuncts_by_column;
+    // For round-by-round lazy read: the order to read predicate columns
+    std::vector<std::string> _predicate_column_read_order;
     RuntimeState* _state = nullptr;
     std::shared_ptr<ObjectPool> _obj_pool;
     const std::set<uint64_t>& _column_ids;
