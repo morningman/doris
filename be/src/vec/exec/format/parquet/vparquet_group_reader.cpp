@@ -792,12 +792,23 @@ Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_s
 
             // Filter already read columns if needed (align row counts)
             if (rows_after_filter < result_filter.size() && col_idx < predicate_columns.size() - 1) {
+                // Save/update original_filter before compressing result_filter
+                // original_filter always has first_column_read_rows elements
                 if (original_filter.empty()) {
+                    // First time: save current result_filter
                     original_filter.resize(result_filter.size());
                     memcpy(original_filter.data(), result_filter.data(), result_filter.size());
                 } else {
-                    for (size_t i = 0; i < original_filter.size(); ++i) {
-                        original_filter[i] = original_filter[i] && result_filter[i];
+                    // Subsequent times: merge compressed result_filter back to original_filter
+                    // original_filter[i] represents the i-th row in the original batch
+                    // result_filter[j] represents the j-th row after previous filtering
+                    // We need to map: for each 1 in original_filter, check corresponding result_filter value
+                    size_t j = 0;
+                    for (size_t i = 0; i < original_filter.size() && j < result_filter.size(); ++i) {
+                        if (original_filter[i]) {
+                            original_filter[i] = result_filter[j];
+                            ++j;
+                        }
                     }
                 }
 
@@ -813,8 +824,10 @@ Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_s
                             Block::filter_block_internal(block, columns_to_filter, result_filter));
                 }
 
-                RETURN_IF_ERROR(filter_map.init(result_filter.data(), first_column_read_rows, false));
+                // Update filter_map based on original_filter (for next column read)
+                RETURN_IF_ERROR(filter_map.init(original_filter.data(), first_column_read_rows, false));
 
+                // Compress result_filter: all remaining rows are valid
                 result_filter.resize(rows_after_filter);
                 memset(result_filter.data(), 1, rows_after_filter);
                 batch_size = rows_after_filter;
@@ -858,6 +871,21 @@ Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_s
         // ========================================
         size_t current_rows = result_filter.size();
 
+        // Ensure original_filter is set for lazy column reading
+        // original_filter should have first_column_read_rows elements for correct FilterMap init
+        if (original_filter.empty()) {
+            // If no filtering happened across multiple columns, original_filter is empty
+            // In this case, result_filter should have first_column_read_rows elements
+            if (result_filter.size() != first_column_read_rows) {
+                return Status::InternalError(
+                        "Inconsistent filter state: original_filter is empty but result_filter "
+                        "size {} != first_column_read_rows {}",
+                        result_filter.size(), first_column_read_rows);
+            }
+            original_filter.resize(first_column_read_rows);
+            memcpy(original_filter.data(), result_filter.data(), first_column_read_rows);
+        }
+
         RETURN_IF_ERROR(_fill_partition_columns(block, current_rows,
                                                 _lazy_read_ctx.predicate_partition_columns));
         RETURN_IF_ERROR(
@@ -875,15 +903,13 @@ Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_s
             FilterMap lazy_filter_map;
             DorisUniqueBufferPtr<uint8_t> rebuild_filter_map_data = nullptr;
 
-            const IColumn::Filter& filter_for_lazy =
-                    original_filter.empty() ? result_filter : original_filter;
-
             if (_cached_filtered_rows != 0) {
                 RETURN_IF_ERROR(_rebuild_filter_map(lazy_filter_map, rebuild_filter_map_data,
                                                     first_column_read_rows));
             } else {
+                // Use original_filter which now has first_column_read_rows elements
                 RETURN_IF_ERROR(
-                        lazy_filter_map.init(filter_for_lazy.data(), first_column_read_rows, false));
+                        lazy_filter_map.init(original_filter.data(), first_column_read_rows, false));
             }
 
             size_t lazy_read_rows = 0;
