@@ -691,28 +691,13 @@ Status RowGroupReader::_read_and_filter_single_column(
 
     SCOPED_RAW_TIMER(&_predicate_filter_time);
 
-    auto name_to_idx = block->get_name_to_pos_map();
-    size_t col_pos = name_to_idx[col_name];
-
-    // Build temporary block with single column for filter execution
-    Block temp_block;
-    temp_block.insert(block->get_by_position(col_pos));
-
-    // Ensure temp_block has correct row count for VExprContext::execute_conjuncts
-    size_t current_filter_size = result_filter.size();
-    if (temp_block.rows() == 0 && current_filter_size > 0) {
-        temp_block.get_by_position(0).column->assume_mutable()->resize(current_filter_size);
-    }
-
-    // Execute filter conjuncts for this column
+    // Execute filter conjuncts for this column using original block directly.
+    // The column is already at the correct position in block, so VSlotRef
+    // will find it using _column_id. The conjuncts for this column should only
+    // reference this column's slot (as ensured by _slot_id_to_filter_conjuncts).
     VExprContextSPtrs& column_conjuncts = conjuncts_iter->second;
-    RETURN_IF_ERROR(VExprContext::execute_conjuncts(column_conjuncts, nullptr, &temp_block,
+    RETURN_IF_ERROR(VExprContext::execute_conjuncts(column_conjuncts, nullptr, block,
                                                     &result_filter, can_filter_all));
-
-    // Clean up temporary resize
-    if (temp_block.rows() > 0) {
-        temp_block.get_by_position(0).column->assume_mutable()->clear();
-    }
 
     return Status::OK();
 }
