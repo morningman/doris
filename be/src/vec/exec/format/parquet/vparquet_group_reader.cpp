@@ -691,13 +691,31 @@ Status RowGroupReader::_read_and_filter_single_column(
 
     SCOPED_RAW_TIMER(&_predicate_filter_time);
 
-    // Execute filter conjuncts for this column using original block directly.
-    // The column is already at the correct position in block, so VSlotRef
-    // will find it using _column_id. The conjuncts for this column should only
-    // reference this column's slot (as ensured by _slot_id_to_filter_conjuncts).
+    // Initialize result_filter if empty (first column case)
+    // We must initialize it here with the correct row count (col_read_rows),
+    // because we cannot use execute_conjuncts which uses block->rows().
+    // block->rows() returns the size of the first column (position 0), which
+    // might not be the column we just read.
+    if (result_filter.empty() && col_read_rows > 0) {
+        result_filter.resize(col_read_rows);
+        memset(result_filter.data(), 1, col_read_rows);
+    }
+
+    // Execute filter conjuncts for this column using execute_filter directly.
+    // We use execute_filter instead of execute_conjuncts because:
+    // 1. execute_conjuncts uses block->rows() which may return wrong value
+    //    (size of first column, not the column we just read)
+    // 2. execute_filter accepts rows parameter, allowing us to pass correct row count
+    // The column is at the correct position in block, so VSlotRef will find it.
     VExprContextSPtrs& column_conjuncts = conjuncts_iter->second;
-    RETURN_IF_ERROR(VExprContext::execute_conjuncts(column_conjuncts, nullptr, block,
-                                                    &result_filter, can_filter_all));
+    bool accept_null = false;
+    for (const auto& ctx : column_conjuncts) {
+        RETURN_IF_ERROR(ctx->execute_filter(block, result_filter.data(), col_read_rows,
+                                            accept_null, can_filter_all));
+        if (*can_filter_all) {
+            return Status::OK();
+        }
+    }
 
     return Status::OK();
 }
