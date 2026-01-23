@@ -677,6 +677,15 @@ Status RowGroupReader::_read_and_filter_single_column(
     RETURN_IF_ERROR(
             _read_column_data(block, single_column, batch_size, &col_read_rows, &col_eof, filter_map));
 
+    // Sanity check after reading column
+    auto name_to_idx = block->get_name_to_pos_map();
+    if (name_to_idx.contains(col_name)) {
+        auto& col = block->get_by_position(name_to_idx[col_name]).column;
+        col->sanity_check();
+        LOG(INFO) << "[RoundByRound] After read column " << col_name << ", size=" << col->size()
+                  << ", col_read_rows=" << col_read_rows;
+    }
+
     *read_rows = col_read_rows;
     *eof = col_eof;
     *can_filter_all = false;
@@ -699,6 +708,7 @@ Status RowGroupReader::_read_and_filter_single_column(
     if (result_filter.empty() && col_read_rows > 0) {
         result_filter.resize(col_read_rows);
         memset(result_filter.data(), 1, col_read_rows);
+        LOG(INFO) << "[RoundByRound] Initialize result_filter, size=" << result_filter.size();
     }
 
     // Execute filter conjuncts for this column using execute_filter directly.
@@ -713,9 +723,18 @@ Status RowGroupReader::_read_and_filter_single_column(
         RETURN_IF_ERROR(ctx->execute_filter(block, result_filter.data(), col_read_rows,
                                             accept_null, can_filter_all));
         if (*can_filter_all) {
+            LOG(INFO) << "[RoundByRound] After filter column " << col_name
+                      << ", can_filter_all=true";
             return Status::OK();
         }
     }
+
+    size_t ones = 0;
+    for (size_t i = 0; i < result_filter.size(); ++i) {
+        if (result_filter[i]) ++ones;
+    }
+    LOG(INFO) << "[RoundByRound] After filter column " << col_name
+              << ", result_filter.size=" << result_filter.size() << ", ones=" << ones;
 
     return Status::OK();
 }
@@ -792,12 +811,17 @@ Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_s
 
             // Filter already read columns if needed (align row counts)
             if (rows_after_filter < result_filter.size() && col_idx < predicate_columns.size() - 1) {
+                LOG(INFO) << "[RoundByRound] Need to filter columns, rows_after_filter="
+                          << rows_after_filter << ", result_filter.size=" << result_filter.size();
+
                 // Save/update original_filter before compressing result_filter
                 // original_filter always has first_column_read_rows elements
                 if (original_filter.empty()) {
                     // First time: save current result_filter
                     original_filter.resize(result_filter.size());
                     memcpy(original_filter.data(), result_filter.data(), result_filter.size());
+                    LOG(INFO) << "[RoundByRound] Initialize original_filter, size="
+                              << original_filter.size();
                 } else {
                     // Subsequent times: merge compressed result_filter back to original_filter
                     // original_filter[i] represents the i-th row in the original batch
@@ -810,6 +834,8 @@ Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_s
                             ++j;
                         }
                     }
+                    LOG(INFO) << "[RoundByRound] Update original_filter, merged " << j
+                              << " elements from result_filter";
                 }
 
                 std::vector<uint32_t> columns_to_filter;
@@ -820,8 +846,20 @@ Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_s
                 }
 
                 if (!columns_to_filter.empty()) {
+                    LOG(INFO) << "[RoundByRound] Filtering " << columns_to_filter.size()
+                              << " columns with result_filter.size=" << result_filter.size();
                     RETURN_IF_CATCH_EXCEPTION(
                             Block::filter_block_internal(block, columns_to_filter, result_filter));
+
+                    // Sanity check after filtering
+                    for (const auto& read_col : columns_already_read) {
+                        if (name_to_idx.contains(read_col)) {
+                            auto& col = block->get_by_position(name_to_idx[read_col]).column;
+                            col->sanity_check();
+                            LOG(INFO) << "[RoundByRound] After filter_block_internal, column "
+                                      << read_col << " size=" << col->size();
+                        }
+                    }
                 }
 
                 // Update filter_map based on original_filter (for next column read)
@@ -831,6 +869,7 @@ Status RowGroupReader::_do_lazy_read_round_by_round(Block* block, size_t batch_s
                 result_filter.resize(rows_after_filter);
                 memset(result_filter.data(), 1, rows_after_filter);
                 batch_size = rows_after_filter;
+                LOG(INFO) << "[RoundByRound] Compress result_filter to size=" << rows_after_filter;
             }
         }
 
