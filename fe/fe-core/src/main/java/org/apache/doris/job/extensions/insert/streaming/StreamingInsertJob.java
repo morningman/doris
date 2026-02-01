@@ -889,7 +889,12 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
         this.jobStatistic.setLoadBytes(this.jobStatistic.getLoadBytes() + attachment.getLoadBytes());
         this.jobStatistic.setFileNumber(this.jobStatistic.getFileNumber() + attachment.getNumFiles());
         this.jobStatistic.setFileSize(this.jobStatistic.getFileSize() + attachment.getFileBytes());
-        offsetProvider.updateOffset(offsetProvider.deserializeOffset(attachment.getOffset()));
+        log.info("[KAFKA_OFFSET_DEBUG] updateJobStatisticAndOffset: jobId={}, about to deserialize offset from attachment",
+                getJobId());
+        Offset deserializedOffset = offsetProvider.deserializeOffset(attachment.getOffset());
+        log.info("[KAFKA_OFFSET_DEBUG] updateJobStatisticAndOffset: jobId={}, deserialized offset type={}, calling updateOffset",
+                getJobId(), deserializedOffset != null ? deserializedOffset.getClass().getSimpleName() : "null");
+        offsetProvider.updateOffset(deserializedOffset);
     }
 
     private void updateCloudJobStatisticAndOffset(StreamingTaskTxnCommitAttachment attachment) {
@@ -940,6 +945,9 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
      * @param replayJob
      */
     public void replayOnUpdated(StreamingInsertJob replayJob) {
+        log.info("[KAFKA_OFFSET_DEBUG] replayOnUpdated started: jobId={}, replayJob.offsetProviderPersist={}",
+                getJobId(),
+                replayJob.getOffsetProviderPersist() != null ? "has value (length=" + replayJob.getOffsetProviderPersist().length() + ")" : "null");
         if (!JobStatus.RUNNING.equals(replayJob.getJobStatus())) {
             // No need to restore in the running state, as scheduling relies on pending states.
             // insert TVF does not persist the running state.
@@ -957,7 +965,12 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
             log.error("replay modify streaming insert job properties failed, job id: {}", getJobId(), e);
         }
         if (replayJob.getOffsetProviderPersist() != null) {
+            log.info("[KAFKA_OFFSET_DEBUG] replayOnUpdated: jobId={}, setting offsetProviderPersist from replayJob",
+                    getJobId());
             setOffsetProviderPersist(replayJob.getOffsetProviderPersist());
+        } else {
+            log.info("[KAFKA_OFFSET_DEBUG] replayOnUpdated: jobId={}, replayJob.offsetProviderPersist is null, NOT setting",
+                    getJobId());
         }
         if (replayJob.getNonTxnJobStatistic() != null) {
             setNonTxnJobStatistic(replayJob.getNonTxnJobStatistic());
@@ -966,6 +979,7 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
         setSucceedTaskCount(replayJob.getSucceedTaskCount());
         setFailedTaskCount(replayJob.getFailedTaskCount());
         setCanceledTaskCount(replayJob.getCanceledTaskCount());
+        log.info("[KAFKA_OFFSET_DEBUG] replayOnUpdated completed: jobId={}", getJobId());
     }
 
     /**
@@ -1218,12 +1232,13 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
             // offset is managed in onKafkaPartitionTaskSuccess() instead.
             // Here we need to find the correct task from runningKafkaPartitionTasks.
             AbstractStreamingTask currentTask = runningStreamTask;
-            
-            if (currentTask == null && isKafkaStreamingJob() && !runningKafkaPartitionTasks.isEmpty()) {
+            // for kafka job, runningStreamTask is meaning less, find task in runningKafkaPartitionTasks
+            if (isKafkaStreamingJob() && !runningKafkaPartitionTasks.isEmpty()) {
                 // Try to find a running task from Kafka partition tasks
                 // This handles the case where runningStreamTask is not set
                 for (AbstractStreamingTask task : runningKafkaPartitionTasks.values()) {
-                    if (task != null && !task.getIsCanceled().get()) {
+                    if (task != null && !task.getIsCanceled().get()
+                            && task.getLabelName().equals(txnState.getLabel())) {
                         currentTask = task;
                         break;
                     }
@@ -1251,6 +1266,37 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
             }
             LoadJob loadJob = loadJobs.get(0);
             LoadStatistic loadStatistic = loadJob.getLoadStatistic();
+
+            // CRITICAL FIX: For KafkaPartitionOffset, we need to update consumedRows with actual scanned rows
+            // Otherwise consumedRows stays at 0 (initialized in constructor) and offset won't advance
+            Offset runningOffset = currentTask.getRunningOffset();
+            String offsetJson;
+
+            if (runningOffset instanceof KafkaPartitionOffset) {
+                KafkaPartitionOffset kafkaOffset = (KafkaPartitionOffset) runningOffset;
+                // Create a new KafkaPartitionOffset with the actual consumed rows
+                KafkaPartitionOffset updatedOffset = new KafkaPartitionOffset(
+                        kafkaOffset.getPartitionId(),
+                        kafkaOffset.getStartOffset(),
+                        kafkaOffset.getEndOffset());
+                updatedOffset.setConsumedRows(loadStatistic.getScannedRows());
+                offsetJson = updatedOffset.toSerializedJson();
+
+                log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> beforeCommitted: jobId={}, taskId={}, partition={}, startOffset={}, endOffset={}, scannedRows={}, UPDATED consumedRows={} <<<PARTITION_0>>>",
+                        getJobId(), currentTask.getTaskId(),
+                        kafkaOffset.getPartitionId(),
+                        kafkaOffset.getStartOffset(),
+                        kafkaOffset.getEndOffset(),
+                        loadStatistic.getScannedRows(),
+                        updatedOffset.getConsumedRows());
+            } else {
+                offsetJson = runningOffset.toSerializedJson();
+                log.info("[KAFKA_OFFSET_DEBUG] beforeCommitted: jobId={}, taskId={}, offsetType={}, offsetJson='{}'",
+                        getJobId(), currentTask.getTaskId(),
+                        runningOffset.getClass().getSimpleName(),
+                        offsetJson);
+            }
+
             txnState.setTxnCommitAttachment(new StreamingTaskTxnCommitAttachment(
                         getJobId(),
                         currentTask.getTaskId(),
@@ -1258,7 +1304,7 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
                         loadStatistic.getLoadBytes(),
                         loadStatistic.getFileNumber(),
                         loadStatistic.getTotalFileSizeB(),
-                        currentTask.getRunningOffset().toSerializedJson()));
+                        offsetJson));
         } finally {
             if (shouldReleaseLock) {
                 writeUnlock();
@@ -1275,7 +1321,12 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
         Preconditions.checkNotNull(txnState.getTxnCommitAttachment(), txnState);
         StreamingTaskTxnCommitAttachment attachment =
                 (StreamingTaskTxnCommitAttachment) txnState.getTxnCommitAttachment();
+        log.info("[KAFKA_OFFSET_DEBUG] afterCommitted: jobId={}, taskId={}, attachmentOffset='{}'",
+                getJobId(), attachment.getTaskId(), attachment.getOffset());
         updateJobStatisticAndOffset(attachment);
+        // Persist offset to ensure recovery after FE restart
+        persistOffsetProviderIfNeed();
+        log.info("[KAFKA_OFFSET_DEBUG] afterCommitted completed, persistOffsetProviderIfNeed called");
     }
 
     @Override
@@ -1285,6 +1336,8 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
                 (StreamingTaskTxnCommitAttachment) txnState.getTxnCommitAttachment();
         updateJobStatisticAndOffset(attachment);
         succeedTaskCount.incrementAndGet();
+        // Persist offset during replay to keep offsetProviderPersist in sync
+        persistOffsetProviderIfNeed();
     }
 
     public long getDbId() {
@@ -1349,9 +1402,14 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
 
     @Override
     public void gsonPostProcess() throws IOException {
+        log.info("[KAFKA_OFFSET_DEBUG] gsonPostProcess started: jobId={}, tvfType={}, offsetProviderPersist={}",
+                getJobId(), tvfType,
+                offsetProviderPersist != null ? "has value (length=" + offsetProviderPersist.length() + ")" : "null");
         if (offsetProvider == null) {
             if (tvfType != null) {
                 offsetProvider = SourceOffsetProviderFactory.createSourceOffsetProvider(tvfType);
+                log.info("[KAFKA_OFFSET_DEBUG] gsonPostProcess: created offsetProvider of type {}",
+                        offsetProvider.getClass().getSimpleName());
             } else {
                 offsetProvider = new JdbcSourceOffsetProvider(getJobId(), dataSourceType, sourceProperties);
             }
@@ -1378,7 +1436,7 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
         if (null == lock) {
             this.lock = new ReentrantReadWriteLock(true);
         }
-        
+
         // Initialize Kafka partition task map
         if (null == runningKafkaPartitionTasks) {
             runningKafkaPartitionTasks = new ConcurrentHashMap<>();
@@ -1388,6 +1446,7 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
         if (null == activePartitions) {
             activePartitions = ConcurrentHashMap.newKeySet();
         }
+        log.info("[KAFKA_OFFSET_DEBUG] gsonPostProcess completed: jobId={}", getJobId());
     }
 
     /**
@@ -1444,10 +1503,18 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
     }
 
     private void persistOffsetProviderIfNeed() {
-        // only for jdbc
+        log.info("[KAFKA_OFFSET_DEBUG] persistOffsetProviderIfNeed called: jobId={}", getJobId());
+        // Persist offset for Kafka and JDBC sources
         this.offsetProviderPersist = offsetProvider.getPersistInfo();
+        log.info("[KAFKA_OFFSET_DEBUG] persistOffsetProviderIfNeed: jobId={}, offsetProviderPersist={}",
+                getJobId(), offsetProviderPersist != null ? "has value (length=" + offsetProviderPersist.length() + ")" : "null");
         if (this.offsetProviderPersist != null) {
+            log.info("[KAFKA_OFFSET_DEBUG] persistOffsetProviderIfNeed: jobId={}, calling logUpdateOperation to persist",
+                    getJobId());
             logUpdateOperation();
+        } else {
+            log.info("[KAFKA_OFFSET_DEBUG] persistOffsetProviderIfNeed: jobId={}, offsetProviderPersist is null, NOT persisting",
+                    getJobId());
         }
     }
 

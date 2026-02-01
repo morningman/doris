@@ -23,6 +23,8 @@ import org.apache.doris.common.UserException;
 import org.apache.doris.datasource.CatalogIf;
 import org.apache.doris.datasource.kafka.KafkaUtil;
 import org.apache.doris.datasource.trinoconnector.TrinoConnectorExternalCatalog;
+import org.apache.doris.job.exception.JobException;
+import org.apache.doris.job.extensions.insert.streaming.StreamingInsertJob;
 import org.apache.doris.job.extensions.insert.streaming.StreamingJobProperties;
 import org.apache.doris.job.offset.Offset;
 import org.apache.doris.job.offset.SourceOffsetProvider;
@@ -110,7 +112,12 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
     private long jobId;
 
     private boolean isInitialized = false;
-    
+
+    public boolean isInitialized() {
+        log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> isInitialized() called: returning {} <<<PARTITION_0>>>", isInitialized);
+        return isInitialized;
+    }
+
     @Override
     public String getSourceType() {
         return "kafka";
@@ -121,7 +128,14 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
      * This should be called when the job is first created.
      */
     public void initFromTvfProperties(Map<String, String> tvfProps) throws UserException {
+        log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> initFromTvfProperties called: jobId={}, isInitialized={}, currentOffset={}, partition 0 offset = {} <<<PARTITION_0>>>",
+                jobId,
+                isInitialized,
+                currentOffset != null ? currentOffset.showRange() : "null",
+                currentOffset != null && currentOffset.getPartitionOffsets() != null ? currentOffset.getPartitionOffsets().get(0) : "null");
+
         if (isInitialized) {
+            log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> initFromTvfProperties: EARLY RETURN because isInitialized=true <<<PARTITION_0>>>");
             return;
         }
         this.catalogName = getRequiredProperty(tvfProps, PARAM_CATALOG);
@@ -153,12 +167,38 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
         this.brokerList = KafkaPropertiesConverter.extractBrokerList(catalogProps);
         this.topic = tableName;  // In Trino Kafka, table name is the topic name
         this.kafkaClientProps = KafkaPropertiesConverter.convertToKafkaClientProperties(catalogProps);
-        
-        // Initialize current offset
-        this.currentOffset = new KafkaOffset(topic, catalogName, databaseName);
-        
-        log.info("Initialized KafkaSourceOffsetProvider: catalog={}, topic={}, brokers={}", 
-                catalogName, topic, brokerList);
+
+        // Initialize current offset only if not already restored from persistence
+        // This prevents overwriting the offset restored by replayIfNeed()
+        if (this.currentOffset == null || !this.currentOffset.isValidOffset()) {
+            this.currentOffset = new KafkaOffset(topic, catalogName, databaseName);
+            log.info("[KAFKA_OFFSET_DEBUG] initFromTvfProperties: created new empty currentOffset");
+        } else {
+            // Log partition 0 offset before updating metadata
+            log.info("[KAFKA_OFFSET_DEBUG] initFromTvfProperties: BEFORE metadata update, partition 0 offset = {}",
+                    this.currentOffset.getPartitionOffsets() != null ? this.currentOffset.getPartitionOffsets().get(0) : "null");
+
+            // Update metadata fields if they're missing (can happen after deserialization)
+            if (this.currentOffset.getTopic() == null) {
+                this.currentOffset.setTopic(topic);
+            }
+            if (this.currentOffset.getCatalogName() == null) {
+                this.currentOffset.setCatalogName(catalogName);
+            }
+            if (this.currentOffset.getDatabaseName() == null) {
+                this.currentOffset.setDatabaseName(databaseName);
+            }
+
+            // Log partition 0 offset after updating metadata
+            log.info("[KAFKA_OFFSET_DEBUG] initFromTvfProperties: AFTER metadata update, partition 0 offset = {}",
+                    this.currentOffset.getPartitionOffsets() != null ? this.currentOffset.getPartitionOffsets().get(0) : "null");
+            log.info("[KAFKA_OFFSET_DEBUG] initFromTvfProperties: preserved restored currentOffset, updated metadata if needed");
+        }
+
+        log.info("[KAFKA_OFFSET_DEBUG] initFromTvfProperties completed: jobId={}, catalog={}, topic={}, brokers={}, currentOffset={}, partition 0 offset = {}",
+                jobId, catalogName, topic, brokerList,
+                currentOffset != null ? currentOffset.showRange() : "null",
+                currentOffset != null && currentOffset.getPartitionOffsets() != null ? currentOffset.getPartitionOffsets().get(0) : "null");
         this.isInitialized = true;
     }
     
@@ -205,26 +245,41 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
      */
     public KafkaPartitionOffset getNextPartitionOffset(int partitionId, StreamingJobProperties jobProps) {
         if (currentOffset == null || currentOffset.getPartitionOffsets() == null) {
+            if (partitionId == 0) {
+                log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> getNextPartitionOffset: partition 0 - currentOffset is null or empty <<<PARTITION_0>>>");
+            }
             return null;
         }
-        
+
         long currentPos = currentOffset.getPartitionOffset(partitionId);
         long latestPos = latestOffsets.getOrDefault(partitionId, currentPos);
-        
+
+        if (partitionId == 0) {
+            log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> getNextPartitionOffset: partition 0 - currentPos={}, latestPos={}, currentOffset.showRange()={} <<<PARTITION_0>>>",
+                    currentPos, latestPos, currentOffset.showRange());
+        }
+
         // No more data if current >= latest
         if (currentPos >= latestPos) {
             log.info("Partition {} has no more data: current={}, latest={}",
                     partitionId, currentPos, latestPos);
             return null;
         }
-        
+
         // Calculate the end offset for this batch
         long endOffset = Math.min(currentPos + maxBatchRows, latestPos);
-        
+
         log.info("Partition {} offset range: [{}, {}), latest: {}",
                 partitionId, currentPos, endOffset, latestPos);
-        
-        return new KafkaPartitionOffset(partitionId, currentPos, endOffset);
+
+        KafkaPartitionOffset result = new KafkaPartitionOffset(partitionId, currentPos, endOffset);
+
+        if (partitionId == 0) {
+            log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> getNextPartitionOffset: partition 0 - created task with startOffset={}, endOffset={} <<<PARTITION_0>>>",
+                    result.getStartOffset(), result.getEndOffset());
+        }
+
+        return result;
     }
     
     /**
@@ -359,20 +414,91 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
      */
     public void updatePartitionOffset(int partitionId, long newOffset) {
         if (currentOffset != null) {
+            long oldOffset = currentOffset.getPartitionOffset(partitionId);
             currentOffset.updatePartitionOffset(partitionId, newOffset);
-            log.info("Updated partition {} offset to {}", partitionId, newOffset);
+
+            if (partitionId == 0) {
+                // Get stack trace for partition 0 updates
+                StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+                StringBuilder sb = new StringBuilder();
+                for (int i = 2; i < Math.min(10, stackTrace.length); i++) {
+                    sb.append("\n  at ").append(stackTrace[i]);
+                }
+
+                log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> updatePartitionOffset: partition 0 updated from {} to {}, REGRESSION={} <<<PARTITION_0>>> CALL STACK:{}",
+                        oldOffset, newOffset, newOffset < oldOffset ? "YES!!!" : "no", sb.toString());
+            } else {
+                log.info("[KAFKA_OFFSET_DEBUG] updatePartitionOffset: partition {} updated from {} to {}",
+                        partitionId, oldOffset, newOffset);
+            }
+        } else {
+            log.warn("[KAFKA_OFFSET_DEBUG] updatePartitionOffset: currentOffset is null, cannot update partition {}", partitionId);
         }
     }
     
     @Override
     public void updateOffset(Offset offset) {
         if (offset instanceof KafkaOffset) {
-            this.currentOffset = (KafkaOffset) offset;
+            KafkaOffset newKafkaOffset = (KafkaOffset) offset;
+
+            // Log the incoming KafkaOffset details for partition 0
+            if (newKafkaOffset.getPartitionOffsets() != null && newKafkaOffset.getPartitionOffsets().containsKey(0)) {
+                log.info("[KAFKA_OFFSET_DEBUG] updateOffset with KafkaOffset: partition 0 new value = {}, topic={}, currentOffset partition 0 = {}",
+                        newKafkaOffset.getPartitionOffsets().get(0),
+                        newKafkaOffset.getTopic(),
+                        this.currentOffset != null && this.currentOffset.getPartitionOffsets() != null
+                            ? this.currentOffset.getPartitionOffsets().get(0) : "null");
+            }
+
+            // If current offset exists and the new one doesn't have metadata, preserve it
+            if (this.currentOffset != null && newKafkaOffset.getTopic() == null) {
+                log.info("[KAFKA_OFFSET_DEBUG] updateOffset: new KafkaOffset missing metadata, preserving from current");
+                // Create a new KafkaOffset with preserved metadata
+                KafkaOffset preservedOffset = new KafkaOffset(
+                        this.currentOffset.getTopic(),
+                        this.currentOffset.getCatalogName(),
+                        this.currentOffset.getDatabaseName());
+                if (newKafkaOffset.getPartitionOffsets() != null) {
+                    preservedOffset.setPartitionOffsets(new HashMap<>(newKafkaOffset.getPartitionOffsets()));
+                }
+                this.currentOffset = preservedOffset;
+            } else {
+                this.currentOffset = newKafkaOffset;
+            }
+            log.info("[KAFKA_OFFSET_DEBUG] updateOffset with KafkaOffset: jobId={}, offset={}",
+                    jobId, currentOffset != null ? currentOffset.showRange() : "null");
         } else if (offset instanceof KafkaPartitionOffset) {
             // Update single partition offset
             KafkaPartitionOffset partitionOffset = (KafkaPartitionOffset) offset;
-            updatePartitionOffset(partitionOffset.getPartitionId(), 
-                    partitionOffset.getStartOffset() + partitionOffset.getConsumedRows());
+            if (this.currentOffset == null) {
+                log.warn("[KAFKA_OFFSET_DEBUG] updateOffset: currentOffset is null, cannot update partition offset");
+                return;
+            }
+            long newOffset = partitionOffset.getStartOffset() + partitionOffset.getConsumedRows();
+
+            // Critical check: detect offset regression
+            if (partitionOffset.getPartitionId() == 0) {
+                long currentP0 = this.currentOffset.getPartitionOffset(0);
+                log.info("[KAFKA_OFFSET_DEBUG] updateOffset with KafkaPartitionOffset: <<<CRITICAL>>> partition 0: startOffset={}, consumedRows={}, calculated newOffset={}, current={}, REGRESSION={}",
+                        partitionOffset.getStartOffset(),
+                        partitionOffset.getConsumedRows(),
+                        newOffset,
+                        currentP0,
+                        newOffset < currentP0 ? "YES!!!" : "no");
+
+                // Get stack trace to find who is calling this
+                StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+                StringBuilder sb = new StringBuilder();
+                for (int i = 2; i < Math.min(8, stackTrace.length); i++) {
+                    sb.append("\n  at ").append(stackTrace[i]);
+                }
+                log.info("[KAFKA_OFFSET_DEBUG] updateOffset CALL STACK for partition 0:{}", sb.toString());
+            }
+
+            updatePartitionOffset(partitionOffset.getPartitionId(), newOffset);
+            log.info("[KAFKA_OFFSET_DEBUG] updateOffset with KafkaPartitionOffset: jobId={}, partition={}, newOffset={}, currentOffset={}",
+                    jobId, partitionOffset.getPartitionId(), newOffset,
+                    currentOffset != null ? currentOffset.showRange() : "null");
         }
     }
     
@@ -381,32 +507,55 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
      */
     @Override
     public void fetchRemoteMeta(Map<String, String> properties) throws Exception {
+        log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> fetchRemoteMeta started: jobId={}, topic={}, isInitialized={}, currentOffset={} <<<PARTITION_0>>>",
+                jobId, topic, isInitialized, currentOffset != null ? currentOffset.showRange() : "null");
+
+        // Log current partition offsets before fetching
+        if (currentOffset != null && currentOffset.getPartitionOffsets() != null) {
+            log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> fetchRemoteMeta: BEFORE fetch, partition 0 offset = {}, currentOffset.isEmpty() = {} <<<PARTITION_0>>>",
+                    currentOffset.getPartitionOffsets().get(0),
+                    currentOffset.isEmpty());
+        }
+
         try {
             // Get all partitions for the topic
             List<Integer> partitionIds = KafkaUtil.getAllKafkaPartitions(
                     brokerList, topic, kafkaClientProps);
-            
-            log.info("Fetched {} partitions for topic {}", partitionIds.size(), topic);
-            
+
+            log.info("[KAFKA_OFFSET_DEBUG] Fetched {} partitions for topic {}", partitionIds.size(), topic);
+
             // Initialize partition offsets if this is the first run
-            if (currentOffset.isEmpty()) {
+            boolean wasEmpty = currentOffset.isEmpty();
+            log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> fetchRemoteMeta: currentOffset.isEmpty() = {} <<<PARTITION_0>>>", wasEmpty);
+
+            if (wasEmpty) {
+                log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> fetchRemoteMeta: currentOffset is empty, calling initializePartitionOffsets() <<<PARTITION_0>>>");
                 initializePartitionOffsets(partitionIds);
+                log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> fetchRemoteMeta: AFTER initializePartitionOffsets, partition 0 offset = {} <<<PARTITION_0>>>",
+                        currentOffset.getPartitionOffsets().get(0));
+            } else {
+                log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> fetchRemoteMeta: currentOffset is NOT empty, skipping initialization, partition 0 offset = {} <<<PARTITION_0>>>",
+                        currentOffset.getPartitionOffsets().get(0));
             }
-            
+
             // Get latest offsets for all partitions
             List<Pair<Integer, Long>> offsets = KafkaUtil.getLatestOffsets(
                     jobId, UUID.randomUUID(), brokerList, topic, kafkaClientProps, partitionIds);
-            
+
             // Update latest offsets map
             latestOffsets.clear();
             for (Pair<Integer, Long> offset : offsets) {
                 latestOffsets.put(offset.first, offset.second);
             }
-            
-            log.info("Fetched latest offsets: {}", latestOffsets);
-            
+
+            log.info("[KAFKA_OFFSET_DEBUG] fetchRemoteMeta completed: latestOffsets={}, currentOffset={}, partition 0: current={}, latest={}",
+                    latestOffsets,
+                    currentOffset != null ? currentOffset.showRange() : "null",
+                    currentOffset != null ? currentOffset.getPartitionOffsets().get(0) : "null",
+                    latestOffsets.get(0));
+
         } catch (Exception e) {
-            log.warn("Failed to fetch Kafka metadata for topic {}", topic, e);
+            log.warn("[KAFKA_OFFSET_DEBUG] Failed to fetch Kafka metadata for topic {}", topic, e);
             throw e;
         }
     }
@@ -481,7 +630,42 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
     
     @Override
     public Offset deserializeOffset(String offset) {
-        return GsonUtils.GSON.fromJson(offset, KafkaOffset.class);
+        log.info("[KAFKA_OFFSET_DEBUG] deserializeOffset input: jobId={}, offsetJson='{}'",
+                jobId, offset);
+
+        // Try to detect which type of offset this is by checking for specific fields
+        // KafkaPartitionOffset has: partitionId, startOffset, endOffset
+        // KafkaOffset has: partitionOffsets, topic, catalogName
+        Offset result = null;
+
+        try {
+            if (offset.contains("\"partitionId\"")) {
+                // This is a KafkaPartitionOffset from a task
+                KafkaPartitionOffset partitionOffset = GsonUtils.GSON.fromJson(offset, KafkaPartitionOffset.class);
+                log.info("[KAFKA_OFFSET_DEBUG] deserializeOffset: detected KafkaPartitionOffset, partition={}, range=[{}, {})",
+                        partitionOffset.getPartitionId(),
+                        partitionOffset.getStartOffset(),
+                        partitionOffset.getEndOffset());
+                result = partitionOffset;
+            } else {
+                // This is a KafkaOffset (job-level offset)
+                KafkaOffset kafkaOffset = GsonUtils.GSON.fromJson(offset, KafkaOffset.class);
+                log.info("[KAFKA_OFFSET_DEBUG] deserializeOffset: detected KafkaOffset, topic={}, partitions={}",
+                        kafkaOffset.getTopic(),
+                        kafkaOffset.getPartitionOffsets() != null ? kafkaOffset.getPartitionOffsets().keySet() : "null");
+                result = kafkaOffset;
+            }
+        } catch (Exception e) {
+            log.warn("[KAFKA_OFFSET_DEBUG] deserializeOffset failed to parse offset JSON", e);
+            // Fallback to KafkaOffset
+            result = GsonUtils.GSON.fromJson(offset, KafkaOffset.class);
+        }
+
+        log.info("[KAFKA_OFFSET_DEBUG] deserializeOffset output: jobId={}, resultType={}, result={}",
+                jobId,
+                result != null ? result.getClass().getSimpleName() : "null",
+                result != null ? result.showRange() : "null");
+        return result;
     }
     
     @Override
@@ -501,12 +685,75 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
     
     @Override
     public String getPersistInfo() {
+        String persistInfo = null;
         if (currentOffset != null) {
-            return currentOffset.toSerializedJson();
+            persistInfo = currentOffset.toSerializedJson();
+            // Log each partition's offset explicitly for debugging
+            if (currentOffset.getPartitionOffsets() != null) {
+                for (Map.Entry<Integer, Long> entry : currentOffset.getPartitionOffsets().entrySet()) {
+                    log.info("[KAFKA_OFFSET_DEBUG] getPersistInfo: partition {} has offset {}",
+                            entry.getKey(), entry.getValue());
+                }
+            }
         }
-        return null;
+        log.info("[KAFKA_OFFSET_DEBUG] getPersistInfo called: jobId={}, currentOffset={}, persistInfo='{}'",
+                jobId,
+                currentOffset != null ? currentOffset.showRange() : "null",
+                persistInfo != null ? persistInfo : "null");
+        return persistInfo;
     }
-    
+
+    /**
+     * Replay offset from persistence when FE restarts.
+     * This method is called during job initialization to restore the offset state.
+     */
+    @Override
+    public void replayIfNeed(StreamingInsertJob job) throws JobException {
+        String offsetProviderPersist = job.getOffsetProviderPersist();
+        log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> replayIfNeed called: jobId={}, isInitialized={}, offsetProviderPersist={} <<<PARTITION_0>>>",
+                job.getJobId(),
+                isInitialized,
+                offsetProviderPersist != null ? "has value (length=" + offsetProviderPersist.length() + ")" : "null");
+
+        if (offsetProviderPersist != null && !offsetProviderPersist.isEmpty()) {
+            try {
+                log.info("[KAFKA_OFFSET_DEBUG] replayIfNeed: raw JSON='{}'", offsetProviderPersist);
+                KafkaOffset restoredOffset = GsonUtils.GSON.fromJson(offsetProviderPersist, KafkaOffset.class);
+                if (restoredOffset != null && restoredOffset.isValidOffset()) {
+                    // Restore the offset state
+                    this.currentOffset = restoredOffset;
+
+                    // DO NOT set isInitialized = true here!
+                    // We still need initFromTvfProperties() to initialize brokerList, topic, etc.
+                    // initFromTvfProperties() will check if currentOffset is valid and preserve it
+
+                    log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> replayIfNeed: successfully restored offset (isInitialized stays false), topic={}, partitions={}, DETAILED_OFFSETS={} <<<PARTITION_0>>>",
+                            restoredOffset.getTopic(),
+                            restoredOffset.getPartitionOffsets().keySet(),
+                            restoredOffset.getPartitionOffsets());
+
+                    // Log each partition's offset explicitly
+                    for (Map.Entry<Integer, Long> entry : restoredOffset.getPartitionOffsets().entrySet()) {
+                        if (entry.getKey() == 0) {
+                            log.info("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> replayIfNeed: partition 0 restored to offset {} <<<PARTITION_0>>>",
+                                    entry.getValue());
+                        } else {
+                            log.info("[KAFKA_OFFSET_DEBUG] replayIfNeed: partition {} restored to offset {}",
+                                    entry.getKey(), entry.getValue());
+                        }
+                    }
+                } else {
+                    log.warn("[KAFKA_OFFSET_DEBUG] <<<CRITICAL>>> replayIfNeed: restored offset is invalid, will use default offset <<<PARTITION_0>>>");
+                }
+            } catch (Exception e) {
+                log.warn("[KAFKA_OFFSET_DEBUG] replayIfNeed: failed to restore offset, will use default offset", e);
+                // Don't throw exception, let the job continue with default offset initialization
+            }
+        } else {
+            log.info("[KAFKA_OFFSET_DEBUG] replayIfNeed: no persisted offset to restore");
+        }
+    }
+
     /**
      * Get a required property value, throwing an exception if not found.
      */
