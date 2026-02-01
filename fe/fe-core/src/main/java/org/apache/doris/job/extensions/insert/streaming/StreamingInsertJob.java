@@ -776,8 +776,10 @@ public class StreamingInsertJob extends AbstractJob<StreamingJobSchedulerTask, M
                 }
                 if (offsetProvider instanceof KafkaSourceOffsetProvider && originTvfProps != null) {
                     KafkaSourceOffsetProvider kafkaProvider = (KafkaSourceOffsetProvider) offsetProvider;
-                    kafkaProvider.setJobId(getJobId());
-                    kafkaProvider.initFromTvfProperties(originTvfProps);
+                    if (!kafkaProvider.isInitialized()) {
+                        kafkaProvider.setJobId(getJobId());
+                        kafkaProvider.initFromTvfProperties(originTvfProps);
+                    }
                 }
                 offsetProvider.fetchRemoteMeta(originTvfProps);
             } else {

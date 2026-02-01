@@ -108,6 +108,8 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
     
     // Job ID for tracking
     private long jobId;
+
+    private boolean isInitialized = false;
     
     @Override
     public String getSourceType() {
@@ -119,6 +121,9 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
      * This should be called when the job is first created.
      */
     public void initFromTvfProperties(Map<String, String> tvfProps) throws UserException {
+        if (isInitialized) {
+            return;
+        }
         this.catalogName = getRequiredProperty(tvfProps, PARAM_CATALOG);
         this.databaseName = tvfProps.getOrDefault(PARAM_DATABASE, "default");
         this.tableName = getRequiredProperty(tvfProps, PARAM_TABLE);
@@ -154,6 +159,7 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
         
         log.info("Initialized KafkaSourceOffsetProvider: catalog={}, topic={}, brokers={}", 
                 catalogName, topic, brokerList);
+        this.isInitialized = true;
     }
     
     /**
@@ -207,7 +213,7 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
         
         // No more data if current >= latest
         if (currentPos >= latestPos) {
-            log.debug("Partition {} has no more data: current={}, latest={}", 
+            log.info("Partition {} has no more data: current={}, latest={}",
                     partitionId, currentPos, latestPos);
             return null;
         }
@@ -215,7 +221,7 @@ public class KafkaSourceOffsetProvider implements SourceOffsetProvider {
         // Calculate the end offset for this batch
         long endOffset = Math.min(currentPos + maxBatchRows, latestPos);
         
-        log.debug("Partition {} offset range: [{}, {}), latest: {}", 
+        log.info("Partition {} offset range: [{}, {}), latest: {}",
                 partitionId, currentPos, endOffset, latestPos);
         
         return new KafkaPartitionOffset(partitionId, currentPos, endOffset);
