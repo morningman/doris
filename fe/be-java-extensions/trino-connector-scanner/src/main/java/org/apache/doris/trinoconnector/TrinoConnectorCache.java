@@ -163,7 +163,8 @@ public class TrinoConnectorCache {
             }
         } catch (Exception e) {
             LOG.warn("failed to invalidate connector for: " + key + ": " + ExceptionUtils.getRootCauseMessage(e), e);
-            throw new RuntimeException("failed to invalidate connector for: " + key + ": " + ExceptionUtils.getRootCauseMessage(e), e);
+            throw new RuntimeException("failed to invalidate connector for: " + key
+                    + ": " + ExceptionUtils.getRootCauseMessage(e), e);
         }
     }
 
