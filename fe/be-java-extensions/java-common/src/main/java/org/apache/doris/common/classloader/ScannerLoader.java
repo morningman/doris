@@ -21,7 +21,6 @@ import org.apache.doris.common.jni.utils.ExpiringMap;
 import org.apache.doris.common.jni.utils.UdfClassCache;
 
 import com.google.common.collect.Streams;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -71,7 +70,7 @@ public class ScannerLoader {
 
             // Force log4j2 to reconfigure with our settings
             org.apache.logging.log4j.core.LoggerContext ctx =
-                (org.apache.logging.log4j.core.LoggerContext) LogManager.getContext(false);
+                    (org.apache.logging.log4j.core.LoggerContext) LogManager.getContext(false);
             ctx.reconfigure();
 
             // Log initialization success
