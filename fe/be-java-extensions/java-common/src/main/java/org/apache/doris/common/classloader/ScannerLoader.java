@@ -98,13 +98,12 @@ public class ScannerLoader {
      */
     public void loadAllScannerJars() {
         LOG.info("Starting to load scanner JARs from $DORIS_HOME/lib/java_extensions/");
-        redirectStdStreamsToLog4j();
         String basePath = System.getenv("DORIS_HOME");
         File library = new File(basePath, "/lib/java_extensions/");
-        LOG.info("Scanner library path: " + library.getAbsolutePath());
+        LOG.info("Scanner library path: {}", library.getAbsolutePath());
         // TODO: add thread pool to load each scanner
         listFiles(library).stream().filter(File::isDirectory).forEach(sd -> {
-            LOG.info("Loading scanner from directory: " + sd.getName());
+            LOG.info("Loading scanner from directory: {}", sd.getName());
             JniScannerClassLoader classLoader = new JniScannerClassLoader(sd.getName(), buildClassPath(sd),
                         this.getClass().getClassLoader());
             try (ThreadClassLoaderContext ignored = new ThreadClassLoaderContext(classLoader)) {
@@ -114,23 +113,18 @@ public class ScannerLoader {
         LOG.info("Finished loading scanner JARs");
     }
 
-    private void redirectStdStreamsToLog4j() {
-        // Standard streams redirection is handled by log4j2 configuration
-        LOG.info("Scanner loader initialized");
-    }
-
     public static UdfClassCache getUdfClassLoader(String functionSignature) {
         return udfLoadedClasses.get(functionSignature);
     }
 
     public static synchronized void cacheClassLoader(String functionSignature, UdfClassCache classCache,
             long expirationTime) {
-        LOG.info("Cache UDF for: " + functionSignature);
+        LOG.info("Cache UDF for: {}", functionSignature);
         udfLoadedClasses.put(functionSignature, classCache, expirationTime * 60 * 1000L);
     }
 
     public synchronized void cleanUdfClassLoader(String functionSignature) {
-        LOG.info("cleanUdfClassLoader for: " + functionSignature);
+        LOG.info("cleanUdfClassLoader for: {}", functionSignature);
         udfLoadedClasses.remove(functionSignature);
     }
 

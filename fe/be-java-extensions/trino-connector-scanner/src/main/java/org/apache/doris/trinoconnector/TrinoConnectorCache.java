@@ -95,7 +95,7 @@ public class TrinoConnectorCache {
 
     public static TrinoConnectorCacheValue getConnector(TrinoConnectorCacheKey key) {
         try {
-            LOG.info("Connector cache size is : " + connectorCache.size());
+            LOG.info("Connector cache size is : {}", connectorCache.size());
             return connectorCache.get(key);
         } catch (Exception e) {
             LOG.warn("failed to get connector for: " + key + ": " + ExceptionUtils.getRootCauseMessage(e), e);
@@ -163,7 +163,7 @@ public class TrinoConnectorCache {
             }
         } catch (Exception e) {
             LOG.warn("failed to invalidate connector for: " + key + ": " + ExceptionUtils.getRootCauseMessage(e), e);
-            throw new RuntimeException("failed to invalidate connector for: " + key + ": " + ExceptionUtils.getRootCauseMessage(e));
+            throw new RuntimeException("failed to invalidate connector for: " + key + ": " + ExceptionUtils.getRootCauseMessage(e), e);
         }
     }
 
