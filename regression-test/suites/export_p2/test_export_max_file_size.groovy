@@ -162,7 +162,7 @@ suite("test_export_max_file_size", "p2,external") {
                 );
             """
 
-            order_qt_select """ select * from ${table_load_name} order by user_id limit 100 """
+            order_qt_select """ select user_id from ${table_load_name} order by user_id limit 100 """
             order_qt_select_cnt """ select count(*) from ${table_load_name} """
         }
 
