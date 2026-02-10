@@ -20,6 +20,7 @@ package org.apache.doris.analysis;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.UserException;
 import org.apache.doris.info.TableRefInfo;
+import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.GlobalVariable;
 
 import com.google.common.base.Joiner;
@@ -46,7 +47,12 @@ public class AbstractBackupTableRefClause implements ParseNode {
         // normalize
         // table name => table ref
         Map<String, TableRefInfo> tblPartsMap;
-        if (GlobalVariable.lowerCaseTableNames == 0) {
+        int lctNames = GlobalVariable.lowerCaseTableNames;
+        ConnectContext ctx = ConnectContext.get();
+        if (ctx != null && ctx.getCurrentCatalog() != null) {
+            lctNames = ctx.getCurrentCatalog().getLowerCaseTableNames();
+        }
+        if (lctNames == 0) {
             // comparisons case sensitive
             tblPartsMap = Maps.newTreeMap();
         } else {
