@@ -435,6 +435,8 @@ struct TQueryOptions {
   189: optional bool enable_aggregate_function_null_v2 = false;
 
   195: optional bool enable_left_semi_direct_return_opt;
+  // Use paimon-cpp to read Paimon splits on BE
+  196: optional bool enable_paimon_cpp_reader = false;
 
   200: optional bool enable_adjust_conjunct_order_by_cost;
 
