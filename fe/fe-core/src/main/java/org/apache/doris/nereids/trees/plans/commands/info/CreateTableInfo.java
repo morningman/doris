@@ -49,6 +49,8 @@ import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.datasource.es.EsUtil;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
 import org.apache.doris.datasource.iceberg.IcebergExternalCatalog;
+import org.apache.doris.datasource.maxcompute.MaxComputeExternalCatalog;
+import org.apache.doris.datasource.paimon.PaimonExternalCatalog;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.nereids.CascadesContext;
 import org.apache.doris.nereids.analyzer.Scope;
@@ -116,6 +118,8 @@ public class CreateTableInfo {
     public static final String ENGINE_BROKER = "broker";
     public static final String ENGINE_HIVE = "hive";
     public static final String ENGINE_ICEBERG = "iceberg";
+    public static final String ENGINE_PAIMON = "paimon";
+    public static final String ENGINE_MAXCOMPUTE = "maxcompute";
     private static final ImmutableSet<AggregateType> GENERATED_COLUMN_ALLOW_AGG_TYPE =
             ImmutableSet.of(AggregateType.REPLACE, AggregateType.REPLACE_IF_NOT_NULL);
 
@@ -375,6 +379,10 @@ public class CreateTableInfo {
             throw new AnalysisException("Hms type catalog can only use `hive` engine.");
         } else if (catalog instanceof IcebergExternalCatalog && !engineName.equals(ENGINE_ICEBERG)) {
             throw new AnalysisException("Iceberg type catalog can only use `iceberg` engine.");
+        } else if (catalog instanceof PaimonExternalCatalog && !engineName.equals(ENGINE_PAIMON)) {
+            throw new AnalysisException("Paimon type catalog can only use `paimon` engine.");
+        } else if (catalog instanceof MaxComputeExternalCatalog && !engineName.equals(ENGINE_MAXCOMPUTE)) {
+            throw new AnalysisException("MaxCompute type catalog can only use `maxcompute` engine.");
         }
     }
 
@@ -865,6 +873,10 @@ public class CreateTableInfo {
                 engineName = ENGINE_HIVE;
             } else if (catalog instanceof IcebergExternalCatalog) {
                 engineName = ENGINE_ICEBERG;
+            } else if (catalog instanceof PaimonExternalCatalog) {
+                engineName = ENGINE_PAIMON;
+            } else if (catalog instanceof MaxComputeExternalCatalog) {
+                engineName = ENGINE_MAXCOMPUTE;
             } else {
                 throw new AnalysisException("Current catalog does not support create table: " + ctlName);
             }
@@ -894,7 +906,8 @@ public class CreateTableInfo {
     private void checkEngineName() {
         if (engineName.equals(ENGINE_MYSQL) || engineName.equals(ENGINE_ODBC) || engineName.equals(ENGINE_BROKER)
                 || engineName.equals(ENGINE_ELASTICSEARCH) || engineName.equals(ENGINE_HIVE)
-                || engineName.equals(ENGINE_ICEBERG) || engineName.equals(ENGINE_JDBC)) {
+                || engineName.equals(ENGINE_ICEBERG) || engineName.equals(ENGINE_JDBC)
+                || engineName.equals(ENGINE_PAIMON) || engineName.equals(ENGINE_MAXCOMPUTE)) {
             if (!isExternal) {
                 // this is for compatibility
                 isExternal = true;
@@ -1067,11 +1080,14 @@ public class CreateTableInfo {
                 throw new AnalysisException(e.getMessage(), e.getCause());
             }
         } else if (!engineName.equals(ENGINE_OLAP)) {
-            if (!engineName.equals(ENGINE_HIVE) && distributionDesc != null) {
+            if (!engineName.equals(ENGINE_HIVE) && !engineName.equals(ENGINE_MAXCOMPUTE)
+                    && distributionDesc != null) {
                 throw new AnalysisException("Create " + engineName
                     + " table should not contain distribution desc");
             }
-            if (!engineName.equals(ENGINE_HIVE) && !engineName.equals(ENGINE_ICEBERG) && partitionDesc != null) {
+            if (!engineName.equals(ENGINE_HIVE) && !engineName.equals(ENGINE_ICEBERG)
+                    && !engineName.equals(ENGINE_PAIMON) && !engineName.equals(ENGINE_MAXCOMPUTE)
+                    && partitionDesc != null) {
                 throw new AnalysisException("Create " + engineName
                     + " table should not contain partition desc");
             }
