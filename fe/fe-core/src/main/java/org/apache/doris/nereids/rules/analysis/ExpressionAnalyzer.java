@@ -564,10 +564,10 @@ public class ExpressionAnalyzer extends SubExprAnalyzer<ExpressionRewriteContext
                     }
                 }
             } catch (AnalysisException e) {
-                // If user set preferUdfOverBuiltin=true,
-                // we should try finding UDF, user may override built-in function with UDF.
-                // We can't find it and exception is thrown, and we should ignore it can continue finding function.
-                // If preferUdfOverBuiltin=false, throw exception directly.
+                // If `prefer_udf_over_builtin` is enabled, we ignore the AnalysisException                                                                                                                    │
+                // when special built-in function binding fails. This allows the analyzer to                                                                                                                   │
+                // fall back to the function registry, permitting users to override these                                                                                                                      │
+                // built-in functions with their own UDFs.
                 boolean preferUdfOverBuiltin = ConnectContext.get() == null ? false
                         : ConnectContext.get().getSessionVariable().preferUdfOverBuiltin;
                 if (!preferUdfOverBuiltin) {
