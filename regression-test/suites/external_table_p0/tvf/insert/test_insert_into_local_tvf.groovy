@@ -94,7 +94,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/basic_csv.csv",
             "backend_id" = "${be_id}",
-            "format" = "csv"
+            "format" = "csv",
+            "delete_existing_files" = "true"
         ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
     """
 
@@ -112,7 +113,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/basic_parquet.parquet",
             "backend_id" = "${be_id}",
-            "format" = "parquet"
+            "format" = "parquet",
+            "delete_existing_files" = "true"
         ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
     """
 
@@ -130,7 +132,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/basic_orc.orc",
             "backend_id" = "${be_id}",
-            "format" = "orc"
+            "format" = "orc",
+            "delete_existing_files" = "true"
         ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
     """
 
@@ -148,7 +151,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/complex_parquet.parquet",
             "backend_id" = "${be_id}",
-            "format" = "parquet"
+            "format" = "parquet",
+            "delete_existing_files" = "true"
         ) SELECT * FROM insert_tvf_complex_src ORDER BY c_int;
     """
 
@@ -166,7 +170,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/complex_orc.orc",
             "backend_id" = "${be_id}",
-            "format" = "orc"
+            "format" = "orc",
+            "delete_existing_files" = "true"
         ) SELECT * FROM insert_tvf_complex_src ORDER BY c_int;
     """
 
@@ -185,7 +190,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
             "file_path" = "${basePath}/sep_comma.csv",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "column_separator" = ","
+            "column_separator" = ",",
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
@@ -205,7 +211,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
             "file_path" = "${basePath}/sep_tab.csv",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "column_separator" = "\t"
+            "column_separator" = "\t",
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
@@ -225,7 +232,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
             "file_path" = "${basePath}/sep_pipe.csv",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "column_separator" = "|"
+            "column_separator" = "|",
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
@@ -245,7 +253,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
             "file_path" = "${basePath}/sep_multi.csv",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "column_separator" = ";;"
+            "column_separator" = ";;",
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
@@ -265,7 +274,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
             "file_path" = "${basePath}/line_crlf.csv",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "line_delimiter" = "\r\n"
+            "line_delimiter" = "\r\n",
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
@@ -285,7 +295,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
             "file_path" = "${basePath}/compress_gz.csv.gz",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "compression_type" = "gz"
+            "compression_type" = "gz",
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
@@ -305,7 +316,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
             "file_path" = "${basePath}/compress_zstd.csv.zst",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "compression_type" = "zstd"
+            "compression_type" = "zstd",
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
@@ -326,7 +338,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
             "file_path" = "${basePath}/compress_lz4.csv.lz4",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "compression_type" = "lz4block"
+            "compression_type" = "lz4block",
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
@@ -346,7 +359,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
             "file_path" = "${basePath}/compress_snappy.csv.snappy",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "compression_type" = "snappyblock"
+            "compression_type" = "snappyblock",
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
@@ -366,7 +380,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/overwrite.csv",
             "backend_id" = "${be_id}",
-            "format" = "csv"
+            "format" = "csv",
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src ORDER BY c_int;
     """
 
@@ -404,7 +419,7 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
             "file_path" = "${basePath}/append.parquet",
             "backend_id" = "${be_id}",
             "format" = "parquet",
-            "delete_existing_files" = "false"
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 1000;
     """
 
@@ -440,7 +455,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/const_expr.csv",
             "backend_id" = "${be_id}",
-            "format" = "csv"
+            "format" = "csv",
+            "delete_existing_files" = "true"
         ) SELECT 1, 'hello', 3.14, CAST('2024-01-01' AS DATE);
     """
 
@@ -458,7 +474,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/where_groupby.csv",
             "backend_id" = "${be_id}",
-            "format" = "csv"
+            "format" = "csv",
+            "delete_existing_files" = "true"
         ) SELECT c_bool, COUNT(*), SUM(c_int) FROM insert_tvf_test_src WHERE c_int IS NOT NULL GROUP BY c_bool ORDER BY c_bool;
     """
 
@@ -476,7 +493,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/join_query.csv",
             "backend_id" = "${be_id}",
-            "format" = "csv"
+            "format" = "csv",
+            "delete_existing_files" = "true"
         ) SELECT a.c_int, a.c_varchar, b.c_label
           FROM insert_tvf_test_src a INNER JOIN insert_tvf_join_src b ON a.c_int = b.c_int
           ORDER BY a.c_int;
@@ -496,7 +514,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/subquery.csv",
             "backend_id" = "${be_id}",
-            "format" = "csv"
+            "format" = "csv",
+            "delete_existing_files" = "true"
         ) SELECT * FROM (SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int) sub;
     """
 
@@ -514,7 +533,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/type_cast.csv",
             "backend_id" = "${be_id}",
-            "format" = "csv"
+            "format" = "csv",
+            "delete_existing_files" = "true"
         ) SELECT CAST(c_int AS BIGINT), CAST(c_float AS DOUBLE), CAST(c_date AS STRING)
           FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
@@ -533,7 +553,8 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
         INSERT INTO local(
             "file_path" = "${basePath}/union_query.csv",
             "backend_id" = "${be_id}",
-            "format" = "csv"
+            "format" = "csv",
+            "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 1000
           UNION ALL
           SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 2000;

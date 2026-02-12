@@ -73,6 +73,7 @@ Status VTVFTableWriter::open(RuntimeState* state, RuntimeProfile* profile) {
 
 Status VTVFTableWriter::write(RuntimeState* state, vectorized::Block& block) {
     COUNTER_UPDATE(_written_rows_counter, block.rows());
+    state->update_num_rows_load_total(block.rows());
 
     {
         SCOPED_TIMER(_file_write_timer);

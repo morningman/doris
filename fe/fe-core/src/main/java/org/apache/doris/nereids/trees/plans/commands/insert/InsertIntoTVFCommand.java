@@ -23,6 +23,7 @@ import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.Status;
 import org.apache.doris.mysql.privilege.PrivPredicate;
+import org.apache.doris.task.LoadEtlTask;
 import org.apache.doris.nereids.NereidsPlanner;
 import org.apache.doris.nereids.glue.LogicalPlanAdapter;
 import org.apache.doris.nereids.trees.plans.Explainable;
@@ -117,7 +118,13 @@ public class InsertIntoTVFCommand extends Command implements ForwardWithSync, Ex
             if (coordinator.getExecStatus().ok()) {
                 String label = labelName.orElse(
                         String.format("tvf_insert_%x_%x", ctx.queryId().hi, ctx.queryId().lo));
-                ctx.getState().setOk(0, 0, "Insert into TVF succeeded. label: " + label);
+                long loadedRows = 0;
+                String loadedRowsStr = coordinator.getLoadCounters()
+                        .get(LoadEtlTask.DPP_NORMAL_ALL);
+                if (loadedRowsStr != null) {
+                    loadedRows = Long.parseLong(loadedRowsStr);
+                }
+                ctx.getState().setOk(loadedRows, 0, "Insert into TVF succeeded. label: " + label);
             } else {
                 String errMsg = coordinator.getExecStatus().getErrorMsg();
                 LOG.warn("insert into TVF failed, error: {}", errMsg);
