@@ -19,14 +19,20 @@ package org.apache.doris.planner;
 
 import org.apache.doris.catalog.Column;
 import org.apache.doris.common.AnalysisException;
+import org.apache.doris.common.util.Util;
+import org.apache.doris.datasource.property.fileformat.CsvFileFormatProperties;
+import org.apache.doris.datasource.property.fileformat.FileFormatProperties;
+import org.apache.doris.datasource.property.fileformat.OrcFileFormatProperties;
+import org.apache.doris.datasource.property.storage.StorageProperties;
 import org.apache.doris.thrift.TColumn;
 import org.apache.doris.thrift.TDataSink;
 import org.apache.doris.thrift.TDataSinkType;
 import org.apache.doris.thrift.TExplainLevel;
-import org.apache.doris.thrift.TFileCompressType;
 import org.apache.doris.thrift.TFileFormatType;
 import org.apache.doris.thrift.TFileType;
 import org.apache.doris.thrift.TTVFTableSink;
+
+import com.google.common.collect.Maps;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +41,9 @@ import java.util.Map;
 /**
  * TVFTableSink is used for INSERT INTO tvf_name(properties) SELECT ...
  * It writes query results to files via TVF (local/s3/hdfs).
+ *
+ * Property parsing reuses the same StorageProperties and FileFormatProperties
+ * infrastructure as the read-side TVF (SELECT * FROM s3/hdfs/local(...)).
  */
 public class TVFTableSink extends DataSink {
     private final PlanNodeId exchNodeId;
@@ -54,20 +63,54 @@ public class TVFTableSink extends DataSink {
         TTVFTableSink tSink = new TTVFTableSink();
         tSink.setTvfName(tvfName);
 
-        String filePath = properties.get("file_path");
-        tSink.setFilePath(filePath);
+        // --- 1. Parse file format properties (reuse read-side FileFormatProperties) ---
+        // Make a mutable copy; FileFormatProperties.analyzeFileFormatProperties removes consumed keys.
+        Map<String, String> propsCopy = Maps.newTreeMap(String.CASE_INSENSITIVE_ORDER);
+        propsCopy.putAll(properties);
 
-        // Set file format
-        String format = properties.getOrDefault("format", "csv").toLowerCase();
-        TFileFormatType formatType = getFormatType(format);
+        String formatStr = propsCopy.getOrDefault("format", "csv").toLowerCase();
+        propsCopy.remove("format");
+
+        // Also consume "compression_type" as alias for "compress_type" (write-side convention)
+        if (propsCopy.containsKey("compression_type") && !propsCopy.containsKey("compress_type")) {
+            propsCopy.put("compress_type", propsCopy.remove("compression_type"));
+        }
+
+        FileFormatProperties fileFormatProps = FileFormatProperties.createFileFormatProperties(formatStr);
+        fileFormatProps.analyzeFileFormatProperties(propsCopy, true);
+
+        TFileFormatType formatType = fileFormatProps.getFileFormatType();
+        if (!Util.isCsvFormat(formatType) && formatType != TFileFormatType.FORMAT_PARQUET
+                && formatType != TFileFormatType.FORMAT_ORC) {
+            throw new AnalysisException("Unsupported format: " + formatType.name());
+        }
         tSink.setFileFormat(formatType);
 
         // Set file type based on TVF name
         TFileType fileType = getFileType(tvfName);
         tSink.setFileType(fileType);
 
-        // Set all properties for BE to access
-        tSink.setProperties(properties);
+        // --- 2. Parse storage/connection properties (reuse read-side StorageProperties) ---
+        Map<String, String> backendConnectProps;
+        if (tvfName.equals("local")) {
+            // Local TVF: pass properties as-is (same as LocalProperties.getBackendConfigProperties)
+            backendConnectProps = new java.util.HashMap<>(propsCopy);
+        } else {
+            // S3/HDFS: use StorageProperties to normalize connection property keys
+            // (e.g. "s3.endpoint" -> "AWS_ENDPOINT", "hadoop.username" -> hadoop config)
+            try {
+                StorageProperties storageProps = StorageProperties.createPrimary(propsCopy);
+                backendConnectProps = storageProps.getBackendConfigProperties();
+            } catch (Exception e) {
+                throw new AnalysisException("Failed to parse storage properties: " + e.getMessage(), e);
+            }
+        }
+
+        String filePath = properties.get("file_path");
+        tSink.setFilePath(filePath);
+
+        // Set normalized properties for BE
+        tSink.setProperties(backendConnectProps);
 
         // Set columns
         List<TColumn> tColumns = new ArrayList<>();
@@ -76,57 +119,42 @@ public class TVFTableSink extends DataSink {
         }
         tSink.setColumns(tColumns);
 
-        // Set column separator
-        String columnSeparator = properties.getOrDefault("column_separator", ",");
-        tSink.setColumnSeparator(columnSeparator);
+        // --- 3. Set format-specific sink options ---
+        if (fileFormatProps instanceof CsvFileFormatProperties) {
+            CsvFileFormatProperties csvProps = (CsvFileFormatProperties) fileFormatProps;
+            csvProps.checkSupportedCompressionType(true);
+            tSink.setColumnSeparator(csvProps.getColumnSeparator());
+            tSink.setLineDelimiter(csvProps.getLineDelimiter());
+            tSink.setCompressionType(csvProps.getCompressionType());
+        } else if (fileFormatProps instanceof OrcFileFormatProperties) {
+            tSink.setCompressionType(((OrcFileFormatProperties) fileFormatProps).getOrcCompressionType());
+        }
+        // Parquet compression is handled by BE via parquet writer options
 
-        // Set line delimiter
-        String lineDelimiter = properties.getOrDefault("line_delimiter", "\n");
-        tSink.setLineDelimiter(lineDelimiter);
-
-        // Set max file size
+        // --- 4. Set sink-specific options ---
+        // Max file size
         String maxFileSizeStr = properties.get("max_file_size");
         if (maxFileSizeStr != null) {
             tSink.setMaxFileSizeBytes(Long.parseLong(maxFileSizeStr));
         }
 
-        // Set delete existing files flag
+        // Delete existing files flag
         String deleteExisting = properties.getOrDefault("delete_existing_files", "true");
         tSink.setDeleteExistingFiles(Boolean.parseBoolean(deleteExisting));
 
-        // Set compression type
-        String compression = properties.get("compression_type");
-        if (compression != null) {
-            tSink.setCompressionType(getCompressType(compression));
-        }
-
-        // Set backend id for local TVF
+        // Backend id for local TVF
         String backendIdStr = properties.get("backend_id");
         if (backendIdStr != null) {
             tSink.setBackendId(Long.parseLong(backendIdStr));
         }
 
-        // Set hadoop config for hdfs/s3
-        if (tvfName.equals("hdfs") || tvfName.equals("s3")) {
-            tSink.setHadoopConfig(properties);
+        // Set hadoop config for hdfs/s3 (BE uses this for file writer creation)
+        if (!tvfName.equals("local")) {
+            tSink.setHadoopConfig(backendConnectProps);
         }
 
         tDataSink = new TDataSink(TDataSinkType.TVF_TABLE_SINK);
         tDataSink.setTvfTableSink(tSink);
-    }
-
-    private TFileFormatType getFormatType(String format) throws AnalysisException {
-        switch (format) {
-            case "csv":
-                return TFileFormatType.FORMAT_CSV_PLAIN;
-            case "parquet":
-                return TFileFormatType.FORMAT_PARQUET;
-            case "orc":
-                return TFileFormatType.FORMAT_ORC;
-            default:
-                throw new AnalysisException("Unsupported TVF sink format: " + format
-                        + ". Supported formats: csv, parquet, orc");
-        }
     }
 
     private TFileType getFileType(String tvfName) throws AnalysisException {
@@ -139,22 +167,6 @@ public class TVFTableSink extends DataSink {
                 return TFileType.FILE_HDFS;
             default:
                 throw new AnalysisException("Unsupported TVF type: " + tvfName);
-        }
-    }
-
-    private TFileCompressType getCompressType(String compressType) {
-        switch (compressType.toLowerCase()) {
-            case "snappy":
-                return TFileCompressType.SNAPPYBLOCK;
-            case "lz4":
-                return TFileCompressType.LZ4BLOCK;
-            case "gzip":
-            case "gz":
-                return TFileCompressType.GZ;
-            case "zstd":
-                return TFileCompressType.ZSTD;
-            default:
-                return TFileCompressType.PLAIN;
         }
     }
 

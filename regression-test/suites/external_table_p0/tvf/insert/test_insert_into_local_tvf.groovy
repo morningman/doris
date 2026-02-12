@@ -321,23 +321,23 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
     // ============ 13. CSV compress: lz4 ============
 
     // TODO: lz4 read meet error: LZ4F_getFrameInfo error: ERROR_frameType_unknown
-    // sql """
-    //     INSERT INTO local(
-    //         "file_path" = "${basePath}/compress_lz4.csv.lz4",
-    //         "backend_id" = "${be_id}",
-    //         "format" = "csv",
-    //         "compression_type" = "lz4"
-    //     ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
-    // """
+    sql """
+        INSERT INTO local(
+            "file_path" = "${basePath}/compress_lz4.csv.lz4",
+            "backend_id" = "${be_id}",
+            "format" = "csv",
+            "compression_type" = "lz4block"
+        ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
+    """
 
-    // order_qt_csv_compress_lz4 """
-    //     SELECT * FROM local(
-    //         "file_path" = "${basePath}/compress_lz4.csv.lz4",
-    //         "backend_id" = "${be_id}",
-    //         "format" = "csv",
-    //         "compress_type" = "lz4"
-    //     ) ORDER BY c1;
-    // """
+    order_qt_csv_compress_lz4 """
+        SELECT * FROM local(
+            "file_path" = "${basePath}/compress_lz4.csv.lz4",
+            "backend_id" = "${be_id}",
+            "format" = "csv",
+            "compress_type" = "lz4block"
+        ) ORDER BY c1;
+    """
 
     // ============ 14. CSV compress: snappy ============
 
@@ -346,7 +346,7 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
             "file_path" = "${basePath}/compress_snappy.csv.snappy",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "compression_type" = "snappy"
+            "compression_type" = "snappyblock"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
@@ -605,7 +605,7 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
                 "format" = "json"
             ) SELECT 1;
         """
-        exception "Unsupported TVF sink format"
+        exception "Unsupported"
     }
 
     // ============ Cleanup ============
