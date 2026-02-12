@@ -42,6 +42,7 @@ import org.apache.doris.catalog.OlapTable;
 import org.apache.doris.catalog.TableIf;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.Pair;
+import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.FileQueryScanNode;
 import org.apache.doris.datasource.doris.RemoteDorisExternalTable;
@@ -470,7 +471,7 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
         try {
             sink.bindDataSink();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to bind TVF table sink", e);
+            throw new RuntimeException("Failed to bind TVF table sink: " + Util.getRootCauseMessage(e), e);
         }
         rootFragment.setSink(sink);
         return rootFragment;
