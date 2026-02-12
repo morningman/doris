@@ -77,6 +77,10 @@ private:
     int _file_idx = 0;
     bool _delete_existing_files_flag = true;
     std::string _file_path;
+    std::string _column_separator;
+    std::string _line_delimiter;
+    std::vector<TParquetSchema> _parquet_schemas;
+    std::vector<std::string> _orc_column_names;
 
     // profile counters
     RuntimeProfile::Counter* _written_rows_counter = nullptr;

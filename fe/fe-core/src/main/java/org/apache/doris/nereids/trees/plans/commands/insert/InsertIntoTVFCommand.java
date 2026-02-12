@@ -25,7 +25,6 @@ import org.apache.doris.common.Status;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.nereids.NereidsPlanner;
 import org.apache.doris.nereids.glue.LogicalPlanAdapter;
-import org.apache.doris.nereids.trees.TreeNode;
 import org.apache.doris.nereids.trees.plans.Explainable;
 import org.apache.doris.nereids.trees.plans.Plan;
 import org.apache.doris.nereids.trees.plans.PlanType;
@@ -37,16 +36,14 @@ import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.ConnectContext.ConnectType;
 import org.apache.doris.qe.Coordinator;
 import org.apache.doris.qe.QeProcessorImpl;
-import org.apache.doris.qe.QueryInfo;
+import org.apache.doris.qe.QeProcessorImpl.QueryInfo;
 import org.apache.doris.qe.StmtExecutor;
 import org.apache.doris.thrift.TStatusCode;
 import org.apache.doris.thrift.TUniqueId;
 
-import com.google.common.base.Preconditions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -108,7 +105,8 @@ public class InsertIntoTVFCommand extends Command implements ForwardWithSync, Ex
             coordinator.exec();
 
             // Wait for completion
-            if (coordinator.join(ctx.getExecTimeout())) {
+            int timeoutS = ctx.getExecTimeoutS();
+            if (coordinator.join(timeoutS)) {
                 if (!coordinator.isDone()) {
                     coordinator.cancel(new Status(TStatusCode.INTERNAL_ERROR, "Insert into TVF timeout"));
                     ctx.getState().setError(ErrorCode.ERR_UNKNOWN_ERROR, "Insert into TVF timeout");
@@ -143,16 +141,5 @@ public class InsertIntoTVFCommand extends Command implements ForwardWithSync, Ex
     @Override
     public Plan getExplainPlan(ConnectContext ctx) {
         return this.logicalQuery;
-    }
-
-    @Override
-    public List<? extends TreeNode<?>> children() {
-        return List.of(logicalQuery);
-    }
-
-    @Override
-    public Plan withChildren(List<Plan> children) {
-        Preconditions.checkArgument(children.size() == 1);
-        return new InsertIntoTVFCommand((LogicalPlan) children.get(0), labelName, cte);
     }
 }

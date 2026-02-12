@@ -37,12 +37,14 @@ import java.util.Map;
  * It writes query results to files via TVF (local/s3/hdfs).
  */
 public class TVFTableSink extends DataSink {
+    private final PlanNodeId exchNodeId;
     private final String tvfName;
     private final Map<String, String> properties;
     private final List<Column> cols;
     private TDataSink tDataSink;
 
-    public TVFTableSink(String tvfName, Map<String, String> properties, List<Column> cols) {
+    public TVFTableSink(PlanNodeId exchNodeId, String tvfName, Map<String, String> properties, List<Column> cols) {
+        this.exchNodeId = exchNodeId;
         this.tvfName = tvfName;
         this.properties = properties;
         this.cols = cols;
@@ -174,5 +176,10 @@ public class TVFTableSink extends DataSink {
     @Override
     public DataPartition getOutputPartition() {
         return null;
+    }
+
+    @Override
+    public PlanNodeId getExchNodeId() {
+        return exchNodeId;
     }
 }

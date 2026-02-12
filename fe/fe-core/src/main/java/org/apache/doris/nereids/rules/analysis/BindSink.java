@@ -97,6 +97,10 @@ import org.apache.doris.nereids.util.Utils;
 import org.apache.doris.qe.AutoCloseSessionVariable;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.SessionVariable;
+import org.apache.doris.tablefunction.ExternalFileTableValuedFunction;
+import org.apache.doris.tablefunction.HdfsTableValuedFunction;
+import org.apache.doris.tablefunction.LocalTableValuedFunction;
+import org.apache.doris.tablefunction.S3TableValuedFunction;
 import org.apache.doris.thrift.TPartialUpdateNewRowPolicy;
 
 import com.google.common.base.Preconditions;
@@ -108,6 +112,8 @@ import com.google.common.collect.Sets;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Table;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -121,6 +127,8 @@ import java.util.stream.Collectors;
  * bind an unbound logicalTableSink represent the target table of an insert command
  */
 public class BindSink implements AnalysisRuleFactory {
+    private static final Logger LOG = LogManager.getLogger(BindSink.class);
+
     public boolean needTruncateStringWhenInsert;
 
     public BindSink() {
@@ -583,17 +591,79 @@ public class BindSink implements AnalysisRuleFactory {
 
         LogicalPlan child = ((LogicalPlan) sink.child());
 
-        // Derive columns from child query output
-        List<Column> cols = child.getOutput().stream()
-                .map(slot -> new Column(slot.getName(), slot.getDataType().toCatalogDataType()))
-                .collect(ImmutableList.toImmutableList());
+        // Determine target schema: if append mode and file exists, use existing file schema;
+        // otherwise derive from child query output.
+        boolean deleteExisting = Boolean.parseBoolean(
+                properties.getOrDefault("delete_existing_files", "true"));
+        List<Column> cols = null;
+        if (!deleteExisting) {
+            cols = tryGetExistingFileSchema(tvfName, properties);
+        }
+        if (cols == null) {
+            cols = child.getOutput().stream()
+                    .map(slot -> new Column(slot.getName(), slot.getDataType().toCatalogDataType()))
+                    .collect(ImmutableList.toImmutableList());
+        }
 
-        List<NamedExpression> outputExprs = child.getOutput().stream()
+        // Validate column count
+        if (cols.size() != child.getOutput().size()) {
+            throw new AnalysisException(
+                    "insert into cols should be corresponding to the query output"
+                            + ", target columns: " + cols.size()
+                            + ", query output: " + child.getOutput().size());
+        }
+
+        // Build columnToOutput mapping and reuse getOutputProjectByCoercion for type cast,
+        // same as OlapTable INSERT INTO.
+        Map<String, NamedExpression> columnToOutput = Maps.newLinkedHashMap();
+        for (int i = 0; i < cols.size(); i++) {
+            Column col = cols.get(i);
+            NamedExpression childExpr = (NamedExpression) child.getOutput().get(i);
+            Alias output = new Alias(TypeCoercionUtils.castIfNotSameType(
+                    childExpr, DataType.fromCatalogType(col.getType())), col.getName());
+            columnToOutput.put(col.getName(), output);
+        }
+        LogicalProject<?> projectWithCast = getOutputProjectByCoercion(cols, child, columnToOutput);
+
+        List<NamedExpression> outputExprs = projectWithCast.getOutput().stream()
                 .map(NamedExpression.class::cast)
                 .collect(ImmutableList.toImmutableList());
 
         return new LogicalTVFTableSink<>(tvfName, properties, cols, outputExprs,
-                Optional.empty(), Optional.empty(), child);
+                Optional.empty(), Optional.empty(), projectWithCast);
+    }
+
+    /**
+     * Try to instantiate the corresponding TVF to read the existing file's schema.
+     * Returns null if the file does not exist or schema inference fails.
+     */
+    private List<Column> tryGetExistingFileSchema(String tvfName, Map<String, String> properties) {
+        try {
+            ExternalFileTableValuedFunction tvf;
+            Map<String, String> propsCopy = new HashMap<>(properties);
+            switch (tvfName) {
+                case "local":
+                    tvf = new LocalTableValuedFunction(propsCopy);
+                    break;
+                case "s3":
+                    tvf = new S3TableValuedFunction(propsCopy);
+                    break;
+                case "hdfs":
+                    tvf = new HdfsTableValuedFunction(propsCopy);
+                    break;
+                default:
+                    return null;
+            }
+            List<Column> columns = tvf.getTableColumns();
+            if (columns != null && !columns.isEmpty()) {
+                return columns;
+            }
+        } catch (Exception e) {
+            // File does not exist or schema inference failed — fall back to child query schema
+            LOG.info("TVF sink: could not read existing file schema for append mode, "
+                    + "will use child query schema. Reason: " + e.getMessage());
+        }
+        return null;
     }
 
     private Plan bindHiveTableSink(MatchingContext<UnboundHiveTableSink<Plan>> ctx) {

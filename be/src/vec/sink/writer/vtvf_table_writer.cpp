@@ -20,8 +20,6 @@
 #include <fmt/format.h>
 #include <gen_cpp/PlanNodes_types.h>
 
-#include <sstream>
-
 #include "common/status.h"
 #include "io/file_factory.h"
 #include "io/fs/local_file_system.h"
@@ -53,9 +51,17 @@ Status VTVFTableWriter::open(RuntimeState* state, RuntimeProfile* profile) {
     _writer_close_timer = ADD_TIMER(writer_profile, "FileWriterCloseTime");
 
     _file_path = _tvf_sink.file_path;
-    _max_file_size_bytes = _tvf_sink.__isset.max_file_size_bytes ? _tvf_sink.max_file_size_bytes : 0;
+    _max_file_size_bytes =
+            _tvf_sink.__isset.max_file_size_bytes ? _tvf_sink.max_file_size_bytes : 0;
     _delete_existing_files_flag =
             _tvf_sink.__isset.delete_existing_files ? _tvf_sink.delete_existing_files : true;
+
+    VLOG_DEBUG << "TVF table writer open, query_id=" << print_id(_state->query_id())
+               << ", tvf_name=" << _tvf_sink.tvf_name << ", file_path=" << _tvf_sink.file_path
+               << ", file_format=" << _tvf_sink.file_format << ", file_type=" << _tvf_sink.file_type
+               << ", max_file_size_bytes=" << _max_file_size_bytes
+               << ", delete_existing_files=" << _delete_existing_files_flag
+               << ", columns_count=" << (_tvf_sink.__isset.columns ? _tvf_sink.columns.size() : 0);
 
     // Delete existing files if requested
     if (_delete_existing_files_flag) {
@@ -99,41 +105,38 @@ Status VTVFTableWriter::_create_file_writer(const std::string& file_name) {
         properties = _tvf_sink.properties;
     }
 
-    _file_writer_impl = DORIS_TRY(FileFactory::create_file_writer(
-            file_type, _state->exec_env(), {}, properties, file_name,
-            {
-                    .write_file_cache = false,
-                    .sync_file_data = false,
-            }));
+    _file_writer_impl = DORIS_TRY(FileFactory::create_file_writer(file_type, _state->exec_env(), {},
+                                                                  properties, file_name,
+                                                                  {
+                                                                          .write_file_cache = false,
+                                                                          .sync_file_data = false,
+                                                                  }));
 
     TFileFormatType::type format = _tvf_sink.file_format;
     switch (format) {
     case TFileFormatType::FORMAT_CSV_PLAIN: {
-        std::string column_separator =
-                _tvf_sink.__isset.column_separator ? _tvf_sink.column_separator : ",";
-        std::string line_delimiter =
-                _tvf_sink.__isset.line_delimiter ? _tvf_sink.line_delimiter : "\n";
+        _column_separator = _tvf_sink.__isset.column_separator ? _tvf_sink.column_separator : ",";
+        _line_delimiter = _tvf_sink.__isset.line_delimiter ? _tvf_sink.line_delimiter : "\n";
         TFileCompressType::type compress_type = TFileCompressType::PLAIN;
         if (_tvf_sink.__isset.compression_type) {
             compress_type = _tvf_sink.compression_type;
         }
-        _vfile_writer.reset(new VCSVTransformer(_state, _file_writer_impl.get(),
-                                                _vec_output_expr_ctxs, false, {}, {}, column_separator,
-                                                line_delimiter, false, compress_type));
+        _vfile_writer.reset(new VCSVTransformer(
+                _state, _file_writer_impl.get(), _vec_output_expr_ctxs, false, {}, {},
+                _column_separator, _line_delimiter, false, compress_type));
         break;
     }
     case TFileFormatType::FORMAT_PARQUET: {
-        // Build parquet schemas from columns
-        std::vector<TParquetSchema> parquet_schemas;
+        _parquet_schemas.clear();
         if (_tvf_sink.__isset.columns) {
             for (const auto& col : _tvf_sink.columns) {
                 TParquetSchema schema;
                 schema.__set_schema_column_name(col.column_name);
-                parquet_schemas.push_back(schema);
+                _parquet_schemas.push_back(schema);
             }
         }
         _vfile_writer.reset(new VParquetTransformer(
-                _state, _file_writer_impl.get(), _vec_output_expr_ctxs, parquet_schemas, false,
+                _state, _file_writer_impl.get(), _vec_output_expr_ctxs, _parquet_schemas, false,
                 {TParquetCompressionType::SNAPPY, TParquetVersion::PARQUET_1_0, false, false}));
         break;
     }
@@ -142,8 +145,14 @@ Status VTVFTableWriter::_create_file_writer(const std::string& file_name) {
         if (_tvf_sink.__isset.compression_type) {
             compress_type = _tvf_sink.compression_type;
         }
+        _orc_column_names.clear();
+        if (_tvf_sink.__isset.columns) {
+            for (const auto& col : _tvf_sink.columns) {
+                _orc_column_names.push_back(col.column_name);
+            }
+        }
         _vfile_writer.reset(new VOrcTransformer(_state, _file_writer_impl.get(),
-                                                _vec_output_expr_ctxs, "", {}, false,
+                                                _vec_output_expr_ctxs, "", _orc_column_names, false,
                                                 compress_type));
         break;
     }
@@ -151,9 +160,8 @@ Status VTVFTableWriter::_create_file_writer(const std::string& file_name) {
         return Status::InternalError("Unsupported TVF sink file format: {}", format);
     }
 
-    LOG(INFO) << "TVF table writer created file: " << file_name
-              << ", format: " << format
-              << ", query_id: " << print_id(_state->query_id());
+    VLOG_DEBUG << "TVF table writer created file: " << file_name << ", format=" << format
+               << ", query_id=" << print_id(_state->query_id());
 
     return _vfile_writer->open();
 }

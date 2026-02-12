@@ -465,6 +465,7 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
         PlanFragment rootFragment = tvfSink.child().accept(this, context);
         rootFragment.setOutputPartition(DataPartition.UNPARTITIONED);
         TVFTableSink sink = new TVFTableSink(
+                rootFragment.getPlanRoot().getId(),
                 tvfSink.getTvfName(), tvfSink.getProperties(), tvfSink.getCols());
         try {
             sink.bindDataSink();
