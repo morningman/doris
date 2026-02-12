@@ -118,6 +118,7 @@ import org.apache.doris.nereids.trees.plans.physical.AbstractPhysicalJoin;
 import org.apache.doris.nereids.trees.plans.physical.AbstractPhysicalSort;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalAssertNumRows;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalBlackholeSink;
+import org.apache.doris.nereids.trees.plans.physical.PhysicalTVFTableSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalCTEAnchor;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalCTEConsumer;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalCTEProducer;
@@ -184,6 +185,7 @@ import org.apache.doris.planner.AnalyticEvalNode;
 import org.apache.doris.planner.AssertNumRowsNode;
 import org.apache.doris.planner.BackendPartitionedSchemaScanNode;
 import org.apache.doris.planner.BlackholeSink;
+import org.apache.doris.planner.TVFTableSink;
 import org.apache.doris.planner.CTEScanNode;
 import org.apache.doris.planner.DataPartition;
 import org.apache.doris.planner.DataStreamSink;
@@ -455,6 +457,22 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
         BlackholeSink blackholeSink = new BlackholeSink(planFragment.getPlanRoot().getId());
         planFragment.setSink(blackholeSink);
         return planFragment;
+    }
+
+    @Override
+    public PlanFragment visitPhysicalTVFTableSink(PhysicalTVFTableSink<? extends Plan> tvfSink,
+            PlanTranslatorContext context) {
+        PlanFragment rootFragment = tvfSink.child().accept(this, context);
+        rootFragment.setOutputPartition(DataPartition.UNPARTITIONED);
+        TVFTableSink sink = new TVFTableSink(
+                tvfSink.getTvfName(), tvfSink.getProperties(), tvfSink.getCols());
+        try {
+            sink.bindDataSink();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to bind TVF table sink", e);
+        }
+        rootFragment.setSink(sink);
+        return rootFragment;
     }
 
     @Override

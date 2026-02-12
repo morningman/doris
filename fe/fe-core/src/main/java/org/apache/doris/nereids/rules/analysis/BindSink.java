@@ -47,6 +47,7 @@ import org.apache.doris.nereids.analyzer.UnboundHiveTableSink;
 import org.apache.doris.nereids.analyzer.UnboundIcebergTableSink;
 import org.apache.doris.nereids.analyzer.UnboundJdbcTableSink;
 import org.apache.doris.nereids.analyzer.UnboundSlot;
+import org.apache.doris.nereids.analyzer.UnboundTVFTableSink;
 import org.apache.doris.nereids.analyzer.UnboundTableSink;
 import org.apache.doris.nereids.exceptions.AnalysisException;
 import org.apache.doris.nereids.parser.NereidsParser;
@@ -82,6 +83,7 @@ import org.apache.doris.nereids.trees.plans.logical.LogicalOlapTableSink;
 import org.apache.doris.nereids.trees.plans.logical.LogicalOneRowRelation;
 import org.apache.doris.nereids.trees.plans.logical.LogicalPlan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalProject;
+import org.apache.doris.nereids.trees.plans.logical.LogicalTVFTableSink;
 import org.apache.doris.nereids.trees.plans.logical.LogicalTableSink;
 import org.apache.doris.nereids.trees.plans.logical.UnboundLogicalSink;
 import org.apache.doris.nereids.trees.plans.visitor.InferPlanOutputAlias;
@@ -154,7 +156,8 @@ public class BindSink implements AnalysisRuleFactory {
                 RuleType.BINDING_INSERT_JDBC_TABLE.build(unboundJdbcTableSink().thenApply(this::bindJdbcTableSink)),
                 RuleType.BINDING_INSERT_DICTIONARY_TABLE
                         .build(unboundDictionarySink().thenApply(this::bindDictionarySink)),
-                RuleType.BINDING_INSERT_BLACKHOLE_SINK.build(unboundBlackholeSink().thenApply(this::bindBlackHoleSink))
+                RuleType.BINDING_INSERT_BLACKHOLE_SINK.build(unboundBlackholeSink().thenApply(this::bindBlackHoleSink)),
+                RuleType.BINDING_INSERT_TVF_TABLE.build(unboundTVFTableSink().thenApply(this::bindTVFTableSink))
                 );
     }
 
@@ -554,6 +557,43 @@ public class BindSink implements AnalysisRuleFactory {
                 Optional.empty(),
                 child);
         return boundSink;
+    }
+
+    private Plan bindTVFTableSink(MatchingContext<UnboundTVFTableSink<Plan>> ctx) {
+        UnboundTVFTableSink<?> sink = ctx.root;
+        String tvfName = sink.getTvfName().toLowerCase();
+        Map<String, String> properties = sink.getProperties();
+
+        // Validate tvfName
+        if (!tvfName.equals("local") && !tvfName.equals("s3") && !tvfName.equals("hdfs")) {
+            throw new AnalysisException(
+                    "INSERT INTO TVF only supports local/s3/hdfs, but got: " + tvfName);
+        }
+
+        // Validate required properties
+        if (!properties.containsKey("file_path")) {
+            throw new AnalysisException("TVF sink requires 'file_path' property");
+        }
+        if (!properties.containsKey("format")) {
+            throw new AnalysisException("TVF sink requires 'format' property");
+        }
+        if (tvfName.equals("local") && !properties.containsKey("backend_id")) {
+            throw new AnalysisException("local TVF sink requires 'backend_id' property");
+        }
+
+        LogicalPlan child = ((LogicalPlan) sink.child());
+
+        // Derive columns from child query output
+        List<Column> cols = child.getOutput().stream()
+                .map(slot -> new Column(slot.getName(), slot.getDataType().toCatalogDataType()))
+                .collect(ImmutableList.toImmutableList());
+
+        List<NamedExpression> outputExprs = child.getOutput().stream()
+                .map(NamedExpression.class::cast)
+                .collect(ImmutableList.toImmutableList());
+
+        return new LogicalTVFTableSink<>(tvfName, properties, cols, outputExprs,
+                Optional.empty(), Optional.empty(), child);
     }
 
     private Plan bindHiveTableSink(MatchingContext<UnboundHiveTableSink<Plan>> ctx) {

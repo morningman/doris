@@ -62,6 +62,7 @@
 #include "pipeline/exec/hashjoin_build_sink.h"
 #include "pipeline/exec/hashjoin_probe_operator.h"
 #include "pipeline/exec/hive_table_sink_operator.h"
+#include "pipeline/exec/tvf_table_sink_operator.h"
 #include "pipeline/exec/iceberg_table_sink_operator.h"
 #include "pipeline/exec/jdbc_scan_operator.h"
 #include "pipeline/exec/jdbc_table_sink_operator.h"
@@ -1184,6 +1185,14 @@ Status PipelineFragmentContext::_create_data_sink(ObjectPool* pool, const TDataS
         }
 
         _sink.reset(new BlackholeSinkOperatorX(next_sink_operator_id()));
+        break;
+    }
+    case TDataSinkType::TVF_TABLE_SINK: {
+        if (!thrift_sink.__isset.tvf_table_sink) {
+            return Status::InternalError("Missing TVF table sink.");
+        }
+        _sink = std::make_shared<TVFTableSinkOperatorX>(pool, next_sink_operator_id(), row_desc,
+                                                        output_exprs);
         break;
     }
     default:
