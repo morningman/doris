@@ -49,11 +49,6 @@ public class UnboundTVFTableSink<CHILD_TYPE extends Plan> extends UnboundLogical
 
     /**
      * For insert into tvf
-     *
-     * @param tvfName
-     * @param properties
-     * @param dmlCommandType
-     * @param child
      */
     public UnboundTVFTableSink(String tvfName, Map<String, String> properties,
             DMLCommandType dmlCommandType, CHILD_TYPE child) {
