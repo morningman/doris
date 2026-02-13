@@ -136,7 +136,8 @@ jobs:
           export CUSTOM_CMAKE="/usr/local/bin/cmake"
 
           cd thirdparty
-          ./build-thirdparty.sh -j "$(nproc)"
+          #./build-thirdparty.sh -j "$(nproc)"
+          ./build-thirdparty.sh -j 2
 
   build_macos:
     name: Build Third Party Libraries (macOS)
@@ -196,6 +197,7 @@ jobs:
           export CUSTOM_CMAKE="/usr/local/bin/cmake"
 
           cd thirdparty
+          #./build-thirdparty.sh -j "$(nproc)"
           ./build-thirdparty.sh -j "$(nproc)"
 
   build_macos_arm64:
@@ -256,5 +258,6 @@ jobs:
           export CUSTOM_CMAKE="/usr/local/bin/cmake"
 
           cd thirdparty
-          ./build-thirdparty.sh -j "$(nproc)"
+          #./build-thirdparty.sh -j "$(nproc)"
+          ./build-thirdparty.sh -j 2
 
