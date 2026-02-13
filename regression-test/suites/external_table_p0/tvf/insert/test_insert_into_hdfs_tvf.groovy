@@ -29,6 +29,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
         return
     }
 
+    // file_path is now a prefix; BE generates: {prefix}{query_id}_{idx}.{ext}
     def hdfsWriteProps = { String path, String format ->
         return """
             "file_path" = "${hdfsBasePath}/${path}",
@@ -38,6 +39,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
         """
     }
 
+    // Read uses wildcard to match generated file names
     def hdfsReadProps = { String path, String format ->
         return """
             "uri" = "${defaultFS}${hdfsBasePath}/${path}",
@@ -110,14 +112,14 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("basic_csv.csv", "csv")},
+            ${hdfsWriteProps("basic_csv/data_", "csv")},
             "delete_existing_files" = "true"
         ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
     """
 
     order_qt_hdfs_csv_basic_types """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("basic_csv.csv", "csv")}
+            ${hdfsReadProps("basic_csv/*", "csv")}
         ) ORDER BY c1;
     """
 
@@ -125,14 +127,14 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("basic_parquet.parquet", "parquet")},
+            ${hdfsWriteProps("basic_parquet/data_", "parquet")},
             "delete_existing_files" = "true"
         ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
     """
 
     order_qt_hdfs_parquet_basic_types """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("basic_parquet.parquet", "parquet")}
+            ${hdfsReadProps("basic_parquet/*", "parquet")}
         ) ORDER BY c_int;
     """
 
@@ -140,14 +142,14 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("basic_orc.orc", "orc")},
+            ${hdfsWriteProps("basic_orc/data_", "orc")},
             "delete_existing_files" = "true"
         ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
     """
 
     order_qt_hdfs_orc_basic_types """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("basic_orc.orc", "orc")}
+            ${hdfsReadProps("basic_orc/*", "orc")}
         ) ORDER BY c_int;
     """
 
@@ -155,14 +157,14 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("complex_parquet.parquet", "parquet")},
+            ${hdfsWriteProps("complex_parquet/data_", "parquet")},
             "delete_existing_files" = "true"
         ) SELECT * FROM insert_tvf_complex_src ORDER BY c_int;
     """
 
     order_qt_hdfs_parquet_complex_types """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("complex_parquet.parquet", "parquet")}
+            ${hdfsReadProps("complex_parquet/*", "parquet")}
         ) ORDER BY c_int;
     """
 
@@ -170,14 +172,14 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("complex_orc.orc", "orc")},
+            ${hdfsWriteProps("complex_orc/data_", "orc")},
             "delete_existing_files" = "true"
         ) SELECT * FROM insert_tvf_complex_src ORDER BY c_int;
     """
 
     order_qt_hdfs_orc_complex_types """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("complex_orc.orc", "orc")}
+            ${hdfsReadProps("complex_orc/*", "orc")}
         ) ORDER BY c_int;
     """
 
@@ -185,7 +187,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("sep_comma.csv", "csv")},
+            ${hdfsWriteProps("sep_comma/data_", "csv")},
             "column_separator" = ",",
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
@@ -193,7 +195,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_csv_sep_comma """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("sep_comma.csv", "csv")},
+            ${hdfsReadProps("sep_comma/*", "csv")},
             "column_separator" = ","
         ) ORDER BY c1;
     """
@@ -202,7 +204,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("sep_tab.csv", "csv")},
+            ${hdfsWriteProps("sep_tab/data_", "csv")},
             "column_separator" = "\t",
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
@@ -210,7 +212,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_csv_sep_tab """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("sep_tab.csv", "csv")},
+            ${hdfsReadProps("sep_tab/*", "csv")},
             "column_separator" = "\t"
         ) ORDER BY c1;
     """
@@ -219,7 +221,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("sep_pipe.csv", "csv")},
+            ${hdfsWriteProps("sep_pipe/data_", "csv")},
             "column_separator" = "|",
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
@@ -227,7 +229,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_csv_sep_pipe """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("sep_pipe.csv", "csv")},
+            ${hdfsReadProps("sep_pipe/*", "csv")},
             "column_separator" = "|"
         ) ORDER BY c1;
     """
@@ -236,7 +238,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("sep_multi.csv", "csv")},
+            ${hdfsWriteProps("sep_multi/data_", "csv")},
             "column_separator" = ";;",
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
@@ -244,7 +246,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_csv_sep_multi """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("sep_multi.csv", "csv")},
+            ${hdfsReadProps("sep_multi/*", "csv")},
             "column_separator" = ";;"
         ) ORDER BY c1;
     """
@@ -253,7 +255,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("line_crlf.csv", "csv")},
+            ${hdfsWriteProps("line_crlf/data_", "csv")},
             "line_delimiter" = "\r\n",
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
@@ -261,7 +263,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_csv_line_crlf """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("line_crlf.csv", "csv")},
+            ${hdfsReadProps("line_crlf/*", "csv")},
             "line_delimiter" = "\r\n"
         ) ORDER BY c1;
     """
@@ -270,7 +272,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("compress_gz.csv.gz", "csv")},
+            ${hdfsWriteProps("compress_gz/data_", "csv")},
             "compression_type" = "gz",
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
@@ -278,7 +280,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_csv_compress_gz """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("compress_gz.csv.gz", "csv")},
+            ${hdfsReadProps("compress_gz/*", "csv")},
             "compress_type" = "gz"
         ) ORDER BY c1;
     """
@@ -287,7 +289,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("compress_zstd.csv.zst", "csv")},
+            ${hdfsWriteProps("compress_zstd/data_", "csv")},
             "compression_type" = "zstd",
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
@@ -295,7 +297,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_csv_compress_zstd """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("compress_zstd.csv.zst", "csv")},
+            ${hdfsReadProps("compress_zstd/*", "csv")},
             "compress_type" = "zstd"
         ) ORDER BY c1;
     """
@@ -304,7 +306,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("compress_lz4.csv.lz4", "csv")},
+            ${hdfsWriteProps("compress_lz4/data_", "csv")},
             "compression_type" = "lz4block",
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
@@ -312,7 +314,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_csv_compress_lz4 """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("compress_lz4.csv.lz4", "csv")},
+            ${hdfsReadProps("compress_lz4/*", "csv")},
             "compress_type" = "lz4block"
         ) ORDER BY c1;
     """
@@ -321,7 +323,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("compress_snappy.csv.snappy", "csv")},
+            ${hdfsWriteProps("compress_snappy/data_", "csv")},
             "compression_type" = "snappyblock",
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
@@ -329,38 +331,39 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_csv_compress_snappy """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("compress_snappy.csv.snappy", "csv")},
+            ${hdfsReadProps("compress_snappy/*", "csv")},
             "compress_type" = "snappyblock"
         ) ORDER BY c1;
     """
 
     // ============ 15. HDFS Overwrite mode ============
+    // delete_existing_files=true is handled by FE for HDFS
 
     // First write: 5 rows
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("overwrite.csv", "csv")},
+            ${hdfsWriteProps("overwrite/data_", "csv")},
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src ORDER BY c_int;
     """
 
     order_qt_hdfs_overwrite_first """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("overwrite.csv", "csv")}
+            ${hdfsReadProps("overwrite/*", "csv")}
         ) ORDER BY c1;
     """
 
-    // Second write: 2 rows with overwrite
+    // Second write: 2 rows with overwrite (FE deletes the directory first)
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("overwrite.csv", "csv")},
+            ${hdfsWriteProps("overwrite/data_", "csv")},
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int > 0 ORDER BY c_int LIMIT 2;
     """
 
     order_qt_hdfs_overwrite_second """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("overwrite.csv", "csv")}
+            ${hdfsReadProps("overwrite/*", "csv")}
         ) ORDER BY c1;
     """
 
@@ -369,28 +372,27 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
     // First write
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("append.parquet", "parquet")},
+            ${hdfsWriteProps("append/data_", "parquet")},
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 1000;
     """
 
     order_qt_hdfs_append_first """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("append.parquet", "parquet")}
+            ${hdfsReadProps("append/*", "parquet")}
         ) ORDER BY c_int;
     """
 
-    // Second write (append)
+    // Second write (append — different query_id produces different file name)
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("append.parquet", "parquet")},
-            "delete_existing_files" = "false"
+            ${hdfsWriteProps("append/data_", "parquet")}
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 2000;
     """
 
     order_qt_hdfs_append_second """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("append.parquet", "parquet")}
+            ${hdfsReadProps("append/*", "parquet")}
         ) ORDER BY c_int;
     """
 
@@ -398,14 +400,14 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("const_expr.csv", "csv")},
+            ${hdfsWriteProps("const_expr/data_", "csv")},
             "delete_existing_files" = "true"
         ) SELECT 1, 'hello', 3.14, CAST('2024-01-01' AS DATE);
     """
 
     order_qt_hdfs_const_expr """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("const_expr.csv", "csv")}
+            ${hdfsReadProps("const_expr/*", "csv")}
         ) ORDER BY c1;
     """
 
@@ -413,14 +415,14 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("where_groupby.csv", "csv")},
+            ${hdfsWriteProps("where_groupby/data_", "csv")},
             "delete_existing_files" = "true"
         ) SELECT c_bool, COUNT(*), SUM(c_int) FROM insert_tvf_test_src WHERE c_int IS NOT NULL GROUP BY c_bool ORDER BY c_bool;
     """
 
     order_qt_hdfs_where_groupby """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("where_groupby.csv", "csv")}
+            ${hdfsReadProps("where_groupby/*", "csv")}
         ) ORDER BY c1;
     """
 
@@ -428,7 +430,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("join_query.csv", "csv")},
+            ${hdfsWriteProps("join_query/data_", "csv")},
             "delete_existing_files" = "true"
         ) SELECT a.c_int, a.c_varchar, b.c_label
           FROM insert_tvf_test_src a INNER JOIN insert_tvf_join_src b ON a.c_int = b.c_int
@@ -437,7 +439,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_join_query """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("join_query.csv", "csv")}
+            ${hdfsReadProps("join_query/*", "csv")}
         ) ORDER BY c1;
     """
 
@@ -445,14 +447,14 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("subquery.csv", "csv")},
+            ${hdfsWriteProps("subquery/data_", "csv")},
             "delete_existing_files" = "true"
         ) SELECT * FROM (SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int) sub;
     """
 
     order_qt_hdfs_subquery """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("subquery.csv", "csv")}
+            ${hdfsReadProps("subquery/*", "csv")}
         ) ORDER BY c1;
     """
 
@@ -460,7 +462,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("type_cast.csv", "csv")},
+            ${hdfsWriteProps("type_cast/data_", "csv")},
             "delete_existing_files" = "true"
         ) SELECT CAST(c_int AS BIGINT), CAST(c_float AS DOUBLE), CAST(c_date AS STRING)
           FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
@@ -468,7 +470,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_type_cast """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("type_cast.csv", "csv")}
+            ${hdfsReadProps("type_cast/*", "csv")}
         ) ORDER BY c1;
     """
 
@@ -476,7 +478,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     sql """
         INSERT INTO hdfs(
-            ${hdfsWriteProps("union_query.csv", "csv")},
+            ${hdfsWriteProps("union_query/data_", "csv")},
             "delete_existing_files" = "true"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 1000
           UNION ALL
@@ -485,7 +487,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
 
     order_qt_hdfs_union_query """
         SELECT * FROM hdfs(
-            ${hdfsReadProps("union_query.csv", "csv")}
+            ${hdfsReadProps("union_query/*", "csv")}
         ) ORDER BY c1;
     """
 
@@ -507,7 +509,7 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
     test {
         sql """
             INSERT INTO hdfs(
-                "file_path" = "${hdfsBasePath}/err.csv",
+                "file_path" = "${hdfsBasePath}/err/data_",
                 "hadoop.username" = "${hdfsUserName}",
                 "fs.defaultFS" = "${defaultFS}"
             ) SELECT 1;
@@ -520,13 +522,27 @@ suite("test_insert_into_hdfs_tvf", "external,hive,tvf,external_docker") {
     test {
         sql """
             INSERT INTO hdfs(
-                "file_path" = "${hdfsBasePath}/err.json",
+                "file_path" = "${hdfsBasePath}/err/data_",
                 "format" = "json",
                 "hadoop.username" = "${hdfsUserName}",
                 "fs.defaultFS" = "${defaultFS}"
             ) SELECT 1;
         """
         exception "Unsupported"
+    }
+
+    // ============ 26. Error: wildcard in file_path ============
+
+    test {
+        sql """
+            INSERT INTO hdfs(
+                "file_path" = "${hdfsBasePath}/wildcard/*.csv",
+                "format" = "csv",
+                "hadoop.username" = "${hdfsUserName}",
+                "fs.defaultFS" = "${defaultFS}"
+            ) SELECT 1;
+        """
+        exception "wildcards"
     }
 
     // ============ Cleanup ============

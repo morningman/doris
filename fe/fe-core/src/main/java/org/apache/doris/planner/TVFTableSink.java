@@ -138,9 +138,8 @@ public class TVFTableSink extends DataSink {
             tSink.setMaxFileSizeBytes(Long.parseLong(maxFileSizeStr));
         }
 
-        // Delete existing files flag
-        String deleteExisting = properties.getOrDefault("delete_existing_files", "true");
-        tSink.setDeleteExistingFiles(Boolean.parseBoolean(deleteExisting));
+        // Delete existing files is handled by FE (InsertIntoTVFCommand), always tell BE not to delete
+        tSink.setDeleteExistingFiles(false);
 
         // Backend id for local TVF
         String backendIdStr = properties.get("backend_id");

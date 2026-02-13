@@ -22,6 +22,10 @@ import org.apache.doris.catalog.EnvFactory;
 import org.apache.doris.common.ErrorCode;
 import org.apache.doris.common.ErrorReport;
 import org.apache.doris.common.Status;
+import org.apache.doris.common.UserException;
+import org.apache.doris.datasource.property.storage.StorageProperties;
+import org.apache.doris.fs.FileSystemFactory;
+import org.apache.doris.fs.remote.RemoteFileSystem;
 import org.apache.doris.mysql.privilege.PrivPredicate;
 import org.apache.doris.task.LoadEtlTask;
 import org.apache.doris.nereids.NereidsPlanner;
@@ -32,6 +36,8 @@ import org.apache.doris.nereids.trees.plans.PlanType;
 import org.apache.doris.nereids.trees.plans.commands.Command;
 import org.apache.doris.nereids.trees.plans.commands.ForwardWithSync;
 import org.apache.doris.nereids.trees.plans.logical.LogicalPlan;
+import org.apache.doris.nereids.trees.plans.physical.PhysicalPlan;
+import org.apache.doris.nereids.trees.plans.physical.PhysicalTVFTableSink;
 import org.apache.doris.nereids.trees.plans.visitor.PlanVisitor;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.ConnectContext.ConnectType;
@@ -45,6 +51,8 @@ import org.apache.doris.thrift.TUniqueId;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -89,6 +97,20 @@ public class InsertIntoTVFCommand extends Command implements ForwardWithSync, Ex
 
         executor.setPlanner(planner);
         executor.checkBlockRules();
+
+        // FE-side deletion of existing files (before BE execution)
+        PhysicalPlan physicalPlan = planner.getPhysicalPlan();
+        if (physicalPlan instanceof PhysicalTVFTableSink) {
+            PhysicalTVFTableSink<?> tvfSink = (PhysicalTVFTableSink<?>) physicalPlan;
+            String sinkTvfName = tvfSink.getTvfName();
+            Map<String, String> sinkProps = tvfSink.getProperties();
+            boolean deleteExisting = Boolean.parseBoolean(
+                    sinkProps.getOrDefault("delete_existing_files", "false"));
+
+            if (deleteExisting && !"local".equals(sinkTvfName)) {
+                deleteExistingFilesInFE(sinkTvfName, sinkProps);
+            }
+        }
 
         if (ctx.getConnectType() == ConnectType.MYSQL && ctx.getMysqlChannel() != null) {
             ctx.getMysqlChannel().reset();
@@ -148,5 +170,40 @@ public class InsertIntoTVFCommand extends Command implements ForwardWithSync, Ex
     @Override
     public Plan getExplainPlan(ConnectContext ctx) {
         return this.logicalQuery;
+    }
+
+    private void deleteExistingFilesInFE(String tvfName, Map<String, String> props)
+            throws Exception {
+        String filePath = props.get("file_path");
+        // Extract parent directory from prefix path: s3://bucket/path/to/prefix_ -> s3://bucket/path/to/
+        String parentDir = extractParentDirectory(filePath);
+        LOG.info("TVF sink: deleting existing files in directory: {}", parentDir);
+
+        // Copy props for building StorageProperties (exclude write-specific params)
+        Map<String, String> fsCopyProps = new HashMap<>(props);
+        fsCopyProps.remove("file_path");
+        fsCopyProps.remove("format");
+        fsCopyProps.remove("delete_existing_files");
+        fsCopyProps.remove("max_file_size");
+        fsCopyProps.remove("column_separator");
+        fsCopyProps.remove("line_delimiter");
+        fsCopyProps.remove("compression_type");
+        fsCopyProps.remove("compress_type");
+
+        StorageProperties storageProps = StorageProperties.createPrimary(fsCopyProps);
+        RemoteFileSystem fs = FileSystemFactory.get(storageProps);
+        org.apache.doris.backup.Status deleteStatus = fs.deleteDirectory(parentDir);
+        if (!deleteStatus.ok()) {
+            throw new UserException("Failed to delete existing files in "
+                    + parentDir + ": " + deleteStatus.getErrMsg());
+        }
+    }
+
+    private static String extractParentDirectory(String prefixPath) {
+        int lastSlash = prefixPath.lastIndexOf('/');
+        if (lastSlash >= 0) {
+            return prefixPath.substring(0, lastSlash + 1);
+        }
+        return prefixPath;
     }
 }

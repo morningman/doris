@@ -22,7 +22,6 @@
 
 #include "common/status.h"
 #include "io/file_factory.h"
-#include "io/fs/local_file_system.h"
 #include "runtime/runtime_state.h"
 #include "vec/core/block.h"
 #include "vec/exprs/vexpr.h"
@@ -53,20 +52,12 @@ Status VTVFTableWriter::open(RuntimeState* state, RuntimeProfile* profile) {
     _file_path = _tvf_sink.file_path;
     _max_file_size_bytes =
             _tvf_sink.__isset.max_file_size_bytes ? _tvf_sink.max_file_size_bytes : 0;
-    _delete_existing_files_flag =
-            _tvf_sink.__isset.delete_existing_files ? _tvf_sink.delete_existing_files : true;
 
     VLOG_DEBUG << "TVF table writer open, query_id=" << print_id(_state->query_id())
                << ", tvf_name=" << _tvf_sink.tvf_name << ", file_path=" << _tvf_sink.file_path
                << ", file_format=" << _tvf_sink.file_format << ", file_type=" << _tvf_sink.file_type
                << ", max_file_size_bytes=" << _max_file_size_bytes
-               << ", delete_existing_files=" << _delete_existing_files_flag
                << ", columns_count=" << (_tvf_sink.__isset.columns ? _tvf_sink.columns.size() : 0);
-
-    // Delete existing files if requested
-    if (_delete_existing_files_flag) {
-        RETURN_IF_ERROR(_delete_existing_files());
-    }
 
     return _create_next_file_writer();
 }
@@ -199,7 +190,6 @@ Status VTVFTableWriter::_create_new_file_if_exceed_size() {
 }
 
 Status VTVFTableWriter::_get_next_file_name(std::string* file_name) {
-    // Determine file extension
     std::string ext;
     switch (_tvf_sink.file_format) {
     case TFileFormatType::FORMAT_CSV_PLAIN:
@@ -216,38 +206,10 @@ Status VTVFTableWriter::_get_next_file_name(std::string* file_name) {
         break;
     }
 
-    if (_file_idx == 0 && _max_file_size_bytes <= 0) {
-        // Single file mode: use the path as-is if it already has extension
-        if (_file_path.find('.') != std::string::npos) {
-            *file_name = _file_path;
-        } else {
-            *file_name = fmt::format("{}.{}", _file_path, ext);
-        }
-    } else {
-        // Multi-file (auto-split) mode: append index
-        // Strip extension from base path if present
-        std::string base = _file_path;
-        auto dot_pos = base.rfind('.');
-        if (dot_pos != std::string::npos) {
-            base = base.substr(0, dot_pos);
-        }
-        *file_name = fmt::format("{}_{}.{}", base, _file_idx, ext);
-    }
+    // file_path is a prefix, generate: {prefix}{query_id}_{idx}.{ext}
+    std::string query_id_str = print_id(_state->query_id());
+    *file_name = fmt::format("{}{}_{}.{}", _file_path, query_id_str, _file_idx, ext);
     _file_idx++;
-    return Status::OK();
-}
-
-Status VTVFTableWriter::_delete_existing_files() {
-    if (_tvf_sink.file_type == TFileType::FILE_LOCAL) {
-        // For local files, try to delete the file if it exists
-        bool exists = false;
-        RETURN_IF_ERROR(io::global_local_filesystem()->exists(_file_path, &exists));
-        if (exists) {
-            RETURN_IF_ERROR(io::global_local_filesystem()->delete_file(_file_path));
-        }
-    }
-    // For S3/HDFS, we don't delete existing files by default
-    // as it requires more complex handling (e.g., directory listing)
     return Status::OK();
 }
 

@@ -64,7 +64,6 @@ private:
     Status _close_file_writer(bool done);
     Status _create_new_file_if_exceed_size();
     Status _get_next_file_name(std::string* file_name);
-    Status _delete_existing_files();
 
     TTVFTableSink _tvf_sink;
     RuntimeState* _state = nullptr;
@@ -75,7 +74,6 @@ private:
     int64_t _current_written_bytes = 0;
     int64_t _max_file_size_bytes = 0;
     int _file_idx = 0;
-    bool _delete_existing_files_flag = true;
     std::string _file_path;
     std::string _column_separator;
     std::string _line_delimiter;

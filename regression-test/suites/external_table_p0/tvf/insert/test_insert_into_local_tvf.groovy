@@ -89,19 +89,22 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
     sql """ INSERT INTO insert_tvf_join_src VALUES (1000, 'label_a'), (2000, 'label_b'), (3000, 'label_c'); """
 
     // ============ 1. CSV basic types ============
+    // file_path is a prefix; BE generates: {prefix}{query_id}_{idx}.{ext}
+    // Read back using wildcard on the prefix
+
+    sshExec("root", be_host, "rm -f ${basePath}/basic_csv_*")
 
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/basic_csv.csv",
+            "file_path" = "${basePath}/basic_csv_",
             "backend_id" = "${be_id}",
-            "format" = "csv",
-            "delete_existing_files" = "true"
+            "format" = "csv"
         ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
     """
 
     order_qt_csv_basic_types """
         SELECT * FROM local(
-            "file_path" = "${basePath}/basic_csv.csv",
+            "file_path" = "${basePath}/basic_csv_*",
             "backend_id" = "${be_id}",
             "format" = "csv"
         ) ORDER BY c1;
@@ -109,18 +112,19 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 2. Parquet basic types ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/basic_parquet_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/basic_parquet.parquet",
+            "file_path" = "${basePath}/basic_parquet_",
             "backend_id" = "${be_id}",
-            "format" = "parquet",
-            "delete_existing_files" = "true"
+            "format" = "parquet"
         ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
     """
 
     order_qt_parquet_basic_types """
         SELECT * FROM local(
-            "file_path" = "${basePath}/basic_parquet.parquet",
+            "file_path" = "${basePath}/basic_parquet_*",
             "backend_id" = "${be_id}",
             "format" = "parquet"
         ) ORDER BY c_int;
@@ -128,18 +132,19 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 3. ORC basic types ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/basic_orc_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/basic_orc.orc",
+            "file_path" = "${basePath}/basic_orc_",
             "backend_id" = "${be_id}",
-            "format" = "orc",
-            "delete_existing_files" = "true"
+            "format" = "orc"
         ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
     """
 
     order_qt_orc_basic_types """
         SELECT * FROM local(
-            "file_path" = "${basePath}/basic_orc.orc",
+            "file_path" = "${basePath}/basic_orc_*",
             "backend_id" = "${be_id}",
             "format" = "orc"
         ) ORDER BY c_int;
@@ -147,18 +152,19 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 4. Parquet complex types ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/complex_parquet_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/complex_parquet.parquet",
+            "file_path" = "${basePath}/complex_parquet_",
             "backend_id" = "${be_id}",
-            "format" = "parquet",
-            "delete_existing_files" = "true"
+            "format" = "parquet"
         ) SELECT * FROM insert_tvf_complex_src ORDER BY c_int;
     """
 
     order_qt_parquet_complex_types """
         SELECT * FROM local(
-            "file_path" = "${basePath}/complex_parquet.parquet",
+            "file_path" = "${basePath}/complex_parquet_*",
             "backend_id" = "${be_id}",
             "format" = "parquet"
         ) ORDER BY c_int;
@@ -166,18 +172,19 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 5. ORC complex types ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/complex_orc_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/complex_orc.orc",
+            "file_path" = "${basePath}/complex_orc_",
             "backend_id" = "${be_id}",
-            "format" = "orc",
-            "delete_existing_files" = "true"
+            "format" = "orc"
         ) SELECT * FROM insert_tvf_complex_src ORDER BY c_int;
     """
 
     order_qt_orc_complex_types """
         SELECT * FROM local(
-            "file_path" = "${basePath}/complex_orc.orc",
+            "file_path" = "${basePath}/complex_orc_*",
             "backend_id" = "${be_id}",
             "format" = "orc"
         ) ORDER BY c_int;
@@ -185,19 +192,20 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 6. CSV separator: comma ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/sep_comma_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/sep_comma.csv",
+            "file_path" = "${basePath}/sep_comma_",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "column_separator" = ",",
-            "delete_existing_files" = "true"
+            "column_separator" = ","
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_csv_sep_comma """
         SELECT * FROM local(
-            "file_path" = "${basePath}/sep_comma.csv",
+            "file_path" = "${basePath}/sep_comma_*",
             "backend_id" = "${be_id}",
             "format" = "csv",
             "column_separator" = ","
@@ -206,19 +214,20 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 7. CSV separator: tab ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/sep_tab_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/sep_tab.csv",
+            "file_path" = "${basePath}/sep_tab_",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "column_separator" = "\t",
-            "delete_existing_files" = "true"
+            "column_separator" = "\t"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_csv_sep_tab """
         SELECT * FROM local(
-            "file_path" = "${basePath}/sep_tab.csv",
+            "file_path" = "${basePath}/sep_tab_*",
             "backend_id" = "${be_id}",
             "format" = "csv",
             "column_separator" = "\t"
@@ -227,19 +236,20 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 8. CSV separator: pipe ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/sep_pipe_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/sep_pipe.csv",
+            "file_path" = "${basePath}/sep_pipe_",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "column_separator" = "|",
-            "delete_existing_files" = "true"
+            "column_separator" = "|"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_csv_sep_pipe """
         SELECT * FROM local(
-            "file_path" = "${basePath}/sep_pipe.csv",
+            "file_path" = "${basePath}/sep_pipe_*",
             "backend_id" = "${be_id}",
             "format" = "csv",
             "column_separator" = "|"
@@ -248,19 +258,20 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 9. CSV separator: multi-char ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/sep_multi_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/sep_multi.csv",
+            "file_path" = "${basePath}/sep_multi_",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "column_separator" = ";;",
-            "delete_existing_files" = "true"
+            "column_separator" = ";;"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_csv_sep_multi """
         SELECT * FROM local(
-            "file_path" = "${basePath}/sep_multi.csv",
+            "file_path" = "${basePath}/sep_multi_*",
             "backend_id" = "${be_id}",
             "format" = "csv",
             "column_separator" = ";;"
@@ -269,19 +280,20 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 10. CSV line delimiter: CRLF ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/line_crlf_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/line_crlf.csv",
+            "file_path" = "${basePath}/line_crlf_",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "line_delimiter" = "\r\n",
-            "delete_existing_files" = "true"
+            "line_delimiter" = "\r\n"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_csv_line_crlf """
         SELECT * FROM local(
-            "file_path" = "${basePath}/line_crlf.csv",
+            "file_path" = "${basePath}/line_crlf_*",
             "backend_id" = "${be_id}",
             "format" = "csv",
             "line_delimiter" = "\r\n"
@@ -290,19 +302,20 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 11. CSV compress: gz ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/compress_gz_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/compress_gz.csv.gz",
+            "file_path" = "${basePath}/compress_gz_",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "compression_type" = "gz",
-            "delete_existing_files" = "true"
+            "compression_type" = "gz"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_csv_compress_gz """
         SELECT * FROM local(
-            "file_path" = "${basePath}/compress_gz.csv.gz",
+            "file_path" = "${basePath}/compress_gz_*",
             "backend_id" = "${be_id}",
             "format" = "csv",
             "compress_type" = "gz"
@@ -311,19 +324,20 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 12. CSV compress: zstd ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/compress_zstd_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/compress_zstd.csv.zst",
+            "file_path" = "${basePath}/compress_zstd_",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "compression_type" = "zstd",
-            "delete_existing_files" = "true"
+            "compression_type" = "zstd"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_csv_compress_zstd """
         SELECT * FROM local(
-            "file_path" = "${basePath}/compress_zstd.csv.zst",
+            "file_path" = "${basePath}/compress_zstd_*",
             "backend_id" = "${be_id}",
             "format" = "csv",
             "compress_type" = "zstd"
@@ -333,19 +347,20 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
     // ============ 13. CSV compress: lz4 ============
 
     // TODO: lz4 read meet error: LZ4F_getFrameInfo error: ERROR_frameType_unknown
+    sshExec("root", be_host, "rm -f ${basePath}/compress_lz4_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/compress_lz4.csv.lz4",
+            "file_path" = "${basePath}/compress_lz4_",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "compression_type" = "lz4block",
-            "delete_existing_files" = "true"
+            "compression_type" = "lz4block"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_csv_compress_lz4 """
         SELECT * FROM local(
-            "file_path" = "${basePath}/compress_lz4.csv.lz4",
+            "file_path" = "${basePath}/compress_lz4_*",
             "backend_id" = "${be_id}",
             "format" = "csv",
             "compress_type" = "lz4block"
@@ -354,96 +369,100 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 14. CSV compress: snappy ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/compress_snappy_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/compress_snappy.csv.snappy",
+            "file_path" = "${basePath}/compress_snappy_",
             "backend_id" = "${be_id}",
             "format" = "csv",
-            "compression_type" = "snappyblock",
-            "delete_existing_files" = "true"
+            "compression_type" = "snappyblock"
         ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_csv_compress_snappy """
         SELECT * FROM local(
-            "file_path" = "${basePath}/compress_snappy.csv.snappy",
+            "file_path" = "${basePath}/compress_snappy_*",
             "backend_id" = "${be_id}",
             "format" = "csv",
             "compress_type" = "snappyblock"
         ) ORDER BY c1;
     """
 
-    // ============ 15. Overwrite mode (delete_existing_files=true) ============
+    // ============ 15. Overwrite mode ============
+    // local TVF does not support delete_existing_files=true, so use shell cleanup to simulate overwrite
 
     // First write: 5 rows
+    sshExec("root", be_host, "rm -f ${basePath}/overwrite_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/overwrite.csv",
+            "file_path" = "${basePath}/overwrite_",
             "backend_id" = "${be_id}",
-            "format" = "csv",
-            "delete_existing_files" = "true"
+            "format" = "csv"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src ORDER BY c_int;
     """
 
     order_qt_overwrite_first """
         SELECT * FROM local(
-            "file_path" = "${basePath}/overwrite.csv",
+            "file_path" = "${basePath}/overwrite_*",
             "backend_id" = "${be_id}",
             "format" = "csv"
         ) ORDER BY c1;
     """
 
-    // Second write: 2 rows with overwrite
+    // Clean files via shell, then write 2 rows
+    sshExec("root", be_host, "rm -f ${basePath}/overwrite_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/overwrite.csv",
+            "file_path" = "${basePath}/overwrite_",
             "backend_id" = "${be_id}",
-            "format" = "csv",
-            "delete_existing_files" = "true"
+            "format" = "csv"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int > 0 ORDER BY c_int LIMIT 2;
     """
 
     order_qt_overwrite_second """
         SELECT * FROM local(
-            "file_path" = "${basePath}/overwrite.csv",
+            "file_path" = "${basePath}/overwrite_*",
             "backend_id" = "${be_id}",
             "format" = "csv"
         ) ORDER BY c1;
     """
 
-    // ============ 16. Append mode (delete_existing_files=false) ============
+    // ============ 16. Append mode (default, delete_existing_files=false) ============
+
+    sshExec("root", be_host, "rm -f ${basePath}/append_*")
 
     // First write
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/append.parquet",
+            "file_path" = "${basePath}/append_",
             "backend_id" = "${be_id}",
-            "format" = "parquet",
-            "delete_existing_files" = "true"
+            "format" = "parquet"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 1000;
     """
 
     order_qt_append_first """
         SELECT * FROM local(
-            "file_path" = "${basePath}/append.parquet",
+            "file_path" = "${basePath}/append_*",
             "backend_id" = "${be_id}",
             "format" = "parquet"
         ) ORDER BY c_int;
     """
 
-    // Second write (append)
+    // Second write (append — different query_id produces different file name)
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/append.parquet",
+            "file_path" = "${basePath}/append_",
             "backend_id" = "${be_id}",
-            "format" = "parquet",
-            "delete_existing_files" = "false"
+            "format" = "parquet"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 2000;
     """
 
     order_qt_append_second """
         SELECT * FROM local(
-            "file_path" = "${basePath}/append.parquet",
+            "file_path" = "${basePath}/append_*",
             "backend_id" = "${be_id}",
             "format" = "parquet"
         ) ORDER BY c_int;
@@ -451,18 +470,19 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 17. Complex SELECT: constant expressions ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/const_expr_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/const_expr.csv",
+            "file_path" = "${basePath}/const_expr_",
             "backend_id" = "${be_id}",
-            "format" = "csv",
-            "delete_existing_files" = "true"
+            "format" = "csv"
         ) SELECT 1, 'hello', 3.14, CAST('2024-01-01' AS DATE);
     """
 
     order_qt_const_expr """
         SELECT * FROM local(
-            "file_path" = "${basePath}/const_expr.csv",
+            "file_path" = "${basePath}/const_expr_*",
             "backend_id" = "${be_id}",
             "format" = "csv"
         ) ORDER BY c1;
@@ -470,18 +490,19 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 18. Complex SELECT: WHERE + GROUP BY ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/where_groupby_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/where_groupby.csv",
+            "file_path" = "${basePath}/where_groupby_",
             "backend_id" = "${be_id}",
-            "format" = "csv",
-            "delete_existing_files" = "true"
+            "format" = "csv"
         ) SELECT c_bool, COUNT(*), SUM(c_int) FROM insert_tvf_test_src WHERE c_int IS NOT NULL GROUP BY c_bool ORDER BY c_bool;
     """
 
     order_qt_where_groupby """
         SELECT * FROM local(
-            "file_path" = "${basePath}/where_groupby.csv",
+            "file_path" = "${basePath}/where_groupby_*",
             "backend_id" = "${be_id}",
             "format" = "csv"
         ) ORDER BY c1;
@@ -489,12 +510,13 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 19. Complex SELECT: JOIN ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/join_query_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/join_query.csv",
+            "file_path" = "${basePath}/join_query_",
             "backend_id" = "${be_id}",
-            "format" = "csv",
-            "delete_existing_files" = "true"
+            "format" = "csv"
         ) SELECT a.c_int, a.c_varchar, b.c_label
           FROM insert_tvf_test_src a INNER JOIN insert_tvf_join_src b ON a.c_int = b.c_int
           ORDER BY a.c_int;
@@ -502,7 +524,7 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     order_qt_join_query """
         SELECT * FROM local(
-            "file_path" = "${basePath}/join_query.csv",
+            "file_path" = "${basePath}/join_query_*",
             "backend_id" = "${be_id}",
             "format" = "csv"
         ) ORDER BY c1;
@@ -510,18 +532,19 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 20. Complex SELECT: subquery ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/subquery_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/subquery.csv",
+            "file_path" = "${basePath}/subquery_",
             "backend_id" = "${be_id}",
-            "format" = "csv",
-            "delete_existing_files" = "true"
+            "format" = "csv"
         ) SELECT * FROM (SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int) sub;
     """
 
     order_qt_subquery """
         SELECT * FROM local(
-            "file_path" = "${basePath}/subquery.csv",
+            "file_path" = "${basePath}/subquery_*",
             "backend_id" = "${be_id}",
             "format" = "csv"
         ) ORDER BY c1;
@@ -529,19 +552,20 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 21. Complex SELECT: type cast ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/type_cast_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/type_cast.csv",
+            "file_path" = "${basePath}/type_cast_",
             "backend_id" = "${be_id}",
-            "format" = "csv",
-            "delete_existing_files" = "true"
+            "format" = "csv"
         ) SELECT CAST(c_int AS BIGINT), CAST(c_float AS DOUBLE), CAST(c_date AS STRING)
           FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_type_cast """
         SELECT * FROM local(
-            "file_path" = "${basePath}/type_cast.csv",
+            "file_path" = "${basePath}/type_cast_*",
             "backend_id" = "${be_id}",
             "format" = "csv"
         ) ORDER BY c1;
@@ -549,12 +573,13 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     // ============ 22. Complex SELECT: UNION ALL ============
 
+    sshExec("root", be_host, "rm -f ${basePath}/union_query_*")
+
     sql """
         INSERT INTO local(
-            "file_path" = "${basePath}/union_query.csv",
+            "file_path" = "${basePath}/union_query_",
             "backend_id" = "${be_id}",
-            "format" = "csv",
-            "delete_existing_files" = "true"
+            "format" = "csv"
         ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 1000
           UNION ALL
           SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 2000;
@@ -562,7 +587,7 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
 
     order_qt_union_query """
         SELECT * FROM local(
-            "file_path" = "${basePath}/union_query.csv",
+            "file_path" = "${basePath}/union_query_*",
             "backend_id" = "${be_id}",
             "format" = "csv"
         ) ORDER BY c1;
@@ -585,7 +610,7 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
     test {
         sql """
             INSERT INTO local(
-                "file_path" = "${basePath}/err.csv",
+                "file_path" = "${basePath}/err_",
                 "backend_id" = "${be_id}"
             ) SELECT 1;
         """
@@ -597,7 +622,7 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
     test {
         sql """
             INSERT INTO local(
-                "file_path" = "${basePath}/err.csv",
+                "file_path" = "${basePath}/err_",
                 "format" = "csv"
             ) SELECT 1;
         """
@@ -609,7 +634,7 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
     test {
         sql """
             INSERT INTO unknown_tvf(
-                "file_path" = "/tmp/err.csv",
+                "file_path" = "/tmp/err_",
                 "format" = "csv"
             ) SELECT 1;
         """
@@ -621,12 +646,39 @@ suite("test_insert_into_local_tvf", "p0,tvf,external,external_docker") {
     test {
         sql """
             INSERT INTO local(
-                "file_path" = "${basePath}/err.json",
+                "file_path" = "${basePath}/err_",
                 "backend_id" = "${be_id}",
                 "format" = "json"
             ) SELECT 1;
         """
         exception "Unsupported"
+    }
+
+    // ============ 28. Error: wildcard in file_path ============
+
+    test {
+        sql """
+            INSERT INTO local(
+                "file_path" = "${basePath}/wildcard_*.csv",
+                "backend_id" = "${be_id}",
+                "format" = "csv"
+            ) SELECT 1;
+        """
+        exception "wildcards"
+    }
+
+    // ============ 29. Error: delete_existing_files=true on local TVF ============
+
+    test {
+        sql """
+            INSERT INTO local(
+                "file_path" = "${basePath}/err_",
+                "backend_id" = "${be_id}",
+                "format" = "csv",
+                "delete_existing_files" = "true"
+            ) SELECT 1;
+        """
+        exception "delete_existing_files"
     }
 
     // ============ Cleanup ============

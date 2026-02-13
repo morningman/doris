@@ -97,10 +97,7 @@ import org.apache.doris.nereids.util.Utils;
 import org.apache.doris.qe.AutoCloseSessionVariable;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.SessionVariable;
-import org.apache.doris.tablefunction.ExternalFileTableValuedFunction;
-import org.apache.doris.tablefunction.HdfsTableValuedFunction;
-import org.apache.doris.tablefunction.LocalTableValuedFunction;
-import org.apache.doris.tablefunction.S3TableValuedFunction;
+
 import org.apache.doris.thrift.TPartialUpdateNewRowPolicy;
 
 import com.google.common.base.Preconditions;
@@ -589,21 +586,27 @@ public class BindSink implements AnalysisRuleFactory {
             throw new AnalysisException("local TVF sink requires 'backend_id' property");
         }
 
+        // Validate file_path must not contain wildcards
+        String filePath = properties.get("file_path");
+        if (filePath.contains("*") || filePath.contains("?") || filePath.contains("[")) {
+            throw new AnalysisException(
+                    "TVF sink file_path must not contain wildcards: " + filePath);
+        }
+
+        // local TVF does not support delete_existing_files=true
+        boolean deleteExisting = Boolean.parseBoolean(
+                properties.getOrDefault("delete_existing_files", "false"));
+        if (tvfName.equals("local") && deleteExisting) {
+            throw new AnalysisException(
+                    "delete_existing_files=true is not supported for local TVF");
+        }
+
         LogicalPlan child = ((LogicalPlan) sink.child());
 
-        // Determine target schema: if append mode and file exists, use existing file schema;
-        // otherwise derive from child query output.
-        boolean deleteExisting = Boolean.parseBoolean(
-                properties.getOrDefault("delete_existing_files", "true"));
-        List<Column> cols = null;
-        if (!deleteExisting) {
-            cols = tryGetExistingFileSchema(tvfName, properties);
-        }
-        if (cols == null) {
-            cols = child.getOutput().stream()
-                    .map(slot -> new Column(slot.getName(), slot.getDataType().toCatalogDataType()))
-                    .collect(ImmutableList.toImmutableList());
-        }
+        // Always derive schema from child query output
+        List<Column> cols = child.getOutput().stream()
+                .map(slot -> new Column(slot.getName(), slot.getDataType().toCatalogDataType()))
+                .collect(ImmutableList.toImmutableList());
 
         // Validate column count
         if (cols.size() != child.getOutput().size()) {
@@ -631,39 +634,6 @@ public class BindSink implements AnalysisRuleFactory {
 
         return new LogicalTVFTableSink<>(tvfName, properties, cols, outputExprs,
                 Optional.empty(), Optional.empty(), projectWithCast);
-    }
-
-    /**
-     * Try to instantiate the corresponding TVF to read the existing file's schema.
-     * Returns null if the file does not exist or schema inference fails.
-     */
-    private List<Column> tryGetExistingFileSchema(String tvfName, Map<String, String> properties) {
-        try {
-            ExternalFileTableValuedFunction tvf;
-            Map<String, String> propsCopy = new HashMap<>(properties);
-            switch (tvfName) {
-                case "local":
-                    tvf = new LocalTableValuedFunction(propsCopy);
-                    break;
-                case "s3":
-                    tvf = new S3TableValuedFunction(propsCopy);
-                    break;
-                case "hdfs":
-                    tvf = new HdfsTableValuedFunction(propsCopy);
-                    break;
-                default:
-                    return null;
-            }
-            List<Column> columns = tvf.getTableColumns();
-            if (columns != null && !columns.isEmpty()) {
-                return columns;
-            }
-        } catch (Exception e) {
-            // File does not exist or schema inference failed — fall back to child query schema
-            LOG.info("TVF sink: could not read existing file schema for append mode, "
-                    + "will use child query schema. Reason: " + e.getMessage());
-        }
-        return null;
     }
 
     private Plan bindHiveTableSink(MatchingContext<UnboundHiveTableSink<Plan>> ctx) {
