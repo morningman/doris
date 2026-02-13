@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
+suite("test_insert_into_s3_tvf", "external,external_docker") {
 
     String ak = getS3AK()
     String sk = getS3SK()
@@ -55,9 +55,9 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
 
     // ============ Source tables ============
 
-    sql """ DROP TABLE IF EXISTS insert_tvf_test_src """
+    sql """ DROP TABLE IF EXISTS test_insert_into_s3_tvf_src """
     sql """
-        CREATE TABLE IF NOT EXISTS insert_tvf_test_src (
+        CREATE TABLE IF NOT EXISTS test_insert_into_s3_tvf_src (
             c_bool      BOOLEAN,
             c_tinyint   TINYINT,
             c_smallint  SMALLINT,
@@ -75,7 +75,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
     """
 
     sql """
-        INSERT INTO insert_tvf_test_src VALUES
+        INSERT INTO test_insert_into_s3_tvf_src VALUES
             (true,  1,  100,  1000,  100000,  1.1,  2.2,  123.45, '2024-01-01', '2024-01-01 10:00:00', 'hello', 'world'),
             (false, 2,  200,  2000,  200000,  3.3,  4.4,  678.90, '2024-06-15', '2024-06-15 12:30:00', 'foo',   'bar'),
             (true,  3,  300,  3000,  300000,  5.5,  6.6,  999.99, '2024-12-31', '2024-12-31 23:59:59', 'test',  'data'),
@@ -83,9 +83,9 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             (false, -1, -100, -1000, -100000, -1.1, -2.2, -123.45,'2020-02-29', '2020-02-29 00:00:00', '',      'special_chars');
     """
 
-    sql """ DROP TABLE IF EXISTS insert_tvf_complex_src """
+    sql """ DROP TABLE IF EXISTS test_insert_into_s3_tvf_complex_src """
     sql """
-        CREATE TABLE IF NOT EXISTS insert_tvf_complex_src (
+        CREATE TABLE IF NOT EXISTS test_insert_into_s3_tvf_complex_src (
             c_int    INT,
             c_array  ARRAY<INT>,
             c_map    MAP<STRING, INT>,
@@ -95,23 +95,23 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
     """
 
     sql """
-        INSERT INTO insert_tvf_complex_src VALUES
+        INSERT INTO test_insert_into_s3_tvf_complex_src VALUES
             (1, [1, 2, 3],  {'a': 1, 'b': 2}, {1, 'hello'}),
             (2, [4, 5],     {'x': 10},         {2, 'world'}),
             (3, [],         {},                 {3, ''}),
             (4, NULL,       NULL,               NULL);
     """
 
-    sql """ DROP TABLE IF EXISTS insert_tvf_join_src """
+    sql """ DROP TABLE IF EXISTS test_insert_into_s3_tvf_join_src """
     sql """
-        CREATE TABLE IF NOT EXISTS insert_tvf_join_src (
+        CREATE TABLE IF NOT EXISTS test_insert_into_s3_tvf_join_src (
             c_int    INT,
             c_label  STRING
         ) DISTRIBUTED BY HASH(c_int) BUCKETS 1
         PROPERTIES("replication_num" = "1");
     """
 
-    sql """ INSERT INTO insert_tvf_join_src VALUES (1000, 'label_a'), (2000, 'label_b'), (3000, 'label_c'); """
+    sql """ INSERT INTO test_insert_into_s3_tvf_join_src VALUES (1000, 'label_a'), (2000, 'label_b'), (3000, 'label_c'); """
 
     // ============ 1. S3 CSV basic types ============
 
@@ -119,7 +119,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
         INSERT INTO s3(
             ${s3WriteProps("basic_csv/data_", "csv")},
             "delete_existing_files" = "true"
-        ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
+        ) SELECT * FROM test_insert_into_s3_tvf_src ORDER BY c_int;
     """
 
     order_qt_s3_csv_basic_types """
@@ -134,7 +134,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
         INSERT INTO s3(
             ${s3WriteProps("basic_parquet/data_", "parquet")},
             "delete_existing_files" = "true"
-        ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
+        ) SELECT * FROM test_insert_into_s3_tvf_src ORDER BY c_int;
     """
 
     order_qt_s3_parquet_basic_types """
@@ -149,7 +149,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
         INSERT INTO s3(
             ${s3WriteProps("basic_orc/data_", "orc")},
             "delete_existing_files" = "true"
-        ) SELECT * FROM insert_tvf_test_src ORDER BY c_int;
+        ) SELECT * FROM test_insert_into_s3_tvf_src ORDER BY c_int;
     """
 
     order_qt_s3_orc_basic_types """
@@ -164,7 +164,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
         INSERT INTO s3(
             ${s3WriteProps("complex_parquet/data_", "parquet")},
             "delete_existing_files" = "true"
-        ) SELECT * FROM insert_tvf_complex_src ORDER BY c_int;
+        ) SELECT * FROM test_insert_into_s3_tvf_complex_src ORDER BY c_int;
     """
 
     order_qt_s3_parquet_complex_types """
@@ -179,7 +179,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
         INSERT INTO s3(
             ${s3WriteProps("complex_orc/data_", "orc")},
             "delete_existing_files" = "true"
-        ) SELECT * FROM insert_tvf_complex_src ORDER BY c_int;
+        ) SELECT * FROM test_insert_into_s3_tvf_complex_src ORDER BY c_int;
     """
 
     order_qt_s3_orc_complex_types """
@@ -195,7 +195,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             ${s3WriteProps("sep_comma/data_", "csv")},
             "column_separator" = ",",
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
+        ) SELECT c_int, c_varchar, c_string FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_s3_csv_sep_comma """
@@ -212,7 +212,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             ${s3WriteProps("sep_tab/data_", "csv")},
             "column_separator" = "\t",
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
+        ) SELECT c_int, c_varchar, c_string FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_s3_csv_sep_tab """
@@ -229,7 +229,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             ${s3WriteProps("sep_pipe/data_", "csv")},
             "column_separator" = "|",
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
+        ) SELECT c_int, c_varchar, c_string FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_s3_csv_sep_pipe """
@@ -246,7 +246,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             ${s3WriteProps("sep_multi/data_", "csv")},
             "column_separator" = ";;",
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
+        ) SELECT c_int, c_varchar, c_string FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_s3_csv_sep_multi """
@@ -263,7 +263,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             ${s3WriteProps("line_crlf/data_", "csv")},
             "line_delimiter" = "\r\n",
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
+        ) SELECT c_int, c_varchar, c_string FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_s3_csv_line_crlf """
@@ -280,7 +280,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             ${s3WriteProps("compress_gz/data_", "csv")},
             "compression_type" = "gz",
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
+        ) SELECT c_int, c_varchar, c_string FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_s3_csv_compress_gz """
@@ -297,7 +297,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             ${s3WriteProps("compress_zstd/data_", "csv")},
             "compression_type" = "zstd",
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
+        ) SELECT c_int, c_varchar, c_string FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_s3_csv_compress_zstd """
@@ -314,7 +314,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             ${s3WriteProps("compress_lz4/data_", "csv")},
             "compression_type" = "lz4block",
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
+        ) SELECT c_int, c_varchar, c_string FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_s3_csv_compress_lz4 """
@@ -331,7 +331,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             ${s3WriteProps("compress_snappy/data_", "csv")},
             "compression_type" = "snappyblock",
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
+        ) SELECT c_int, c_varchar, c_string FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_s3_csv_compress_snappy """
@@ -349,7 +349,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
         INSERT INTO s3(
             ${s3WriteProps("overwrite/data_", "csv")},
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar FROM insert_tvf_test_src ORDER BY c_int;
+        ) SELECT c_int, c_varchar FROM test_insert_into_s3_tvf_src ORDER BY c_int;
     """
 
     order_qt_s3_overwrite_first """
@@ -363,7 +363,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
         INSERT INTO s3(
             ${s3WriteProps("overwrite/data_", "csv")},
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int > 0 ORDER BY c_int LIMIT 2;
+        ) SELECT c_int, c_varchar FROM test_insert_into_s3_tvf_src WHERE c_int > 0 ORDER BY c_int LIMIT 2;
     """
 
     order_qt_s3_overwrite_second """
@@ -379,7 +379,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
         INSERT INTO s3(
             ${s3WriteProps("append/data_", "parquet")},
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 1000;
+        ) SELECT c_int, c_varchar FROM test_insert_into_s3_tvf_src WHERE c_int = 1000;
     """
 
     order_qt_s3_append_first """
@@ -392,7 +392,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
     sql """
         INSERT INTO s3(
             ${s3WriteProps("append/data_", "parquet")}
-        ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 2000;
+        ) SELECT c_int, c_varchar FROM test_insert_into_s3_tvf_src WHERE c_int = 2000;
     """
 
     order_qt_s3_append_second """
@@ -422,7 +422,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
         INSERT INTO s3(
             ${s3WriteProps("where_groupby/data_", "csv")},
             "delete_existing_files" = "true"
-        ) SELECT c_bool, COUNT(*), SUM(c_int) FROM insert_tvf_test_src WHERE c_int IS NOT NULL GROUP BY c_bool ORDER BY c_bool;
+        ) SELECT c_bool, COUNT(*), SUM(c_int) FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL GROUP BY c_bool ORDER BY c_bool;
     """
 
     order_qt_s3_where_groupby """
@@ -438,7 +438,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             ${s3WriteProps("join_query/data_", "csv")},
             "delete_existing_files" = "true"
         ) SELECT a.c_int, a.c_varchar, b.c_label
-          FROM insert_tvf_test_src a INNER JOIN insert_tvf_join_src b ON a.c_int = b.c_int
+          FROM test_insert_into_s3_tvf_src a INNER JOIN test_insert_into_s3_tvf_join_src b ON a.c_int = b.c_int
           ORDER BY a.c_int;
     """
 
@@ -454,7 +454,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
         INSERT INTO s3(
             ${s3WriteProps("subquery/data_", "csv")},
             "delete_existing_files" = "true"
-        ) SELECT * FROM (SELECT c_int, c_varchar, c_string FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int) sub;
+        ) SELECT * FROM (SELECT c_int, c_varchar, c_string FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL ORDER BY c_int) sub;
     """
 
     order_qt_s3_subquery """
@@ -470,7 +470,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
             ${s3WriteProps("type_cast/data_", "csv")},
             "delete_existing_files" = "true"
         ) SELECT CAST(c_int AS BIGINT), CAST(c_float AS DOUBLE), CAST(c_date AS STRING)
-          FROM insert_tvf_test_src WHERE c_int IS NOT NULL ORDER BY c_int;
+          FROM test_insert_into_s3_tvf_src WHERE c_int IS NOT NULL ORDER BY c_int;
     """
 
     order_qt_s3_type_cast """
@@ -485,9 +485,9 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
         INSERT INTO s3(
             ${s3WriteProps("union_query/data_", "csv")},
             "delete_existing_files" = "true"
-        ) SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 1000
+        ) SELECT c_int, c_varchar FROM test_insert_into_s3_tvf_src WHERE c_int = 1000
           UNION ALL
-          SELECT c_int, c_varchar FROM insert_tvf_test_src WHERE c_int = 2000;
+          SELECT c_int, c_varchar FROM test_insert_into_s3_tvf_src WHERE c_int = 2000;
     """
 
     order_qt_s3_union_query """
@@ -560,7 +560,7 @@ suite("test_insert_into_s3_tvf", "p0,external,external_docker") {
 
     // ============ Cleanup ============
 
-    sql """ DROP TABLE IF EXISTS insert_tvf_test_src """
-    sql """ DROP TABLE IF EXISTS insert_tvf_complex_src """
-    sql """ DROP TABLE IF EXISTS insert_tvf_join_src """
+    sql """ DROP TABLE IF EXISTS test_insert_into_s3_tvf_src """
+    sql """ DROP TABLE IF EXISTS test_insert_into_s3_tvf_complex_src """
+    sql """ DROP TABLE IF EXISTS test_insert_into_s3_tvf_join_src """
 }
