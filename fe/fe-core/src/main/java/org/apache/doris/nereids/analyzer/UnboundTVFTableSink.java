@@ -47,6 +47,14 @@ public class UnboundTVFTableSink<CHILD_TYPE extends Plan> extends UnboundLogical
     private final String tvfName;
     private final Map<String, String> properties;
 
+    /**
+     * For insert into tvf
+     *
+     * @param tvfName
+     * @param properties
+     * @param dmlCommandType
+     * @param child
+     */
     public UnboundTVFTableSink(String tvfName, Map<String, String> properties,
             DMLCommandType dmlCommandType, CHILD_TYPE child) {
         super(ImmutableList.of(tvfName),
@@ -61,7 +69,7 @@ public class UnboundTVFTableSink<CHILD_TYPE extends Plan> extends UnboundLogical
         this.properties = properties;
     }
 
-    public UnboundTVFTableSink(String tvfName, Map<String, String> properties,
+    private UnboundTVFTableSink(String tvfName, Map<String, String> properties,
             DMLCommandType dmlCommandType,
             Optional<GroupExpression> groupExpression,
             Optional<LogicalProperties> logicalProperties, CHILD_TYPE child) {
