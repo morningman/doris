@@ -18,7 +18,6 @@
 #pragma once
 
 #include <gen_cpp/DataSinks_types.h>
-#include <gen_cpp/PlanNodes_types.h>
 
 #include <memory>
 #include <string>
@@ -28,6 +27,7 @@
 #include "util/runtime_profile.h"
 #include "vec/exprs/vexpr_fwd.h"
 #include "vec/runtime/vfile_format_transformer.h"
+#include "vec/runtime/vfile_format_transformer_factory.h"
 #include "vec/sink/writer/async_result_writer.h"
 
 namespace doris {
@@ -75,10 +75,6 @@ private:
     int64_t _max_file_size_bytes = 0;
     int _file_idx = 0;
     std::string _file_path;
-    std::string _column_separator;
-    std::string _line_delimiter;
-    std::vector<TParquetSchema> _parquet_schemas;
-    std::vector<std::string> _orc_column_names;
 
     // profile counters
     RuntimeProfile::Counter* _written_rows_counter = nullptr;

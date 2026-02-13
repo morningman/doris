@@ -102,6 +102,7 @@ true	3	300	3000	300000	5.5	6.6	999.99	2024-12-31	2024-12-31T23:59:59	test	data
 
 -- !s3_append_second --
 1000	hello
+2000	foo
 
 -- !s3_const_expr --
 1	hello	3.14	2024-01-01

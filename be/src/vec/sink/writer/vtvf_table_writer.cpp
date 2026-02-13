@@ -18,7 +18,6 @@
 #include "vec/sink/writer/vtvf_table_writer.h"
 
 #include <fmt/format.h>
-#include <gen_cpp/PlanNodes_types.h>
 
 #include "common/status.h"
 #include "io/file_factory.h"
@@ -26,9 +25,6 @@
 #include "vec/core/block.h"
 #include "vec/exprs/vexpr.h"
 #include "vec/exprs/vexpr_context.h"
-#include "vec/runtime/vcsv_transformer.h"
-#include "vec/runtime/vorc_transformer.h"
-#include "vec/runtime/vparquet_transformer.h"
 
 namespace doris::vectorized {
 
@@ -97,62 +93,15 @@ Status VTVFTableWriter::_create_file_writer(const std::string& file_name) {
         properties = _tvf_sink.properties;
     }
 
-    _file_writer_impl = DORIS_TRY(FileFactory::create_file_writer(file_type, _state->exec_env(), {},
-                                                                  properties, file_name,
-                                                                  {
-                                                                          .write_file_cache = false,
-                                                                          .sync_file_data = false,
-                                                                  }));
+    _file_writer_impl = DORIS_TRY(FileFactory::create_file_writer(
+            file_type, _state->exec_env(), {}, properties, file_name,
+            {.write_file_cache = false, .sync_file_data = false}));
 
-    TFileFormatType::type format = _tvf_sink.file_format;
-    switch (format) {
-    case TFileFormatType::FORMAT_CSV_PLAIN: {
-        _column_separator = _tvf_sink.__isset.column_separator ? _tvf_sink.column_separator : ",";
-        _line_delimiter = _tvf_sink.__isset.line_delimiter ? _tvf_sink.line_delimiter : "\n";
-        TFileCompressType::type compress_type = TFileCompressType::PLAIN;
-        if (_tvf_sink.__isset.compression_type) {
-            compress_type = _tvf_sink.compression_type;
-        }
-        _vfile_writer.reset(new VCSVTransformer(
-                _state, _file_writer_impl.get(), _vec_output_expr_ctxs, false, {}, {},
-                _column_separator, _line_delimiter, false, compress_type));
-        break;
-    }
-    case TFileFormatType::FORMAT_PARQUET: {
-        _parquet_schemas.clear();
-        if (_tvf_sink.__isset.columns) {
-            for (const auto& col : _tvf_sink.columns) {
-                TParquetSchema schema;
-                schema.__set_schema_column_name(col.column_name);
-                _parquet_schemas.push_back(schema);
-            }
-        }
-        _vfile_writer.reset(new VParquetTransformer(
-                _state, _file_writer_impl.get(), _vec_output_expr_ctxs, _parquet_schemas, false,
-                {TParquetCompressionType::SNAPPY, TParquetVersion::PARQUET_1_0, false, false}));
-        break;
-    }
-    case TFileFormatType::FORMAT_ORC: {
-        TFileCompressType::type compress_type = TFileCompressType::PLAIN;
-        if (_tvf_sink.__isset.compression_type) {
-            compress_type = _tvf_sink.compression_type;
-        }
-        _orc_column_names.clear();
-        if (_tvf_sink.__isset.columns) {
-            for (const auto& col : _tvf_sink.columns) {
-                _orc_column_names.push_back(col.column_name);
-            }
-        }
-        _vfile_writer.reset(new VOrcTransformer(_state, _file_writer_impl.get(),
-                                                _vec_output_expr_ctxs, "", _orc_column_names, false,
-                                                compress_type));
-        break;
-    }
-    default:
-        return Status::InternalError("Unsupported TVF sink file format: {}", format);
-    }
+    RETURN_IF_ERROR(create_tvf_format_transformer(_tvf_sink, _state, _file_writer_impl.get(),
+                                                  _vec_output_expr_ctxs, &_vfile_writer));
 
-    VLOG_DEBUG << "TVF table writer created file: " << file_name << ", format=" << format
+    VLOG_DEBUG << "TVF table writer created file: " << file_name
+               << ", format=" << _tvf_sink.file_format
                << ", query_id=" << print_id(_state->query_id());
 
     return _vfile_writer->open();
