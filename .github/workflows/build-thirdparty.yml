@@ -135,6 +135,10 @@ jobs:
           export CMAKE_POLICY_VERSION_MINIMUM=3.10
           export CUSTOM_CMAKE="/usr/local/bin/cmake"
 
+          df -h
+          echo $TMPDIR
+          echo $RUNNER_TEMP
+
           cd thirdparty
           #./build-thirdparty.sh -j "$(nproc)"
           ./build-thirdparty.sh -j 2
@@ -196,6 +200,10 @@ jobs:
           export CMAKE_POLICY_VERSION_MINIMUM=3.10
           export CUSTOM_CMAKE="/usr/local/bin/cmake"
 
+          df -h
+          echo $TMPDIR
+          echo $RUNNER_TEMP
+
           cd thirdparty
           #./build-thirdparty.sh -j "$(nproc)"
           ./build-thirdparty.sh -j "$(nproc)"
@@ -256,6 +264,10 @@ jobs:
           export MACOSX_DEPLOYMENT_TARGET=12.0
           export CMAKE_POLICY_VERSION_MINIMUM=3.10
           export CUSTOM_CMAKE="/usr/local/bin/cmake"
+
+          df -h
+          echo $TMPDIR
+          echo $RUNNER_TEMP
 
           cd thirdparty
           #./build-thirdparty.sh -j "$(nproc)"
