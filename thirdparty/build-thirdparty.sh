@@ -2274,6 +2274,9 @@ for package in "${packages[@]}"; do
         ${command}
         cd "${TP_DIR}"
         cleanup_package_source "${package}"
+        echo "debug after clean: ${package}"
+        df -h
+        du -sh "${TP_DIR}"
     fi
 done
 
