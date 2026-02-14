@@ -135,6 +135,11 @@ jobs:
           export CMAKE_POLICY_VERSION_MINIMUM=3.10
           export CUSTOM_CMAKE="/usr/local/bin/cmake"
 
+          export TMPDIR=/home/runner/work/doris/doris/.tmp
+          export TMP=$TMPDIR
+          export TEMP=$TMPDIR
+          mkdir -p $TMPDIR
+
           df -h
           echo $TMPDIR
           echo $RUNNER_TEMP
