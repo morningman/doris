@@ -87,8 +87,7 @@ Status VTVFTableWriter::close(Status status) {
 }
 
 Status VTVFTableWriter::_create_file_writer(const std::string& file_name) {
-    bool use_jni = _tvf_sink.__isset.writer_type &&
-                   _tvf_sink.writer_type == TTVFWriterType::JNI;
+    bool use_jni = _tvf_sink.__isset.writer_type && _tvf_sink.writer_type == TTVFWriterType::JNI;
 
     if (!use_jni) {
         // Native path: create file writer via FileFactory
@@ -104,13 +103,12 @@ Status VTVFTableWriter::_create_file_writer(const std::string& file_name) {
     }
 
     // Factory creates either JNI or native transformer
-    RETURN_IF_ERROR(create_tvf_format_transformer(
-            _tvf_sink, _state, use_jni ? nullptr : _file_writer_impl.get(),
-            _vec_output_expr_ctxs, &_vfile_writer));
+    RETURN_IF_ERROR(create_tvf_format_transformer(_tvf_sink, _state,
+                                                  use_jni ? nullptr : _file_writer_impl.get(),
+                                                  _vec_output_expr_ctxs, &_vfile_writer));
 
     VLOG_DEBUG << "TVF table writer created file: " << file_name
-               << ", format=" << _tvf_sink.file_format
-               << ", use_jni=" << use_jni
+               << ", format=" << _tvf_sink.file_format << ", use_jni=" << use_jni
                << ", query_id=" << print_id(_state->query_id());
 
     return _vfile_writer->open();

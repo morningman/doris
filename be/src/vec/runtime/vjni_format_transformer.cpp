@@ -33,8 +33,7 @@ VJniFormatTransformer::VJniFormatTransformer(RuntimeState* state,
 Status VJniFormatTransformer::_init_jni_writer(JNIEnv* env, int batch_size) {
     // Load writer class via the same class loader as JniScanner
     Jni::GlobalClass jni_writer_cls;
-    RETURN_IF_ERROR(
-            Jni::Util::get_jni_scanner_class(env, _writer_class.c_str(), &jni_writer_cls));
+    RETURN_IF_ERROR(Jni::Util::get_jni_scanner_class(env, _writer_class.c_str(), &jni_writer_cls));
 
     // Get constructor: (int batchSize, Map<String,String> params)
     Jni::MethodId writer_constructor;
