@@ -137,9 +137,13 @@ public class MCTransaction implements Transaction {
                         byte[] bytes = Base64.getDecoder().decode(data.getCommitMessage());
                         ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
                         ObjectInputStream ois = new ObjectInputStream(bais);
-                        WriterCommitMessage msg = (WriterCommitMessage) ois.readObject();
+                        // Deserialized as List<WriterCommitMessage> — supports segmented
+                        // commit where one writer produces multiple commit messages
+                        @SuppressWarnings("unchecked")
+                        List<WriterCommitMessage> msgs =
+                                (List<WriterCommitMessage>) ois.readObject();
+                        allMessages.addAll(msgs);
                         ois.close();
-                        allMessages.add(msg);
                     }
                 }
             }

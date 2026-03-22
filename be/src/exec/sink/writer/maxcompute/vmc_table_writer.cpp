@@ -159,13 +159,10 @@ Status VMCTableWriter::write(RuntimeState* state, Block& block) {
             it = _partitions_to_writers.find(_static_partition_spec);
         }
         output_block.erase(_non_write_columns_indices);
-        return it->second->write(output_block);
+        return _write_block_in_chunks(it->second, output_block);
     }
 
     // Case 2: Dynamic partition or non-partitioned table
-    // For dynamic partitions, MaxCompute Storage API (with DynamicPartitionOptions) expects
-    // partition column values in the Arrow data and handles routing internally.
-    // So we send the full block including partition columns to a single writer.
     std::string partition_key = "";
     auto it = _partitions_to_writers.find(partition_key);
     if (it == _partitions_to_writers.end()) {
@@ -174,7 +171,40 @@ Status VMCTableWriter::write(RuntimeState* state, Block& block) {
         _partitions_to_writers.insert({partition_key, writer});
         it = _partitions_to_writers.find(partition_key);
     }
-    return it->second->write(output_block);
+    return _write_block_in_chunks(it->second, output_block);
+}
+
+Status VMCTableWriter::_write_block_in_chunks(
+        const std::shared_ptr<VMCPartitionWriter>& writer, Block& output_block) {
+    // When rows are very large (e.g. 585KB/row with big STRING columns),
+    // a batch_size=4096 block can be ~2.4GB. Passing such a large block
+    // to JNI causes excessive Arrow and MaxCompute SDK native memory
+    // allocation. Split into sub-blocks of at most MAX_WRITE_BLOCK_BYTES.
+    static constexpr size_t MAX_WRITE_BLOCK_BYTES = 256 * 1024 * 1024; // 256MB
+
+    const size_t block_bytes = output_block.allocated_bytes();
+    const size_t rows = output_block.rows();
+
+    if (block_bytes <= MAX_WRITE_BLOCK_BYTES || rows <= 1) {
+        return writer->write(output_block);
+    }
+
+    // Estimate rows per chunk based on average row size
+    const size_t bytes_per_row = block_bytes / rows;
+    const size_t max_rows = std::max(size_t(1), MAX_WRITE_BLOCK_BYTES / bytes_per_row);
+
+    for (size_t offset = 0; offset < rows; offset += max_rows) {
+        const size_t num_rows = std::min(max_rows, rows - offset);
+        Block sub_block = output_block.clone_empty();
+        auto columns = sub_block.mutate_columns();
+        for (size_t i = 0; i < columns.size(); i++) {
+            columns[i]->insert_range_from(
+                    *output_block.get_by_position(i).column, offset, num_rows);
+        }
+        sub_block.set_columns(std::move(columns));
+        RETURN_IF_ERROR(writer->write(sub_block));
+    }
+    return Status::OK();
 }
 
 Status VMCTableWriter::close(Status status) {

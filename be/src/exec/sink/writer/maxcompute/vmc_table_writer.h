@@ -54,6 +54,11 @@ public:
 private:
     std::shared_ptr<VMCPartitionWriter> _create_partition_writer(const std::string& partition_spec);
 
+    // Split a large block into sub-blocks of at most MAX_WRITE_BLOCK_BYTES
+    // to limit per-JNI Arrow and SDK native memory allocation.
+    Status _write_block_in_chunks(const std::shared_ptr<VMCPartitionWriter>& writer,
+                                  Block& output_block);
+
     std::map<std::string, std::string> _build_base_writer_params();
 
     TDataSink _t_sink;

@@ -61,9 +61,12 @@ public class MaxComputeJniScanner extends JniScanner {
 
     private static final Logger LOG = Logger.getLogger(MaxComputeJniScanner.class);
 
-    // 1GB safety threshold — well below int32 max (~2.1GB) to prevent overflow
-    // in VectorColumn's int appendIndex when accumulating String/Binary bytes.
-    private static final long MAX_BATCH_BYTES = 1_073_741_824L;
+    // 256MB byte budget per scanner batch — limits the C++ Block size at the source.
+    // With large rows (e.g. 585KB/row STRING), batch_size=4096 would create ~2.4GB Blocks.
+    // The pipeline's AsyncResultWriter queues up to 3 Blocks per instance, and with
+    // parallel_pipeline_task_num instances, total queue memory = instances * 3 * block_size.
+    // 256MB keeps queue memory manageable: 5 instances * 3 * 256MB = 3.8GB.
+    private static final long MAX_BATCH_BYTES = 256 * 1024 * 1024L;
 
     private static final String ACCESS_KEY = "access_key";
     private static final String SECRET_KEY = "secret_key";
