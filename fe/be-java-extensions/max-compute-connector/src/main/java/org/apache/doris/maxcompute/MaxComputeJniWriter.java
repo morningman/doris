@@ -246,7 +246,6 @@ public class MaxComputeJniWriter extends JniWriter {
             // to Arrow, keeping peak heap usage per batch to O(batch_rows * row_size)
             // instead of O(2 * batch_rows * row_size).
             int rowOffset = 0;
-            int batchIndex = 0;
             while (rowOffset < numRows) {
                 int batchRows = Math.min(maxWriteBatchRows, numRows - rowOffset);
 
@@ -272,7 +271,6 @@ public class MaxComputeJniWriter extends JniWriter {
                 writtenRows += batchRows;
                 segmentRows += batchRows;
                 rowOffset += batchRows;
-                batchIndex++;
 
                 // Segmented commit: rotate batchWriter to release SDK native memory
                 if (segmentRows >= ROWS_PER_SEGMENT) {
