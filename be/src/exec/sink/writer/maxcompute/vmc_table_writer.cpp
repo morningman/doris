@@ -176,10 +176,11 @@ Status VMCTableWriter::write(RuntimeState* state, Block& block) {
 
 Status VMCTableWriter::_write_block_in_chunks(
         const std::shared_ptr<VMCPartitionWriter>& writer, Block& output_block) {
-    // When rows are very large (e.g. 585KB/row with big STRING columns),
-    // a batch_size=4096 block can be ~2.4GB. Passing such a large block
-    // to JNI causes excessive Arrow and MaxCompute SDK native memory
-    // allocation. Split into sub-blocks of at most MAX_WRITE_BLOCK_BYTES.
+    // Limit per-JNI data to MAX_WRITE_BLOCK_BYTES. When data source is not MC scanner
+    // (e.g. Doris internal table, Hive, JDBC), the upstream batch_size controls Block
+    // row count but not byte size. With large rows (585KB/row), a 4096-row Block is
+    // ~2.4GB. Splitting ensures each JNI call processes bounded data, limiting Arrow
+    // and SDK native memory per call.
     static constexpr size_t MAX_WRITE_BLOCK_BYTES = 256 * 1024 * 1024; // 256MB
 
     const size_t block_bytes = output_block.allocated_bytes();
@@ -189,7 +190,6 @@ Status VMCTableWriter::_write_block_in_chunks(
         return writer->write(output_block);
     }
 
-    // Estimate rows per chunk based on average row size
     const size_t bytes_per_row = block_bytes / rows;
     const size_t max_rows = std::max(size_t(1), MAX_WRITE_BLOCK_BYTES / bytes_per_row);
 
