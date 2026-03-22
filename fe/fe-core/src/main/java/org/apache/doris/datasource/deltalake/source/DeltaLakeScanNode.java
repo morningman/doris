@@ -20,12 +20,14 @@ package org.apache.doris.datasource.deltalake.source;
 import org.apache.doris.catalog.TableIf;
 import org.apache.doris.common.UserException;
 import org.apache.doris.common.util.LocationPath;
+import org.apache.doris.datasource.ExternalCatalog;
 import org.apache.doris.datasource.FileQueryScanNode;
+import org.apache.doris.datasource.deltalake.AbstractDeltaLakeMetadataOps;
 import org.apache.doris.datasource.deltalake.DeletionVectorDescriptorInfo;
-import org.apache.doris.datasource.deltalake.DeltaLakeExternalCatalog;
 import org.apache.doris.datasource.deltalake.DeltaLakeExternalTable;
-import org.apache.doris.datasource.deltalake.DeltaLakeMetadataOps;
 import org.apache.doris.datasource.deltalake.DeltaLakePredicateConverter;
+import org.apache.doris.datasource.deltalake.DeltaLakeUnityExternalCatalog;
+import org.apache.doris.datasource.deltalake.DeltaLakeUnityMetadataOps;
 import org.apache.doris.planner.PlanNodeId;
 import org.apache.doris.planner.ScanContext;
 import org.apache.doris.qe.SessionVariable;
@@ -59,15 +61,19 @@ import java.util.Optional;
  * Scan node for Delta Lake tables.
  * Extends FileQueryScanNode (like IcebergScanNode) to leverage the existing
  * Parquet reader infrastructure on the BE side.
+ *
+ * <p>Works with both HMS-backed and Unity Catalog-backed Delta Lake catalogs.
+ * When using Unity Catalog with Credential Vending, temporary cloud storage
+ * credentials are automatically injected into the location properties.
  */
 public class DeltaLakeScanNode extends FileQueryScanNode {
     private static final Logger LOG = LogManager.getLogger(DeltaLakeScanNode.class);
 
     private DeltaLakeExternalTable deltaLakeTable;
-    private DeltaLakeExternalCatalog deltaLakeCatalog;
+    private ExternalCatalog deltaLakeCatalog;
 
     public DeltaLakeScanNode(PlanNodeId id,
-            org.apache.doris.planner.TupleDescriptor desc,
+            org.apache.doris.analysis.TupleDescriptor desc,
             boolean needCheckColumnPriv,
             SessionVariable sv,
             ScanContext scanContext) {
@@ -77,7 +83,7 @@ public class DeltaLakeScanNode extends FileQueryScanNode {
     @Override
     protected void doInitialize() throws UserException {
         deltaLakeTable = (DeltaLakeExternalTable) desc.getTable();
-        deltaLakeCatalog = (DeltaLakeExternalCatalog) deltaLakeTable.getCatalog();
+        deltaLakeCatalog = (ExternalCatalog) deltaLakeTable.getCatalog();
         super.doInitialize();
     }
 
@@ -86,7 +92,8 @@ public class DeltaLakeScanNode extends FileQueryScanNode {
         List<Split> splits = new ArrayList<>();
 
         try {
-            DeltaLakeMetadataOps metadataOps = (DeltaLakeMetadataOps) deltaLakeCatalog.getMetadataOps();
+            AbstractDeltaLakeMetadataOps metadataOps =
+                    (AbstractDeltaLakeMetadataOps) deltaLakeCatalog.getMetadataOps();
             Engine engine = metadataOps.getEngine();
             String tableLocation = deltaLakeTable.getTableLocation();
 
@@ -213,6 +220,22 @@ public class DeltaLakeScanNode extends FileQueryScanNode {
 
     @Override
     protected Map<String, String> getLocationProperties() {
-        return deltaLakeCatalog.getCatalogProperty().getHadoopProperties();
+        Map<String, String> props = new HashMap<>(
+                deltaLakeCatalog.getCatalogProperty().getHadoopProperties());
+
+        // If using Unity Catalog with Credential Vending, inject temporary credentials
+        if (deltaLakeCatalog instanceof DeltaLakeUnityExternalCatalog) {
+            DeltaLakeUnityExternalCatalog unityCatalog =
+                    (DeltaLakeUnityExternalCatalog) deltaLakeCatalog;
+            if (unityCatalog.isCredentialVendingEnabled()) {
+                DeltaLakeUnityMetadataOps unityOps =
+                        (DeltaLakeUnityMetadataOps) unityCatalog.getMetadataOps();
+                Map<String, String> tempCredentials = unityOps.getStorageCredentials(
+                        deltaLakeTable.getDbName(), deltaLakeTable.getRemoteName());
+                props.putAll(tempCredentials);
+            }
+        }
+
+        return props;
     }
 }

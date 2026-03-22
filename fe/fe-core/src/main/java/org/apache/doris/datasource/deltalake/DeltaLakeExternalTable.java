@@ -19,6 +19,7 @@ package org.apache.doris.datasource.deltalake;
 
 import org.apache.doris.catalog.Column;
 import org.apache.doris.catalog.TableIf;
+import org.apache.doris.datasource.ExternalCatalog;
 import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.SchemaCacheValue;
 import org.apache.doris.statistics.AnalysisInfo;
@@ -44,15 +45,19 @@ import java.util.Optional;
 /**
  * Represents a Delta Lake table in Doris.
  * Reads schema and partition info from Delta Lake metadata (via Delta Kernel API).
+ *
+ * <p>Works with both HMS-backed ({@link DeltaLakeMetadataOps}) and
+ * Unity Catalog-backed ({@link DeltaLakeUnityMetadataOps}) catalogs
+ * via the common base class {@link AbstractDeltaLakeMetadataOps}.
  */
 public class DeltaLakeExternalTable extends ExternalTable {
     private static final Logger LOG = LogManager.getLogger(DeltaLakeExternalTable.class);
 
-    private final DeltaLakeExternalCatalog catalog;
+    private final ExternalCatalog catalog;
     private final DeltaLakeExternalDatabase db;
 
     public DeltaLakeExternalTable(long id, String name, String remoteName,
-            DeltaLakeExternalCatalog catalog, DeltaLakeExternalDatabase db) {
+            ExternalCatalog catalog, DeltaLakeExternalDatabase db) {
         super(id, name, remoteName, catalog, db, TableIf.TableType.DELTALAKE_EXTERNAL_TABLE);
         this.catalog = catalog;
         this.db = db;
@@ -62,7 +67,7 @@ public class DeltaLakeExternalTable extends ExternalTable {
     public Optional<SchemaCacheValue> initSchema() {
         makeSureInitialized();
         try {
-            DeltaLakeMetadataOps ops = (DeltaLakeMetadataOps) catalog.getMetadataOps();
+            AbstractDeltaLakeMetadataOps ops = getDeltaLakeMetadataOps();
             String tableLocation = ops.getTableLocation(db.getRemoteName(), getRemoteName());
 
             Engine engine = ops.getEngine();
@@ -108,7 +113,7 @@ public class DeltaLakeExternalTable extends ExternalTable {
      */
     public List<String> getPartitionColumnNames() {
         try {
-            DeltaLakeMetadataOps ops = (DeltaLakeMetadataOps) catalog.getMetadataOps();
+            AbstractDeltaLakeMetadataOps ops = getDeltaLakeMetadataOps();
             String tableLocation = ops.getTableLocation(db.getRemoteName(), getRemoteName());
 
             Engine engine = ops.getEngine();
@@ -126,7 +131,11 @@ public class DeltaLakeExternalTable extends ExternalTable {
      * Returns the location of this Delta Lake table.
      */
     public String getTableLocation() {
-        DeltaLakeMetadataOps ops = (DeltaLakeMetadataOps) catalog.getMetadataOps();
+        AbstractDeltaLakeMetadataOps ops = getDeltaLakeMetadataOps();
         return ops.getTableLocation(db.getRemoteName(), getRemoteName());
+    }
+
+    private AbstractDeltaLakeMetadataOps getDeltaLakeMetadataOps() {
+        return (AbstractDeltaLakeMetadataOps) catalog.getMetadataOps();
     }
 }

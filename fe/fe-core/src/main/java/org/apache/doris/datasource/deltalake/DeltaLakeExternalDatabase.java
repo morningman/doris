@@ -34,6 +34,6 @@ public class DeltaLakeExternalDatabase extends ExternalDatabase<DeltaLakeExterna
     public DeltaLakeExternalTable buildTableInternal(String remoteTableName, String localTableName, long tblId,
             ExternalCatalog catalog, ExternalDatabase db) {
         return new DeltaLakeExternalTable(tblId, localTableName, remoteTableName,
-                (DeltaLakeExternalCatalog) catalog, (DeltaLakeExternalDatabase) db);
+                catalog, (DeltaLakeExternalDatabase) db);
     }
 }

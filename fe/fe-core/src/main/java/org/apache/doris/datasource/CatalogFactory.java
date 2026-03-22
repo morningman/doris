@@ -21,7 +21,7 @@ import org.apache.doris.catalog.Env;
 import org.apache.doris.catalog.Resource;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.FeConstants;
-import org.apache.doris.datasource.deltalake.DeltaLakeExternalCatalog;
+import org.apache.doris.datasource.deltalake.DeltaLakeExternalCatalogFactory;
 import org.apache.doris.datasource.doris.RemoteDorisExternalCatalog;
 import org.apache.doris.datasource.es.EsExternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
@@ -114,7 +114,8 @@ public class CatalogFactory {
                 catalog = new RemoteDorisExternalCatalog(catalogId, name, resource, props, comment);
                 break;
             case "deltalake":
-                catalog = new DeltaLakeExternalCatalog(catalogId, name, resource, props, comment);
+                catalog = DeltaLakeExternalCatalogFactory.createCatalog(
+                        catalogId, name, resource, props, comment);
                 break;
             case "test":
                 if (!FeConstants.runningUnitTest) {
