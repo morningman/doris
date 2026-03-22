@@ -22,7 +22,7 @@ suite("test_deltalake_query", "p0,external,deltalake,external_docker,external_do
         return
     }
 
-    String hms_port = context.config.otherConfigs.get("hive2HmsPort")
+    String hms_port = context.config.otherConfigs.get("deltalakeHmsPort")
     String externalEnvIp = context.config.otherConfigs.get("externalEnvIp")
     String catalog_name = "test_deltalake_query"
 
@@ -31,91 +31,56 @@ suite("test_deltalake_query", "p0,external,deltalake,external_docker,external_do
     sql """
         CREATE CATALOG ${catalog_name} PROPERTIES (
             'type' = 'deltalake',
-            'hive.metastore.uris' = 'thrift://${externalEnvIp}:${hms_port}'
+            'hive.metastore.uris' = 'thrift://${externalEnvIp}:${hms_port}',
+            's3.endpoint' = 'http://${externalEnvIp}:19001',
+            's3.access_key' = 'admin',
+            's3.secret_key' = 'password',
+            's3.region' = 'us-east-1'
         );
     """
 
     sql """switch ${catalog_name};"""
     sql """set enable_fallback_to_original_planner = false;"""
 
-    // If a delta_test database and tables exist in HMS, run query tests.
-    // The test expects the following pre-created tables:
+    // The test expects the following pre-created tables in delta_test database:
     //   delta_test.delta_basic: id INT, name STRING, value DOUBLE
     //   delta_test.delta_partitioned: id INT, name STRING, dt STRING (partition col)
     //   delta_test.delta_with_dv: id INT, data STRING (has DV applied)
 
-    def dbExists = false
-    try {
-        sql """use delta_test;"""
-        dbExists = true
-    } catch (Exception e) {
-        logger.info("delta_test database not found, skipping query tests: " + e.getMessage())
-    }
+    sql """use delta_test;"""
 
-    if (dbExists) {
-        // Test basic scan
-        try {
-            order_qt_basic_select """select * from delta_basic order by id;"""
-        } catch (Exception e) {
-            logger.info("delta_basic table not found: " + e.getMessage())
-        }
+    // Test basic scan
+    order_qt_basic_select """select * from delta_basic order by id;"""
 
-        // Test count(*) pushdown
-        try {
-            order_qt_count """select count(*) from delta_basic;"""
-        } catch (Exception e) {
-            logger.info("count test skipped: " + e.getMessage())
-        }
+    // Test count(*) pushdown
+    order_qt_count """select count(*) from delta_basic;"""
 
-        // Test predicate pushdown
-        try {
-            order_qt_predicate """select * from delta_basic where id > 5 order by id;"""
-        } catch (Exception e) {
-            logger.info("predicate test skipped: " + e.getMessage())
-        }
+    // Test predicate pushdown
+    order_qt_predicate """select * from delta_basic where id > 5 order by id;"""
 
-        // Test partitioned table
-        try {
-            order_qt_partition """select * from delta_partitioned where dt = '2024-01-01' order by id;"""
-        } catch (Exception e) {
-            logger.info("partition test skipped: " + e.getMessage())
-        }
+    // Test partitioned table
+    order_qt_partition """select * from delta_partitioned where dt = '2024-01-01' order by id;"""
 
-        // Test table with deletion vectors
-        try {
-            order_qt_dv """select * from delta_with_dv order by id;"""
-        } catch (Exception e) {
-            logger.info("DV test skipped: " + e.getMessage())
-        }
+    // Test table with deletion vectors
+    order_qt_dv """select * from delta_with_dv order by id;"""
 
-        // Test aggregation
-        try {
-            order_qt_agg """select count(*), sum(value), avg(value) from delta_basic;"""
-        } catch (Exception e) {
-            logger.info("aggregation test skipped: " + e.getMessage())
-        }
+    // Test aggregation
+    order_qt_agg """select count(*), sum(value), avg(value) from delta_basic;"""
 
-        // Test GROUP BY
-        try {
-            order_qt_groupby """select name, count(*) as cnt from delta_basic group by name order by name;"""
-        } catch (Exception e) {
-            logger.info("group by test skipped: " + e.getMessage())
-        }
+    // Test GROUP BY
+    order_qt_groupby """select name, count(*) as cnt from delta_basic group by name order by name;"""
 
-        // Test column pruning (select subset of columns)
-        try {
-            order_qt_column_pruning """select id, name from delta_basic order by id limit 10;"""
-        } catch (Exception e) {
-            logger.info("column pruning test skipped: " + e.getMessage())
-        }
+    // Test column pruning (select subset of columns)
+    order_qt_column_pruning """select id, name from delta_basic order by id limit 10;"""
 
-        // Test IS NULL / IS NOT NULL
-        try {
-            order_qt_null """select count(*) from delta_basic where name is not null;"""
-        } catch (Exception e) {
-            logger.info("null test skipped: " + e.getMessage())
-        }
-    }
+    // Test IS NULL / IS NOT NULL
+    order_qt_null """select count(*) from delta_basic where name is not null;"""
+
+    // Test all data types
+    order_qt_all_types """select * from delta_all_types order by col_int;"""
+
+    // Test complex types
+    order_qt_complex_types """select * from delta_complex_types order by id;"""
 
     // Clean up
     sql """switch internal;"""

@@ -22,7 +22,7 @@ suite("test_deltalake_catalog", "p0,external,deltalake,external_docker,external_
         return
     }
 
-    String hms_port = context.config.otherConfigs.get("hive2HmsPort")
+    String hms_port = context.config.otherConfigs.get("deltalakeHmsPort")
     String externalEnvIp = context.config.otherConfigs.get("externalEnvIp")
     String catalog_name = "test_deltalake_catalog"
 
@@ -42,9 +42,10 @@ suite("test_deltalake_catalog", "p0,external,deltalake,external_docker,external_
     assertTrue(databases.size() > 0, "Should have at least one database")
 
     // Test 2: show tables
-    sql """use `default`;"""
+    sql """use delta_test;"""
     def tables = sql """show tables;"""
     logger.info("Delta Lake tables: " + tables.toString())
+    assertTrue(tables.size() > 0, "Should have at least one table in delta_test")
 
     // Test 3: switch back to internal
     sql """switch internal;"""
