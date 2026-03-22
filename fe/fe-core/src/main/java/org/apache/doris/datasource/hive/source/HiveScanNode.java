@@ -27,6 +27,8 @@ import org.apache.doris.catalog.Type;
 import org.apache.doris.common.AnalysisException;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.UserException;
+import org.apache.doris.common.profile.QueryTrace;
+import org.apache.doris.common.profile.SummaryProfile;
 import org.apache.doris.common.util.DebugUtil;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.FileQueryScanNode;
@@ -170,7 +172,13 @@ public class HiveScanNode extends FileQueryScanNode {
             resPartitions.add(dummyPartition);
         }
         if (ConnectContext.get().getExecutor() != null) {
-            ConnectContext.get().getExecutor().getSummaryProfile().setGetPartitionsFinishTime();
+            SummaryProfile sp = ConnectContext.get().getExecutor().getSummaryProfile();
+            if (sp != null) {
+                QueryTrace trace = sp.getQueryTrace();
+                if (trace != null) {
+                    trace.recordDuration("Get Partitions Time", 0);
+                }
+            }
         }
         return resPartitions;
     }
@@ -189,7 +197,13 @@ public class HiveScanNode extends FileQueryScanNode {
             List<Split> allFiles = Lists.newArrayList();
             getFileSplitByPartitions(cache, prunedPartitions, allFiles, bindBrokerName, numBackends, false);
             if (ConnectContext.get().getExecutor() != null) {
-                ConnectContext.get().getExecutor().getSummaryProfile().setGetPartitionFilesFinishTime();
+                SummaryProfile sp = ConnectContext.get().getExecutor().getSummaryProfile();
+                if (sp != null) {
+                    QueryTrace trace = sp.getQueryTrace();
+                    if (trace != null) {
+                        trace.recordDuration("Get Partition Files Time", 0);
+                    }
+                }
             }
             if (LOG.isDebugEnabled()) {
                 LOG.debug("get #{} files for table: {}.{}, cost: {} ms",

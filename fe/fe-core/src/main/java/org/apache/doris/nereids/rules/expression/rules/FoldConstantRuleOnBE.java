@@ -337,7 +337,14 @@ public class FoldConstantRuleOnBE implements ExpressionPatternRuleFactory {
             }
             PConstantExprResult result = future.get(5, TimeUnit.SECONDS);
             if (context.getExecutor() != null && context.getSessionVariable().enableProfile()) {
-                context.getExecutor().getSummaryProfile().sumBeFoldTime(TimeUtils.getStartTimeMs() - beFoldStartTime);
+                org.apache.doris.common.profile.QueryTrace trace = null;
+                if (context.getExecutor().getSummaryProfile() != null) {
+                    trace = context.getExecutor().getSummaryProfile().getQueryTrace();
+                }
+                if (trace != null) {
+                    trace.recordDuration("Nereids BE Fold Constant Time",
+                            TimeUtils.getStartTimeMs() - beFoldStartTime);
+                }
             }
 
             if (result.getStatus().getStatusCode() == 0) {
