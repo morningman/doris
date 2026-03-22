@@ -28,16 +28,16 @@
 namespace doris {
 #include "common/compile_check_begin.h"
 
-DeltaLakeParquetReader::DeltaLakeParquetReader(
-        std::unique_ptr<GenericReader> file_format_reader, RuntimeProfile* profile,
-        RuntimeState* state, const TFileScanRangeParams& params, const TFileRangeDesc& range,
-        io::IOContext* io_ctx, FileMetaCache* meta_cache)
+DeltaLakeParquetReader::DeltaLakeParquetReader(std::unique_ptr<GenericReader> file_format_reader,
+                                               RuntimeProfile* profile, RuntimeState* state,
+                                               const TFileScanRangeParams& params,
+                                               const TFileRangeDesc& range, io::IOContext* io_ctx,
+                                               FileMetaCache* meta_cache)
         : TableFormatReader(std::move(file_format_reader), state, profile, params, range, io_ctx,
                             meta_cache) {
     _delta_profile.num_delete_rows =
             ADD_COUNTER_WITH_LEVEL(profile, "DeltaLakeNumDeleteRows", TUnit::UNIT, 1);
-    _delta_profile.delete_files_read_time =
-            ADD_TIMER_WITH_LEVEL(profile, "DeltaLakeDVReadTime", 1);
+    _delta_profile.delete_files_read_time = ADD_TIMER_WITH_LEVEL(profile, "DeltaLakeDVReadTime", 1);
     _delta_profile.parse_delete_file_time =
             ADD_TIMER_WITH_LEVEL(profile, "DeltaLakeDVParseTime", 1);
 }
@@ -112,9 +112,8 @@ Status DeltaLakeParquetReader::_read_deletion_vector() {
 
     auto total_length = BigEndian::Load32(buf.data());
     if (total_length + 8 != buffer_size) [[unlikely]] {
-        return Status::DataQualityError(
-                "Delta Lake DV length mismatch, expected: {}, actual: {}", total_length + 8,
-                buffer_size);
+        return Status::DataQualityError("Delta Lake DV length mismatch, expected: {}, actual: {}",
+                                        total_length + 8, buffer_size);
     }
 
     constexpr static char MAGIC_NUMBER[] = {'\xD1', '\xD3', '\x39', '\x64'};
