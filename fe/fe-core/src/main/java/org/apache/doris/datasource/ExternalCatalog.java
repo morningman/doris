@@ -40,6 +40,7 @@ import org.apache.doris.common.security.authentication.ExecutionAuthenticator;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.connectivity.CatalogConnectivityTestCoordinator;
 import org.apache.doris.datasource.doris.RemoteDorisExternalDatabase;
+import org.apache.doris.datasource.deltalake.DeltaLakeExternalDatabase;
 import org.apache.doris.datasource.es.EsExternalDatabase;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalDatabase;
@@ -919,6 +920,8 @@ public abstract class ExternalCatalog
                 return new TrinoConnectorExternalDatabase(this, dbId, localDbName, remoteDbName);
             case REMOTE_DORIS:
                 return new RemoteDorisExternalDatabase(this, dbId, localDbName, remoteDbName);
+            case DELTALAKE:
+                return new DeltaLakeExternalDatabase(this, dbId, localDbName, remoteDbName);
             default:
                 break;
         }
