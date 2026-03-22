@@ -98,8 +98,7 @@ Status VJniFormatTransformer::write(const Block& block) {
     // Diagnostic: log Block memory info before JNI call
     LOG(INFO) << "MC_WRITE_CPP_DIAG: block_rows=" << block.rows()
               << ", block_bytes=" << block.allocated_bytes()
-              << ", block_columns=" << block.columns()
-              << ", total_written=" << _cur_written_rows;
+              << ", block_columns=" << block.columns() << ", total_written=" << _cur_written_rows;
 
     // 3. Build input params map for Java writer
     std::map<std::string, std::string> input_params = {

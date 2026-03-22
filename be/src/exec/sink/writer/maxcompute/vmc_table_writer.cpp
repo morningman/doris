@@ -174,8 +174,8 @@ Status VMCTableWriter::write(RuntimeState* state, Block& block) {
     return _write_block_in_chunks(it->second, output_block);
 }
 
-Status VMCTableWriter::_write_block_in_chunks(
-        const std::shared_ptr<VMCPartitionWriter>& writer, Block& output_block) {
+Status VMCTableWriter::_write_block_in_chunks(const std::shared_ptr<VMCPartitionWriter>& writer,
+                                              Block& output_block) {
     // Limit per-JNI data to MAX_WRITE_BLOCK_BYTES. When data source is not MC scanner
     // (e.g. Doris internal table, Hive, JDBC), the upstream batch_size controls Block
     // row count but not byte size. With large rows (585KB/row), a 4096-row Block is
@@ -198,8 +198,8 @@ Status VMCTableWriter::_write_block_in_chunks(
         Block sub_block = output_block.clone_empty();
         auto columns = sub_block.mutate_columns();
         for (size_t i = 0; i < columns.size(); i++) {
-            columns[i]->insert_range_from(
-                    *output_block.get_by_position(i).column, offset, num_rows);
+            columns[i]->insert_range_from(*output_block.get_by_position(i).column, offset,
+                                          num_rows);
         }
         sub_block.set_columns(std::move(columns));
         RETURN_IF_ERROR(writer->write(sub_block));

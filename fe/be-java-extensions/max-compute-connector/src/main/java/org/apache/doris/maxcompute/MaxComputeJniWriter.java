@@ -382,7 +382,8 @@ public class MaxComputeJniWriter extends JniWriter {
                 }
             }
             reader.close();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOG.debug("Failed to read /proc/self/status for RSS", e);
         }
         return -1;
     }
@@ -1063,3 +1064,4 @@ public class MaxComputeJniWriter extends JniWriter {
         return stats;
     }
 }
+
