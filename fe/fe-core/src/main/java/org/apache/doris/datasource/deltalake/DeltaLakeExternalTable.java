@@ -28,10 +28,9 @@ import org.apache.doris.thrift.THiveTable;
 import org.apache.doris.thrift.TTableDescriptor;
 import org.apache.doris.thrift.TTableType;
 
-import com.google.common.collect.Lists;
+import io.delta.kernel.Snapshot;
 import io.delta.kernel.Table;
 import io.delta.kernel.engine.Engine;
-import io.delta.kernel.Snapshot;
 import io.delta.kernel.types.StructField;
 import io.delta.kernel.types.StructType;
 import org.apache.logging.log4j.LogManager;

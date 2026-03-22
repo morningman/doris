@@ -38,7 +38,6 @@ import io.delta.kernel.types.TimestampNTZType;
 import io.delta.kernel.types.TimestampType;
 
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Utility class for Delta Lake type mapping and conversions.

@@ -27,7 +27,6 @@ import org.apache.doris.analysis.IsNullPredicate;
 import org.apache.doris.analysis.SlotRef;
 import org.apache.doris.analysis.StringLiteral;
 import org.apache.doris.analysis.TableName;
-import org.apache.doris.catalog.PrimitiveType;
 import org.apache.doris.catalog.Type;
 
 import io.delta.kernel.expressions.Predicate;

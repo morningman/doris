@@ -22,7 +22,6 @@ import org.apache.doris.datasource.FileSplit;
 import org.apache.doris.datasource.deltalake.DeletionVectorDescriptorInfo;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**

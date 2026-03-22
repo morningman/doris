@@ -24,8 +24,8 @@ import org.apache.doris.datasource.FileQueryScanNode;
 import org.apache.doris.datasource.deltalake.DeltaLakeExternalCatalog;
 import org.apache.doris.datasource.deltalake.DeltaLakeExternalTable;
 import org.apache.doris.datasource.deltalake.DeltaLakeMetadataOps;
-import org.apache.doris.datasource.deltalake.DeltaLakePredicateConverter;
 import org.apache.doris.datasource.deltalake.DeletionVectorDescriptorInfo;
+import org.apache.doris.datasource.deltalake.DeltaLakePredicateConverter;
 import org.apache.doris.planner.PlanNodeId;
 import org.apache.doris.planner.ScanContext;
 import org.apache.doris.qe.SessionVariable;
@@ -92,7 +92,6 @@ public class DeltaLakeScanNode extends FileQueryScanNode {
 
             Table deltaTable = Table.forPath(engine, tableLocation);
             Snapshot snapshot = deltaTable.getLatestSnapshot(engine);
-            StructType readSchema = snapshot.getSchema(engine);
 
             // Build scan with optional predicate pushdown
             ScanBuilder scanBuilder = snapshot.getScanBuilder(engine);

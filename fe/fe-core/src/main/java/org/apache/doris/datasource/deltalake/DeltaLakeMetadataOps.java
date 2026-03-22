@@ -29,8 +29,8 @@ import org.apache.doris.datasource.operations.ExternalMetadataOps;
 import org.apache.doris.datasource.property.metastore.AbstractHiveProperties;
 import org.apache.doris.nereids.trees.plans.commands.info.CreateTableInfo;
 
-import io.delta.kernel.engine.Engine;
 import io.delta.kernel.defaults.engine.DefaultEngine;
+import io.delta.kernel.engine.Engine;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
