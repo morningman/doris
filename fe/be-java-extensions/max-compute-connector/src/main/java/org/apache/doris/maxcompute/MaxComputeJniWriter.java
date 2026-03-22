@@ -254,17 +254,6 @@ public class MaxComputeJniWriter extends JniWriter {
                 batchRows = limitWriteBatchByBytesStreaming(inputTable, numCols,
                         rowOffset, batchRows);
 
-                // Estimate batch data size for logging
-                long batchDataBytes = 0;
-                for (int col = 0; col < numCols && col < columnTypeInfos.size(); col++) {
-                    if (isVariableWidthType(columnTypeInfos.get(col).getOdpsType())) {
-                        batchDataBytes += estimateColumnBytesStreaming(
-                                inputTable.getColumn(col), rowOffset, batchRows);
-                    }
-                }
-
-                long rssBefore = readProcessRssKB();
-
                 VectorSchemaRoot root = batchWriter.newElement();
                 try {
                     root.setRowCount(batchRows);
@@ -275,17 +264,7 @@ public class MaxComputeJniWriter extends JniWriter {
                                 inputTable.getColumn(col), rowOffset, batchRows);
                     }
 
-                    long rssAfterFill = readProcessRssKB();
-
                     batchWriter.write(root);
-
-                    long rssAfterWrite = readProcessRssKB();
-
-                    // Log per-step RSS changes to isolate the leak
-                    LOG.info("MC_WRITE_RSS batch#" + (batchIndex + 1)
-                            + ": fillArrow=+" + ((rssAfterFill - rssBefore) / 1024) + "MB"
-                            + ", sdkWrite=+" + ((rssAfterWrite - rssAfterFill) / 1024) + "MB"
-                            + ", total=+" + ((rssAfterWrite - rssBefore) / 1024) + "MB");
                 } finally {
                     root.close();
                 }
@@ -294,28 +273,6 @@ public class MaxComputeJniWriter extends JniWriter {
                 segmentRows += batchRows;
                 rowOffset += batchRows;
                 batchIndex++;
-
-                // Diagnostic logging: print every batch to help track memory growth
-                Runtime rt = Runtime.getRuntime();
-                long heapUsed = rt.totalMemory() - rt.freeMemory();
-                long heapMax = rt.maxMemory();
-                long arrowAllocated = allocator != null ? allocator.getAllocatedMemory() : -1;
-                long arrowPeak = allocator != null ? allocator.getPeakMemoryAllocation() : -1;
-                // Read process RSS
-                long processRssKB = readProcessRssKB();
-
-                LOG.info("MC_WRITE_DIAG batch#" + batchIndex
-                        + ": rows=" + batchRows + " (offset=" + (rowOffset - batchRows)
-                        + "/" + numRows + ")"
-                        + ", batchDataMB=" + (batchDataBytes / 1024 / 1024)
-                        + ", totalWritten=" + writtenRows
-                        + ", segmentRows=" + segmentRows
-                        + ", heapUsedMB=" + (heapUsed / 1024 / 1024)
-                        + "/" + (heapMax / 1024 / 1024)
-                        + ", arrowAllocMB=" + (arrowAllocated / 1024 / 1024)
-                        + ", arrowPeakMB=" + (arrowPeak / 1024 / 1024)
-                        + ", processRssMB=" + (processRssKB > 0 ? processRssKB / 1024 : -1)
-                        + ", table=" + project + "." + tableName);
 
                 // Segmented commit: rotate batchWriter to release SDK native memory
                 if (segmentRows >= ROWS_PER_SEGMENT) {
@@ -337,7 +294,6 @@ public class MaxComputeJniWriter extends JniWriter {
      * to grow linearly with total data volume.
      */
     private void rotateBatchWriter() throws IOException {
-        long rssBefore = readProcessRssKB();
         try {
             // 1. Commit current batchWriter and save its commit message
             WriterCommitMessage msg = batchWriter.commit();
@@ -354,13 +310,9 @@ public class MaxComputeJniWriter extends JniWriter {
             batchWriter = writeSession.createArrowWriter(newBlockId,
                     WriterAttemptId.of(0), writerOptions);
 
-            long rssAfter = readProcessRssKB();
-            LOG.info("MC_WRITE_SEGMENT_ROTATE: committed segment with " + segmentRows + " rows"
-                    + ", oldBlockId=" + blockId + ", newBlockId=" + newBlockId
+            LOG.info("Rotated batchWriter: oldBlockId=" + blockId + ", newBlockId=" + newBlockId
                     + ", totalCommitMessages=" + commitMessages.size()
-                    + ", totalWrittenRows=" + writtenRows
-                    + ", rssChangeMB=" + ((rssAfter - rssBefore) / 1024)
-                    + ", processRssMB=" + (rssAfter > 0 ? rssAfter / 1024 : -1));
+                    + ", totalWrittenRows=" + writtenRows);
 
             blockId = newBlockId;
             segmentRows = 0;
@@ -370,23 +322,6 @@ public class MaxComputeJniWriter extends JniWriter {
         }
     }
 
-    private static long readProcessRssKB() {
-        try {
-            java.io.BufferedReader reader = new java.io.BufferedReader(
-                    new java.io.FileReader("/proc/self/status"));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith("VmRSS:")) {
-                    reader.close();
-                    return Long.parseLong(line.split("\\s+")[1]);
-                }
-            }
-            reader.close();
-        } catch (Exception e) {
-            LOG.debug("Failed to read /proc/self/status for RSS", e);
-        }
-        return -1;
-    }
 
     private boolean isVariableWidthType(OdpsType type) {
         return type == OdpsType.STRING || type == OdpsType.VARCHAR
