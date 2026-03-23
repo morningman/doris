@@ -41,6 +41,8 @@ import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.connectivity.CatalogConnectivityTestCoordinator;
 import org.apache.doris.datasource.doris.RemoteDorisExternalDatabase;
 import org.apache.doris.datasource.es.EsExternalDatabase;
+import org.apache.doris.datasource.spi.CatalogProvider;
+import org.apache.doris.datasource.spi.CatalogProviderRegistry;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalDatabase;
 import org.apache.doris.datasource.iceberg.IcebergExternalDatabase;
@@ -898,6 +900,13 @@ public abstract class ExternalCatalog
         if (localDbName.equalsIgnoreCase(MysqlDb.DATABASE_NAME)) {
             return new ExternalMysqlDatabase(this, dbId);
         }
+        // Try SPI-registered CatalogProvider first
+        CatalogProvider provider = CatalogProviderRegistry.getProvider(getType());
+        if (provider != null) {
+            return provider.createDatabase(this, dbId, localDbName, remoteDbName);
+        }
+
+        // Fallback to hardcoded switch-case for datasources not yet migrated to SPI
         switch (logType) {
             case HMS:
                 return new HMSExternalDatabase(this, dbId, localDbName, remoteDbName);

@@ -28,6 +28,8 @@ import org.apache.doris.datasource.iceberg.IcebergExternalCatalogFactory;
 import org.apache.doris.datasource.jdbc.JdbcExternalCatalog;
 import org.apache.doris.datasource.maxcompute.MaxComputeExternalCatalog;
 import org.apache.doris.datasource.paimon.PaimonExternalCatalogFactory;
+import org.apache.doris.datasource.spi.CatalogProvider;
+import org.apache.doris.datasource.spi.CatalogProviderRegistry;
 import org.apache.doris.datasource.test.TestExternalCatalog;
 import org.apache.doris.datasource.trinoconnector.TrinoConnectorExternalCatalogFactory;
 import org.apache.doris.nereids.trees.plans.commands.CreateCatalogCommand;
@@ -85,41 +87,49 @@ public class CatalogFactory {
 
         // create catalog
         ExternalCatalog catalog;
-        switch (catalogType) {
-            case "hms":
-                catalog = new HMSExternalCatalog(catalogId, name, resource, props, comment);
-                break;
-            case "es":
-                catalog = new EsExternalCatalog(catalogId, name, resource, props, comment);
-                break;
-            case "jdbc":
-                catalog = new JdbcExternalCatalog(catalogId, name, resource, props, comment);
-                break;
-            case "iceberg":
-                catalog = IcebergExternalCatalogFactory.createCatalog(catalogId, name, resource, props, comment);
-                break;
-            case "paimon":
-                catalog = PaimonExternalCatalogFactory.createCatalog(catalogId, name, resource, props, comment);
-                break;
-            case "trino-connector":
-                catalog = TrinoConnectorExternalCatalogFactory.createCatalog(catalogId, name, resource, props, comment);
-                break;
-            case "max_compute":
-                catalog = new MaxComputeExternalCatalog(catalogId, name, resource, props, comment);
-                break;
-            case "lakesoul":
-                throw new DdlException("Lakesoul catalog is no longer supported");
-            case "doris":
-                catalog = new RemoteDorisExternalCatalog(catalogId, name, resource, props, comment);
-                break;
-            case "test":
-                if (!FeConstants.runningUnitTest) {
-                    throw new DdlException("test catalog is only for FE unit test");
-                }
-                catalog = new TestExternalCatalog(catalogId, name, resource, props, comment);
-                break;
-            default:
-                throw new DdlException("Unknown catalog type: " + catalogType);
+        // Try SPI-registered CatalogProvider first
+        CatalogProvider provider = CatalogProviderRegistry.getProvider(catalogType);
+        if (provider != null) {
+            catalog = provider.createCatalog(catalogId, name, resource, props, comment);
+        } else {
+            // Fallback to hardcoded switch-case for datasources not yet migrated to SPI
+            switch (catalogType) {
+                case "hms":
+                    catalog = new HMSExternalCatalog(catalogId, name, resource, props, comment);
+                    break;
+                case "es":
+                    catalog = new EsExternalCatalog(catalogId, name, resource, props, comment);
+                    break;
+                case "jdbc":
+                    catalog = new JdbcExternalCatalog(catalogId, name, resource, props, comment);
+                    break;
+                case "iceberg":
+                    catalog = IcebergExternalCatalogFactory.createCatalog(catalogId, name, resource, props, comment);
+                    break;
+                case "paimon":
+                    catalog = PaimonExternalCatalogFactory.createCatalog(catalogId, name, resource, props, comment);
+                    break;
+                case "trino-connector":
+                    catalog = TrinoConnectorExternalCatalogFactory.createCatalog(
+                            catalogId, name, resource, props, comment);
+                    break;
+                case "max_compute":
+                    catalog = new MaxComputeExternalCatalog(catalogId, name, resource, props, comment);
+                    break;
+                case "lakesoul":
+                    throw new DdlException("Lakesoul catalog is no longer supported");
+                case "doris":
+                    catalog = new RemoteDorisExternalCatalog(catalogId, name, resource, props, comment);
+                    break;
+                case "test":
+                    if (!FeConstants.runningUnitTest) {
+                        throw new DdlException("test catalog is only for FE unit test");
+                    }
+                    catalog = new TestExternalCatalog(catalogId, name, resource, props, comment);
+                    break;
+                default:
+                    throw new DdlException("Unknown catalog type: " + catalogType);
+            }
         }
 
         // set some default properties if missing when creating catalog.

@@ -51,6 +51,21 @@ public interface CatalogProvider {
     String getType();
 
     /**
+     * Create a new ExternalCatalog instance for this data source type.
+     * Called by {@code CatalogFactory} when creating a new catalog via CREATE CATALOG
+     * or when replaying from EditLog.
+     *
+     * @param catalogId the catalog id
+     * @param name the catalog name
+     * @param resource the resource name (nullable)
+     * @param props catalog properties
+     * @param comment catalog comment
+     * @return a new ExternalCatalog instance
+     */
+    ExternalCatalog createCatalog(long catalogId, String name, String resource,
+            Map<String, String> props, String comment);
+
+    /**
      * Initialize the catalog.
      * Called during {@code makeSureInitialized()} when the catalog is first accessed.
      * The provider should set up any clients, connections, or other resources needed
