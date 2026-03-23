@@ -26,13 +26,21 @@ under the License.
         <artifactId>fe</artifactId>
         <relativePath>../../pom.xml</relativePath>
     </parent>
-    <artifactId>catalog-es</artifactId>
+    <artifactId>connector-es</artifactId>
     <packaging>jar</packaging>
-    <name>Doris FE Catalog Plugin - Elasticsearch</name>
-    <description>Elasticsearch catalog plugin for Apache Doris, loaded via SPI</description>
+    <name>Doris FE Connector Plugin - Elasticsearch</name>
+    <description>Elasticsearch connector plugin for Apache Doris, loaded via SPI</description>
 
     <dependencies>
-        <!-- Depend on fe-core for SPI interfaces and base classes -->
+        <!-- Depend on fe-connector-spi for SPI interfaces -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-spi</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Depend on fe-core for base classes (ExternalCatalog etc.) -->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>fe-core</artifactId>
@@ -49,7 +57,7 @@ under the License.
     </dependencies>
 
     <build>
-        <finalName>doris-catalog-es</finalName>
+        <finalName>doris-connector-es</finalName>
         <directory>${project.basedir}/target/</directory>
         <plugins>
             <!-- Build fat JAR with all ES dependencies for plugin deployment -->
@@ -65,7 +73,8 @@ under the License.
                         <configuration>
                             <artifactSet>
                                 <excludes>
-                                    <!-- Exclude fe-core (provided at runtime) -->
+                                    <!-- Exclude provided dependencies (available at runtime) -->
+                                    <exclude>org.apache.doris:fe-connector-spi</exclude>
                                     <exclude>org.apache.doris:fe-core</exclude>
                                     <exclude>org.apache.doris:fe-common</exclude>
                                     <exclude>org.apache.doris:fe-catalog</exclude>
