@@ -17,7 +17,7 @@
 
 package org.apache.doris.datasource.spi;
 
-import org.apache.doris.common.Config;
+import org.apache.doris.DorisFE;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -68,7 +68,7 @@ public class CatalogPluginLoader {
      * Each subdirectory is treated as a separate plugin with its own ClassLoader.
      */
     public static void loadPlugins() {
-        String dorisHome = Config.doris_home;
+        String dorisHome = DorisFE.DORIS_HOME_DIR;
         if (dorisHome == null || dorisHome.isEmpty()) {
             LOG.warn("DORIS_HOME is not set. Skipping catalog plugin loading.");
             return;
