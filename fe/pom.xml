@@ -257,6 +257,7 @@ under the License.
         <module>hive-udf</module>
         <module>be-java-extensions</module>
         <module>fe-authentication</module>
+        <module>fe-catalogs/catalog-es</module>
         <module>fe-thrift</module>
         <module>fe-type</module>
     </modules>

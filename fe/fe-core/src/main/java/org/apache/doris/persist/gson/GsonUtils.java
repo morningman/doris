@@ -407,7 +407,9 @@ public class GsonUtils {
         dsTypeAdapterFactory = RuntimeTypeAdapterFactory.of(CatalogIf.class, "clazz")
                 .registerSubtype(CloudInternalCatalog.class, CloudInternalCatalog.class.getSimpleName())
                 .registerSubtype(HMSExternalCatalog.class, HMSExternalCatalog.class.getSimpleName())
-                .registerSubtype(EsExternalCatalog.class, EsExternalCatalog.class.getSimpleName())
+                .registerSubtype(ExternalCatalog.class, ExternalCatalog.class.getSimpleName())
+                // ES: use compatible subtype — old EditLog "EsExternalCatalog" maps to ExternalCatalog
+                .registerCompatibleSubtype(ExternalCatalog.class, EsExternalCatalog.class.getSimpleName())
                 .registerSubtype(JdbcExternalCatalog.class, JdbcExternalCatalog.class.getSimpleName())
                 .registerSubtype(IcebergExternalCatalog.class, IcebergExternalCatalog.class.getSimpleName())
                 .registerSubtype(IcebergHMSExternalCatalog.class, IcebergHMSExternalCatalog.class.getSimpleName())
@@ -461,7 +463,8 @@ public class GsonUtils {
     private static RuntimeTypeAdapterFactory<DatabaseIf> dbTypeAdapterFactory = RuntimeTypeAdapterFactory.of(
                     DatabaseIf.class, "clazz")
             .registerSubtype(ExternalDatabase.class, ExternalDatabase.class.getSimpleName())
-            .registerSubtype(EsExternalDatabase.class, EsExternalDatabase.class.getSimpleName())
+            // ES: use compatible subtype — old EditLog "EsExternalDatabase" maps to ExternalDatabase
+            .registerCompatibleSubtype(ExternalDatabase.class, EsExternalDatabase.class.getSimpleName())
             .registerSubtype(HMSExternalDatabase.class, HMSExternalDatabase.class.getSimpleName())
             .registerSubtype(JdbcExternalDatabase.class, JdbcExternalDatabase.class.getSimpleName())
             .registerSubtype(IcebergExternalDatabase.class, IcebergExternalDatabase.class.getSimpleName())
@@ -475,7 +478,8 @@ public class GsonUtils {
 
     private static RuntimeTypeAdapterFactory<TableIf> tblTypeAdapterFactory = RuntimeTypeAdapterFactory.of(
                     TableIf.class, "clazz").registerSubtype(ExternalTable.class, ExternalTable.class.getSimpleName())
-            .registerSubtype(EsExternalTable.class, EsExternalTable.class.getSimpleName())
+            // ES: use compatible subtype — old EditLog "EsExternalTable" maps to ExternalTable
+            .registerCompatibleSubtype(ExternalTable.class, EsExternalTable.class.getSimpleName())
             .registerSubtype(OlapTable.class, OlapTable.class.getSimpleName())
             .registerSubtype(HMSExternalTable.class, HMSExternalTable.class.getSimpleName())
             .registerSubtype(JdbcExternalTable.class, JdbcExternalTable.class.getSimpleName())

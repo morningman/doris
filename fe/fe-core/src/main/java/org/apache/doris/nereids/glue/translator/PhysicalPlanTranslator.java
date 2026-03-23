@@ -49,6 +49,8 @@ import org.apache.doris.datasource.doris.RemoteDorisExternalTable;
 import org.apache.doris.datasource.doris.RemoteOlapTable;
 import org.apache.doris.datasource.doris.source.RemoteDorisScanNode;
 import org.apache.doris.datasource.es.EsExternalTable;
+import org.apache.doris.datasource.spi.CatalogProvider;
+import org.apache.doris.datasource.spi.CatalogProviderRegistry;
 import org.apache.doris.datasource.es.source.EsScanNode;
 import org.apache.doris.datasource.hive.HMSExternalTable;
 import org.apache.doris.datasource.hive.HMSExternalTable.DLAType;
@@ -755,15 +757,23 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
         List<Slot> slots = esScan.getOutput();
         TableIf table = esScan.getTable();
         TupleDescriptor tupleDescriptor = generateTupleDesc(slots, table, context);
-        EsScanNode esScanNode = new EsScanNode(context.nextPlanNodeId(), tupleDescriptor,
-                table instanceof EsExternalTable, context.getScanContext());
-        esScanNode.setNereidsId(esScan.getId());
-        context.getNereidsIdToPlanNodeIdMap().put(esScan.getId(), esScanNode.getId());
-        Utils.execWithUncheckedException(esScanNode::init);
-        context.addScanNode(esScanNode, esScan);
+        // Use SPI provider if available, else fallback to direct EsScanNode creation
+        ScanNode scanNode;
+        CatalogProvider provider = CatalogProviderRegistry.getProvider("es");
+        if (provider != null && table instanceof ExternalTable) {
+            scanNode = provider.createScanNode(context.nextPlanNodeId(), tupleDescriptor,
+                    (ExternalTable) table, null, context.getScanContext());
+        } else {
+            scanNode = new EsScanNode(context.nextPlanNodeId(), tupleDescriptor,
+                    table instanceof EsExternalTable, context.getScanContext());
+        }
+        scanNode.setNereidsId(esScan.getId());
+        context.getNereidsIdToPlanNodeIdMap().put(esScan.getId(), scanNode.getId());
+        Utils.execWithUncheckedException(scanNode::init);
+        context.addScanNode(scanNode, esScan);
         context.getRuntimeTranslator().ifPresent(
                 runtimeFilterGenerator -> runtimeFilterGenerator.getContext().getTargetListByScan(esScan).forEach(
-                        expr -> runtimeFilterGenerator.translateRuntimeFilterTarget(expr, esScanNode, context)
+                        expr -> runtimeFilterGenerator.translateRuntimeFilterTarget(expr, scanNode, context)
                 )
         );
         // translate rf v2 target
@@ -771,12 +781,12 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
                 .getRuntimeFilterV2ByTargetPlan(esScan);
         for (RuntimeFilterV2 rfV2 : rfV2s) {
             Expr targetExpr = rfV2.getTargetExpression().accept(ExpressionTranslator.INSTANCE, context);
-            rfV2.setLegacyTargetNode(esScanNode);
+            rfV2.setLegacyTargetNode(scanNode);
             rfV2.setLegacyTargetExpr(targetExpr);
         }
-        context.getTopnFilterContext().translateTarget(esScan, esScanNode, context);
+        context.getTopnFilterContext().translateTarget(esScan, scanNode, context);
         DataPartition dataPartition = DataPartition.RANDOM;
-        PlanFragment planFragment = new PlanFragment(context.nextFragmentId(), esScanNode, dataPartition);
+        PlanFragment planFragment = new PlanFragment(context.nextFragmentId(), scanNode, dataPartition);
         context.addPlanFragment(planFragment);
         updateLegacyPlanIdToPhysicalPlan(planFragment.getPlanRoot(), esScan);
         return planFragment;

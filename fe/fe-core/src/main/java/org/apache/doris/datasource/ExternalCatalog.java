@@ -176,6 +176,8 @@ public abstract class ExternalCatalog
     // db name does not contains "default_cluster"
     protected Map<String, Long> dbNameToId = Maps.newConcurrentMap();
     private boolean objectCreated = false;
+    // Resolved CatalogProvider from SPI registry (transient, not persisted)
+    protected transient CatalogProvider provider;
     protected ExternalMetadataOps metadataOps;
     protected TransactionManager transactionManager;
     protected MetaCache<ExternalDatabase<? extends ExternalTable>> metaCache;
@@ -318,7 +320,14 @@ public abstract class ExternalCatalog
      * @param dbName database name
      * @return names of tables in the specified database from the remote source
      */
-    protected abstract List<String> listTableNamesFromRemote(SessionContext ctx, String dbName);
+    protected List<String> listTableNamesFromRemote(SessionContext ctx, String dbName) {
+        if (provider != null) {
+            return provider.listTableNames(this, ctx, dbName);
+        }
+        throw new UnsupportedOperationException(
+                "listTableNamesFromRemote is not supported for catalog: " + getName()
+                + ". No CatalogProvider registered for type: " + getType());
+    }
 
     /**
      * check if the specified table exist.
@@ -327,13 +336,28 @@ public abstract class ExternalCatalog
      * @param tblName
      * @return true if table exists, false otherwise
      */
-    public abstract boolean tableExist(SessionContext ctx, String dbName, String tblName);
+    public boolean tableExist(SessionContext ctx, String dbName, String tblName) {
+        if (provider != null) {
+            return provider.tableExist(this, ctx, dbName, tblName);
+        }
+        throw new UnsupportedOperationException(
+                "tableExist is not supported for catalog: " + getName()
+                + ". No CatalogProvider registered for type: " + getType());
+    }
 
     /**
      * init some local objects such as:
      * hms client, read properties from hive-site.xml, es client
      */
-    protected abstract void initLocalObjectsImpl();
+    protected void initLocalObjectsImpl() {
+        if (provider != null) {
+            provider.initializeCatalog(this);
+        } else {
+            throw new UnsupportedOperationException(
+                    "initLocalObjectsImpl is not supported for catalog: " + getName()
+                    + ". No CatalogProvider registered for type: " + getType());
+        }
+    }
 
     /**
      * check if the specified table exist in doris.
@@ -382,6 +406,10 @@ public abstract class ExternalCatalog
         if (!objectCreated) {
             if (LOG.isDebugEnabled()) {
                 LOG.debug("start to init local objects of catalog {}:{}", getName(), id, new Exception());
+            }
+            // Resolve CatalogProvider from SPI registry if not already set
+            if (provider == null) {
+                provider = CatalogProviderRegistry.getProvider(getType());
             }
             initLocalObjectsImpl();
             objectCreated = true;
