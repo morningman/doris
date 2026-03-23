@@ -48,42 +48,28 @@ public class DeltaLakeMetadataOps extends AbstractDeltaLakeMetadataOps {
 
     @Override
     public List<String> listDatabaseNames() {
-        return catalog.getExecutionAuthenticator().execute(() -> hmsClient.getAllDatabases());
+        return hmsClient.getAllDatabases();
     }
 
     @Override
     public List<String> listTableNames(String dbName) {
-        return catalog.getExecutionAuthenticator().execute(() -> {
-            List<String> allTables = hmsClient.getAllTables(dbName);
-            // TODO: filter for Delta Lake tables only (check table properties for delta.* or
-            //       check for _delta_log directory existence)
-            return allTables;
-        });
+        return hmsClient.getAllTables(dbName);
     }
 
     @Override
     public boolean tableExist(String dbName, String tblName) {
-        return catalog.getExecutionAuthenticator().execute(() -> hmsClient.tableExists(dbName, tblName));
+        return hmsClient.tableExists(dbName, tblName);
     }
 
     @Override
     public boolean databaseExist(String dbName) {
-        return catalog.getExecutionAuthenticator().execute(() -> {
-            try {
-                hmsClient.getDatabase(dbName);
-                return true;
-            } catch (Exception e) {
-                return false;
-            }
-        });
+        return listDatabaseNames().contains(dbName.toLowerCase());
     }
 
     @Override
     public String getTableLocation(String dbName, String tblName) {
-        return catalog.getExecutionAuthenticator().execute(() -> {
-            org.apache.hadoop.hive.metastore.api.Table table = hmsClient.getTable(dbName, tblName);
-            return table.getSd().getLocation();
-        });
+        org.apache.hadoop.hive.metastore.api.Table table = hmsClient.getTable(dbName, tblName);
+        return table.getSd().getLocation();
     }
 
     @Override
