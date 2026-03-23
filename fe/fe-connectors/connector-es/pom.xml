@@ -32,15 +32,7 @@ under the License.
     <description>Elasticsearch connector plugin for Apache Doris, loaded via SPI</description>
 
     <dependencies>
-        <!-- Depend on fe-connector-spi for SPI interfaces -->
-        <dependency>
-            <groupId>${project.groupId}</groupId>
-            <artifactId>fe-connector-spi</artifactId>
-            <version>${project.version}</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- Depend on fe-core for base classes (ExternalCatalog etc.) -->
+        <!-- Depend on fe-core for base classes (ExternalCatalog, SPI interfaces, etc.) -->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>fe-core</artifactId>
@@ -74,7 +66,6 @@ under the License.
                             <artifactSet>
                                 <excludes>
                                     <!-- Exclude provided dependencies (available at runtime) -->
-                                    <exclude>org.apache.doris:fe-connector-spi</exclude>
                                     <exclude>org.apache.doris:fe-core</exclude>
                                     <exclude>org.apache.doris:fe-common</exclude>
                                     <exclude>org.apache.doris:fe-catalog</exclude>
