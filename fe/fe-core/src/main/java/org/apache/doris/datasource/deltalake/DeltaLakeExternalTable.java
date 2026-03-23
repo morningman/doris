@@ -73,7 +73,7 @@ public class DeltaLakeExternalTable extends ExternalTable {
             Engine engine = ops.getEngine();
             Table deltaTable = Table.forPath(engine, tableLocation);
             Snapshot snapshot = deltaTable.getLatestSnapshot(engine);
-            StructType deltaSchema = snapshot.getSchema(engine);
+            StructType deltaSchema = snapshot.getSchema();
 
             List<Column> columns = new ArrayList<>();
             for (StructField field : deltaSchema.fields()) {
@@ -120,7 +120,7 @@ public class DeltaLakeExternalTable extends ExternalTable {
             Table deltaTable = Table.forPath(engine, tableLocation);
             Snapshot snapshot = deltaTable.getLatestSnapshot(engine);
 
-            return snapshot.getPartitionColumnNames(engine);
+            return snapshot.getPartitionColumnNames();
         } catch (Exception e) {
             LOG.warn("Failed to get partition columns for Delta Lake table {}.{}", db.getFullName(), name, e);
             return Collections.emptyList();

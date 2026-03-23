@@ -101,12 +101,12 @@ public class DeltaLakeScanNode extends FileQueryScanNode {
             Snapshot snapshot = deltaTable.getLatestSnapshot(engine);
 
             // Build scan with optional predicate pushdown
-            ScanBuilder scanBuilder = snapshot.getScanBuilder(engine);
+            ScanBuilder scanBuilder = snapshot.getScanBuilder();
 
             // Convert Doris conjuncts to Delta Kernel Predicate for data skipping
             Optional<Predicate> deltaPredicate = DeltaLakePredicateConverter.convertToKernelPredicate(conjuncts);
             if (deltaPredicate.isPresent()) {
-                scanBuilder = scanBuilder.withFilter(engine, deltaPredicate.get());
+                scanBuilder = scanBuilder.withFilter(deltaPredicate.get());
             }
 
             Scan scan = scanBuilder.build();
