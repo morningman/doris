@@ -967,11 +967,11 @@ if [[ "${BUILD_FE}" -eq 1 ]]; then
     mkdir -p "${DORIS_OUTPUT}/fe/conf/ssl"
     mkdir -p "${DORIS_OUTPUT}/fe/plugins/jdbc_drivers/"
     mkdir -p "${DORIS_OUTPUT}/fe/plugins/java_udf/"
-    mkdir -p "${DORIS_OUTPUT}/fe/connectors/"
+    mkdir -p "${DORIS_OUTPUT}/fe/lib/connectors/"
     if [[ "${BUILD_CONNECTOR_ES}" -eq 1 ]]; then
-        mkdir -p "${DORIS_OUTPUT}/fe/connectors/es/"
+        mkdir -p "${DORIS_OUTPUT}/fe/lib/connectors/es/"
         cp -r -p "${DORIS_HOME}/fe/fe-connectors/connector-es/target/doris-connector-es.jar" \
-            "${DORIS_OUTPUT}/fe/connectors/es/"
+            "${DORIS_OUTPUT}/fe/lib/connectors/es/"
     fi
     mkdir -p "${DORIS_OUTPUT}/fe/plugins/connectors/"
     mkdir -p "${DORIS_OUTPUT}/fe/plugins/hadoop_conf/"

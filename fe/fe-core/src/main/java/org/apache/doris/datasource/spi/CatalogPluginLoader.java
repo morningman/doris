@@ -47,18 +47,20 @@ import java.util.concurrent.ConcurrentHashMap;
  * <pre>
  * output/fe/
  * ├── lib/                    # fe-core JARs
- * └── connectors/             # Connector plugins
- *     ├── es/
- *     │   └── doris-connector-es.jar
- *     ├── iceberg/
- *     │   └── doris-connector-iceberg.jar
- *     └── ...
+ * └── lib/
+ *     ├── doris-fe.jar           # fe-core
+ *     └── connectors/            # Connector plugins
+ *         ├── es/
+ *         │   └── doris-connector-es.jar
+ *         ├── iceberg/
+ *         │   └── doris-connector-iceberg.jar
+ *         └── ...
  * </pre>
  */
 public class CatalogPluginLoader {
     private static final Logger LOG = LogManager.getLogger(CatalogPluginLoader.class);
 
-    private static final String CONNECTORS_DIR = "connectors";
+    private static final String CONNECTORS_DIR = "lib/connectors";
 
     /** ClassLoaders for each loaded plugin, keyed by catalog type */
     private static final Map<String, ClassLoader> PLUGIN_CLASSLOADERS = new ConcurrentHashMap<>();
