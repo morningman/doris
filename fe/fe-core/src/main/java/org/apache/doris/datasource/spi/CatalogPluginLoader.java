@@ -33,9 +33,9 @@ import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Loads catalog plugins from the {@code catalogs/} directory under Doris FE home.
+ * Loads catalog plugins from the {@code connectors/} directory under Doris FE home.
  *
- * <p>Each subdirectory under {@code catalogs/} represents one catalog plugin.
+ * <p>Each subdirectory under {@code connectors/} represents one catalog plugin.
  * All JAR files in that subdirectory are loaded with an isolated {@link URLClassLoader},
  * providing ClassLoader-level isolation between different catalog plugins to prevent
  * dependency conflicts.</p>
@@ -47,20 +47,18 @@ import java.util.concurrent.ConcurrentHashMap;
  * <pre>
  * output/fe/
  * ├── lib/                    # fe-core JARs
- * └── catalogs/               # Catalog plugins
+ * └── connectors/             # Connector plugins
  *     ├── es/
- *     │   ├── catalog-es.jar
- *     │   └── elasticsearch-rest-*.jar
+ *     │   └── doris-connector-es.jar
  *     ├── iceberg/
- *     │   ├── catalog-iceberg.jar
- *     │   └── iceberg-core-*.jar
+ *     │   └── doris-connector-iceberg.jar
  *     └── ...
  * </pre>
  */
 public class CatalogPluginLoader {
     private static final Logger LOG = LogManager.getLogger(CatalogPluginLoader.class);
 
-    private static final String CATALOGS_DIR = "catalogs";
+    private static final String CONNECTORS_DIR = "connectors";
 
     /** ClassLoaders for each loaded plugin, keyed by catalog type */
     private static final Map<String, ClassLoader> PLUGIN_CLASSLOADERS = new ConcurrentHashMap<>();
@@ -76,7 +74,7 @@ public class CatalogPluginLoader {
             return;
         }
 
-        File pluginDir = new File(dorisHome, CATALOGS_DIR);
+        File pluginDir = new File(dorisHome, CONNECTORS_DIR);
         if (!pluginDir.exists() || !pluginDir.isDirectory()) {
             LOG.info("No catalog plugin directory found at {}. "
                     + "External catalog plugins will not be loaded.", pluginDir.getAbsolutePath());

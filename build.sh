@@ -66,6 +66,7 @@ Usage: $0 <options>
      --be-java-extensions       build Backend java extensions. Default ON.
      --be-cdc-client            build Cdc Client for backend. Default ON.
      --be-extension-ignore      build be-java-extensions package, choose which modules to ignore. Multiple modules separated by commas.
+     --connector-es             build Elasticsearch connector plugin. Default OFF.
      --enable-dynamic-arch      enable dynamic CPU detection in OpenBLAS. Default ON.
      --disable-dynamic-arch     disable dynamic CPU detection in OpenBLAS.
      --clean                    clean and build target
@@ -200,6 +201,7 @@ if ! OPTS="$(getopt \
     -l 'be-java-extensions' \
     -l 'be-cdc-client' \
     -l 'be-extension-ignore:' \
+    -l 'connector-es' \
     -l 'enable-dynamic-arch' \
     -l 'disable-dynamic-arch' \
     -l 'clean' \
@@ -228,6 +230,7 @@ BUILD_BE_CDC_CLIENT=0
 BUILD_OBS_DEPENDENCIES=1
 BUILD_COS_DEPENDENCIES=1
 BUILD_HIVE_UDF=0
+BUILD_CONNECTOR_ES=0
 ENABLE_DYNAMIC_ARCH='ON'
 CLEAN=0
 HELP=0
@@ -249,6 +252,7 @@ if [[ "$#" == 1 ]]; then
     BUILD_INDEX_TOOL='OFF'
     BUILD_BENCHMARK='OFF'
     BUILD_HIVE_UDF=1
+    BUILD_CONNECTOR_ES=1
     BUILD_BE_JAVA_EXTENSIONS=1
     BUILD_BE_CDC_CLIENT=1
     CLEAN=0
@@ -312,6 +316,10 @@ else
             ;;
         --be-cdc-client)
             BUILD_BE_CDC_CLIENT=1
+            shift
+            ;;
+        --connector-es)
+            BUILD_CONNECTOR_ES=1
             shift
             ;;    
         --exclude-obs-dependencies)
@@ -380,6 +388,7 @@ else
         BUILD_INDEX_TOOL='ON'
 	    BUILD_TASK_EXECUTOR_SIMULATOR='OFF'
         BUILD_HIVE_UDF=1
+        BUILD_CONNECTOR_ES=1
         BUILD_BE_JAVA_EXTENSIONS=1
         BUILD_BE_CDC_CLIENT=1
         CLEAN=0
@@ -600,6 +609,7 @@ echo "Get params:
     BUILD_BE_JAVA_EXTENSIONS            -- ${BUILD_BE_JAVA_EXTENSIONS}
     BUILD_BE_CDC_CLIENT                 -- ${BUILD_BE_CDC_CLIENT}
     BUILD_HIVE_UDF                      -- ${BUILD_HIVE_UDF}
+    BUILD_CONNECTOR_ES                  -- ${BUILD_CONNECTOR_ES}
     BUILD_JUICEFS                       -- ${BUILD_JUICEFS}
     PARALLEL                            -- ${PARALLEL}
     CLEAN                               -- ${CLEAN}
@@ -644,6 +654,9 @@ if [[ "${BUILD_FE}" -eq 1 ]]; then
     if [[ "${WITH_TDE_DIR}" != "" ]]; then
         modules+=("fe-${WITH_TDE_DIR}")
     fi
+fi
+if [[ "${BUILD_CONNECTOR_ES}" -eq 1 ]]; then
+    modules+=("fe-connectors/connector-es")
 fi
 if [[ "${BUILD_HIVE_UDF}" -eq 1 ]]; then
     modules+=("hive-udf")
@@ -948,6 +961,12 @@ if [[ "${BUILD_FE}" -eq 1 ]]; then
     mkdir -p "${DORIS_OUTPUT}/fe/conf/ssl"
     mkdir -p "${DORIS_OUTPUT}/fe/plugins/jdbc_drivers/"
     mkdir -p "${DORIS_OUTPUT}/fe/plugins/java_udf/"
+    mkdir -p "${DORIS_OUTPUT}/fe/connectors/"
+    if [[ "${BUILD_CONNECTOR_ES}" -eq 1 ]]; then
+        mkdir -p "${DORIS_OUTPUT}/fe/connectors/es/"
+        cp -r -p "${DORIS_HOME}/fe/fe-connectors/connector-es/target/doris-connector-es.jar" \
+            "${DORIS_OUTPUT}/fe/connectors/es/"
+    fi
     mkdir -p "${DORIS_OUTPUT}/fe/plugins/connectors/"
     mkdir -p "${DORIS_OUTPUT}/fe/plugins/hadoop_conf/"
     mkdir -p "${DORIS_OUTPUT}/fe/plugins/java_extensions/"
