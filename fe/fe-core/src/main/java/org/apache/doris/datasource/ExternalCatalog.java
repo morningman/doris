@@ -40,7 +40,6 @@ import org.apache.doris.common.security.authentication.ExecutionAuthenticator;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.connectivity.CatalogConnectivityTestCoordinator;
 import org.apache.doris.datasource.doris.RemoteDorisExternalDatabase;
-import org.apache.doris.datasource.es.EsExternalDatabase;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalDatabase;
 import org.apache.doris.datasource.iceberg.IcebergExternalDatabase;
@@ -938,8 +937,6 @@ public abstract class ExternalCatalog
         switch (logType) {
             case HMS:
                 return new HMSExternalDatabase(this, dbId, localDbName, remoteDbName);
-            case ES:
-                return new EsExternalDatabase(this, dbId, localDbName, remoteDbName);
             case JDBC:
                 return new JdbcExternalDatabase(this, dbId, localDbName, remoteDbName);
             case ICEBERG:

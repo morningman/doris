@@ -135,9 +135,6 @@ import org.apache.doris.datasource.ExternalDatabase;
 import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.datasource.doris.RemoteDorisExternalCatalog;
-import org.apache.doris.datasource.es.EsExternalCatalog;
-import org.apache.doris.datasource.es.EsExternalDatabase;
-import org.apache.doris.datasource.es.EsExternalTable;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalDatabase;
 import org.apache.doris.datasource.hive.HMSExternalTable;
@@ -409,8 +406,8 @@ public class GsonUtils {
                 .registerSubtype(CloudInternalCatalog.class, CloudInternalCatalog.class.getSimpleName())
                 .registerSubtype(HMSExternalCatalog.class, HMSExternalCatalog.class.getSimpleName())
                 .registerSubtype(ExternalCatalog.class, ExternalCatalog.class.getSimpleName())
-                // ES: use compatible subtype — old EditLog "EsExternalCatalog" maps to ExternalCatalog
-                .registerCompatibleSubtype(ExternalCatalog.class, EsExternalCatalog.class.getSimpleName())
+                // ES: old EditLog "EsExternalCatalog" maps to ExternalCatalog (ES migrated to connector plugin)
+                .registerCompatibleSubtype(ExternalCatalog.class, "EsExternalCatalog")
                 .registerSubtype(JdbcExternalCatalog.class, JdbcExternalCatalog.class.getSimpleName())
                 .registerSubtype(IcebergExternalCatalog.class, IcebergExternalCatalog.class.getSimpleName())
                 .registerSubtype(IcebergHMSExternalCatalog.class, IcebergHMSExternalCatalog.class.getSimpleName())
@@ -464,8 +461,8 @@ public class GsonUtils {
     private static RuntimeTypeAdapterFactory<DatabaseIf> dbTypeAdapterFactory = RuntimeTypeAdapterFactory.of(
                     DatabaseIf.class, "clazz")
             .registerSubtype(ExternalDatabase.class, ExternalDatabase.class.getSimpleName())
-            // ES: use compatible subtype — old EditLog "EsExternalDatabase" maps to ExternalDatabase
-            .registerCompatibleSubtype(ExternalDatabase.class, EsExternalDatabase.class.getSimpleName())
+            // ES: old EditLog "EsExternalDatabase" maps to ExternalDatabase (ES migrated to connector plugin)
+            .registerCompatibleSubtype(ExternalDatabase.class, "EsExternalDatabase")
             .registerSubtype(HMSExternalDatabase.class, HMSExternalDatabase.class.getSimpleName())
             .registerSubtype(JdbcExternalDatabase.class, JdbcExternalDatabase.class.getSimpleName())
             .registerSubtype(IcebergExternalDatabase.class, IcebergExternalDatabase.class.getSimpleName())
@@ -479,8 +476,8 @@ public class GsonUtils {
 
     private static RuntimeTypeAdapterFactory<TableIf> tblTypeAdapterFactory = RuntimeTypeAdapterFactory.of(
                     TableIf.class, "clazz").registerSubtype(ExternalTable.class, ExternalTable.class.getSimpleName())
-            // ES: use compatible subtype — old EditLog "EsExternalTable" maps to ExternalTable
-            .registerCompatibleSubtype(ExternalTable.class, EsExternalTable.class.getSimpleName())
+            // ES: old EditLog "EsExternalTable" maps to ExternalTable (ES migrated to connector plugin)
+            .registerCompatibleSubtype(ExternalTable.class, "EsExternalTable")
             .registerSubtype(OlapTable.class, OlapTable.class.getSimpleName())
             .registerSubtype(HMSExternalTable.class, HMSExternalTable.class.getSimpleName())
             .registerSubtype(JdbcExternalTable.class, JdbcExternalTable.class.getSimpleName())

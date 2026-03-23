@@ -22,7 +22,6 @@ import org.apache.doris.catalog.Resource;
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.FeConstants;
 import org.apache.doris.datasource.doris.RemoteDorisExternalCatalog;
-import org.apache.doris.datasource.es.EsExternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
 import org.apache.doris.datasource.iceberg.IcebergExternalCatalogFactory;
 import org.apache.doris.datasource.jdbc.JdbcExternalCatalog;
@@ -96,9 +95,6 @@ public class CatalogFactory {
             switch (catalogType) {
                 case "hms":
                     catalog = new HMSExternalCatalog(catalogId, name, resource, props, comment);
-                    break;
-                case "es":
-                    catalog = new EsExternalCatalog(catalogId, name, resource, props, comment);
                     break;
                 case "jdbc":
                     catalog = new JdbcExternalCatalog(catalogId, name, resource, props, comment);

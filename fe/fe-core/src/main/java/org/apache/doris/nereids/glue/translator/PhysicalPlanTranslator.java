@@ -48,8 +48,6 @@ import org.apache.doris.datasource.FileQueryScanNode;
 import org.apache.doris.datasource.doris.RemoteDorisExternalTable;
 import org.apache.doris.datasource.doris.RemoteOlapTable;
 import org.apache.doris.datasource.doris.source.RemoteDorisScanNode;
-import org.apache.doris.datasource.es.EsExternalTable;
-import org.apache.doris.datasource.es.source.EsScanNode;
 import org.apache.doris.datasource.hive.HMSExternalTable;
 import org.apache.doris.datasource.hive.HMSExternalTable.DLAType;
 import org.apache.doris.datasource.hive.source.HiveScanNode;
@@ -757,15 +755,15 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
         List<Slot> slots = esScan.getOutput();
         TableIf table = esScan.getTable();
         TupleDescriptor tupleDescriptor = generateTupleDesc(slots, table, context);
-        // Use SPI provider if available, else fallback to direct EsScanNode creation
+        // Use SPI provider to create ES ScanNode
         ScanNode scanNode;
         CatalogProvider provider = CatalogProviderRegistry.getProvider("es");
         if (provider != null && table instanceof ExternalTable) {
             scanNode = provider.createScanNode(context.nextPlanNodeId(), tupleDescriptor,
                     (ExternalTable) table, null, context.getScanContext());
         } else {
-            scanNode = new EsScanNode(context.nextPlanNodeId(), tupleDescriptor,
-                    table instanceof EsExternalTable, context.getScanContext());
+            throw new RuntimeException("ES connector plugin is not loaded. "
+                    + "Please ensure the ES connector JAR is deployed in lib/connectors/es/");
         }
         scanNode.setNereidsId(esScan.getId());
         context.getNereidsIdToPlanNodeIdMap().put(esScan.getId(), scanNode.getId());

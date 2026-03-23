@@ -66,7 +66,7 @@ Usage: $0 <options>
      --be-java-extensions       build Backend java extensions. Default ON.
      --be-cdc-client            build Cdc Client for backend. Default ON.
      --be-extension-ignore      build be-java-extensions package, choose which modules to ignore. Multiple modules separated by commas.
-     --connector-es             build Elasticsearch connector plugin. Default OFF.
+     --connector-es             build Elasticsearch connector plugin. Default ON.
      --no-connector-es          exclude Elasticsearch connector from build.
      --enable-dynamic-arch      enable dynamic CPU detection in OpenBLAS. Default ON.
      --disable-dynamic-arch     disable dynamic CPU detection in OpenBLAS.
@@ -232,7 +232,7 @@ BUILD_BE_CDC_CLIENT=0
 BUILD_OBS_DEPENDENCIES=1
 BUILD_COS_DEPENDENCIES=1
 BUILD_HIVE_UDF=0
-BUILD_CONNECTOR_ES=0
+BUILD_CONNECTOR_ES=1
 ENABLE_DYNAMIC_ARCH='ON'
 CLEAN=0
 HELP=0

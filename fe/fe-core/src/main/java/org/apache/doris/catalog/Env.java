@@ -94,7 +94,6 @@ import org.apache.doris.datasource.ExternalMetaCacheMgr;
 import org.apache.doris.datasource.ExternalMetaIdMgr;
 import org.apache.doris.datasource.InternalCatalog;
 import org.apache.doris.datasource.SplitSourceManager;
-import org.apache.doris.datasource.es.EsExternalCatalog;
 import org.apache.doris.datasource.es.EsRepository;
 import org.apache.doris.datasource.hive.HiveTransactionMgr;
 import org.apache.doris.datasource.hive.event.MetastoreEventsProcessor;
@@ -6445,8 +6444,8 @@ public class Env {
         if (StringUtils.isNotEmpty(lastDb)) {
             ctx.setDatabase(lastDb);
         }
-        if (catalogIf instanceof EsExternalCatalog) {
-            ctx.setDatabase(EsExternalCatalog.DEFAULT_DB);
+        if ("es".equalsIgnoreCase(catalogIf.getType())) {
+            ctx.setDatabase("default_db");
         }
     }
 
