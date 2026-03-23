@@ -26,7 +26,6 @@ import org.apache.doris.analysis.IntLiteral;
 import org.apache.doris.analysis.IsNullPredicate;
 import org.apache.doris.analysis.SlotRef;
 import org.apache.doris.analysis.StringLiteral;
-import org.apache.doris.analysis.TableName;
 import org.apache.doris.catalog.Type;
 
 import io.delta.kernel.expressions.Predicate;
@@ -44,7 +43,7 @@ import java.util.Optional;
 public class DeltaLakePredicateConverterTest {
 
     private SlotRef createSlotRef(String colName) {
-        return new SlotRef(new TableName(null, null, null), colName);
+        return new SlotRef(null, colName);
     }
 
     @Test
