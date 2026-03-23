@@ -94,16 +94,17 @@ public class DeletionVectorDescriptorInfo {
         try {
             // Check if deletion vector info exists in the scan file row
             // In Delta Kernel API, DV info is part of the add file action
-            Row dvRow = InternalScanFileUtils.getDeletionVectorDescriptorFromRow(scanFileRow);
-            if (dvRow == null) {
+            io.delta.kernel.internal.actions.DeletionVectorDescriptor dvDescriptor =
+                    InternalScanFileUtils.getDeletionVectorDescriptorFromRow(scanFileRow);
+            if (dvDescriptor == null) {
                 return null;
             }
 
-            String storageType = dvRow.getString(0);  // storageType
-            String pathOrInlineDv = dvRow.getString(1);  // pathOrInlineDv
-            int dvOffset = dvRow.isNullAt(2) ? 0 : dvRow.getInt(2);  // offset (optional)
-            int sizeInBytes = dvRow.getInt(3);  // sizeInBytes
-            long cardinality = dvRow.getLong(4);  // cardinality
+            String storageType = dvDescriptor.getStorageType();
+            String pathOrInlineDv = dvDescriptor.getPathOrInlineDv();
+            int dvOffset = dvDescriptor.getOffset().orElse(0);
+            int sizeInBytes = dvDescriptor.getSizeInBytes();
+            long cardinality = dvDescriptor.getCardinality();
 
             DeletionVectorDescriptorInfo info = new DeletionVectorDescriptorInfo(
                     storageType, pathOrInlineDv, dvOffset, sizeInBytes, cardinality);

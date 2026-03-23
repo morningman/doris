@@ -17,7 +17,9 @@
 
 package org.apache.doris.datasource.deltalake;
 
+import org.apache.doris.common.Config;
 import org.apache.doris.datasource.hive.HMSCachedClient;
+import org.apache.doris.datasource.hive.ThriftHMSCachedClient;
 import org.apache.doris.datasource.property.metastore.AbstractHiveProperties;
 
 import org.apache.logging.log4j.LogManager;
@@ -32,12 +34,16 @@ import java.util.List;
  */
 public class DeltaLakeMetadataOps extends AbstractDeltaLakeMetadataOps {
     private static final Logger LOG = LogManager.getLogger(DeltaLakeMetadataOps.class);
+    private static final int MIN_CLIENT_POOL_SIZE = 8;
 
     private final HMSCachedClient hmsClient;
 
     public DeltaLakeMetadataOps(DeltaLakeExternalCatalog catalog, AbstractHiveProperties hmsProperties) {
         super(catalog);
-        this.hmsClient = HMSCachedClient.create(hmsProperties.getHiveConf());
+        this.hmsClient = new ThriftHMSCachedClient(
+                hmsProperties.getHiveConf(),
+                Math.max(MIN_CLIENT_POOL_SIZE, Config.max_external_cache_loader_thread_pool_size),
+                catalog.getExecutionAuthenticator());
     }
 
     @Override

@@ -117,9 +117,9 @@ public class DeltaLakePredicateConverter {
 
     private static Optional<Predicate> convertBoolLiteral(BoolLiteral boolLiteral) {
         if (boolLiteral.getValue()) {
-            return Optional.of(new Predicate("ALWAYS_TRUE"));
+            return Optional.of(new Predicate("ALWAYS_TRUE", java.util.Collections.emptyList()));
         } else {
-            return Optional.of(new Predicate("ALWAYS_FALSE"));
+            return Optional.of(new Predicate("ALWAYS_FALSE", java.util.Collections.emptyList()));
         }
     }
 
@@ -185,7 +185,7 @@ public class DeltaLakePredicateConverter {
 
         BinaryPredicate.Operator op = pred.getOp();
         if (reversed) {
-            op = op.converse();
+            op = op.commutative();
         }
 
         return convertBinaryOp(op, column, literal);
@@ -294,7 +294,8 @@ public class DeltaLakePredicateConverter {
             }
         } else if (expr instanceof DecimalLiteral) {
             DecimalLiteral decimalLiteral = (DecimalLiteral) expr;
-            return Literal.ofDecimal(decimalLiteral.getValue());
+            java.math.BigDecimal value = decimalLiteral.getValue();
+            return Literal.ofDecimal(value, value.precision(), value.scale());
         } else if (expr instanceof StringLiteral) {
             return Literal.ofString(expr.getStringValue());
         } else if (expr instanceof DateLiteral) {

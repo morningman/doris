@@ -42,7 +42,7 @@ import io.delta.kernel.Scan;
 import io.delta.kernel.ScanBuilder;
 import io.delta.kernel.Snapshot;
 import io.delta.kernel.Table;
-import io.delta.kernel.data.ColumnarBatch;
+import io.delta.kernel.data.FilteredColumnarBatch;
 import io.delta.kernel.data.Row;
 import io.delta.kernel.engine.Engine;
 import io.delta.kernel.expressions.Predicate;
@@ -101,19 +101,19 @@ public class DeltaLakeScanNode extends FileQueryScanNode {
             Snapshot snapshot = deltaTable.getLatestSnapshot(engine);
 
             // Build scan with optional predicate pushdown
-            ScanBuilder scanBuilder = snapshot.getScanBuilder(engine);
+            ScanBuilder scanBuilder = snapshot.getScanBuilder();
 
             // Convert Doris conjuncts to Delta Kernel Predicate for data skipping
             Optional<Predicate> deltaPredicate = DeltaLakePredicateConverter.convertToKernelPredicate(conjuncts);
             if (deltaPredicate.isPresent()) {
-                scanBuilder = scanBuilder.withFilter(engine, deltaPredicate.get());
+                scanBuilder = scanBuilder.withFilter(deltaPredicate.get());
             }
 
             Scan scan = scanBuilder.build();
-            CloseableIterator<ColumnarBatch> scanFilesIter = scan.getScanFiles(engine);
+            CloseableIterator<FilteredColumnarBatch> scanFilesIter = scan.getScanFiles(engine);
 
             while (scanFilesIter.hasNext()) {
-                ColumnarBatch batch = scanFilesIter.next();
+                FilteredColumnarBatch batch = scanFilesIter.next();
                 CloseableIterator<Row> rowIter = batch.getRows();
                 while (rowIter.hasNext()) {
                     Row scanFileRow = rowIter.next();
@@ -155,7 +155,7 @@ public class DeltaLakeScanNode extends FileQueryScanNode {
                     scanFileRow, tableLocation);
 
             return new DeltaLakeSplit(
-                    new LocationPath(filePath, deltaLakeCatalog.getCatalogProperty().getHadoopProperties()),
+                    LocationPath.of(filePath),
                     0, fileSize, fileSize,
                     0, new String[0], partitionValues, dvInfo);
         } catch (Exception e) {
