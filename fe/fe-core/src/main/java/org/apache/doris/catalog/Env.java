@@ -89,6 +89,7 @@ import org.apache.doris.consistency.ConsistencyChecker;
 import org.apache.doris.cooldown.CooldownConfHandler;
 import org.apache.doris.datasource.CatalogIf;
 import org.apache.doris.datasource.CatalogMgr;
+import org.apache.doris.datasource.spi.CatalogPluginLoader;
 import org.apache.doris.datasource.ExternalCatalog;
 import org.apache.doris.datasource.ExternalMetaCacheMgr;
 import org.apache.doris.datasource.ExternalMetaIdMgr;
@@ -1200,7 +1201,12 @@ public class Env {
                     selfNode.getPort(), false /* new style */);
         }
 
-        // 3. Load image first and replay edits
+        // 3. Load catalog plugins before image replay
+        //    This ensures all CatalogProvider SPIs are registered so that
+        //    persisted external catalogs can be properly initialized when accessed.
+        CatalogPluginLoader.loadPlugins();
+
+        // 4. Load image first and replay edits
         this.editLog = new EditLog(nodeName);
         loadImage(this.imageDir); // load image file
         migrateConstraintsFromTables(); // migrate old table-based constraints
@@ -1212,16 +1218,16 @@ public class Env {
             replayJournalsAndExit();
         }
 
-        // 4. create load and export job label cleaner thread
+        // 5. create load and export job label cleaner thread
         createLabelCleaner();
 
-        // 5. create txn cleaner thread
+        // 6. create txn cleaner thread
         createTxnCleaner();
 
-        // 6. start state listener thread
+        // 7. start state listener thread
         startStateListener();
 
-        // 7. create fe disk updater
+        // 8. create fe disk updater
         createFeDiskUpdater();
 
         if (!Config.edit_log_type.equalsIgnoreCase("bdb")) {
