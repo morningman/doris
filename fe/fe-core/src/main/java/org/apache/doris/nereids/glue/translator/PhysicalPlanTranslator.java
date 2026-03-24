@@ -213,12 +213,14 @@ import org.apache.doris.planner.OlapTableSink;
 import org.apache.doris.planner.PartitionSortNode;
 import org.apache.doris.planner.PlanFragment;
 import org.apache.doris.planner.PlanNode;
+import org.apache.doris.planner.PlanNodeId;
 import org.apache.doris.planner.RecursiveCteNode;
 import org.apache.doris.planner.RecursiveCteScanNode;
 import org.apache.doris.planner.RemoteOlapTableSink;
 import org.apache.doris.planner.RepeatNode;
 import org.apache.doris.planner.ResultFileSink;
 import org.apache.doris.planner.ResultSink;
+import org.apache.doris.planner.ScanContext;
 import org.apache.doris.planner.ScanNode;
 import org.apache.doris.planner.SchemaScanNode;
 import org.apache.doris.planner.SelectNode;
@@ -772,10 +774,10 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
             }
             try {
                 Class<?> clazz = cl.loadClass("org.apache.doris.datasource.es.source.EsScanNode");
-                var nodeId = context.nextPlanNodeId();
-                var scanCtx = context.getScanContext();
+                PlanNodeId nodeId = context.nextPlanNodeId();
+                ScanContext scanCtx = context.getScanContext();
                 scanNode = (ScanNode) clazz.getConstructor(
-                        nodeId.getClass(), TupleDescriptor.class, boolean.class, scanCtx.getClass())
+                        PlanNodeId.class, TupleDescriptor.class, boolean.class, ScanContext.class)
                         .newInstance(nodeId, tupleDescriptor, false, scanCtx);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to create EsScanNode via reflection", e);
