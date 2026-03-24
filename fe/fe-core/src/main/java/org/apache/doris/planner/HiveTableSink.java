@@ -240,7 +240,7 @@ public class HiveTableSink extends BaseExternalTableDataSink {
             if (sp != null) {
                 QueryTrace trace = sp.getQueryTrace();
                 if (trace != null) {
-                    trace.recordDuration("Sink Get Partitions Time",
+                    trace.recordDuration(SummaryProfile.SINK_SET_PARTITION_VALUES_TIME,
                             System.currentTimeMillis() - startTime);
                 }
             }

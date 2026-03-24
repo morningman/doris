@@ -89,7 +89,7 @@ public class QueryTrace {
 
         // Numeric value storage (for SPAN durations and COUNTER values).
         // Use volatile for thread safety on simple set/get.
-        // For accumulated spans, addAndGet provides atomicity.
+        // For accumulated spans/counters, synchronized(this) on the entry provides atomicity.
         volatile long numericValue;
         // Text value storage
         volatile String textValue;

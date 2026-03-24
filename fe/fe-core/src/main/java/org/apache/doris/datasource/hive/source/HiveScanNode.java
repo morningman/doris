@@ -140,6 +140,7 @@ public class HiveScanNode extends FileQueryScanNode {
     }
 
     protected List<HivePartition> getPartitions() throws AnalysisException {
+        long startTime = System.currentTimeMillis();
         List<HivePartition> resPartitions = Lists.newArrayList();
         HiveExternalMetaCache cache = Env.getCurrentEnv().getExtMetaCacheMgr()
                 .hive(hmsTable.getCatalog().getId());
@@ -176,7 +177,8 @@ public class HiveScanNode extends FileQueryScanNode {
             if (sp != null) {
                 QueryTrace trace = sp.getQueryTrace();
                 if (trace != null) {
-                    trace.recordDuration("Get Partitions Time", 0);
+                    trace.recordDuration("Get Partitions Time",
+                            System.currentTimeMillis() - startTime);
                 }
             }
         }
@@ -195,13 +197,15 @@ public class HiveScanNode extends FileQueryScanNode {
                     .hive(hmsTable.getCatalog().getId());
             String bindBrokerName = hmsTable.getCatalog().bindBrokerName();
             List<Split> allFiles = Lists.newArrayList();
+            long fileSplitStart = System.currentTimeMillis();
             getFileSplitByPartitions(cache, prunedPartitions, allFiles, bindBrokerName, numBackends, false);
             if (ConnectContext.get().getExecutor() != null) {
                 SummaryProfile sp = ConnectContext.get().getExecutor().getSummaryProfile();
                 if (sp != null) {
                     QueryTrace trace = sp.getQueryTrace();
                     if (trace != null) {
-                        trace.recordDuration("Get Partition Files Time", 0);
+                        trace.recordDuration("Get Partition Files Time",
+                                System.currentTimeMillis() - fileSplitStart);
                     }
                 }
             }

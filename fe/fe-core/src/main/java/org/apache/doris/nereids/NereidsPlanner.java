@@ -468,7 +468,7 @@ public class NereidsPlanner extends Planner {
         if (!cascadesContext.getStatementContext().isNeedPreMvRewrite()) {
             return;
         }
-        try (ProfileSpan span = startSpan("Nereids Pre Rewrite By MV Time")) {
+        try (ProfileSpan span = startSpan(SummaryProfile.NEREIDS_PRE_REWRITE_BY_MV_TIME)) {
             if (LOG.isDebugEnabled()) {
                 LOG.debug("Start pre rewrite plan by mv");
             }

@@ -1317,7 +1317,7 @@ public class StmtExecutor {
                         this.profile.getSummaryProfile().setExecutedByFrontend(true);
                         QueryTrace qt = profile.getSummaryProfile().getQueryTrace();
                         if (qt != null) {
-                            qt.setText("Executed By Frontend", "Yes");
+                            qt.setText("Executed By Frontend", "true");
                         }
                     }
                 }

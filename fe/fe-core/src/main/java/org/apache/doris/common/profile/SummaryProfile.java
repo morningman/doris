@@ -684,7 +684,7 @@ public class SummaryProfile {
     }
 
     public int getNereidsBeFoldConstTimeMs() {
-        return (int) getTraceDurationMs("Nereids BE Fold Constant Time", -1);
+        return (int) getTraceDurationMs(NEREIDS_BE_FOLD_CONST_TIME, -1);
     }
 
     public int getNereidsDistributeTimeMs() {
@@ -762,7 +762,7 @@ public class SummaryProfile {
 
     public String getPrettyNereidsPreRewriteByMvTime() {
         return RuntimeProfile.printCounter(
-                getTraceDurationMs("Nereids Pre Rewrite By MV Time", -1), TUnit.TIME_MS);
+                getTraceDurationMs(NEREIDS_PRE_REWRITE_BY_MV_TIME, -1), TUnit.TIME_MS);
     }
 
     public String getPrettyNereidsOptimizeTime() {
