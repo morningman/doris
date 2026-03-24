@@ -21,7 +21,6 @@ import org.apache.doris.analysis.Expr;
 import org.apache.doris.analysis.SlotDescriptor;
 import org.apache.doris.analysis.TupleDescriptor;
 import org.apache.doris.catalog.EsResource;
-import org.apache.doris.catalog.EsTable;
 import org.apache.doris.catalog.PartitionInfo;
 import org.apache.doris.catalog.PartitionItem;
 import org.apache.doris.catalog.RangePartitionInfo;
@@ -76,21 +75,17 @@ public class EsScanNode extends ExternalScanNode {
     private static final Logger LOG = LogManager.getLogger(EsScanNode.class);
 
     private final EsTablePartitions esTablePartitions;
-    private final EsTable table;
+    private final EsExternalTable table;
     private QueryBuilder queryBuilder;
     private boolean isFinalized = false;
 
     /**
-     * For multicatalog es.
+     * For ES Catalog scan.
      **/
-    public EsScanNode(PlanNodeId id, TupleDescriptor desc, boolean esExternalTable, ScanContext scanContext) {
+    public EsScanNode(PlanNodeId id, TupleDescriptor desc, ScanContext scanContext) {
         super(id, desc, "EsScanNode", scanContext, false);
-        if (esExternalTable) {
-            EsExternalTable externalTable = (EsExternalTable) (desc.getTable());
-            table = externalTable.getEsTable();
-        } else {
-            table = (EsTable) (desc.getTable());
-        }
+        EsExternalTable externalTable = (EsExternalTable) (desc.getTable());
+        table = externalTable;
         esTablePartitions = table.getEsTablePartitions();
     }
 
@@ -244,7 +239,7 @@ public class EsScanNode extends ExternalScanNode {
                 // When we plan a single query, we should use the index alias instead of the real indices names.
                 esScanRange.setIndex(
                         enableESParallelScroll ? shardRouting.get(0).getIndexName() : indexState.getIndexName());
-                if (table.getType() != null) {
+                if (table.getMappingType() != null) {
                     esScanRange.setType(table.getMappingType());
                 }
                 // When disabling parallel scroll, set shard id to -1 to disable shard preference in query option.
@@ -346,9 +341,6 @@ public class EsScanNode extends ExternalScanNode {
             boolean hasFilter = false;
             BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
             List<Expr> notPushDownList = new ArrayList<>();
-            if (table.getColumn2typeMap() == null) {
-                table.genColumnsFromEs();
-            }
             for (Expr expr : conjuncts) {
                 QueryBuilder queryBuilder = QueryBuilders.toEsDsl(expr, notPushDownList, fieldsContext,
                         BuilderOptions.builder().likePushDown(table.isLikePushDown())
