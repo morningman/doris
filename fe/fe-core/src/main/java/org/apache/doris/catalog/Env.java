@@ -4283,27 +4283,8 @@ public class Env {
             sb.append("\"table\" = \"").append(mysqlTable.getMysqlTableName()).append("\"\n");
             sb.append(")");
         } else if (table.getType() == TableType.ODBC) {
-            OdbcTable odbcTable = (OdbcTable) table;
-
-            addTableComment(odbcTable, sb);
-
-            // properties
-            sb.append("\nPROPERTIES (\n");
-            if (odbcTable.getOdbcCatalogResourceName() == null) {
-                sb.append("\"host\" = \"").append(odbcTable.getHost()).append("\",\n");
-                sb.append("\"port\" = \"").append(odbcTable.getPort()).append("\",\n");
-                sb.append("\"user\" = \"").append(odbcTable.getUserName()).append("\",\n");
-                sb.append("\"password\" = \"").append(hidePassword ? "" : odbcTable.getPasswd()).append("\",\n");
-                sb.append("\"driver\" = \"").append(odbcTable.getOdbcDriver()).append("\",\n");
-                sb.append("\"odbc_type\" = \"").append(odbcTable.getOdbcTableTypeName()).append("\",\n");
-                sb.append("\"charest\" = \"").append(odbcTable.getCharset()).append("\",\n");
-            } else {
-                sb.append("\"odbc_catalog_resource\" = \"").append(odbcTable.getOdbcCatalogResourceName())
-                    .append("\",\n");
-            }
-            sb.append("\"database\" = \"").append(odbcTable.getOdbcDatabaseName()).append("\",\n");
-            sb.append("\"table\" = \"").append(odbcTable.getOdbcTableName()).append("\"\n");
-            sb.append(")");
+            addTableComment(table, sb);
+            sb.append("\n-- Internal ODBC tables are deprecated. Please use JDBC Catalog instead.");
         } else if (table.getType() == TableType.BROKER) {
             BrokerTable brokerTable = (BrokerTable) table;
 
@@ -4338,13 +4319,8 @@ public class Env {
                     " = ", true, true, hidePassword).toString());
             sb.append("\n)");
         } else if (table.getType() == TableType.JDBC) {
-            JdbcTable jdbcTable = (JdbcTable) table;
-            addTableComment(jdbcTable, sb);
-            sb.append("\nPROPERTIES (\n");
-            sb.append("\"resource\" = \"").append(jdbcTable.getResourceName()).append("\",\n");
-            sb.append("\"table\" = \"").append(jdbcTable.getJdbcTable()).append("\",\n");
-            sb.append("\"table_type\" = \"").append(jdbcTable.getJdbcTypeName()).append("\"");
-            sb.append("\n)");
+            addTableComment(table, sb);
+            sb.append("\n-- Internal JDBC tables are deprecated. Please use JDBC Catalog instead.");
         } else if (table.getType() == TableType.ICEBERG_EXTERNAL_TABLE) {
             addTableComment(table, sb);
             IcebergExternalTable icebergExternalTable = (IcebergExternalTable) table;
@@ -4672,27 +4648,8 @@ public class Env {
             JdbcExternalTable jdbcTable = (JdbcExternalTable) table;
             addTableComment(jdbcTable, sb);
         } else if (table.getType() == TableType.ODBC) {
-            OdbcTable odbcTable = (OdbcTable) table;
-
-            addTableComment(odbcTable, sb);
-
-            // properties
-            sb.append("\nPROPERTIES (\n");
-            if (odbcTable.getOdbcCatalogResourceName() == null) {
-                sb.append("\"host\" = \"").append(odbcTable.getHost()).append("\",\n");
-                sb.append("\"port\" = \"").append(odbcTable.getPort()).append("\",\n");
-                sb.append("\"user\" = \"").append(odbcTable.getUserName()).append("\",\n");
-                sb.append("\"password\" = \"").append(hidePassword ? "" : odbcTable.getPasswd()).append("\",\n");
-                sb.append("\"driver\" = \"").append(odbcTable.getOdbcDriver()).append("\",\n");
-                sb.append("\"odbc_type\" = \"").append(odbcTable.getOdbcTableTypeName()).append("\",\n");
-                sb.append("\"charest\" = \"").append(odbcTable.getCharset()).append("\",\n");
-            } else {
-                sb.append("\"odbc_catalog_resource\" = \"").append(odbcTable.getOdbcCatalogResourceName())
-                        .append("\",\n");
-            }
-            sb.append("\"database\" = \"").append(odbcTable.getOdbcDatabaseName()).append("\",\n");
-            sb.append("\"table\" = \"").append(odbcTable.getOdbcTableName()).append("\"\n");
-            sb.append(")");
+            addTableComment(table, sb);
+            sb.append("\n-- Internal ODBC tables are deprecated. Please use JDBC Catalog instead.");
         } else if (table.getType() == TableType.BROKER) {
             BrokerTable brokerTable = (BrokerTable) table;
 
@@ -4727,13 +4684,8 @@ public class Env {
                     " = ", true, true, hidePassword).toString());
             sb.append("\n)");
         } else if (table.getType() == TableType.JDBC) {
-            JdbcTable jdbcTable = (JdbcTable) table;
-            addTableComment(jdbcTable, sb);
-            sb.append("\nPROPERTIES (\n");
-            sb.append("\"resource\" = \"").append(jdbcTable.getResourceName()).append("\",\n");
-            sb.append("\"table\" = \"").append(jdbcTable.getJdbcTable()).append("\",\n");
-            sb.append("\"table_type\" = \"").append(jdbcTable.getJdbcTypeName()).append("\"");
-            sb.append("\n)");
+            addTableComment(table, sb);
+            sb.append("\n-- Internal JDBC tables are deprecated. Please use JDBC Catalog instead.");
         } else if (table.getType() == TableType.ICEBERG_EXTERNAL_TABLE) {
             addTableComment(table, sb);
             IcebergExternalTable icebergExternalTable = (IcebergExternalTable) table;

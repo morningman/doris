@@ -45,7 +45,6 @@ import org.apache.doris.catalog.EnvFactory;
 import org.apache.doris.catalog.HashDistributionInfo;
 import org.apache.doris.catalog.Index;
 import org.apache.doris.catalog.InfoSchemaDb;
-import org.apache.doris.catalog.JdbcTable;
 import org.apache.doris.catalog.KeysType;
 import org.apache.doris.catalog.ListPartitionItem;
 import org.apache.doris.catalog.LocalReplica;
@@ -58,7 +57,6 @@ import org.apache.doris.catalog.MetaIdGenerator.IdGeneratorBuffer;
 import org.apache.doris.catalog.MysqlCompatibleDatabase;
 import org.apache.doris.catalog.MysqlDb;
 import org.apache.doris.catalog.MysqlTable;
-import org.apache.doris.catalog.OdbcTable;
 import org.apache.doris.catalog.OlapTable;
 import org.apache.doris.catalog.OlapTable.OlapTableState;
 import org.apache.doris.catalog.OlapTableFactory;
@@ -1236,7 +1234,8 @@ public class InternalCatalog implements CatalogIf<Database> {
             return createOlapTable(db, createTableInfo);
         }
         if (engineName.equals("odbc")) {
-            return createOdbcTable(db, createTableInfo);
+            throw new DdlException(
+                    "ODBC table is no longer supported. Please use JDBC Catalog instead.");
         }
         if (engineName.equals("mysql")) {
             return createMysqlTable(db, createTableInfo);
@@ -1253,7 +1252,8 @@ public class InternalCatalog implements CatalogIf<Database> {
             throw new UserException("Cannot create hive table in internal catalog, should switch to hive catalog.");
         }
         if (engineName.equalsIgnoreCase("jdbc")) {
-            return createJdbcTable(db, createTableInfo);
+            throw new DdlException(
+                    "JDBC table is no longer supported. Please use JDBC Catalog instead.");
 
         } else {
             ErrorReport.reportDdlException(ErrorCode.ERR_UNKNOWN_STORAGE_ENGINE, engineName);
@@ -3221,19 +3221,6 @@ public class InternalCatalog implements CatalogIf<Database> {
         return checkCreateTableResult(tableName, tableId, result);
     }
 
-    private boolean createOdbcTable(Database db, CreateTableInfo createTableInfo) throws DdlException {
-        String tableName = createTableInfo.getTableName();
-        List<Column> columns = createTableInfo.getColumns();
-
-        long tableId = Env.getCurrentEnv().getNextId();
-        OdbcTable odbcTable = new OdbcTable(tableId, tableName, columns, createTableInfo.getProperties());
-        odbcTable.setComment(createTableInfo.getComment());
-        Pair<Boolean, Boolean> result = db.createTableWithLock(odbcTable, false, createTableInfo.isIfNotExists());
-        return checkCreateTableResult(tableName, tableId, result);
-    }
-
-
-
     private boolean createBrokerTable(Database db, CreateTableInfo createTableInfo) throws DdlException {
         String tableName = createTableInfo.getTableName();
 
@@ -3244,20 +3231,6 @@ public class InternalCatalog implements CatalogIf<Database> {
         brokerTable.setComment(createTableInfo.getComment());
         brokerTable.setBrokerProperties(createTableInfo.getExtProperties());
         Pair<Boolean, Boolean> result = db.createTableWithLock(brokerTable, false, createTableInfo.isIfNotExists());
-        return checkCreateTableResult(tableName, tableId, result);
-
-    }
-
-    private boolean createJdbcTable(Database db, CreateTableInfo createTableInfo) throws DdlException {
-        String tableName = createTableInfo.getTableName();
-        List<Column> columns = createTableInfo.getColumns();
-
-        long tableId = Env.getCurrentEnv().getNextId();
-
-        JdbcTable jdbcTable = new JdbcTable(tableId, tableName, columns, createTableInfo.getProperties());
-        jdbcTable.setComment(createTableInfo.getComment());
-        // check table if exists
-        Pair<Boolean, Boolean> result = db.createTableWithLock(jdbcTable, false, createTableInfo.isIfNotExists());
         return checkCreateTableResult(tableName, tableId, result);
     }
 
