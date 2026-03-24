@@ -631,7 +631,8 @@ public class SummaryProfile {
     }
 
     public int getParseSqlTimeMs() {
-        return getTimeMs(parseSqlFinishTime, parseSqlStartTime);
+        return (int) getTraceDurationMs("Parse SQL Time",
+                getTimeMs(parseSqlFinishTime, parseSqlStartTime));
     }
 
     public int getPlanTimeMs() {
