@@ -63,6 +63,7 @@ import org.apache.doris.datasource.maxcompute.MaxComputeExternalTable;
 import org.apache.doris.datasource.maxcompute.source.MaxComputeScanNode;
 import org.apache.doris.datasource.odbc.source.OdbcScanNode;
 import org.apache.doris.datasource.paimon.source.PaimonScanNode;
+import org.apache.doris.datasource.spi.CatalogPluginLoader;
 import org.apache.doris.datasource.spi.CatalogProvider;
 import org.apache.doris.datasource.spi.CatalogProviderRegistry;
 import org.apache.doris.datasource.trinoconnector.TrinoConnectorExternalTable;
@@ -762,8 +763,23 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
             scanNode = provider.createScanNode(context.nextPlanNodeId(), tupleDescriptor,
                     (ExternalTable) table, null, context.getScanContext());
         } else {
-            throw new RuntimeException("ES connector plugin is not loaded. "
-                    + "Please ensure the ES connector JAR is deployed in lib/connectors/es/");
+            // Temporary: for internal EsTable, load EsScanNode from connector plugin via reflection.
+            // TODO: remove this when internal EsTable support is dropped.
+            ClassLoader cl = CatalogPluginLoader.getPluginClassLoader("es");
+            if (cl == null) {
+                throw new RuntimeException("ES connector plugin is not loaded. "
+                        + "Please ensure the ES connector JAR is deployed in lib/connectors/es/");
+            }
+            try {
+                Class<?> clazz = cl.loadClass("org.apache.doris.datasource.es.source.EsScanNode");
+                var nodeId = context.nextPlanNodeId();
+                var scanCtx = context.getScanContext();
+                scanNode = (ScanNode) clazz.getConstructor(
+                        nodeId.getClass(), TupleDescriptor.class, boolean.class, scanCtx.getClass())
+                        .newInstance(nodeId, tupleDescriptor, false, scanCtx);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to create EsScanNode via reflection", e);
+            }
         }
         scanNode.setNereidsId(esScan.getId());
         context.getNereidsIdToPlanNodeIdMap().put(esScan.getId(), scanNode.getId());
