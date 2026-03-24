@@ -35,6 +35,7 @@ import java.util.Map;
  *
  * <p>Internal ES tables are no longer supported. Users should use ES Catalog instead.</p>
  */
+@Deprecated
 public class EsTable extends Table implements GsonPostProcessable {
 
     @SerializedName("pi")

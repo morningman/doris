@@ -20,7 +20,6 @@ package org.apache.doris.datasource.es.source;
 import org.apache.doris.analysis.Expr;
 import org.apache.doris.analysis.SlotDescriptor;
 import org.apache.doris.analysis.TupleDescriptor;
-import org.apache.doris.catalog.EsResource;
 import org.apache.doris.catalog.PartitionInfo;
 import org.apache.doris.catalog.PartitionItem;
 import org.apache.doris.catalog.RangePartitionInfo;
@@ -29,6 +28,7 @@ import org.apache.doris.common.UserException;
 import org.apache.doris.datasource.ExternalScanNode;
 import org.apache.doris.datasource.FederationBackendPolicy;
 import org.apache.doris.datasource.es.EsExternalTable;
+import org.apache.doris.datasource.es.EsProperties;
 import org.apache.doris.datasource.es.EsShardPartitions;
 import org.apache.doris.datasource.es.EsShardRouting;
 import org.apache.doris.datasource.es.EsTablePartitions;
@@ -147,18 +147,19 @@ public class EsScanNode extends ExternalScanNode {
         msg.node_type = TPlanNodeType.ES_HTTP_SCAN_NODE;
         Map<String, String> properties = Maps.newHashMap();
         if (table.getUserName() != null) {
-            properties.put(EsResource.USER, table.getUserName());
+            properties.put(EsProperties.USER, table.getUserName());
         }
         if (table.getPasswd() != null) {
-            properties.put(EsResource.PASSWORD, table.getPasswd());
+            properties.put(EsProperties.PASSWORD, table.getPasswd());
         }
-        properties.put(EsResource.HTTP_SSL_ENABLED, String.valueOf(table.isHttpSslEnabled()));
+        properties.put(EsProperties.HTTP_SSL_ENABLED, String.valueOf(table.isHttpSslEnabled()));
         TEsScanNode esScanNode = new TEsScanNode(desc.getId().asInt());
         if (table.isEnableDocValueScan()) {
             esScanNode.setDocvalueContext(table.docValueContext());
-            properties.put(EsResource.DOC_VALUES_MODE, String.valueOf(useDocValueScan(desc, table.docValueContext())));
+            properties.put(EsProperties.DOC_VALUES_MODE,
+                    String.valueOf(useDocValueScan(desc, table.docValueContext())));
         }
-        properties.put(EsResource.QUERY_DSL, queryBuilder.toJson());
+        properties.put(EsProperties.QUERY_DSL, queryBuilder.toJson());
         if (table.isEnableKeywordSniff() && table.fieldsContext().size() > 0) {
             esScanNode.setFieldsContext(table.fieldsContext());
         }
