@@ -1292,8 +1292,7 @@ void StorageEngine::start_delete_unused_rowset() {
               << due_to_delayed_expired_ts << " rowsets due to delayed expired timestamp. left "
               << _unused_delete_bitmap.size() << " unused delete bitmap.";
     for (auto&& rs : unused_rowsets_copy) {
-        VLOG_NOTICE << "Start removing rowset:" << rs->rowset_id()
-                    << ", version:" << rs->version();
+        VLOG_NOTICE << "Start removing rowset:" << rs->rowset_id() << ", version:" << rs->version();
         // delete delete_bitmap of unused rowsets
         if (auto tablet = _tablet_manager->get_tablet(rs->rowset_meta()->tablet_id());
             tablet && tablet->enable_unique_key_merge_on_write()) {

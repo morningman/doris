@@ -465,7 +465,7 @@ Status FSFileCacheStorage::upgrade_cache_dir_if_necessary() const {
         exit(-1);
     } else if (version == "2.0") {
         VLOG_DEBUG << "Cache will upgrade from 2.0 to 3.0 progressively during running. 2.0 data "
-                     "format will evict eventually.";
+                      "format will evict eventually.";
         return Status::OK();
     } else if (version == "3.0") {
         LOG(INFO) << "Readly 3.0 format, no need to upgrade.";

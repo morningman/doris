@@ -236,8 +236,8 @@ Status CloudTabletCalcDeleteBitmapTask::handle() const {
         for (const auto& sub_txn_id : _sub_txn_ids) {
             ss << sub_txn_id << ", ";
         }
-        LOG(INFO) << "Start calculating delete bitmap for txn_id=" << _transaction_id << ", sub_txn_ids=["
-                  << ss.str() << "], table_id=" << tablet->table_id()
+        LOG(INFO) << "Start calculating delete bitmap for txn_id=" << _transaction_id
+                  << ", sub_txn_ids=[" << ss.str() << "], table_id=" << tablet->table_id()
                   << ", partition_id=" << tablet->partition_id() << ", tablet_id=" << _tablet_id
                   << ", start_version=" << _version;
         std::vector<RowsetSharedPtr> invisible_rowsets;

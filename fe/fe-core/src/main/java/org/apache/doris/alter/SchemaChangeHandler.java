@@ -3270,8 +3270,8 @@ public class SchemaChangeHandler extends AlterHandler {
                 }
             }
 
-            LOG.info("Finished modifying table's meta for add or drop inverted index. table: {}, job: {}, is replay: {}",
-                    olapTable.getName(), jobId, isReplay);
+            LOG.info("Finished modifying table's meta for add or drop inverted index. "
+                    + "table: {}, job: {}, is replay: {}", olapTable.getName(), jobId, isReplay);
         } else {
             if (!isReplay) {
                 Map<String, Long> indexNameToId = new HashMap<>(olapTable.getIndexNameToId());
