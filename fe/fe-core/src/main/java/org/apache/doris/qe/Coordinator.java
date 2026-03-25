@@ -52,6 +52,7 @@ import org.apache.doris.planner.DataPartition;
 import org.apache.doris.planner.DataSink;
 import org.apache.doris.planner.DataStreamSink;
 import org.apache.doris.planner.DictionarySink;
+import org.apache.doris.planner.TVFTableSink;
 import org.apache.doris.planner.ExceptNode;
 import org.apache.doris.planner.ExchangeNode;
 import org.apache.doris.planner.HashJoinNode;
@@ -1792,6 +1793,24 @@ public class Coordinator implements CoordInterface {
                 }
                 // TODO: rethink the whole function logic. could All BE sink naturally merged into other judgements?
                 return;
+            }
+            // For local TVF sink with a specific backend_id, we must execute the sink fragment
+            // on the designated backend. Otherwise, data would be written to the wrong node's local disk.
+            if (fragment.getSink() instanceof TVFTableSink) {
+                TVFTableSink tvfSink = (TVFTableSink) fragment.getSink();
+                if ("local".equals(tvfSink.getTvfName()) && tvfSink.getBackendId() != -1) {
+                    Backend targetBackend = Env.getCurrentSystemInfo().getBackend(tvfSink.getBackendId());
+                    if (targetBackend == null || !targetBackend.isAlive()) {
+                        throw new UserException("Backend " + tvfSink.getBackendId()
+                                + " is not available for local TVF sink");
+                    }
+                    TNetworkAddress execHostport = new TNetworkAddress(
+                            targetBackend.getHost(), targetBackend.getBePort());
+                    this.addressToBackendID.put(execHostport, targetBackend.getId());
+                    FInstanceExecParam instanceParam = new FInstanceExecParam(null, execHostport, params);
+                    params.instanceExecParams.add(instanceParam);
+                    continue;
+                }
             }
 
             if (fragment.getDataPartition() == DataPartition.UNPARTITIONED) {
