@@ -122,7 +122,7 @@ public class EsExternalTable extends ExternalTable {
 
     public Map<String, String> getColumn2type() {
         Optional<SchemaCacheValue> schemaCacheValue = getSchemaCacheValue();
-        return schemaCacheValue.map(value -> ((EsSchemaCacheValue) value).getColumn2typeMap()).orElse(null);
+        return schemaCacheValue.map(value -> ((EsSchemaCacheValue) value).getColumn2typeMap()).orElse(new HashMap<>());
     }
 
     /**

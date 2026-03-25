@@ -85,6 +85,18 @@ public class EsTestCase {
                 mockEsExternalTable.getColumn2typeMap();
                 result = new HashMap<>();
                 minTimes = 0;
+
+                mockEsExternalTable.getFullSchema();
+                result = columns;
+                minTimes = 0;
+
+                mockEsExternalTable.isNodesDiscovery();
+                result = true;
+                minTimes = 0;
+
+                mockEsExternalTable.getName();
+                result = table;
+                minTimes = 0;
             }
         };
         return mockEsExternalTable;
