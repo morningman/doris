@@ -74,13 +74,13 @@ public class EsTablePartitions {
                     }
                     sb.append(")");
                     if (LOG.isDebugEnabled()) {
-                        LOG.debug("begin to parse es table [{}] state from search shards,"
+                        LOG.debug("Begin to parse ES table [{}] state from search shards,"
                                 + " with partition info [{}]", esTable.getName(), sb.toString());
                     }
                 }
             } else if (esTable.getPartitionInfo() instanceof SinglePartitionInfo) {
                 if (LOG.isDebugEnabled()) {
-                    LOG.debug("begin to parse es table [{}] state from search shards, "
+                    LOG.debug("Begin to parse ES table [{}] state from search shards, "
                             + "with no partition info", esTable.getName());
                 }
             } else {

@@ -448,9 +448,9 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
                         repo.getRemoteFileSystem().getStorageProperties().getBackendConfigProperties());
                 AgentTaskQueue.updateTask(beId, TTaskType.DOWNLOAD, signature, task);
             }
-            LOG.info("finished to update download job properties. {}", this);
+            LOG.info("Finished updating download job properties. {}", this);
         }
-        LOG.info("finished to update repo of job. {}", this);
+        LOG.info("Finished updating repo of job. {}", this);
         return Status.OK;
     }
 
@@ -961,7 +961,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
             }
 
             if (LOG.isDebugEnabled()) {
-                LOG.debug("finished to prepare restored partitions and tables. {}", this);
+                LOG.debug("Finished preparing restored partitions and tables. {}", this);
             }
             // for now, nothing is modified in catalog
 
@@ -1009,7 +1009,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
             }
 
             if (LOG.isDebugEnabled()) {
-                LOG.debug("finished to generate create replica tasks. {}", this);
+                LOG.debug("Finished generating create replica tasks. {}", this);
             }
         } finally {
             db.readUnlock();
@@ -1025,7 +1025,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
             return;
         }
         if (LOG.isDebugEnabled()) {
-            LOG.debug("finished to restore resources. {}", this.jobId);
+            LOG.debug("Finished restoring resources. {}", this.jobId);
         }
 
         doCreateReplicas();
@@ -1045,7 +1045,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
                 .sum();
         createReplicaTasksLatch = new MarkedCountDownLatch<>(numBatchTasks);
         if (numBatchTasks > 0) {
-            LOG.info("begin to send create replica tasks to BE for restore. total {} tasks. {}",
+            LOG.info("Begin to send create replica tasks to BE for restore. total {} tasks. {}",
                     numBatchTasks, this);
             for (AgentBatchTask batchTask : batchTaskPerTable.values()) {
                 for (AgentTask task : batchTask.getAllTasks()) {
@@ -1104,7 +1104,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
         }
 
         if (LOG.isDebugEnabled()) {
-            LOG.debug("finished to create all restored replicas. {}", this);
+            LOG.debug("Finished creating all restored replicas. {}", this);
         }
         allReplicasCreated();
     }
@@ -1169,7 +1169,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
             }
         }
 
-        LOG.info("finished to prepare meta. {}", this);
+        LOG.info("Finished preparing meta. {}", this);
 
         if (jobInfo.content == null || jobInfo.content == BackupCommand.BackupContent.ALL) {
             prepareAndSendSnapshotTaskForOlapTable(db);
@@ -1264,7 +1264,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
     }
 
     protected void prepareAndSendSnapshotTaskForOlapTable(Database db) {
-        LOG.info("begin to make snapshot. {} when restore content is ALL", this);
+        LOG.info("Begin to make snapshot. {} when restore content is ALL", this);
         // begin to make snapshots for all replicas
         // snapshot is for incremental download
         unfinishedSignatureToId.clear();
@@ -1315,7 +1315,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
         }
 
         AgentTaskExecutor.submit(batchTask);
-        LOG.info("finished to send snapshot tasks, num: {}. {}", batchTask.getTaskNum(), this);
+        LOG.info("Finished sending snapshot tasks, num: {}. {}", batchTask.getTaskNum(), this);
     }
 
     private void checkAndRestoreResources() {
@@ -1749,7 +1749,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
             for (ColocatePersistInfo info : colocatePersistInfos) {
                 env.getEditLog().logColocateAddTable(info);
             }
-            LOG.info("finished making snapshots. {}", this);
+            LOG.info("Finished making snapshots. {}", this);
             return;
         }
 
@@ -1869,7 +1869,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
         setState(RestoreJobState.DOWNLOADING);
 
         // No edit log here
-        LOG.info("finished to send download tasks to BE. num: {}. {}", batchTask.getTaskNum(), this);
+        LOG.info("Finished sending download tasks to BE. num: {}. {}", batchTask.getTaskNum(), this);
     }
 
     protected void downloadLocalSnapshots() {
@@ -1994,7 +1994,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
         setState(RestoreJobState.DOWNLOADING);
 
         // No edit log here
-        LOG.info("finished to send download tasks to BE. num: {}. {}", batchTask.getTaskNum(), this);
+        LOG.info("Finished sending download tasks to BE. num: {}. {}", batchTask.getTaskNum(), this);
     }
 
     protected DownloadTask createDownloadTask(long beId, long signature, long jobId, long dbId,
@@ -2057,7 +2057,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
             backupMeta = null;
 
             env.getEditLog().logRestoreJob(this);
-            LOG.info("finished to download. {}", this);
+            LOG.info("Finished downloading. {}", this);
         }
 
         LOG.info("waiting {} tasks to finish downloading from repo. {}", unfinishedSignatureToId.size(), this);
@@ -2086,13 +2086,13 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
         setState(RestoreJobState.COMMITTING);
 
         // No log here
-        LOG.info("finished to send move dir tasks. num: {}. {}", batchTask.getTaskNum(), this);
+        LOG.info("Finished sending move dir tasks. num: {}. {}", batchTask.getTaskNum(), this);
         return;
     }
 
     protected void waitingAllTabletsCommitted() {
         if (unfinishedSignatureToId.isEmpty()) {
-            LOG.info("finished to commit all tablet. {}", this);
+            LOG.info("Finished committing all tablets. {}", this);
             Status st = allTabletCommitted(false /* not replay */);
             if (!st.ok()) {
                 status = st;
@@ -2436,7 +2436,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
             }
             colocatePersistInfos.clear();
 
-            LOG.info("finished to cancel restore job. current state: {}. is replay: {}. {}",
+            LOG.info("Finished cancelling restore job. current state: {}. is replay: {}. {}",
                     curState.name(), isReplay, this);
 
             // Send release snapshot tasks after log restore job, so that the snapshot won't be released
@@ -2445,7 +2445,7 @@ public class RestoreJob extends AbstractJob implements GsonPostProcessable {
             return;
         }
 
-        LOG.info("finished to cancel restore job. is replay: {}. {}", isReplay, this);
+        LOG.info("Finished cancelling restore job. is replay: {}. {}", isReplay, this);
     }
 
     protected void cleanMetaObjects(boolean isReplay) {
