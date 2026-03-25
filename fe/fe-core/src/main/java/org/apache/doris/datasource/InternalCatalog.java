@@ -463,7 +463,7 @@ public class InternalCatalog implements CatalogIf<Database> {
 
     @Override
     public void dropDb(String dbName, boolean ifExists, boolean force) throws DdlException {
-        LOG.info("begin drop database[{}], is force : {}", dbName, force);
+        LOG.info("Begin to drop database[{}], is force : {}", dbName, force);
 
         // 1. check if database exists
         if (!tryLock(false)) {
@@ -539,7 +539,7 @@ public class InternalCatalog implements CatalogIf<Database> {
             unlock();
         }
 
-        LOG.info("finish drop database[{}], is force : {}", dbName, force);
+        LOG.info("Finished dropping database[{}], is force : {}", dbName, force);
     }
 
     public void unprotectDropDb(Database db, boolean isForeDrop, boolean isReplay, long recycleTime)
@@ -851,7 +851,7 @@ public class InternalCatalog implements CatalogIf<Database> {
             boolean ifExists, boolean mustTemporary, boolean force) throws DdlException {
         Map<String, Long> costTimes = new TreeMap<String, Long>();
         StopWatch watch = StopWatch.createStarted();
-        LOG.info("begin to drop table: {} from db: {}, is force: {}", tableName, dbName, force);
+        LOG.info("Begin to drop table: {} from db: {}, is force: {}", tableName, dbName, force);
 
         // check database
         Database db = getDbOrDdlException(dbName);
@@ -936,7 +936,7 @@ public class InternalCatalog implements CatalogIf<Database> {
         }
         watch.stop();
         costTimes.put("6:total", watch.getTime());
-        LOG.info("finished dropping table: {} from db: {}, is view: {}, is force: {}, cost: {}",
+        LOG.info("Finished dropping table: {} from db: {}, is view: {}, is force: {}, cost: {}",
                 tableName, dbName, isView, force, costTimes);
     }
 
@@ -1022,7 +1022,7 @@ public class InternalCatalog implements CatalogIf<Database> {
         StopWatch watch = StopWatch.createStarted();
         Env.getCurrentRecycleBin().recycleTable(db.getId(), table, isReplay, isForceDrop, recycleTime);
         watch.stop();
-        LOG.info("finished dropping table[{}] in db[{}] recycleTable cost: {}ms",
+        LOG.info("Finished dropping table[{}] in db[{}] recycleTable cost: {}ms",
                 table.getName(), db.getFullName(), watch.getTime());
         return true;
     }
@@ -1672,7 +1672,7 @@ public class InternalCatalog implements CatalogIf<Database> {
 
         // create partition outside db lock
         if (LOG.isDebugEnabled()) {
-            LOG.debug("start creating table[{}] partition[{}] (owner), temp={}", tableName, partitionName,
+            LOG.debug("Start creating table[{}] partition[{}] (owner), temp={}", tableName, partitionName,
                     isTempPartition);
         }
         DataProperty dataProperty = singlePartitionDesc.getPartitionDataProperty();
@@ -2260,7 +2260,7 @@ public class InternalCatalog implements CatalogIf<Database> {
     private boolean createOlapTable(Database db, CreateTableInfo createTableInfo) throws UserException {
         String tableName = createTableInfo.getTableName();
         if (LOG.isDebugEnabled()) {
-            LOG.debug("begin create olap table: {}", tableName);
+            LOG.debug("Begin to create olap table: {}", tableName);
         }
         String tableShowName = tableName;
         if (createTableInfo.isTemp()) {
@@ -3481,7 +3481,7 @@ public class InternalCatalog implements CatalogIf<Database> {
             // if table currently has no partitions, this sql like empty command and do nothing, should return directly.
             // but if truncate whole table, the temporary partitions also need drop
             if (origPartitions.isEmpty() && (!truncateEntireTable || olapTable.getAllTempPartitions().isEmpty())) {
-                LOG.info("finished to truncate table {}.{}, no partition contains data, do nothing",
+                LOG.info("Finished truncating table {}.{}, no partition contains data, do nothing",
                         dbName, tableName);
                 return;
             }
@@ -3645,7 +3645,7 @@ public class InternalCatalog implements CatalogIf<Database> {
         }
 
         Env.getCurrentEnv().getAnalysisManager().dropStats(olapTable, partitionNamesInfo);
-        LOG.info("finished to truncate table {}.{}, partitions: {}", dbName, tableName, partitionNamesInfo);
+        LOG.info("Finished truncating table {}.{}, partitions: {}", dbName, tableName, partitionNamesInfo);
     }
 
     private List<Partition> truncateTableInternal(OlapTable olapTable, List<Partition> newPartitions,
@@ -3819,7 +3819,7 @@ public class InternalCatalog implements CatalogIf<Database> {
         }
         // ATTN: this should be done after load Db, and before loadAlterJob
         recreateTabletInvertIndex();
-        LOG.info("finished replay databases from image");
+        LOG.info("Finished replaying databases from image");
         return newChecksum;
     }
 
