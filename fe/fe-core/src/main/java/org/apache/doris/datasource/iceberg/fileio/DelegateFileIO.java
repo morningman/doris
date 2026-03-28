@@ -17,11 +17,10 @@
 
 package org.apache.doris.datasource.iceberg.fileio;
 
-import org.apache.doris.backup.Status;
 import org.apache.doris.datasource.property.storage.StorageProperties;
 import org.apache.doris.fs.FileSystem;
 import org.apache.doris.fs.FileSystemFactory;
-import org.apache.doris.fs.io.ParsedPath;
+import org.apache.doris.fs.Location;
 
 import com.google.common.collect.Iterables;
 import org.apache.iceberg.DataFile;
@@ -80,7 +79,7 @@ public class DelegateFileIO implements SupportsBulkOperations {
      */
     @Override
     public InputFile newInputFile(String path) {
-        return new DelegateInputFile(fileSystem.newInputFile(new ParsedPath(path)));
+        return new DelegateInputFile(fileSystem.newInputFile(Location.of(path)));
     }
 
     /**
@@ -92,7 +91,7 @@ public class DelegateFileIO implements SupportsBulkOperations {
      */
     @Override
     public InputFile newInputFile(String path, long length) {
-        return new DelegateInputFile(fileSystem.newInputFile(new ParsedPath(path), length));
+        return new DelegateInputFile(fileSystem.newInputFile(Location.of(path), length));
     }
 
     /**
@@ -103,7 +102,7 @@ public class DelegateFileIO implements SupportsBulkOperations {
      */
     @Override
     public OutputFile newOutputFile(String path) {
-        return new DelegateOutputFile(fileSystem, new ParsedPath(path));
+        return new DelegateOutputFile(fileSystem, Location.of(path));
     }
 
     // ===================== File Deletion Methods =====================
@@ -116,10 +115,11 @@ public class DelegateFileIO implements SupportsBulkOperations {
      */
     @Override
     public void deleteFile(String path) {
-        Status status = fileSystem.delete(path);
-        if (!status.ok()) {
+        try {
+            fileSystem.deleteFile(Location.of(path));
+        } catch (IOException e) {
             throw new UncheckedIOException(
-                    new IOException("Failed to delete file: " + path + ", " + status.toString()));
+                    "Failed to delete file: " + path, e);
         }
     }
 
@@ -165,9 +165,13 @@ public class DelegateFileIO implements SupportsBulkOperations {
      * @param filesToDelete list of file paths to delete
      */
     private void deleteBatch(List<String> filesToDelete) {
-        Status status = fileSystem.deleteAll(filesToDelete);
-        if (!status.ok()) {
-            throw new UncheckedIOException(new IOException("Failed to delete some or all files: " + status.toString()));
+        for (String path : filesToDelete) {
+            try {
+                fileSystem.deleteFile(Location.of(path));
+            } catch (IOException e) {
+                throw new UncheckedIOException(
+                        "Failed to delete file: " + path, e);
+            }
         }
     }
 

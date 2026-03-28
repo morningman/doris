@@ -21,14 +21,14 @@ import org.apache.doris.backup.Status;
 import org.apache.doris.common.util.LocationPath;
 import org.apache.doris.datasource.ExternalMetaCacheMgr;
 import org.apache.doris.datasource.property.storage.StorageProperties;
-import org.apache.doris.fs.FileSystem;
+import org.apache.doris.fs.LegacyFileSystem;
 import org.apache.doris.fs.FileSystemCache;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class SwitchingFileSystem implements FileSystem {
+public class SwitchingFileSystem extends org.apache.doris.fs.LegacyFileSystemAdapter {
 
     private final ExternalMetaCacheMgr extMetaCacheMgr;
 
@@ -121,11 +121,12 @@ public class SwitchingFileSystem implements FileSystem {
         return fileSystem(remotePath).listDirectories(remotePath, result);
     }
 
-    public FileSystem fileSystem(String location) {
+    public LegacyFileSystem fileSystem(String location) {
         LocationPath path = LocationPath.of(location, storagePropertiesMap);
-        FileSystemCache.FileSystemCacheKey fileSystemCacheKey = new FileSystemCache.FileSystemCacheKey(
-                path.getFsIdentifier(), path.getStorageProperties()
-        );
+        org.apache.doris.fs.FileSystemCache.FileSystemCacheKey fileSystemCacheKey =
+                new org.apache.doris.fs.FileSystemCache.FileSystemCacheKey(
+                        path.getFsIdentifier(), path.getStorageProperties()
+                );
         return extMetaCacheMgr.getFsCache().getRemoteFileSystem(fileSystemCacheKey);
     }
 }

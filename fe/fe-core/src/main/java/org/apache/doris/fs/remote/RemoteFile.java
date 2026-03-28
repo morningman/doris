@@ -17,12 +17,28 @@
 
 package org.apache.doris.fs.remote;
 
+import org.apache.doris.fs.FileEntry;
+import org.apache.doris.fs.Location;
+
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.fs.Path;
 
-// represent a file or a dir in remote storage
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Represents a file or directory in remote storage.
+ *
+ * @deprecated Use {@link FileEntry} instead. This class remains for backward compatibility
+ *             during the migration period. Use {@link #toFileEntry()} to convert to the new type,
+ *             or {@link #fromFileEntry(FileEntry)} to convert back.
+ */
+@Deprecated
 public class RemoteFile {
     // Only file name, not full path
     private final String name;
@@ -113,5 +129,75 @@ public class RemoteFile {
         sb.append("]");
 
         return sb.toString();
+    }
+
+    // ====== FileEntry conversion ======
+
+    /**
+     * Converts this RemoteFile to a {@link FileEntry}.
+     *
+     * @return a new FileEntry representing the same file metadata
+     */
+    public FileEntry toFileEntry() {
+        String locationStr;
+        if (path != null) {
+            locationStr = path.toString();
+        } else {
+            locationStr = name;
+        }
+
+        List<FileEntry.BlockInfo> blocks = null;
+        if (blockLocations != null && blockLocations.length > 0) {
+            blocks = new ArrayList<>();
+            for (BlockLocation bl : blockLocations) {
+                try {
+                    blocks.add(new FileEntry.BlockInfo(
+                            Arrays.asList(bl.getHosts()),
+                            bl.getOffset(),
+                            bl.getLength()));
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to get block hosts", e);
+                }
+            }
+        }
+
+        return new FileEntry(
+                Location.of(locationStr),
+                isDirectory,
+                size,
+                modificationTime,
+                blocks);
+    }
+
+    /**
+     * Creates a RemoteFile from a {@link FileEntry}.
+     *
+     * @param entry the FileEntry to convert
+     * @return a new RemoteFile
+     */
+    public static RemoteFile fromFileEntry(FileEntry entry) {
+        BlockLocation[] blockLocs = null;
+        if (entry.blocks().isPresent()) {
+            List<FileEntry.BlockInfo> blocks = entry.blocks().get();
+            blockLocs = new BlockLocation[blocks.size()];
+            for (int i = 0; i < blocks.size(); i++) {
+                FileEntry.BlockInfo bi = blocks.get(i);
+                blockLocs[i] = new BlockLocation(
+                        null,
+                        bi.hosts().toArray(new String[0]),
+                        bi.offset(),
+                        bi.length());
+            }
+        }
+
+        return new RemoteFile(
+                entry.fileName(),
+                new Path(entry.location().toString()),
+                entry.isFile(),
+                entry.isDirectory(),
+                entry.length(),
+                0,
+                entry.lastModified(),
+                blockLocs);
     }
 }

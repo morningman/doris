@@ -18,7 +18,7 @@
 package org.apache.doris.datasource.hive;
 
 import org.apache.doris.backup.Status;
-import org.apache.doris.fs.FileSystem;
+import org.apache.doris.fs.LegacyFileSystem;
 import org.apache.doris.fs.FileSystemProvider;
 import org.apache.doris.fs.LocalDfsFileSystem;
 import org.apache.doris.fs.remote.RemoteFile;
@@ -161,27 +161,27 @@ public class HMSTransactionPathTest {
         Assert.assertFalse(Files.exists(otherFile));
     }
 
-    private static HMSTransaction createTransaction(FileSystem delegate) {
+    private static HMSTransaction createTransaction(LegacyFileSystem delegate) {
         SwitchingFileSystem switchingFs = new TestSwitchingFileSystem(delegate);
         FileSystemProvider provider = ctx -> switchingFs;
         return new HMSTransaction(null, provider, Runnable::run);
     }
 
     private static class TestSwitchingFileSystem extends SwitchingFileSystem {
-        private final FileSystem delegate;
+        private final LegacyFileSystem delegate;
 
-        TestSwitchingFileSystem(FileSystem delegate) {
+        TestSwitchingFileSystem(LegacyFileSystem delegate) {
             super(null, null);
             this.delegate = delegate;
         }
 
         @Override
-        public FileSystem fileSystem(String location) {
+        public LegacyFileSystem fileSystem(String location) {
             return delegate;
         }
     }
 
-    private static class FakeFileSystem implements FileSystem {
+    private static class FakeFileSystem implements LegacyFileSystem {
         private Status listDirectoriesStatus = Status.OK;
         private Status listFilesStatus = Status.OK;
         private Status makeDirStatus = Status.OK;

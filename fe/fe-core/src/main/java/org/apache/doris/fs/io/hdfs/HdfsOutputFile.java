@@ -17,6 +17,7 @@
 
 package org.apache.doris.fs.io.hdfs;
 
+import org.apache.doris.fs.Location;
 import org.apache.doris.fs.io.DorisOutputFile;
 import org.apache.doris.fs.io.ParsedPath;
 import org.apache.doris.fs.remote.dfs.DFSFileSystem;
@@ -73,11 +74,18 @@ public class HdfsOutputFile implements DorisOutputFile {
         return dfs.createFile(hadoopPath, true);
     }
 
+    @Override
+    public Location location() {
+        return Location.of(path.toString());
+    }
+
     /**
      * Returns the ParsedPath associated with this output file.
      *
      * @return the ParsedPath
+     * @deprecated Use {@link #location()} instead
      */
+    @Deprecated
     @Override
     public ParsedPath path() {
         return path;

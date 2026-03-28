@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class LocalDfsFileSystem implements FileSystem {
+public class LocalDfsFileSystem extends LegacyFileSystemAdapter {
 
     public LocalFileSystem fs = LocalFileSystem.getLocal(new Configuration());
 

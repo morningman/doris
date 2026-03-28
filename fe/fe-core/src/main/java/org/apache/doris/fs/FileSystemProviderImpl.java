@@ -36,7 +36,7 @@ public class FileSystemProviderImpl implements FileSystemProvider {
     }
 
     @Override
-    public FileSystem get(SessionContext ctx) {
+    public LegacyFileSystem get(SessionContext ctx) {
         return new SwitchingFileSystem(extMetaCacheMgr, storagePropertiesMap);
     }
 }

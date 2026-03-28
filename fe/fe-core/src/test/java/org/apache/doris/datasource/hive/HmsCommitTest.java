@@ -25,7 +25,7 @@ import org.apache.doris.common.security.authentication.ExecutionAuthenticator;
 import org.apache.doris.common.util.DebugUtil;
 import org.apache.doris.datasource.NameMapping;
 import org.apache.doris.datasource.TestHMSCachedClient;
-import org.apache.doris.fs.FileSystem;
+import org.apache.doris.fs.LegacyFileSystem;
 import org.apache.doris.fs.FileSystemProvider;
 import org.apache.doris.fs.LocalDfsFileSystem;
 import org.apache.doris.fs.remote.SwitchingFileSystem;
@@ -75,7 +75,7 @@ public class HmsCommitTest {
     private static final String dbName = "test_db";
     private static final String tbWithPartition = "test_tb_with_partition";
     private static final String tbWithoutPartition = "test_tb_without_partition";
-    private static FileSystem fs;
+    private static LegacyFileSystem fs;
     private static LocalDfsFileSystem localDFSFileSystem;
     private static Executor fileSystemExecutor;
     static String dbLocation;
@@ -103,7 +103,7 @@ public class HmsCommitTest {
         localDFSFileSystem = new LocalDfsFileSystem();
         new MockUp<SwitchingFileSystem>(SwitchingFileSystem.class) {
             @Mock
-            public FileSystem fileSystem(String location) {
+            public LegacyFileSystem fileSystem(String location) {
                 return localDFSFileSystem;
             }
         };

@@ -25,7 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class FileSystemDirectoryLister implements DirectoryLister {
-    public RemoteIterator<RemoteFile> listFiles(FileSystem fs, boolean recursive, TableIf table, String location)
+    public RemoteIterator<RemoteFile> listFiles(LegacyFileSystem fs, boolean recursive, TableIf table, String location)
             throws FileSystemIOException {
         List<RemoteFile> result = new ArrayList<>();
         Status status = fs.listFiles(location, recursive, result);

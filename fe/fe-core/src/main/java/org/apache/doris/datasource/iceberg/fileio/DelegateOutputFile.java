@@ -18,8 +18,8 @@
 package org.apache.doris.datasource.iceberg.fileio;
 
 import org.apache.doris.fs.FileSystem;
+import org.apache.doris.fs.Location;
 import org.apache.doris.fs.io.DorisOutputFile;
-import org.apache.doris.fs.io.ParsedPath;
 
 import com.google.common.io.CountingOutputStream;
 import org.apache.iceberg.io.InputFile;
@@ -50,11 +50,11 @@ public class DelegateOutputFile implements OutputFile {
      * Constructs a DelegateOutputFile with the specified FileSystem and ParsedPath.
      *
      * @param fileSystem the Doris file system to delegate operations to
-     * @param path the ParsedPath representing the file location
+     * @param location the Location representing the file location
      */
-    public DelegateOutputFile(FileSystem fileSystem, ParsedPath path) {
+    public DelegateOutputFile(FileSystem fileSystem, Location location) {
         this.fileSystem = Objects.requireNonNull(fileSystem, "fileSystem is null");
-        this.outputFile = fileSystem.newOutputFile(path);
+        this.outputFile = fileSystem.newOutputFile(location);
     }
 
     // ===================== File Creation Methods =====================
@@ -96,7 +96,7 @@ public class DelegateOutputFile implements OutputFile {
      */
     @Override
     public String location() {
-        return outputFile.path().toString();
+        return outputFile.location().toString();
     }
 
     /**
@@ -106,7 +106,7 @@ public class DelegateOutputFile implements OutputFile {
      */
     @Override
     public InputFile toInputFile() {
-        return new DelegateInputFile(fileSystem.newInputFile(outputFile.path()));
+        return new DelegateInputFile(fileSystem.newInputFile(outputFile.location()));
     }
 
     // ===================== Object Methods =====================

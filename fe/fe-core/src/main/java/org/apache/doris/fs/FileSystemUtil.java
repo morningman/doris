@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class FileSystemUtil {
 
-    public static void asyncRenameFiles(FileSystem fs,
+    public static void asyncRenameFiles(LegacyFileSystem fs,
                                         Executor executor,
                                         List<CompletableFuture<?>> renameFileFutures,
                                         AtomicBoolean cancelled,
@@ -50,7 +50,7 @@ public class FileSystemUtil {
         }
     }
 
-    public static void asyncRenameDir(FileSystem fs,
+    public static void asyncRenameDir(LegacyFileSystem fs,
                                       Executor executor,
                                       List<CompletableFuture<?>> renameFileFutures,
                                       AtomicBoolean cancelled,

@@ -69,7 +69,7 @@ public class DelegateInputFile implements InputFile {
      */
     @Override
     public String location() {
-        return inputFile.path().toString();
+        return inputFile.location().toString();
     }
 
     /**

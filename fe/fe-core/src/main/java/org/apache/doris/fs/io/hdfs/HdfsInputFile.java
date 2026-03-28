@@ -18,6 +18,7 @@
 package org.apache.doris.fs.io.hdfs;
 
 import org.apache.doris.backup.Status;
+import org.apache.doris.fs.Location;
 import org.apache.doris.fs.io.DorisInput;
 import org.apache.doris.fs.io.DorisInputFile;
 import org.apache.doris.fs.io.DorisInputStream;
@@ -120,11 +121,18 @@ public class HdfsInputFile implements DorisInputFile {
         return status.ok();
     }
 
+    @Override
+    public Location location() {
+        return Location.of(path.toString());
+    }
+
     /**
      * Returns the ParsedPath associated with this input file.
      *
      * @return the ParsedPath
+     * @deprecated Use {@link #location()} instead
      */
+    @Deprecated
     @Override
     public ParsedPath path() {
         return path;

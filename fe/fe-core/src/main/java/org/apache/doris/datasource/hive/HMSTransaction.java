@@ -28,7 +28,7 @@ import org.apache.doris.common.profile.SummaryProfile;
 import org.apache.doris.datasource.NameMapping;
 import org.apache.doris.datasource.statistics.CommonStatistics;
 import org.apache.doris.foundation.util.PathUtils;
-import org.apache.doris.fs.FileSystem;
+import org.apache.doris.fs.LegacyFileSystem;
 import org.apache.doris.fs.FileSystemProvider;
 import org.apache.doris.fs.FileSystemUtil;
 import org.apache.doris.fs.remote.ObjFileSystem;
@@ -90,7 +90,7 @@ import java.util.stream.Collectors;
 public class HMSTransaction implements Transaction {
     private static final Logger LOG = LogManager.getLogger(HMSTransaction.class);
     private final HiveMetadataOps hiveOps;
-    private final FileSystem fs;
+    private final LegacyFileSystem fs;
     private Optional<SummaryProfile> summaryProfile = Optional.empty();
     private String queryId;
     private boolean isOverwrite = false;
