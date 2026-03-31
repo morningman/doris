@@ -39,5 +39,6 @@ under the License.
 
     <modules>
         <module>fe-filesystem-spi</module>
+        <module>fe-filesystem-s3</module>
     </modules>
 </project>
