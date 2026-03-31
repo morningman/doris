@@ -19,6 +19,11 @@ package org.apache.doris.fs;
 
 import org.apache.doris.datasource.SessionContext;
 
-public interface FileSystemProvider {
+/**
+ * Factory interface for the legacy (pre-SPI) filesystem provider system.
+ * Renamed from FileSystemProvider to avoid naming conflict with the new
+ * org.apache.doris.filesystem.spi.FileSystemProvider SPI interface (Phase 3).
+ */
+public interface LegacyFileSystemProviderFactory {
     LegacyFileSystemApi get(SessionContext ctx);
 }
