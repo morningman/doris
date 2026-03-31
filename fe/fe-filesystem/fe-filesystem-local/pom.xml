@@ -19,31 +19,26 @@ under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <groupId>org.apache.doris</groupId>
-        <artifactId>fe</artifactId>
+        <artifactId>fe-filesystem</artifactId>
         <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>fe-filesystem</artifactId>
-    <packaging>pom</packaging>
-    <name>Doris FE Filesystem (Aggregator)</name>
-    <description>
-        Aggregator POM for all Doris FE filesystem modules.
-        Contains NO Java code; only lists sub-modules.
-    </description>
+    <artifactId>fe-filesystem-local</artifactId>
+    <name>Doris FE Filesystem - Local (Testing Only)</name>
+    <description>Local filesystem implementation for unit tests. NOT for production use.</description>
 
-    <modules>
-        <module>fe-filesystem-spi</module>
-        <module>fe-filesystem-s3</module>
-        <module>fe-filesystem-oss</module>
-        <module>fe-filesystem-cos</module>
-        <module>fe-filesystem-obs</module>
-        <module>fe-filesystem-local</module>
-        <module>fe-filesystem-azure</module>
-    </modules>
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.doris</groupId>
+            <artifactId>fe-filesystem-spi</artifactId>
+            <version>${revision}</version>
+        </dependency>
+    </dependencies>
 </project>
