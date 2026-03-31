@@ -24,24 +24,21 @@ under the License.
 
     <parent>
         <groupId>org.apache.doris</groupId>
-        <artifactId>fe</artifactId>
+        <artifactId>fe-filesystem</artifactId>
         <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>fe-filesystem</artifactId>
-    <packaging>pom</packaging>
-    <name>Doris FE Filesystem (Aggregator)</name>
-    <description>
-        Aggregator POM for all Doris FE filesystem modules.
-        Contains NO Java code; only lists sub-modules.
-    </description>
+    <artifactId>fe-filesystem-obs</artifactId>
+    <packaging>jar</packaging>
+    <name>Doris FE Filesystem - OBS</name>
+    <description>Huawei Cloud OBS filesystem provider for Doris FE (delegates to S3FileSystem).</description>
 
-    <modules>
-        <module>fe-filesystem-spi</module>
-        <module>fe-filesystem-s3</module>
-        <module>fe-filesystem-oss</module>
-        <module>fe-filesystem-cos</module>
-        <module>fe-filesystem-obs</module>
-    </modules>
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.doris</groupId>
+            <artifactId>fe-filesystem-s3</artifactId>
+            <version>${revision}</version>
+        </dependency>
+    </dependencies>
 </project>
