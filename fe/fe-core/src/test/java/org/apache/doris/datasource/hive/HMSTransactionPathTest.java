@@ -18,8 +18,8 @@
 package org.apache.doris.datasource.hive;
 
 import org.apache.doris.backup.Status;
-import org.apache.doris.fs.LegacyFileSystemProviderFactory;
 import org.apache.doris.fs.LegacyFileSystemApi;
+import org.apache.doris.fs.LegacyFileSystemProviderFactory;
 import org.apache.doris.fs.LocalDfsFileSystem;
 import org.apache.doris.fs.remote.RemoteFile;
 import org.apache.doris.fs.remote.SwitchingFileSystem;
