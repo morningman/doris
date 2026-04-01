@@ -15,18 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 // This file is copied from
-// https://github.com/trinodb/trino/blob/438/plugin/trino-hive/src/main/java/io/trino/plugin/hive/fs/DirectoryLister.java
+// https://github.com/trinodb/trino/blob/438/plugin/trino-hive/src/main/java/io/trino/plugin/hive/fs/RemoteIterator.java
 // and modified by Doris
 
-package org.apache.doris.fs;
+package org.apache.doris.filesystem.spi;
 
-import org.apache.doris.catalog.TableIf;
-import org.apache.doris.filesystem.spi.FileEntry;
-import org.apache.doris.filesystem.spi.FileSystem;
-import org.apache.doris.filesystem.spi.FileSystemIOException;
-import org.apache.doris.filesystem.spi.RemoteIterator;
+public interface RemoteIterator<T> {
+    boolean hasNext() throws FileSystemIOException;
 
-public interface DirectoryLister {
-    RemoteIterator<FileEntry> listFiles(FileSystem fs, boolean recursive, TableIf table, String location)
-            throws FileSystemIOException;
+    T next() throws FileSystemIOException;
 }
