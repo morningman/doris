@@ -30,20 +30,8 @@ import java.io.IOException;
 public interface DorisInputFile {
     /**
      * Returns the location of this file.
-     * Replaces the old {@link #path()} method.
      */
     Location location();
-
-    /**
-     * Returns the path of this file as a ParsedPath object.
-     *
-     * @return the ParsedPath representing the file location
-     * @deprecated use {@link #location()} instead
-     */
-    @Deprecated
-    default ParsedPath path() {
-        return new ParsedPath(location().toString());
-    }
 
     /**
      * Returns the length of the file in bytes.

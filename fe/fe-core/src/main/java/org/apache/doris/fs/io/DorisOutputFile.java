@@ -54,18 +54,6 @@ public interface DorisOutputFile {
 
     /**
      * Returns the location of this output file.
-     * Replaces the old {@link #path()} method.
      */
     Location location();
-
-    /**
-     * Returns the path of this output file as a ParsedPath object.
-     *
-     * @return the ParsedPath representing the file location
-     * @deprecated use {@link #location()} instead
-     */
-    @Deprecated
-    default ParsedPath path() {
-        return new ParsedPath(location().toString());
-    }
 }
