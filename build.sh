@@ -928,7 +928,10 @@ if [[ "${BUILD_FE}" -eq 1 ]]; then
     if [[ ! -d "${DORIS_HOME}/fe/fe-core/target/lib" ]]; then
         echo "target/lib not found (build cache hit), running dependency:copy-dependencies..."
         (cd "${DORIS_HOME}/fe" && "${MVN_CMD}" dependency:copy-dependencies \
-            -pl fe-core --no-transfer-progress -q)
+            -pl fe-core \
+            -DoutputDirectory="${DORIS_HOME}/fe/fe-core/target/lib" \
+            -DincludeScope=runtime \
+            --no-transfer-progress -q)
     fi
     cp -r -p "${DORIS_HOME}/fe/fe-core/target/lib"/* "${DORIS_OUTPUT}/fe/lib"/
     cp -r -p "${DORIS_HOME}/fe/fe-core/target/doris-fe.jar" "${DORIS_OUTPUT}/fe/lib"/
@@ -974,9 +977,9 @@ if [[ "${BUILD_FE}" -eq 1 ]]; then
         fi
         mkdir -p "${fs_plugin_target}/lib"
         # Copy main JAR
-        cp -f "${fs_module_dir}/target/doris-fe-filesystem-${fs_module}-"*.jar "${fs_plugin_target}/" 2>/dev/null || true
+        cp -f "${fs_module_dir}/target/doris-fe-filesystem-${fs_module}"*.jar "${fs_plugin_target}/" 2>/dev/null || true
         # Copy transitive dependencies, excluding spi JARs already on FE classpath
-        (cd "${DORIS_HOME}/fe" && mvn dependency:copy-dependencies \
+        (cd "${DORIS_HOME}/fe" && "${MVN_CMD}" dependency:copy-dependencies \
             -pl "fe-filesystem/fe-filesystem-${fs_module}" \
             -DoutputDirectory="${fs_plugin_target}/lib" \
             -DexcludeArtifactIds="fe-filesystem-spi,fe-extension-spi" \
