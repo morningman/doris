@@ -922,6 +922,14 @@ if [[ "${BUILD_FE}" -eq 1 ]]; then
     if [[ "${BUILD_JUICEFS}" == "ON" ]]; then
         install -d "${DORIS_OUTPUT}/fe/lib/juicefs"
     fi
+    # Maven Build Cache may restore only the JAR on a cache hit, skipping the
+    # dependency:copy-dependencies execution that populates target/lib/.  Run it
+    # explicitly when needed so the output lib directory is always complete.
+    if [[ ! -d "${DORIS_HOME}/fe/fe-core/target/lib" ]]; then
+        echo "target/lib not found (build cache hit), running dependency:copy-dependencies..."
+        (cd "${DORIS_HOME}/fe" && "${MVN_CMD}" dependency:copy-dependencies \
+            -pl fe-core --no-transfer-progress -q)
+    fi
     cp -r -p "${DORIS_HOME}/fe/fe-core/target/lib"/* "${DORIS_OUTPUT}/fe/lib"/
     cp -r -p "${DORIS_HOME}/fe/fe-core/target/doris-fe.jar" "${DORIS_OUTPUT}/fe/lib"/
     if [[ "${WITH_TDE_DIR}" != "" ]]; then
