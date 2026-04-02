@@ -39,8 +39,9 @@ public class ClusterGuardExceptionTest {
 
     @Test
     public void testIsCheckedException() {
-        // ClusterGuardException must be a checked exception (extends Exception, not RuntimeException)
-        ClusterGuardException ex = new ClusterGuardException("test");
+        // ClusterGuardException must be a checked exception (extends Exception, not RuntimeException).
+        // Cast to Object first so the compiler does not reject the instanceof check as always-false.
+        Object ex = new ClusterGuardException("test");
         Assert.assertTrue(ex instanceof Exception);
         Assert.assertFalse(ex instanceof RuntimeException);
     }
