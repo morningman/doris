@@ -4522,7 +4522,7 @@ public class FrontendServiceImpl implements FrontendService.Iface {
                     return new TStatus(TStatusCode.INVALID_ARGUMENT);
                 }
                 CommitTxnResponse commitTxnResponse = CommitTxnResponse.parseFrom(receivedProtobufBytes);
-                Env.getCurrentGlobalTransactionMgr().afterCommitTxnResp(commitTxnResponse, tabletIds);
+                Env.getCurrentGlobalTransactionMgr().afterCommitTxnResp(commitTxnResponse, null, tabletIds);
             } else {
                 // compaction notify update tablet stats
                 CloudTabletStatMgr.getInstance().addActiveTablets(tabletIds);
