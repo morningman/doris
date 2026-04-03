@@ -333,7 +333,8 @@ public class ClusterGuardFactoryTest {
                     protected URLConnection openConnection(URL u) {
                         return new URLConnection(u) {
                             @Override
-                            public void connect() { /* nothing */ }
+                            public void connect() {
+                            }
 
                             @Override
                             public InputStream getInputStream() {
