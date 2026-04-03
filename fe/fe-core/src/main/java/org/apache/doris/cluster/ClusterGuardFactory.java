@@ -25,12 +25,21 @@ import java.util.ServiceLoader;
 
 /**
  * Factory that discovers a {@link ClusterGuard} implementation via
- * {@link ServiceLoader}. If no provider is found on the classpath,
- * a {@link NoOpClusterGuard} is returned so the open-source edition
- * runs without restrictions.
+ * {@link ServiceLoader}.
+ * <p>
+ * If no provider is found on the classpath and the sentinel resource
+ * {@code META-INF/cluster-guard-required} is absent, a {@link NoOpClusterGuard}
+ * is returned so the open-source edition runs without restrictions.
+ * <p>
+ * When the sentinel resource <em>is</em> present but no implementation is found,
+ * startup is aborted by throwing a {@link RuntimeException}. The sentinel is
+ * only shipped by builds that require guard enforcement; it is never included
+ * in the open-source distribution.
  */
 public class ClusterGuardFactory {
     private static final Logger LOG = LogManager.getLogger(ClusterGuardFactory.class);
+
+    static final String SENTINEL_RESOURCE = "META-INF/cluster-guard-required";
 
     private static volatile ClusterGuard instance;
 
@@ -50,13 +59,29 @@ public class ClusterGuardFactory {
     }
 
     private static ClusterGuard loadGuard() {
-        ServiceLoader<ClusterGuard> loader = ServiceLoader.load(ClusterGuard.class);
+        return loadGuard(ClusterGuardFactory.class.getClassLoader());
+    }
+
+    /**
+     * Visible for testing — allows injecting a custom {@link ClassLoader} so unit
+     * tests can simulate the sentinel file being present or absent without touching
+     * the real classpath.
+     */
+    static ClusterGuard loadGuard(ClassLoader classLoader) {
+        ServiceLoader<ClusterGuard> loader = ServiceLoader.load(ClusterGuard.class, classLoader);
         Iterator<ClusterGuard> it = loader.iterator();
         if (it.hasNext()) {
             ClusterGuard guard = it.next();
             LOG.info("Loaded ClusterGuard implementation: {}", guard.getClass().getName());
             return guard;
         }
+
+        if (classLoader.getResource(SENTINEL_RESOURCE) != null) {
+            throw new RuntimeException(
+                    "ClusterGuard is required but no implementation was found on the classpath. "
+                    + "Ensure the appropriate extension module is included in the deployment.");
+        }
+
         LOG.info("No ClusterGuard implementation found, using NoOpClusterGuard");
         return NoOpClusterGuard.INSTANCE;
     }
