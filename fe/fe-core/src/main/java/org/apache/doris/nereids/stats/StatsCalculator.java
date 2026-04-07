@@ -76,14 +76,12 @@ import org.apache.doris.nereids.trees.plans.logical.LogicalCatalogRelation;
 import org.apache.doris.nereids.trees.plans.logical.LogicalDeferMaterializeOlapScan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalDeferMaterializeTopN;
 import org.apache.doris.nereids.trees.plans.logical.LogicalEmptyRelation;
-import org.apache.doris.nereids.trees.plans.logical.LogicalEsScan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalExcept;
 import org.apache.doris.nereids.trees.plans.logical.LogicalFileScan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalFilter;
 import org.apache.doris.nereids.trees.plans.logical.LogicalGenerate;
 import org.apache.doris.nereids.trees.plans.logical.LogicalHudiScan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalIntersect;
-import org.apache.doris.nereids.trees.plans.logical.LogicalJdbcScan;
 import org.apache.doris.nereids.trees.plans.logical.LogicalJoin;
 import org.apache.doris.nereids.trees.plans.logical.LogicalLimit;
 import org.apache.doris.nereids.trees.plans.logical.LogicalOdbcScan;
@@ -112,7 +110,6 @@ import org.apache.doris.nereids.trees.plans.physical.PhysicalDeferMaterializeOla
 import org.apache.doris.nereids.trees.plans.physical.PhysicalDeferMaterializeTopN;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalDistribute;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalEmptyRelation;
-import org.apache.doris.nereids.trees.plans.physical.PhysicalEsScan;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalExcept;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalFileScan;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalFilter;
@@ -120,7 +117,6 @@ import org.apache.doris.nereids.trees.plans.physical.PhysicalGenerate;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalHashAggregate;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalHashJoin;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalIntersect;
-import org.apache.doris.nereids.trees.plans.physical.PhysicalJdbcScan;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalLimit;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalNestedLoopJoin;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalOdbcScan;
@@ -870,21 +866,9 @@ public class StatsCalculator extends DefaultPlanVisitor<Statistics, Void> {
     }
 
     @Override
-    public Statistics visitLogicalJdbcScan(LogicalJdbcScan jdbcScan, Void context) {
-        jdbcScan.getExpressions();
-        return computeCatalogRelation(jdbcScan);
-    }
-
-    @Override
     public Statistics visitLogicalOdbcScan(LogicalOdbcScan odbcScan, Void context) {
         odbcScan.getExpressions();
         return computeCatalogRelation(odbcScan);
-    }
-
-    @Override
-    public Statistics visitLogicalEsScan(LogicalEsScan esScan, Void context) {
-        esScan.getExpressions();
-        return computeCatalogRelation(esScan);
     }
 
     @Override
@@ -1111,18 +1095,8 @@ public class StatsCalculator extends DefaultPlanVisitor<Statistics, Void> {
     }
 
     @Override
-    public Statistics visitPhysicalJdbcScan(PhysicalJdbcScan jdbcScan, Void context) {
-        return computeCatalogRelation(jdbcScan);
-    }
-
-    @Override
     public Statistics visitPhysicalOdbcScan(PhysicalOdbcScan odbcScan, Void context) {
         return computeCatalogRelation(odbcScan);
-    }
-
-    @Override
-    public Statistics visitPhysicalEsScan(PhysicalEsScan esScan, Void context) {
-        return computeCatalogRelation(esScan);
     }
 
     @Override

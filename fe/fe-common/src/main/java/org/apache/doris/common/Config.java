@@ -3488,6 +3488,11 @@ public class Config extends ConfigBase {
             + "If empty, only classpath-based built-in providers are used (test/dev mode)."})
     public static String filesystem_plugin_root = EnvUtils.getDorisHome() + "/plugins/filesystem";
 
+    @ConfField(description = {"Directory containing connector provider plugin subdirectories. "
+            + "Each subdirectory is one connector (e.g., es/, jdbc/, iceberg/). "
+            + "If empty, only classpath-based built-in providers are used (test/dev mode)."})
+    public static String connector_plugin_root = EnvUtils.getDorisHome() + "/plugins/connector";
+
     @ConfField(description = {"Authorization plugin configuration file path. Must be under DORIS_HOME. "
             + "Default is conf/authorization.conf."})
     public static String authorization_config_file_path = "/conf/authorization.conf";

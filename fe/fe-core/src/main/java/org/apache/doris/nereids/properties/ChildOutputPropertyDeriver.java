@@ -39,13 +39,11 @@ import org.apache.doris.nereids.trees.plans.physical.PhysicalCTEProducer;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalDeferMaterializeOlapScan;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalDistribute;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalEmptyRelation;
-import org.apache.doris.nereids.trees.plans.physical.PhysicalEsScan;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalFileScan;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalFilter;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalGenerate;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalHashAggregate;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalHashJoin;
-import org.apache.doris.nereids.trees.plans.physical.PhysicalJdbcScan;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalLimit;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalNestedLoopJoin;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalOdbcScan;
@@ -144,11 +142,6 @@ public class ChildOutputPropertyDeriver extends PlanVisitor<PhysicalProperties, 
     }
 
     @Override
-    public PhysicalProperties visitPhysicalEsScan(PhysicalEsScan esScan, PlanContext context) {
-        return PhysicalProperties.STORAGE_ANY;
-    }
-
-    @Override
     public PhysicalProperties visitPhysicalFileScan(PhysicalFileScan fileScan, PlanContext context) {
         return PhysicalProperties.STORAGE_ANY;
     }
@@ -156,21 +149,6 @@ public class ChildOutputPropertyDeriver extends PlanVisitor<PhysicalProperties, 
     @Override
     public PhysicalProperties visitPhysicalWorkTableReference(PhysicalWorkTableReference cteScan, PlanContext context) {
         return PhysicalProperties.ANY;
-    }
-
-    /**
-     * TODO return ANY after refactor coordinator
-     * return STORAGE_ANY not ANY, in order to generate distribute on jdbc scan.
-     * select * from (select * from external.T) as A union all (select * from external.T)
-     * if visitPhysicalJdbcScan returns ANY, the plan is
-     * union
-     *  |--- JDBCSCAN
-     *  +--- JDBCSCAN
-     *  this breaks coordinator assumption that one fragment has at most only one scan.
-     */
-    @Override
-    public PhysicalProperties visitPhysicalJdbcScan(PhysicalJdbcScan jdbcScan, PlanContext context) {
-        return PhysicalProperties.STORAGE_ANY;
     }
 
     @Override

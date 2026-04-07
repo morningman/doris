@@ -51,7 +51,6 @@ import org.apache.doris.nereids.trees.plans.physical.PhysicalHiveTableSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalIcebergDeleteSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalIcebergMergeSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalIcebergTableSink;
-import org.apache.doris.nereids.trees.plans.physical.PhysicalJdbcTableSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalLimit;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalMaxComputeTableSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalNestedLoopJoin;
@@ -207,14 +206,6 @@ public class RequestPropertyDeriver extends PlanVisitor<Void, PlanContext> {
         } else {
             addRequestPropertyToChildren(icebergMergeSink.getRequirePhysicalProperties());
         }
-        return null;
-    }
-
-    @Override
-    public Void visitPhysicalJdbcTableSink(
-            PhysicalJdbcTableSink<? extends Plan> jdbcTableSink, PlanContext context) {
-        // Always use gather properties for jdbcTableSink
-        addRequestPropertyToChildren(PhysicalProperties.GATHER);
         return null;
     }
 
