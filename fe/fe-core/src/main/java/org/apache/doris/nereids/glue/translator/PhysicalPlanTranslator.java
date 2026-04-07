@@ -42,12 +42,24 @@ import org.apache.doris.catalog.TableIf;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.Pair;
 import org.apache.doris.common.util.Util;
+import org.apache.doris.connector.api.Connector;
+import org.apache.doris.connector.api.ConnectorColumn;
+import org.apache.doris.connector.api.ConnectorMetadata;
+import org.apache.doris.connector.api.ConnectorSession;
+import org.apache.doris.connector.api.ConnectorType;
+import org.apache.doris.connector.api.ConnectorWriteOps;
+import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
+import org.apache.doris.connector.api.write.ConnectorWriteConfig;
+import org.apache.doris.connector.api.write.ConnectorWriteType;
 import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.FileQueryScanNode;
+import org.apache.doris.datasource.PluginDrivenEsScanNode;
+import org.apache.doris.datasource.PluginDrivenExternalCatalog;
+import org.apache.doris.datasource.PluginDrivenExternalTable;
+import org.apache.doris.datasource.PluginDrivenScanNode;
 import org.apache.doris.datasource.doris.RemoteDorisExternalTable;
 import org.apache.doris.datasource.doris.RemoteOlapTable;
 import org.apache.doris.datasource.doris.source.RemoteDorisScanNode;
-import org.apache.doris.datasource.es.source.EsScanNode;
 import org.apache.doris.datasource.hive.HMSExternalTable;
 import org.apache.doris.datasource.hive.HMSExternalTable.DLAType;
 import org.apache.doris.datasource.hive.source.HiveScanNode;
@@ -56,9 +68,6 @@ import org.apache.doris.datasource.iceberg.IcebergExternalTable;
 import org.apache.doris.datasource.iceberg.IcebergMergeOperation;
 import org.apache.doris.datasource.iceberg.IcebergSysExternalTable;
 import org.apache.doris.datasource.iceberg.source.IcebergScanNode;
-import org.apache.doris.datasource.jdbc.JdbcExternalTable;
-import org.apache.doris.datasource.jdbc.sink.JdbcTableSink;
-import org.apache.doris.datasource.jdbc.source.JdbcScanNode;
 import org.apache.doris.datasource.lakesoul.LakeSoulExternalTable;
 import org.apache.doris.datasource.lakesoul.source.LakeSoulScanNode;
 import org.apache.doris.datasource.maxcompute.MaxComputeExternalTable;
@@ -120,13 +129,13 @@ import org.apache.doris.nereids.trees.plans.physical.PhysicalBlackholeSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalCTEAnchor;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalCTEConsumer;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalCTEProducer;
+import org.apache.doris.nereids.trees.plans.physical.PhysicalConnectorTableSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalDeferMaterializeOlapScan;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalDeferMaterializeResultSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalDeferMaterializeTopN;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalDictionarySink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalDistribute;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalEmptyRelation;
-import org.apache.doris.nereids.trees.plans.physical.PhysicalEsScan;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalExcept;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalFileScan;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalFileSink;
@@ -140,8 +149,6 @@ import org.apache.doris.nereids.trees.plans.physical.PhysicalIcebergDeleteSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalIcebergMergeSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalIcebergTableSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalIntersect;
-import org.apache.doris.nereids.trees.plans.physical.PhysicalJdbcScan;
-import org.apache.doris.nereids.trees.plans.physical.PhysicalJdbcTableSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalLazyMaterialize;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalLazyMaterializeOlapScan;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalLazyMaterializeTVFScan;
@@ -212,6 +219,7 @@ import org.apache.doris.planner.OlapTableSink;
 import org.apache.doris.planner.PartitionSortNode;
 import org.apache.doris.planner.PlanFragment;
 import org.apache.doris.planner.PlanNode;
+import org.apache.doris.planner.PluginDrivenTableSink;
 import org.apache.doris.planner.RecursiveCteNode;
 import org.apache.doris.planner.RecursiveCteScanNode;
 import org.apache.doris.planner.RemoteOlapTableSink;
@@ -650,19 +658,42 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
     }
 
     @Override
-    public PlanFragment visitPhysicalJdbcTableSink(PhysicalJdbcTableSink<? extends Plan> jdbcTableSink,
+    public PlanFragment visitPhysicalConnectorTableSink(
+            PhysicalConnectorTableSink<? extends Plan> connectorTableSink,
             PlanTranslatorContext context) {
-        PlanFragment rootFragment = jdbcTableSink.child().accept(this, context);
+        PlanFragment rootFragment = connectorTableSink.child().accept(this, context);
         rootFragment.setOutputPartition(DataPartition.UNPARTITIONED);
-        List<Column> targetTableColumns = jdbcTableSink.getCols();
-        List<String> insertCols = targetTableColumns.stream()
-                .map(Column::getName)
-                .collect(Collectors.toList());
 
-        JdbcTableSink sink = new JdbcTableSink(
-                (JdbcExternalTable) jdbcTableSink.getTargetTable(),
-                insertCols
-        );
+        PluginDrivenExternalTable targetTable =
+                (PluginDrivenExternalTable) connectorTableSink.getTargetTable();
+        PluginDrivenExternalCatalog catalog =
+                (PluginDrivenExternalCatalog) targetTable.getCatalog();
+
+        // Get write config from the connector
+        Connector connector = catalog.getConnector();
+        ConnectorSession connSession = catalog.buildConnectorSession();
+        ConnectorMetadata metadata = connector.getMetadata(connSession);
+
+        // Convert sink columns to connector columns for INSERT SQL generation
+        List<ConnectorColumn> connectorColumns = connectorTableSink.getCols().stream()
+                .map(col -> new ConnectorColumn(col.getName(),
+                        ConnectorType.of(col.getType().getPrimitiveType().toString()),
+                        null, col.isAllowNull(), null))
+                .collect(java.util.stream.Collectors.toList());
+
+        ConnectorWriteConfig writeConfig;
+        if (metadata instanceof ConnectorWriteOps) {
+            writeConfig = ((ConnectorWriteOps) metadata).getWriteConfig(
+                    connSession,
+                    metadata.getTableHandle(connSession,
+                            targetTable.getDbName(), targetTable.getName()).orElse(null),
+                    connectorColumns);
+        } else {
+            // Fallback: create a minimal file-write config
+            writeConfig = ConnectorWriteConfig.builder(ConnectorWriteType.FILE_WRITE).build();
+        }
+
+        PluginDrivenTableSink sink = new PluginDrivenTableSink(targetTable, writeConfig);
         rootFragment.setSink(sink);
         return rootFragment;
     }
@@ -759,6 +790,20 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
         } else if (table instanceof RemoteDorisExternalTable) {
             scanNode = new RemoteDorisScanNode(context.nextPlanNodeId(), tupleDescriptor, false, sv,
                     context.getScanContext());
+        } else if (table instanceof PluginDrivenExternalTable) {
+            PluginDrivenExternalCatalog pluginCatalog =
+                    (PluginDrivenExternalCatalog) table.getCatalog();
+            ConnectorScanRangeType scanType = pluginCatalog.getConnector()
+                    .getScanPlanProvider().getScanRangeType();
+            if (scanType == ConnectorScanRangeType.ES_SCAN) {
+                scanNode = PluginDrivenEsScanNode.create(context.nextPlanNodeId(),
+                        tupleDescriptor, context.getScanContext(), pluginCatalog,
+                        (PluginDrivenExternalTable) table);
+            } else {
+                scanNode = PluginDrivenScanNode.create(context.nextPlanNodeId(), tupleDescriptor,
+                        false, sv, context.getScanContext(), pluginCatalog,
+                        ((PluginDrivenExternalTable) table));
+            }
         } else {
             throw new RuntimeException("do not support table type " + table.getType());
         }
@@ -788,38 +833,6 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
                 DataPartition.UNPARTITIONED, emptyRelation);
         context.addPlanFragment(planFragment);
         updateLegacyPlanIdToPhysicalPlan(planFragment.getPlanRoot(), emptyRelation);
-        return planFragment;
-    }
-
-    @Override
-    public PlanFragment visitPhysicalEsScan(PhysicalEsScan esScan, PlanTranslatorContext context) {
-        List<Slot> slots = esScan.getOutput();
-        TableIf table = esScan.getTable();
-        TupleDescriptor tupleDescriptor = generateTupleDesc(slots, table, context);
-        EsScanNode esScanNode = new EsScanNode(context.nextPlanNodeId(), tupleDescriptor,
-                context.getScanContext());
-        esScanNode.setNereidsId(esScan.getId());
-        context.getNereidsIdToPlanNodeIdMap().put(esScan.getId(), esScanNode.getId());
-        Utils.execWithUncheckedException(esScanNode::init);
-        context.addScanNode(esScanNode, esScan);
-        context.getRuntimeTranslator().ifPresent(
-                runtimeFilterGenerator -> runtimeFilterGenerator.getContext().getTargetListByScan(esScan).forEach(
-                        expr -> runtimeFilterGenerator.translateRuntimeFilterTarget(expr, esScanNode, context)
-                )
-        );
-        // translate rf v2 target
-        List<RuntimeFilterV2> rfV2s = context.getRuntimeFilterV2Context()
-                .getRuntimeFilterV2ByTargetPlan(esScan);
-        for (RuntimeFilterV2 rfV2 : rfV2s) {
-            Expr targetExpr = rfV2.getTargetExpression().accept(ExpressionTranslator.INSTANCE, context);
-            rfV2.setLegacyTargetNode(esScanNode);
-            rfV2.setLegacyTargetExpr(targetExpr);
-        }
-        context.getTopnFilterContext().translateTarget(esScan, esScanNode, context);
-        DataPartition dataPartition = DataPartition.RANDOM;
-        PlanFragment planFragment = new PlanFragment(context.nextFragmentId(), esScanNode, dataPartition);
-        context.addPlanFragment(planFragment);
-        updateLegacyPlanIdToPhysicalPlan(planFragment.getPlanRoot(), esScan);
         return planFragment;
     }
 
@@ -864,29 +877,6 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
         PlanFragment planFragment = createPlanFragment(scanNode, dataPartition, fileScan);
         context.addPlanFragment(planFragment);
         updateLegacyPlanIdToPhysicalPlan(planFragment.getPlanRoot(), fileScan);
-        return planFragment;
-    }
-
-    @Override
-    public PlanFragment visitPhysicalJdbcScan(PhysicalJdbcScan jdbcScan, PlanTranslatorContext context) {
-        List<Slot> slots = jdbcScan.getOutput();
-        TableIf table = jdbcScan.getTable();
-        TupleDescriptor tupleDescriptor = generateTupleDesc(slots, table, context);
-        JdbcScanNode jdbcScanNode = new JdbcScanNode(context.nextPlanNodeId(), tupleDescriptor,
-                context.getScanContext());
-        jdbcScanNode.setNereidsId(jdbcScan.getId());
-        context.getNereidsIdToPlanNodeIdMap().put(jdbcScan.getId(), jdbcScanNode.getId());
-
-        if (jdbcScan.getStats() != null) {
-            jdbcScanNode.setCardinality((long) jdbcScan.getStats().getRowCount());
-        }
-        Utils.execWithUncheckedException(jdbcScanNode::init);
-        context.addScanNode(jdbcScanNode, jdbcScan);
-        translateRuntimeFilter(jdbcScan, jdbcScanNode, context);
-        DataPartition dataPartition = DataPartition.RANDOM;
-        PlanFragment planFragment = createPlanFragment(jdbcScanNode, dataPartition, jdbcScan);
-        context.addPlanFragment(planFragment);
-        updateLegacyPlanIdToPhysicalPlan(planFragment.getPlanRoot(), jdbcScan);
         return planFragment;
     }
 

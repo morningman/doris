@@ -71,6 +71,9 @@ public class MySQLTypeHandler extends DefaultTypeHandler {
                 return rs.getObject(columnIndex, Boolean.class);
             case TINYINT:
             case SMALLINT:
+                // Must use typed getObject() to avoid MySQL YEAR returning java.sql.Date
+                // when yearIsDateType=true (the default in Connector/J 8.x)
+                return rs.getObject(columnIndex, Integer.class);
             case LARGEINT:
                 return rs.getObject(columnIndex);
             case INT:
