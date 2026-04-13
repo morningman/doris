@@ -101,7 +101,8 @@ public class CallExecuteStmtFunc extends CallFunc {
             ConnectorMetadata metadata = pluginCatalog.getConnector().getMetadata(session);
             metadata.executeStmt(session, stmt);
         } else {
-            throw new AnalysisException("Only support JDBC catalog");
+            throw new AnalysisException("executeStmt not supported for catalog type: "
+                    + catalogIf.getType());
         }
     }
 }

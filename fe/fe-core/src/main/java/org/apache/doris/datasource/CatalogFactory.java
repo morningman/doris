@@ -32,16 +32,23 @@ import org.apache.doris.datasource.test.TestExternalCatalog;
 import org.apache.doris.nereids.trees.plans.commands.CreateCatalogCommand;
 
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A factory to create catalog instance of log or covert catalog into log.
  */
 public class CatalogFactory {
     private static final Logger LOG = LogManager.getLogger(CatalogFactory.class);
+
+    // Only these catalog types are routed through the SPI connector path.
+    // Other types (hms, iceberg, paimon, trino-connector, hudi, max_compute) still use
+    // their built-in ExternalCatalog implementations until their ConnectorProviders are fully ready.
+    private static final Set<String> SPI_READY_TYPES = ImmutableSet.of("jdbc", "es");
 
     /**
      * create the catalog instance from catalog log.
@@ -85,10 +92,13 @@ public class CatalogFactory {
         // create catalog
         ExternalCatalog catalog = null;
 
-        // Try SPI connector plugin path first.
+        // Try SPI connector plugin path first, but only for whitelisted types.
         // Returns null if no ConnectorProvider matches the catalog type.
-        Connector spiConnector = ConnectorFactory.createConnector(
-                catalogType, props, new DefaultConnectorContext(name, catalogId));
+        Connector spiConnector = null;
+        if (SPI_READY_TYPES.contains(catalogType)) {
+            spiConnector = ConnectorFactory.createConnector(
+                    catalogType, props, new DefaultConnectorContext(name, catalogId));
+        }
         if (spiConnector != null) {
             LOG.info("Created plugin-driven catalog '{}' via SPI connector for type '{}'",
                     name, catalogType);
