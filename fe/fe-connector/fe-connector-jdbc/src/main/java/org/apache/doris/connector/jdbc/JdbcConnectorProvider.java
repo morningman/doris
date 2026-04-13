@@ -18,6 +18,7 @@
 package org.apache.doris.connector.jdbc;
 
 import org.apache.doris.connector.api.Connector;
+import org.apache.doris.connector.api.DorisConnectorException;
 import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorProvider;
 
@@ -47,6 +48,19 @@ public class JdbcConnectorProvider implements ConnectorProvider {
             throw new IllegalArgumentException(
                     "Jdbc catalog property lower_case_table_names is not supported,"
                             + " please use lower_case_meta_names instead");
+        }
+        // Eagerly validate meta_names_mapping to catch duplicates at CREATE/ALTER time.
+        String metaNamesMapping = properties.get(JdbcConnectorProperties.META_NAMES_MAPPING);
+        if (metaNamesMapping == null) {
+            metaNamesMapping = properties.get(
+                    JdbcDorisConnector.JDBC_PROPERTIES_PREFIX + JdbcConnectorProperties.META_NAMES_MAPPING);
+        }
+        if (metaNamesMapping != null && !metaNamesMapping.isEmpty()) {
+            try {
+                new JdbcIdentifierMapper(false, false, metaNamesMapping);
+            } catch (DorisConnectorException e) {
+                throw new IllegalArgumentException(e.getMessage(), e);
+            }
         }
     }
 }
