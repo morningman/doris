@@ -86,6 +86,7 @@ suite("test_pg_all_types_select", "p0,external") {
 
         sql """SET time_zone = '+08:00';"""
         sql """use pg_timestamp_tz_type_test.test_timestamp_tz_db"""
+        sql """ CALL EXECUTE_STMT("pg_timestamp_tz_type_test", "ALTER TABLE test_timestamp_tz_db.ts_test REPLICA IDENTITY FULL") """
         sql """ CALL EXECUTE_STMT("pg_timestamp_tz_type_test", "delete from test_timestamp_tz_db.ts_test where id in (3, 4)") """
         qt_desc_timestamp_tz """desc ts_test;"""
         qt_select_timestamp_tz """select * from ts_test order by id;"""
