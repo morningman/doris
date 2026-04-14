@@ -119,20 +119,21 @@ public final class JdbcQueryBuilder {
         this.localToRemoteColumnNames = colMapping;
 
         List<String> filterClauses = new ArrayList<>();
+        boolean allFiltersCollected = true;
         if (filter.isPresent()) {
-            collectFilters(filter.get(), filterClauses);
+            allFiltersCollected = collectFilters(filter.get(), filterClauses);
         }
 
         StringBuilder sql = new StringBuilder("SELECT ");
 
         // Oracle uses ROWNUM in WHERE clause for TOP-N
-        if (shouldPushDownLimit(limit, filterClauses, filter)
+        if (shouldPushDownLimit(limit, allFiltersCollected, filter)
                 && (dbType == JdbcDbType.ORACLE || dbType == JdbcDbType.OCEANBASE_ORACLE)) {
             filterClauses.add("ROWNUM <= " + limit);
         }
 
         // SQL Server uses SELECT TOP N
-        if (shouldPushDownLimit(limit, filterClauses, filter) && dbType == JdbcDbType.SQLSERVER) {
+        if (shouldPushDownLimit(limit, allFiltersCollected, filter) && dbType == JdbcDbType.SQLSERVER) {
             sql.append("TOP ").append(limit).append(" ");
         }
 
@@ -163,7 +164,7 @@ public final class JdbcQueryBuilder {
         }
 
         // LIMIT clause (MySQL, PostgreSQL, ClickHouse, etc.)
-        if (shouldPushDownLimit(limit, filterClauses, filter) && supportsLimitClause()) {
+        if (shouldPushDownLimit(limit, allFiltersCollected, filter) && supportsLimitClause()) {
             sql.append(" LIMIT ").append(limit);
         }
 
@@ -175,17 +176,19 @@ public final class JdbcQueryBuilder {
         return sql.toString();
     }
 
-    private boolean shouldPushDownLimit(long limit, List<String> filterClauses,
+    private boolean shouldPushDownLimit(long limit, boolean allFiltersCollected,
             Optional<ConnectorExpression> filter) {
         if (limit <= 0) {
             return false;
         }
-        // Only push down limit when all filters were successfully converted
-        // (no residual filters that couldn't be translated to SQL)
+        // Only push down limit when all filters were successfully converted.
+        // If any filter was dropped (evaluated locally), pushing LIMIT to remote
+        // would cause remote to truncate rows before local filtering, producing
+        // fewer results than expected.
         if (!filter.isPresent()) {
             return true;
         }
-        return !filterClauses.isEmpty();
+        return allFiltersCollected;
     }
 
     private boolean supportsLimitClause() {
@@ -208,21 +211,30 @@ public final class JdbcQueryBuilder {
      * Recursively collects individual filter clauses from a ConnectorExpression.
      * Top-level AND nodes are flattened into separate clauses.
      * Applies conjunct-level guards (e.g. Oracle NULL literal exclusion).
+     *
+     * @return true if all expressions were successfully converted to SQL,
+     *         false if any sub-expression was dropped (not pushed down)
      */
-    private void collectFilters(ConnectorExpression expr, List<String> clauses) {
+    private boolean collectFilters(ConnectorExpression expr, List<String> clauses) {
         if (expr instanceof ConnectorAnd) {
             ConnectorAnd and = (ConnectorAnd) expr;
+            boolean allCollected = true;
             for (ConnectorExpression child : and.getChildren()) {
-                collectFilters(child, clauses);
+                if (!collectFilters(child, clauses)) {
+                    allCollected = false;
+                }
             }
+            return allCollected;
         } else {
             if (!shouldPushDownExpression(expr)) {
-                return;
+                return false;
             }
             String sql = expressionToSql(expr);
             if (sql != null && !sql.isEmpty()) {
                 clauses.add(sql);
+                return true;
             }
+            return false;
         }
     }
 
