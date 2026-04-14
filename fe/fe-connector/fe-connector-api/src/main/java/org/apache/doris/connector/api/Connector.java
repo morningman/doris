@@ -23,7 +23,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -40,11 +39,6 @@ public interface Connector extends Closeable {
     /** Returns the scan plan provider for split generation. */
     default ConnectorScanPlanProvider getScanPlanProvider() {
         return null;
-    }
-
-    /** Returns an optional write provider, if the connector supports DML. */
-    default Optional<ConnectorWriteOps> getWriteProvider() {
-        return Optional.empty();
     }
 
     /** Returns the set of capabilities this connector supports. */

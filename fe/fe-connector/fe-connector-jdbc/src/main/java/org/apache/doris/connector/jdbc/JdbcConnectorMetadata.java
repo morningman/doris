@@ -23,7 +23,6 @@ import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorTableStatistics;
 import org.apache.doris.connector.api.ConnectorType;
-import org.apache.doris.connector.api.ConnectorWriteOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorInsertHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
@@ -50,7 +49,7 @@ import java.util.stream.Collectors;
  * {@link ConnectorMetadata} implementation for JDBC sources.
  * Delegates metadata discovery to {@link JdbcConnectorClient}.
  */
-public class JdbcConnectorMetadata implements ConnectorMetadata, ConnectorWriteOps {
+public class JdbcConnectorMetadata implements ConnectorMetadata {
 
     private static final Logger LOG = LogManager.getLogger(JdbcConnectorMetadata.class);
 
@@ -271,6 +270,11 @@ public class JdbcConnectorMetadata implements ConnectorMetadata, ConnectorWriteO
     }
 
     // ========= ConnectorWriteOps =========
+
+    @Override
+    public boolean supportsInsert() {
+        return true;
+    }
 
     @Override
     public ConnectorWriteConfig getWriteConfig(

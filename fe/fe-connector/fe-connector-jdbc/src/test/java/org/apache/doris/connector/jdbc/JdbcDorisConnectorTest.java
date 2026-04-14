@@ -137,4 +137,15 @@ class JdbcDorisConnectorTest {
         }
         Assertions.assertEquals(0, npeCount.get(), "NPE detected during concurrent close/getMetadata");
     }
+
+    @Test
+    void testJdbcMetadataSupportsInsert() {
+        JdbcConnectorMetadata metadata = new JdbcConnectorMetadata(null, minimalProps());
+        Assertions.assertTrue(metadata.supportsInsert(),
+                "JDBC connector metadata should support INSERT");
+        Assertions.assertFalse(metadata.supportsDelete(),
+                "JDBC connector metadata should not support DELETE by default");
+        Assertions.assertFalse(metadata.supportsMerge(),
+                "JDBC connector metadata should not support MERGE by default");
+    }
 }

@@ -182,4 +182,16 @@ class EsScanPlanProviderTest {
         Assertions.assertEquals(2, client.getMappingCount.get(),
                 "Cached indexes should not trigger refetch");
     }
+
+    @Test
+    void testEsMetadataDoesNotSupportWrite() {
+        EsConnectorMetadata metadata = new EsConnectorMetadata(
+                new CountingRestClient(), minimalProps());
+        Assertions.assertFalse(metadata.supportsInsert(),
+                "ES connector metadata should not support INSERT");
+        Assertions.assertFalse(metadata.supportsDelete(),
+                "ES connector metadata should not support DELETE");
+        Assertions.assertFalse(metadata.supportsMerge(),
+                "ES connector metadata should not support MERGE");
+    }
 }

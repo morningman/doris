@@ -72,11 +72,9 @@ public class PluginDrivenInsertExecutor extends BaseExternalTableInsertExecutor 
         Connector connector = catalog.getConnector();
         connectorSession = catalog.buildConnectorSession();
         ConnectorMetadata metadata = connector.getMetadata(connectorSession);
-
-        if (metadata instanceof ConnectorWriteOps) {
-            writeOps = (ConnectorWriteOps) metadata;
-        } else {
-            throw new UserException("Connector does not support write operations for table: "
+        writeOps = metadata;
+        if (!writeOps.supportsInsert()) {
+            throw new UserException("Connector does not support INSERT for table: "
                     + table.getName());
         }
 

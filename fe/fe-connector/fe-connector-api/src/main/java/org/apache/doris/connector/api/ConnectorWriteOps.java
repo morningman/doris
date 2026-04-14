@@ -40,6 +40,23 @@ import java.util.List;
  */
 public interface ConnectorWriteOps {
 
+    // ──────────────────── Capability Queries ────────────────────
+
+    /** Returns {@code true} if this connector supports INSERT operations. */
+    default boolean supportsInsert() {
+        return false;
+    }
+
+    /** Returns {@code true} if this connector supports DELETE operations. */
+    default boolean supportsDelete() {
+        return false;
+    }
+
+    /** Returns {@code true} if this connector supports MERGE (INSERT + DELETE) operations. */
+    default boolean supportsMerge() {
+        return false;
+    }
+
     // ──────────────────── Write Configuration ────────────────────
 
     /**
