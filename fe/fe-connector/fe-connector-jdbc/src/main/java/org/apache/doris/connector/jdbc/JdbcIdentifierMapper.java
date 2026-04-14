@@ -49,8 +49,11 @@ public final class JdbcIdentifierMapper {
 
     private static final Logger LOG = Logger.getLogger(JdbcIdentifierMapper.class.getName());
 
+    // Matches a JSON string key-value pair: "key" : "value"
+    // Key: any characters except unescaped quote (supports Unicode, spaces, hyphens, etc.)
+    // Value: any characters except unescaped quote, but allows escaped quotes (\")
     private static final Pattern JSON_STRING_FIELD = Pattern.compile(
-            "\"(\\w+)\"\\s*:\\s*\"([^\"]*)\"");
+            "\"((?:[^\"\\\\]|\\\\.)*)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
 
     private final boolean isLowerCaseTableNames;
     private final boolean isLowerCaseMetaNames;
@@ -230,9 +233,46 @@ public final class JdbcIdentifierMapper {
         Map<String, String> map = new HashMap<>();
         Matcher m = JSON_STRING_FIELD.matcher(objStr);
         while (m.find()) {
-            map.put(m.group(1), m.group(2));
+            map.put(unescapeJson(m.group(1)), unescapeJson(m.group(2)));
         }
         return map;
+    }
+
+    private static String unescapeJson(String s) {
+        if (s.indexOf('\\') < 0) {
+            return s;
+        }
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' && i + 1 < s.length()) {
+                char next = s.charAt(i + 1);
+                switch (next) {
+                    case '"':
+                    case '\\':
+                    case '/':
+                        sb.append(next);
+                        break;
+                    case 'n':
+                        sb.append('\n');
+                        break;
+                    case 't':
+                        sb.append('\t');
+                        break;
+                    case 'r':
+                        sb.append('\r');
+                        break;
+                    default:
+                        sb.append(c);
+                        sb.append(next);
+                        break;
+                }
+                i++;
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     // ---- Validation ----
