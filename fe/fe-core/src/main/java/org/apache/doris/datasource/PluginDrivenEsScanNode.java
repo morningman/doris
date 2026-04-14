@@ -45,6 +45,8 @@ import org.apache.doris.thrift.TScanRange;
 import org.apache.doris.thrift.TScanRangeLocation;
 import org.apache.doris.thrift.TScanRangeLocations;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -71,6 +73,9 @@ import java.util.Set;
 public class PluginDrivenEsScanNode extends ExternalScanNode {
 
     private static final Logger LOG = LogManager.getLogger(PluginDrivenEsScanNode.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, String>> MAP_TYPE_REF =
+            new TypeReference<Map<String, String>>() {};
 
     private final Connector connector;
     private final ConnectorSession connectorSession;
@@ -78,7 +83,6 @@ public class PluginDrivenEsScanNode extends ExternalScanNode {
 
     // Populated during finalize
     private Map<String, String> nodeProperties = Collections.emptyMap();
-    private Map<String, Map<String, String>> nodeMapProperties = Collections.emptyMap();
 
     public PluginDrivenEsScanNode(PlanNodeId id, TupleDescriptor desc,
             ScanContext scanContext, Connector connector,
@@ -147,10 +151,6 @@ public class PluginDrivenEsScanNode extends ExternalScanNode {
         // Remove pushed-down conjuncts to avoid redundant evaluation by BE.
         // The connector returns indices of conjuncts that could NOT be pushed.
         pruneConjuncts(nodeProperties);
-
-        // Get node-level map properties (docvalue_context, fields_context)
-        nodeMapProperties = scanProvider.getScanNodeMapProperties(
-                connectorSession, currentHandle);
 
         // Convert to Thrift scan range locations
         for (ConnectorScanRange range : ranges) {
@@ -242,18 +242,29 @@ public class PluginDrivenEsScanNode extends ExternalScanNode {
 
         TEsScanNode esScanNode = new TEsScanNode(desc.getId().asInt());
 
-        // Set docvalue context
-        Map<String, String> docvalueContext = nodeMapProperties.getOrDefault(
-                "docvalue_context", null);
-        if (docvalueContext != null && !docvalueContext.isEmpty()) {
-            esScanNode.setDocvalueContext(docvalueContext);
+        // Deserialize docvalue_context and fields_context from JSON flat properties.
+        // The ES connector serializes these Map<String,String> as JSON strings
+        // into the generic flat properties to avoid ES-specific API on the SPI.
+        String docvalueJson = esProperties.remove("docvalue_context_json");
+        if (docvalueJson != null && !docvalueJson.isEmpty()) {
+            try {
+                Map<String, String> docvalueContext = OBJECT_MAPPER.readValue(
+                        docvalueJson, MAP_TYPE_REF);
+                esScanNode.setDocvalueContext(docvalueContext);
+            } catch (Exception e) {
+                LOG.warn("Failed to deserialize docvalue_context_json", e);
+            }
         }
 
-        // Set fields context
-        Map<String, String> fieldsContext = nodeMapProperties.getOrDefault(
-                "fields_context", null);
-        if (fieldsContext != null && !fieldsContext.isEmpty()) {
-            esScanNode.setFieldsContext(fieldsContext);
+        String fieldsJson = esProperties.remove("fields_context_json");
+        if (fieldsJson != null && !fieldsJson.isEmpty()) {
+            try {
+                Map<String, String> fieldsContext = OBJECT_MAPPER.readValue(
+                        fieldsJson, MAP_TYPE_REF);
+                esScanNode.setFieldsContext(fieldsContext);
+            } catch (Exception e) {
+                LOG.warn("Failed to deserialize fields_context_json", e);
+            }
         }
 
         esScanNode.setProperties(esProperties);

@@ -26,6 +26,8 @@ import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -48,8 +50,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>The provider produces:</p>
  * <ul>
  *   <li><b>Per-range:</b> one {@link EsScanRange} per shard with host routing</li>
- *   <li><b>Per-node properties:</b> query DSL, auth info, doc_values_mode</li>
- *   <li><b>Per-node map properties:</b> docvalue_context, fields_context</li>
+ *   <li><b>Per-node properties:</b> query DSL, auth info, doc_values_mode,
+ *       docvalue_context and fields_context (JSON-serialized)</li>
  * </ul>
  */
 public class EsScanPlanProvider implements ConnectorScanPlanProvider {
@@ -57,10 +59,12 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
     private static final Logger LOG = LogManager.getLogger(EsScanPlanProvider.class);
 
     // Cache TTL: metadata is shared within a single query planning cycle
-    // (planScan, getScanNodeProperties, getScanNodeMapProperties are called
-    // in rapid succession). 10 seconds avoids redundant REST calls without
-    // serving stale data across different queries.
+    // (planScan and getScanNodeProperties are called in rapid succession).
+    // 10 seconds avoids redundant REST calls without serving stale data
+    // across different queries.
     static final long METADATA_CACHE_TTL_MS = 10_000;
+
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
 
     public static final String PROP_QUERY_DSL = "query_dsl";
     public static final String PROP_USER = "user";
@@ -69,8 +73,8 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
     public static final String PROP_DOC_VALUES_MODE = "doc_values_mode";
     public static final String PROP_NOT_PUSHED_INDICES = "_not_pushed_conjunct_indices";
 
-    public static final String MAP_PROP_DOCVALUE_CONTEXT = "docvalue_context";
-    public static final String MAP_PROP_FIELDS_CONTEXT = "fields_context";
+    public static final String PROP_DOCVALUE_CONTEXT_JSON = "docvalue_context_json";
+    public static final String PROP_FIELDS_CONTEXT_JSON = "fields_context_json";
 
     private final EsConnectorRestClient restClient;
     private final Map<String, String> properties;
@@ -208,37 +212,41 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
         nodeProps.put(PROP_DOC_VALUES_MODE,
                 String.valueOf(useDocValueScan(columns, state)));
 
+        // Serialize docvalue_context and fields_context as JSON into flat properties
+        // so we don't need the ES-specific getScanNodeMapProperties() on the generic SPI.
+        serializeFieldContexts(state, nodeProps);
+
         return nodeProps;
     }
 
-    @Override
-    public Map<String, Map<String, String>> getScanNodeMapProperties(
-            ConnectorSession session,
-            ConnectorTableHandle handle) {
-        EsTableHandle esHandle = (EsTableHandle) handle;
-        EsMetadataState state = fetchMetadataState(esHandle, Collections.emptyList());
-
-        Map<String, Map<String, String>> mapProps = new HashMap<>();
-
-        if (state.getFieldContext() != null) {
-            boolean enableDocValueScan = Boolean.parseBoolean(properties.getOrDefault(
-                    EsConnectorProperties.DOC_VALUE_SCAN,
-                    EsConnectorProperties.DOC_VALUE_SCAN_DEFAULT));
-            boolean enableKeywordSniff = Boolean.parseBoolean(properties.getOrDefault(
-                    EsConnectorProperties.KEYWORD_SNIFF,
-                    EsConnectorProperties.KEYWORD_SNIFF_DEFAULT));
-
+    private void serializeFieldContexts(EsMetadataState state, Map<String, String> nodeProps) {
+        if (state.getFieldContext() == null) {
+            return;
+        }
+        boolean enableDocValueScan = Boolean.parseBoolean(properties.getOrDefault(
+                EsConnectorProperties.DOC_VALUE_SCAN,
+                EsConnectorProperties.DOC_VALUE_SCAN_DEFAULT));
+        boolean enableKeywordSniff = Boolean.parseBoolean(properties.getOrDefault(
+                EsConnectorProperties.KEYWORD_SNIFF,
+                EsConnectorProperties.KEYWORD_SNIFF_DEFAULT));
+        try {
             if (enableDocValueScan) {
-                mapProps.put(MAP_PROP_DOCVALUE_CONTEXT,
-                        state.getFieldContext().getDocValueFieldsContext());
+                Map<String, String> docCtx = state.getFieldContext().getDocValueFieldsContext();
+                if (docCtx != null && !docCtx.isEmpty()) {
+                    nodeProps.put(PROP_DOCVALUE_CONTEXT_JSON,
+                            JSON_MAPPER.writeValueAsString(docCtx));
+                }
             }
             if (enableKeywordSniff) {
-                mapProps.put(MAP_PROP_FIELDS_CONTEXT,
-                        state.getFieldContext().getFetchFieldsContext());
+                Map<String, String> fieldsCtx = state.getFieldContext().getFetchFieldsContext();
+                if (fieldsCtx != null && !fieldsCtx.isEmpty()) {
+                    nodeProps.put(PROP_FIELDS_CONTEXT_JSON,
+                            JSON_MAPPER.writeValueAsString(fieldsCtx));
+                }
             }
+        } catch (JsonProcessingException e) {
+            LOG.warn("Failed to serialize ES field contexts to JSON", e);
         }
-
-        return mapProps;
     }
 
     private EsQueryDslResult buildQueryDsl(Optional<ConnectorExpression> filter,

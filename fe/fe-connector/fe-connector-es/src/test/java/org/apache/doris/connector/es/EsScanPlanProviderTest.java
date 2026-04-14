@@ -131,11 +131,6 @@ class EsScanPlanProviderTest {
                 java.util.Optional.empty());
         Assertions.assertEquals(1, client.getMappingCount.get(),
                 "getScanNodeProperties should use cached metadata");
-
-        // Third call — still cached
-        provider.getScanNodeMapProperties(EMPTY_SESSION, handle);
-        Assertions.assertEquals(1, client.getMappingCount.get(),
-                "getScanNodeMapProperties should use cached metadata");
         Assertions.assertEquals(1, client.searchShardsCount.get(),
                 "searchShards should only be called once total");
     }

@@ -111,23 +111,6 @@ public interface ConnectorScanPlanProvider {
     }
 
     /**
-     * Returns scan-node-level map properties (maps of maps).
-     *
-     * <p>Some scan node types (e.g., ES) need to pass structured map data
-     * like docvalue_context and fields_context that cannot be flattened into
-     * simple string properties. This method provides them separately.</p>
-     *
-     * @param session the current session
-     * @param handle  the table handle
-     * @return a map of named map properties (default: empty)
-     */
-    default Map<String, Map<String, String>> getScanNodeMapProperties(
-            ConnectorSession session,
-            ConnectorTableHandle handle) {
-        return Collections.emptyMap();
-    }
-
-    /**
      * Estimates the number of scan ranges for parallelism planning.
      * Returns -1 if the estimate is unknown.
      *
