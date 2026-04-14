@@ -105,6 +105,15 @@ public interface TableIf {
 
     TableType getType();
 
+    /**
+     * Returns the table type name used in ENGINE= clause of SHOW CREATE TABLE.
+     * By default this is the same as getType().name(), but plugin-driven tables
+     * override this to preserve the original engine name (e.g., JDBC_EXTERNAL_TABLE).
+     */
+    default String getEngineTableTypeName() {
+        return getType().name();
+    }
+
     List<Column> getFullSchema();
 
     List<Column> getBaseSchema();

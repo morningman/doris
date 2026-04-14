@@ -4212,7 +4212,7 @@ public class Env {
             }
         }
         sb.append("\n) ENGINE=");
-        sb.append(table.getType().name());
+        sb.append(table.getEngineTableTypeName());
 
         if (table instanceof OlapTable) {
             OlapTable olapTable = (OlapTable) table;
@@ -4601,7 +4601,7 @@ public class Env {
             }
         }
         sb.append("\n) ENGINE=");
-        sb.append(table.getType().name());
+        sb.append(table.getEngineTableTypeName());
 
         if (table instanceof OlapTable) {
             OlapTable olapTable = (OlapTable) table;

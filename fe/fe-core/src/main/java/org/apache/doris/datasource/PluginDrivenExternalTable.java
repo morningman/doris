@@ -180,6 +180,20 @@ public class PluginDrivenExternalTable extends ExternalTable {
     }
 
     @Override
+    public String getEngineTableTypeName() {
+        String catalogType = catalog instanceof PluginDrivenExternalCatalog
+                ? ((PluginDrivenExternalCatalog) catalog).getType() : "";
+        switch (catalogType) {
+            case "jdbc":
+                return TableType.JDBC_EXTERNAL_TABLE.name();
+            case "es":
+                return TableType.ES_EXTERNAL_TABLE.name();
+            default:
+                return TableType.PLUGIN_EXTERNAL_TABLE.name();
+        }
+    }
+
+    @Override
     public TTableDescriptor toThrift() {
         makeSureInitialized();
         PluginDrivenExternalCatalog pluginCatalog = (PluginDrivenExternalCatalog) catalog;
