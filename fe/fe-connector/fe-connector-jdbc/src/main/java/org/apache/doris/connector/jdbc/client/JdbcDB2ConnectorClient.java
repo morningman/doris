@@ -80,18 +80,18 @@ public class JdbcDB2ConnectorClient extends JdbcConnectorClient {
     @Override
     protected Set<String> getFilterInternalDatabases() {
         Set<String> set = new HashSet<>();
-        set.add("NULLID");
-        set.add("SQLJ");
-        set.add("SYSCAT");
-        set.add("SYSFUN");
-        set.add("SYSIBM");
-        set.add("SYSIBMADM");
-        set.add("SYSIBMINTERNAL");
-        set.add("SYSIBMTS");
-        set.add("SYSPROC");
-        set.add("SYSPUBLIC");
-        set.add("SYSSTAT");
-        set.add("SYSTOOLS");
+        set.add("nullid");
+        set.add("sqlj");
+        set.add("syscat");
+        set.add("sysfun");
+        set.add("sysibm");
+        set.add("sysibmadm");
+        set.add("sysibminternal");
+        set.add("sysibmts");
+        set.add("sysproc");
+        set.add("syspublic");
+        set.add("sysstat");
+        set.add("systools");
         return set;
     }
 
