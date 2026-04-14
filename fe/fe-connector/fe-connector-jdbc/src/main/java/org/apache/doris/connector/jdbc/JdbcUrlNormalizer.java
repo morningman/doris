@@ -105,15 +105,15 @@ public final class JdbcUrlNormalizer {
     }
 
     /**
-     * Set a parameter only if it is not already present.
+     * Set a parameter only if no parameter with the same name is already present.
      */
     private static String setParamIfAbsent(String url, JdbcDbType dbType,
             String param, String expectedVal) {
-        String expected = param + "=" + expectedVal;
-        if (url.contains(expected)) {
+        String paramPrefix = param + "=";
+        if (url.contains(paramPrefix)) {
             return url;
         }
-        return appendParam(url, dbType, expected);
+        return appendParam(url, dbType, paramPrefix + expectedVal);
     }
 
     private static String appendParam(String url, JdbcDbType dbType, String paramValue) {
