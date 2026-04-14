@@ -47,6 +47,7 @@ public class JdbcDorisConnector implements Connector {
     private final ConnectorContext context;
     private volatile JdbcConnectorClient client;
     private volatile JdbcScanPlanProvider scanPlanProvider;
+    private volatile boolean closed;
 
     static final String JDBC_PROPERTIES_PREFIX = "jdbc.";
 
@@ -86,6 +87,9 @@ public class JdbcDorisConnector implements Connector {
     public ConnectorScanPlanProvider getScanPlanProvider() {
         if (scanPlanProvider == null) {
             synchronized (this) {
+                if (closed) {
+                    throw new DorisConnectorException("JdbcDorisConnector has been closed");
+                }
                 if (scanPlanProvider == null) {
                     // Use client's effective dbType instead of static URL parsing,
                     // so OceanBase Oracle mode is detected correctly
@@ -113,8 +117,14 @@ public class JdbcDorisConnector implements Connector {
     }
 
     private JdbcConnectorClient getOrCreateClient() {
+        if (closed) {
+            throw new DorisConnectorException("JdbcDorisConnector has been closed");
+        }
         if (client == null) {
             synchronized (this) {
+                if (closed) {
+                    throw new DorisConnectorException("JdbcDorisConnector has been closed");
+                }
                 if (client == null) {
                     client = createClient();
                 }
@@ -163,10 +173,14 @@ public class JdbcDorisConnector implements Connector {
 
     @Override
     public void close() throws IOException {
-        JdbcConnectorClient c = client;
-        if (c != null) {
-            c.close();
+        synchronized (this) {
+            closed = true;
+            JdbcConnectorClient c = client;
             client = null;
+            scanPlanProvider = null;
+            if (c != null) {
+                c.close();
+            }
         }
     }
 
