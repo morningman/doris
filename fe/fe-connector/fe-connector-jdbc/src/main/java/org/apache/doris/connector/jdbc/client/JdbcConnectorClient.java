@@ -55,6 +55,12 @@ import java.util.function.Consumer;
  */
 public abstract class JdbcConnectorClient implements Closeable {
 
+    static {
+        // HikariCP reads this once at class-load time to decide whether ConcurrentBag
+        // should use WeakReferences for connection tracking. Set it early and globally.
+        System.setProperty("com.zaxxer.hikari.useWeakReferences", "true");
+    }
+
     private static final Logger LOG = LogManager.getLogger(JdbcConnectorClient.class);
     protected static final int JDBC_DATETIME_SCALE = 6;
     protected static final int MAX_DECIMAL128_PRECISION = 38;
@@ -185,7 +191,6 @@ public abstract class JdbcConnectorClient implements Closeable {
             Map<String, Boolean> excludeDatabaseMap,
             boolean enableMappingVarbinary,
             boolean enableMappingTimestampTz) {
-        System.setProperty("com.zaxxer.hikari.useWeakReferences", "true");
         this.catalogName = catalogName;
         this.dbType = dbType;
         this.jdbcUrl = jdbcUrl;
