@@ -94,6 +94,12 @@ public class CatalogFactory {
         // create catalog
         ExternalCatalog catalog = null;
 
+        // Ensure the resolved catalog type is always persisted in props.
+        // For resource-backed catalogs, the type is derived from the Resource object
+        // and may not be present in the original props. Without this, GSON deserialization
+        // after FE restart would lose the type and initLocalObjectsImpl() would fail.
+        props.putIfAbsent(CatalogMgr.CATALOG_TYPE_PROP, catalogType);
+
         // Try SPI connector plugin path first, but only for whitelisted types.
         // Returns null if no ConnectorProvider matches the catalog type.
         Connector spiConnector = null;
