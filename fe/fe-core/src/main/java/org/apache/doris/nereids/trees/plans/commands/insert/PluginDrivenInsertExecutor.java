@@ -23,11 +23,11 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
-import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.ConnectorWriteOps;
 import org.apache.doris.connector.api.handle.ConnectorInsertHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.write.ConnectorWriteType;
+import org.apache.doris.datasource.ConnectorColumnConverter;
 import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.PluginDrivenExternalCatalog;
 import org.apache.doris.nereids.NereidsPlanner;
@@ -142,15 +142,6 @@ public class PluginDrivenInsertExecutor extends BaseExternalTableInsertExecutor 
     }
 
     private static ConnectorColumn toConnectorColumn(Column col) {
-        ConnectorType connectorType = ConnectorType.of(
-                col.getType().getPrimitiveType().toString(),
-                col.getPrecision(),
-                col.getScale());
-        return new ConnectorColumn(
-                col.getName(),
-                connectorType,
-                col.getComment(),
-                col.isAllowNull(),
-                col.getDefaultValue());
+        return ConnectorColumnConverter.toConnectorColumn(col);
     }
 }

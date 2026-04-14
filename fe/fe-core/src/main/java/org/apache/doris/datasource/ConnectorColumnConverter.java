@@ -69,6 +69,54 @@ public final class ConnectorColumnConverter {
     }
 
     /**
+     * Converts a Doris {@link Column} to a {@link ConnectorColumn}.
+     * This is the inverse of {@link #convertColumn(ConnectorColumn)}.
+     */
+    public static ConnectorColumn toConnectorColumn(Column col) {
+        ConnectorType connectorType = toConnectorType(col.getType());
+        return new ConnectorColumn(
+                col.getName(),
+                connectorType,
+                col.getComment(),
+                col.isAllowNull(),
+                col.getDefaultValue());
+    }
+
+    /**
+     * Converts a Doris {@link Type} to a {@link ConnectorType}, handling
+     * complex types (ARRAY, MAP, STRUCT) recursively.
+     * This is the inverse of {@link #convertType(ConnectorType)}.
+     */
+    public static ConnectorType toConnectorType(Type dorisType) {
+        if (dorisType instanceof ArrayType) {
+            ArrayType arr = (ArrayType) dorisType;
+            return ConnectorType.arrayOf(toConnectorType(arr.getItemType()));
+        } else if (dorisType instanceof MapType) {
+            MapType map = (MapType) dorisType;
+            return ConnectorType.mapOf(
+                    toConnectorType(map.getKeyType()),
+                    toConnectorType(map.getValueType()));
+        } else if (dorisType instanceof StructType) {
+            StructType struct = (StructType) dorisType;
+            List<String> names = new ArrayList<>();
+            List<ConnectorType> types = new ArrayList<>();
+            for (StructField f : struct.getFields()) {
+                names.add(f.getName());
+                types.add(toConnectorType(f.getType()));
+            }
+            return ConnectorType.structOf(names, types);
+        } else if (dorisType instanceof ScalarType) {
+            ScalarType scalar = (ScalarType) dorisType;
+            return ConnectorType.of(
+                    scalar.getPrimitiveType().toString(),
+                    scalar.getScalarPrecision(),
+                    scalar.getScalarScale());
+        } else {
+            return ConnectorType.of(dorisType.toString(), -1, -1);
+        }
+    }
+
+    /**
      * Converts a {@link ConnectorType} to a Doris {@link Type}, handling
      * complex types (ARRAY, MAP, STRUCT) recursively.
      */
@@ -161,8 +209,12 @@ public final class ConnectorColumnConverter {
             case "UNSUPPORTED":
                 return Type.UNSUPPORTED;
             default:
-                LOG.warn("Unrecognized connector type '{}', marking as UNSUPPORTED", typeName);
-                return Type.UNSUPPORTED;
+                try {
+                    return ScalarType.createType(typeName);
+                } catch (Exception e) {
+                    LOG.warn("Unrecognized connector type '{}', marking as UNSUPPORTED", typeName);
+                    return Type.UNSUPPORTED;
+                }
         }
     }
 }
