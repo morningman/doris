@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * ES scan plan provider — generates shard-level scan ranges and node-level properties.
@@ -55,6 +56,12 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
 
     private static final Logger LOG = LogManager.getLogger(EsScanPlanProvider.class);
 
+    // Cache TTL: metadata is shared within a single query planning cycle
+    // (planScan, getScanNodeProperties, getScanNodeMapProperties are called
+    // in rapid succession). 10 seconds avoids redundant REST calls without
+    // serving stale data across different queries.
+    static final long METADATA_CACHE_TTL_MS = 10_000;
+
     public static final String PROP_QUERY_DSL = "query_dsl";
     public static final String PROP_USER = "user";
     public static final String PROP_PASSWORD = "password";
@@ -67,6 +74,22 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
 
     private final EsConnectorRestClient restClient;
     private final Map<String, String> properties;
+    private final ConcurrentHashMap<String, CachedMetadata> metadataCache = new ConcurrentHashMap<>();
+
+    /** Timestamped wrapper for cached metadata state. */
+    private static final class CachedMetadata {
+        final EsMetadataState state;
+        final long timestampMs;
+
+        CachedMetadata(EsMetadataState state) {
+            this.state = state;
+            this.timestampMs = System.currentTimeMillis();
+        }
+
+        boolean isExpired() {
+            return System.currentTimeMillis() - timestampMs > METADATA_CACHE_TTL_MS;
+        }
+    }
 
     public EsScanPlanProvider(EsConnectorRestClient restClient,
             Map<String, String> properties) {
@@ -250,6 +273,12 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
 
     private EsMetadataState fetchMetadataState(EsTableHandle handle,
             List<ConnectorColumnHandle> columns) {
+        String indexName = handle.getIndexName();
+        CachedMetadata cached = metadataCache.get(indexName);
+        if (cached != null && !cached.isExpired()) {
+            return cached.state;
+        }
+
         List<String> columnNames = new ArrayList<>();
         // Column names not strictly needed for scan planning but useful for field context
         String mappingType = properties.getOrDefault(
@@ -261,9 +290,21 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
         String[] seeds = hostsStr.split(",");
 
         EsMetadataState state = new EsMetadataState(
-                handle.getIndexName(), mappingType, columnNames, nodesDiscovery, seeds);
+                indexName, mappingType, columnNames, nodesDiscovery, seeds);
         EsMetadataFetcher fetcher = new EsMetadataFetcher(restClient, state);
-        return fetcher.fetch();
+        EsMetadataState result = fetcher.fetch();
+        metadataCache.put(indexName, new CachedMetadata(result));
+        return result;
+    }
+
+    /** Visible for testing: returns the number of cached metadata entries. */
+    int metadataCacheSize() {
+        return metadataCache.size();
+    }
+
+    /** Visible for testing: clears the metadata cache. */
+    void clearMetadataCache() {
+        metadataCache.clear();
     }
 
     /**
