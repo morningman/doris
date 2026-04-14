@@ -228,4 +228,36 @@ class JdbcQueryBuilderTest {
         Assertions.assertFalse(sql.contains("LIMIT"),
                 "LIMIT must NOT be pushed with partial filter failure. SQL: " + sql);
     }
+
+    // -----------------------------------------------------------------------
+    // OceanBase Oracle mode — verifies OCEANBASE_ORACLE uses ROWNUM syntax
+    // -----------------------------------------------------------------------
+
+    private JdbcQueryBuilder oceanBaseOracleBuilder() {
+        return new JdbcQueryBuilder(JdbcDbType.OCEANBASE_ORACLE);
+    }
+
+    @Test
+    void testOceanBaseOracleModeUsesRownum() {
+        JdbcQueryBuilder builder = oceanBaseOracleBuilder();
+        String sql = builder.buildQuery(DB, TABLE, columns("id", "name"),
+                Optional.empty(), 10);
+        // OCEANBASE_ORACLE should use ROWNUM for LIMIT, like Oracle
+        Assertions.assertTrue(sql.contains("ROWNUM"),
+                "OCEANBASE_ORACLE should use ROWNUM for LIMIT. SQL: " + sql);
+        Assertions.assertFalse(sql.contains("LIMIT"),
+                "OCEANBASE_ORACLE must not use LIMIT keyword. SQL: " + sql);
+    }
+
+    @Test
+    void testOceanBaseOracleModeLimitWithFilter() {
+        JdbcQueryBuilder builder = oceanBaseOracleBuilder();
+        String sql = builder.buildQuery(DB, TABLE, columns("id", "name"),
+                Optional.of(simpleComparison("id", 1)), 50);
+        // Should have both ROWNUM and WHERE
+        Assertions.assertTrue(sql.contains("ROWNUM"),
+                "OCEANBASE_ORACLE LIMIT should use ROWNUM. SQL: " + sql);
+        Assertions.assertTrue(sql.contains("WHERE"),
+                "Filter should be in WHERE clause. SQL: " + sql);
+    }
 }

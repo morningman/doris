@@ -87,8 +87,9 @@ public class JdbcDorisConnector implements Connector {
         if (scanPlanProvider == null) {
             synchronized (this) {
                 if (scanPlanProvider == null) {
-                    String jdbcUrl = properties.get(JdbcConnectorProperties.JDBC_URL);
-                    JdbcDbType dbType = JdbcDbType.parseFromUrl(jdbcUrl);
+                    // Use client's effective dbType instead of static URL parsing,
+                    // so OceanBase Oracle mode is detected correctly
+                    JdbcDbType dbType = getOrCreateClient().getDbType();
                     scanPlanProvider = new JdbcScanPlanProvider(
                             dbType, properties, context.getCatalogId());
                 }

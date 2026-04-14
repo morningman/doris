@@ -144,4 +144,18 @@ public class JdbcOceanBaseConnectorClient extends JdbcConnectorClient {
     public ConnectorType jdbcTypeToConnectorType(JdbcFieldInfo fieldInfo) {
         return getDelegate().jdbcTypeToConnectorType(fieldInfo);
     }
+
+    /**
+     * Returns the effective database type after compatibility mode detection.
+     * For Oracle mode, this returns {@link JdbcDbType#OCEANBASE_ORACLE} so that
+     * query builders and function pushdown configs handle Oracle syntax correctly.
+     */
+    @Override
+    public JdbcDbType getDbType() {
+        JdbcConnectorClient d = delegate;
+        if (d != null) {
+            return d.getDbType() == JdbcDbType.ORACLE ? JdbcDbType.OCEANBASE_ORACLE : JdbcDbType.OCEANBASE;
+        }
+        return super.getDbType();
+    }
 }
