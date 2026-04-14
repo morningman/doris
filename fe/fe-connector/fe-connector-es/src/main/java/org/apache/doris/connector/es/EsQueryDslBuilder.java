@@ -392,7 +392,16 @@ public final class EsQueryDslBuilder {
             String column, Object value, boolean needDateCompat) {
         switch (op) {
             case EQ:
+                return termQuery(column, value);
             case EQ_FOR_NULL:
+                // col <=> NULL means col IS NULL → field does not exist in ES
+                if (value == null) {
+                    ObjectNode eqNullRoot = MAPPER.createObjectNode();
+                    ObjectNode eqNullBool = eqNullRoot.putObject("bool");
+                    eqNullBool.set("must_not", parseJsonNode(existsQuery(column)));
+                    return eqNullRoot.toString();
+                }
+                // col <=> non-null is equivalent to EQ (term queries exclude nulls)
                 return termQuery(column, value);
             case NE:
                 // col != '' means col.length() > 0, NULL should not appear in results
