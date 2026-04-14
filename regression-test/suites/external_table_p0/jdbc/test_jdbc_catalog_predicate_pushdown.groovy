@@ -54,7 +54,6 @@ suite("test_jdbc_catalog_predicate_pushdown", "p0,external") {
         // date(datetime_c) is NOT pushed to remote QUERY
         explain {
             sql("select * from test_cast where date(datetime_c) = '2022-01-01';")
-            // QUERY should be a full table scan (no WHERE with date())
             notContains("QUERY: SELECT `id`, `int_c`, `date_c`, `datetime_c` FROM `doris_test`.`test_cast` WHERE")
         }
 
@@ -63,7 +62,6 @@ suite("test_jdbc_catalog_predicate_pushdown", "p0,external") {
         explain {
             sql("select * from test_cast where id = 1 and date(datetime_c) = '2022-01-01';")
             contains("WHERE (`id` = 1)")
-            // date() must NOT be in the remote QUERY
             notContains("date(`datetime_c`)")
         }
 
@@ -99,6 +97,17 @@ suite("test_jdbc_catalog_predicate_pushdown", "p0,external") {
             contains("WHERE")
             contains("`id` = 1")
         }
+
+        // ======================================================================
+        // Data correctness checks — verify query results via order_qt_
+        // ======================================================================
+        sql "set enable_jdbc_cast_predicate_push_down = false;"
+
+        order_qt_jdbc_all """select * from test_cast order by id"""
+        order_qt_jdbc_eq """select * from test_cast where id = 1 order by id"""
+        order_qt_jdbc_mixed """select * from test_cast where id = 1 and datetime_c != '2022-01-01 00:00:01' order by id"""
+        order_qt_jdbc_limit """select * from test_cast order by id limit 3"""
+        order_qt_jdbc_eq_limit """select * from test_cast where id = 1 order by id limit 3"""
 
         sql """drop catalog if exists ${catalog_name}"""
     }
