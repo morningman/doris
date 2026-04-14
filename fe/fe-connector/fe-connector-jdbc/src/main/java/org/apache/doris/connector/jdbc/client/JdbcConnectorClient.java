@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -58,7 +59,20 @@ public abstract class JdbcConnectorClient implements Closeable {
     protected static final int JDBC_DATETIME_SCALE = 6;
     protected static final int MAX_DECIMAL128_PRECISION = 38;
 
-    private static final Map<URL, ClassLoader> CLASS_LOADER_MAP = new ConcurrentHashMap<>();
+    private static final Map<URL, RefCountedClassLoader> CLASS_LOADER_MAP = new ConcurrentHashMap<>();
+
+    /**
+     * Pairs a ClassLoader with a reference count so the map entry can be removed
+     * when the last client using that driver URL is closed.
+     */
+    static final class RefCountedClassLoader {
+        final ClassLoader loader;
+        final AtomicInteger refCount = new AtomicInteger(1);
+
+        RefCountedClassLoader(ClassLoader loader) {
+            this.loader = loader;
+        }
+    }
 
     protected final String catalogName;
     protected final JdbcDbType dbType;
@@ -69,6 +83,7 @@ public abstract class JdbcConnectorClient implements Closeable {
     protected final boolean enableMappingVarbinary;
     protected final boolean enableMappingTimestampTz;
     protected ClassLoader classLoader;
+    private URL classLoaderUrl;
     protected HikariDataSource dataSource;
 
     /**
@@ -222,14 +237,16 @@ public abstract class JdbcConnectorClient implements Closeable {
         }
         try {
             URL[] urls = {new URL(resolveDriverUrl(driverUrl))};
-            ClassLoader cached = CLASS_LOADER_MAP.get(urls[0]);
-            if (cached != null) {
-                this.classLoader = cached;
-            } else {
+            this.classLoaderUrl = urls[0];
+            RefCountedClassLoader entry = CLASS_LOADER_MAP.compute(urls[0], (key, existing) -> {
+                if (existing != null) {
+                    existing.refCount.incrementAndGet();
+                    return existing;
+                }
                 ClassLoader parent = getClass().getClassLoader();
-                this.classLoader = URLClassLoader.newInstance(urls, parent);
-                CLASS_LOADER_MAP.put(urls[0], this.classLoader);
-            }
+                return new RefCountedClassLoader(URLClassLoader.newInstance(urls, parent));
+            });
+            this.classLoader = entry.loader;
         } catch (MalformedURLException e) {
             throw new DorisConnectorException(
                     "Failed to load JDBC driver from path: " + driverUrl, e);
@@ -250,6 +267,23 @@ public abstract class JdbcConnectorClient implements Closeable {
             dataSource.close();
             dataSource = null;
         }
+        releaseClassLoader();
+    }
+
+    private void releaseClassLoader() {
+        if (classLoaderUrl == null) {
+            return;
+        }
+        CLASS_LOADER_MAP.computeIfPresent(classLoaderUrl, (key, entry) -> {
+            int remaining = entry.refCount.decrementAndGet();
+            return remaining <= 0 ? null : entry;
+        });
+        classLoaderUrl = null;
+    }
+
+    // Visible for testing
+    static int classLoaderCacheSize() {
+        return CLASS_LOADER_MAP.size();
     }
 
     public JdbcDbType getDbType() {
