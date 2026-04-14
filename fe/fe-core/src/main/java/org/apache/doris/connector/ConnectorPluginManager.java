@@ -56,6 +56,9 @@ public class ConnectorPluginManager {
 
     private static final Logger LOG = LogManager.getLogger(ConnectorPluginManager.class);
 
+    /** The API version that this FE build supports. Increment on breaking SPI changes. */
+    static final int CURRENT_API_VERSION = 1;
+
     // Connector SPI and filesystem SPI classes must be parent-first so that all
     // instances of shared interfaces/classes are loaded by a single ClassLoader.
     private static final List<String> CONNECTOR_PARENT_FIRST_PREFIXES =
@@ -124,6 +127,12 @@ public class ConnectorPluginManager {
             String catalogType, Map<String, String> properties, ConnectorContext context) {
         for (ConnectorProvider provider : providers) {
             if (provider.supports(catalogType, properties)) {
+                int providerVersion = provider.apiVersion();
+                if (providerVersion != CURRENT_API_VERSION) {
+                    LOG.warn("Skipping connector provider '{}': apiVersion={} (expected {})",
+                            provider.getType(), providerVersion, CURRENT_API_VERSION);
+                    continue;
+                }
                 LOG.info("Creating connector via provider '{}' for catalogType='{}'",
                         provider.getType(), catalogType);
                 return provider.create(properties, context);
@@ -152,6 +161,12 @@ public class ConnectorPluginManager {
     public void validateProperties(String catalogType, Map<String, String> properties) {
         for (ConnectorProvider provider : providers) {
             if (provider.supports(catalogType, properties)) {
+                if (provider.apiVersion() != CURRENT_API_VERSION) {
+                    throw new IllegalArgumentException(
+                            "Connector provider '" + provider.getType()
+                                    + "' has incompatible API version " + provider.apiVersion()
+                                    + " (expected " + CURRENT_API_VERSION + ")");
+                }
                 provider.validateProperties(properties);
                 return;
             }
