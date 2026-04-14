@@ -56,7 +56,6 @@ public class JdbcConnectorMetadata implements ConnectorMetadata, ConnectorWriteO
 
     private final JdbcConnectorClient client;
     private final Map<String, String> properties;
-    private volatile JdbcIdentifierMapper identifierMapper;
 
     public JdbcConnectorMetadata(JdbcConnectorClient client, Map<String, String> properties) {
         this.client = client;
@@ -64,34 +63,27 @@ public class JdbcConnectorMetadata implements ConnectorMetadata, ConnectorWriteO
     }
 
     private JdbcIdentifierMapper getIdentifierMapper(ConnectorSession session) {
-        if (identifierMapper == null) {
-            synchronized (this) {
-                if (identifierMapper == null) {
-                    boolean isLowerCaseMetaNames = Boolean.parseBoolean(
-                            properties.getOrDefault(
-                                    JdbcConnectorProperties.LOWER_CASE_META_NAMES, "false"));
-                    String metaNamesMapping = properties.getOrDefault(
-                            JdbcConnectorProperties.META_NAMES_MAPPING, "");
-                    int lowerCaseTableNames = 0;
-                    if (session != null) {
-                        String val = session.getSessionProperties().get(
-                                JdbcConnectorProperties.LOWER_CASE_TABLE_NAMES);
-                        if (val != null) {
-                            try {
-                                lowerCaseTableNames = Integer.parseInt(val);
-                            } catch (NumberFormatException e) {
-                                // ignore
-                            }
-                        }
-                    }
-                    identifierMapper = new JdbcIdentifierMapper(
-                            lowerCaseTableNames != 0,
-                            isLowerCaseMetaNames,
-                            metaNamesMapping);
+        boolean isLowerCaseMetaNames = Boolean.parseBoolean(
+                properties.getOrDefault(
+                        JdbcConnectorProperties.LOWER_CASE_META_NAMES, "false"));
+        String metaNamesMapping = properties.getOrDefault(
+                JdbcConnectorProperties.META_NAMES_MAPPING, "");
+        int lowerCaseTableNames = 0;
+        if (session != null) {
+            String val = session.getSessionProperties().get(
+                    JdbcConnectorProperties.LOWER_CASE_TABLE_NAMES);
+            if (val != null) {
+                try {
+                    lowerCaseTableNames = Integer.parseInt(val);
+                } catch (NumberFormatException e) {
+                    // ignore
                 }
             }
         }
-        return identifierMapper;
+        return new JdbcIdentifierMapper(
+                lowerCaseTableNames != 0,
+                isLowerCaseMetaNames,
+                metaNamesMapping);
     }
 
     @Override
