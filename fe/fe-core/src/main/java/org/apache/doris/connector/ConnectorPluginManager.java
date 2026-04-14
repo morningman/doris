@@ -95,7 +95,7 @@ public class ConnectorPluginManager {
                 report.getSuccesses().size(), report.getFailures().size());
 
         for (LoadFailure failure : report.getFailures()) {
-            LOG.warn("Connector plugin load failure: dir={}, stage={}, message={}",
+            LOG.warn("Connector plugin load failure: dir={}, stage={}, message={}, cause={}",
                     failure.getPluginDir(), failure.getStage(), failure.getMessage(),
                     failure.getCause());
         }
