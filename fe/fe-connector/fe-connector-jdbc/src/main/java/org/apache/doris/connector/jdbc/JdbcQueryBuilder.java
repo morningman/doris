@@ -69,9 +69,6 @@ public final class JdbcQueryBuilder {
     private final JdbcFunctionPushdownConfig functionConfig;
     private final boolean clickhouseQueryFinal;
     private final boolean oracleNullPredicatePushDown;
-    // Maps local (Doris-internal) column names to remote column names.
-    // Populated per buildQuery() call from the column handles.
-    private Map<String, String> localToRemoteColumnNames = Collections.emptyMap();
 
     public JdbcQueryBuilder(JdbcDbType dbType) {
         this(dbType, null, Collections.emptyMap());
@@ -116,12 +113,11 @@ public final class JdbcQueryBuilder {
                 colMapping.put(jch.getLocalName(), jch.getRemoteName());
             }
         }
-        this.localToRemoteColumnNames = colMapping;
 
         List<String> filterClauses = new ArrayList<>();
         boolean allFiltersCollected = true;
         if (filter.isPresent()) {
-            allFiltersCollected = collectFilters(filter.get(), filterClauses);
+            allFiltersCollected = collectFilters(filter.get(), filterClauses, colMapping);
         }
 
         StringBuilder sql = new StringBuilder("SELECT ");
@@ -215,12 +211,13 @@ public final class JdbcQueryBuilder {
      * @return true if all expressions were successfully converted to SQL,
      *         false if any sub-expression was dropped (not pushed down)
      */
-    private boolean collectFilters(ConnectorExpression expr, List<String> clauses) {
+    private boolean collectFilters(ConnectorExpression expr, List<String> clauses,
+            Map<String, String> colMapping) {
         if (expr instanceof ConnectorAnd) {
             ConnectorAnd and = (ConnectorAnd) expr;
             boolean allCollected = true;
             for (ConnectorExpression child : and.getChildren()) {
-                if (!collectFilters(child, clauses)) {
+                if (!collectFilters(child, clauses, colMapping)) {
                     allCollected = false;
                 }
             }
@@ -229,7 +226,7 @@ public final class JdbcQueryBuilder {
             if (!shouldPushDownExpression(expr)) {
                 return false;
             }
-            String sql = expressionToSql(expr);
+            String sql = expressionToSql(expr, colMapping);
             if (sql != null && !sql.isEmpty()) {
                 clauses.add(sql);
                 return true;
@@ -298,36 +295,36 @@ public final class JdbcQueryBuilder {
      * Converts a single ConnectorExpression into a SQL string.
      * Returns null if the expression cannot be converted.
      */
-    String expressionToSql(ConnectorExpression expr) {
+    private String expressionToSql(ConnectorExpression expr, Map<String, String> colMapping) {
         if (expr instanceof ConnectorComparison) {
-            return comparisonToSql((ConnectorComparison) expr);
+            return comparisonToSql((ConnectorComparison) expr, colMapping);
         } else if (expr instanceof ConnectorAnd) {
-            return andToSql((ConnectorAnd) expr);
+            return andToSql((ConnectorAnd) expr, colMapping);
         } else if (expr instanceof ConnectorOr) {
-            return orToSql((ConnectorOr) expr);
+            return orToSql((ConnectorOr) expr, colMapping);
         } else if (expr instanceof ConnectorNot) {
-            return notToSql((ConnectorNot) expr);
+            return notToSql((ConnectorNot) expr, colMapping);
         } else if (expr instanceof ConnectorIn) {
-            return inToSql((ConnectorIn) expr);
+            return inToSql((ConnectorIn) expr, colMapping);
         } else if (expr instanceof ConnectorIsNull) {
-            return isNullToSql((ConnectorIsNull) expr);
+            return isNullToSql((ConnectorIsNull) expr, colMapping);
         } else if (expr instanceof ConnectorLike) {
-            return likeToSql((ConnectorLike) expr);
+            return likeToSql((ConnectorLike) expr, colMapping);
         } else if (expr instanceof ConnectorBetween) {
-            return betweenToSql((ConnectorBetween) expr);
+            return betweenToSql((ConnectorBetween) expr, colMapping);
         } else if (expr instanceof ConnectorFunctionCall) {
-            return functionCallToSql((ConnectorFunctionCall) expr);
+            return functionCallToSql((ConnectorFunctionCall) expr, colMapping);
         } else if (expr instanceof ConnectorColumnRef) {
-            return columnToSql((ConnectorColumnRef) expr);
+            return columnToSql((ConnectorColumnRef) expr, colMapping);
         } else if (expr instanceof ConnectorLiteral) {
             return literalToSql((ConnectorLiteral) expr);
         }
         return null;
     }
 
-    private String comparisonToSql(ConnectorComparison comp) {
-        String left = expressionToSql(comp.getLeft());
-        String right = expressionToSql(comp.getRight());
+    private String comparisonToSql(ConnectorComparison comp, Map<String, String> colMapping) {
+        String left = expressionToSql(comp.getLeft(), colMapping);
+        String right = expressionToSql(comp.getRight(), colMapping);
         if (left == null || right == null) {
             return null;
         }
@@ -344,10 +341,10 @@ public final class JdbcQueryBuilder {
         return left + " " + comp.getOperator().getSymbol() + " " + right;
     }
 
-    private String andToSql(ConnectorAnd and) {
+    private String andToSql(ConnectorAnd and, Map<String, String> colMapping) {
         List<String> parts = new ArrayList<>();
         for (ConnectorExpression child : and.getChildren()) {
-            String childSql = expressionToSql(child);
+            String childSql = expressionToSql(child, colMapping);
             if (childSql == null) {
                 return null;
             }
@@ -356,10 +353,10 @@ public final class JdbcQueryBuilder {
         return String.join(" AND ", parts);
     }
 
-    private String orToSql(ConnectorOr or) {
+    private String orToSql(ConnectorOr or, Map<String, String> colMapping) {
         List<String> parts = new ArrayList<>();
         for (ConnectorExpression child : or.getChildren()) {
-            String childSql = expressionToSql(child);
+            String childSql = expressionToSql(child, colMapping);
             if (childSql == null) {
                 return null;
             }
@@ -368,16 +365,16 @@ public final class JdbcQueryBuilder {
         return String.join(" OR ", parts);
     }
 
-    private String notToSql(ConnectorNot not) {
-        String childSql = expressionToSql(not.getOperand());
+    private String notToSql(ConnectorNot not, Map<String, String> colMapping) {
+        String childSql = expressionToSql(not.getOperand(), colMapping);
         if (childSql == null) {
             return null;
         }
         return "NOT (" + childSql + ")";
     }
 
-    private String inToSql(ConnectorIn in) {
-        String valueSql = expressionToSql(in.getValue());
+    private String inToSql(ConnectorIn in, Map<String, String> colMapping) {
+        String valueSql = expressionToSql(in.getValue(), colMapping);
         if (valueSql == null) {
             return null;
         }
@@ -386,9 +383,9 @@ public final class JdbcQueryBuilder {
             String itemSql;
             if (item instanceof ConnectorLiteral) {
                 String dateSql = formatDateLiteral((ConnectorLiteral) item);
-                itemSql = dateSql != null ? dateSql : expressionToSql(item);
+                itemSql = dateSql != null ? dateSql : expressionToSql(item, colMapping);
             } else {
-                itemSql = expressionToSql(item);
+                itemSql = expressionToSql(item, colMapping);
             }
             if (itemSql == null) {
                 return null;
@@ -398,17 +395,17 @@ public final class JdbcQueryBuilder {
         return valueSql + (in.isNegated() ? " NOT IN (" : " IN (") + joiner + ")";
     }
 
-    private String isNullToSql(ConnectorIsNull isNull) {
-        String operandSql = expressionToSql(isNull.getOperand());
+    private String isNullToSql(ConnectorIsNull isNull, Map<String, String> colMapping) {
+        String operandSql = expressionToSql(isNull.getOperand(), colMapping);
         if (operandSql == null) {
             return null;
         }
         return operandSql + (isNull.isNegated() ? " IS NOT NULL" : " IS NULL");
     }
 
-    private String likeToSql(ConnectorLike like) {
-        String valueSql = expressionToSql(like.getValue());
-        String patternSql = expressionToSql(like.getPattern());
+    private String likeToSql(ConnectorLike like, Map<String, String> colMapping) {
+        String valueSql = expressionToSql(like.getValue(), colMapping);
+        String patternSql = expressionToSql(like.getPattern(), colMapping);
         if (valueSql == null || patternSql == null) {
             return null;
         }
@@ -416,10 +413,10 @@ public final class JdbcQueryBuilder {
         return valueSql + " " + keyword + " " + patternSql;
     }
 
-    private String betweenToSql(ConnectorBetween between) {
-        String valueSql = expressionToSql(between.getValue());
-        String lowerSql = expressionToSql(between.getLower());
-        String upperSql = expressionToSql(between.getUpper());
+    private String betweenToSql(ConnectorBetween between, Map<String, String> colMapping) {
+        String valueSql = expressionToSql(between.getValue(), colMapping);
+        String lowerSql = expressionToSql(between.getLower(), colMapping);
+        String upperSql = expressionToSql(between.getUpper(), colMapping);
         if (valueSql == null || lowerSql == null || upperSql == null) {
             return null;
         }
@@ -454,20 +451,20 @@ public final class JdbcQueryBuilder {
             Arrays.asList("+", "-", "*", "/", "%", "DIV", "&", "|", "^"));
     private static final Set<String> UNARY_OPERATORS = Collections.singleton("~");
 
-    private String functionCallToSql(ConnectorFunctionCall func) {
+    private String functionCallToSql(ConnectorFunctionCall func, Map<String, String> colMapping) {
         String funcName = func.getFunctionName();
 
         // 0. Handle arithmetic operators rendered as infix: (arg1 + arg2)
         if (ARITHMETIC_OPERATORS.contains(funcName) && func.getArguments().size() == 2) {
-            String left = expressionToSql(func.getArguments().get(0));
-            String right = expressionToSql(func.getArguments().get(1));
+            String left = expressionToSql(func.getArguments().get(0), colMapping);
+            String right = expressionToSql(func.getArguments().get(1), colMapping);
             if (left == null || right == null) {
                 return null;
             }
             return "(" + left + " " + funcName + " " + right + ")";
         }
         if (UNARY_OPERATORS.contains(funcName) && func.getArguments().size() == 1) {
-            String operand = expressionToSql(func.getArguments().get(0));
+            String operand = expressionToSql(func.getArguments().get(0), colMapping);
             if (operand == null) {
                 return null;
             }
@@ -484,8 +481,8 @@ public final class JdbcQueryBuilder {
         JdbcFunctionPushdownConfig.TimeArithmeticInfo timeInfo =
                 JdbcFunctionPushdownConfig.parseTimeArithmetic(funcName);
         if (timeInfo != null && func.getArguments().size() == 2) {
-            String arg1 = expressionToSql(func.getArguments().get(0));
-            String arg2 = expressionToSql(func.getArguments().get(1));
+            String arg1 = expressionToSql(func.getArguments().get(0), colMapping);
+            String arg2 = expressionToSql(func.getArguments().get(1), colMapping);
             if (arg1 == null || arg2 == null) {
                 return null;
             }
@@ -507,7 +504,7 @@ public final class JdbcQueryBuilder {
         // 4. Render function call SQL
         StringJoiner argJoiner = new StringJoiner(", ");
         for (ConnectorExpression arg : func.getArguments()) {
-            String argSql = expressionToSql(arg);
+            String argSql = expressionToSql(arg, colMapping);
             if (argSql == null) {
                 return null;
             }
@@ -516,8 +513,8 @@ public final class JdbcQueryBuilder {
         return rewrittenName + "(" + argJoiner + ")";
     }
 
-    private String columnToSql(ConnectorColumnRef col) {
-        String remoteName = localToRemoteColumnNames.getOrDefault(
+    private String columnToSql(ConnectorColumnRef col, Map<String, String> colMapping) {
+        String remoteName = colMapping.getOrDefault(
                 col.getColumnName(), col.getColumnName());
         return JdbcIdentifierQuoter.quoteRemoteIdentifier(dbType, remoteName);
     }

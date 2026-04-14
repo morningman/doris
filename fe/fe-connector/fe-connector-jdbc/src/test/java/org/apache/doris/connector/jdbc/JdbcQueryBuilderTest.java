@@ -260,4 +260,37 @@ class JdbcQueryBuilderTest {
         Assertions.assertTrue(sql.contains("WHERE"),
                 "Filter should be in WHERE clause. SQL: " + sql);
     }
+
+    // -----------------------------------------------------------------------
+    // Column mapping isolation — verifies no state leaks between buildQuery calls
+    // -----------------------------------------------------------------------
+
+    @Test
+    void testColumnMappingDoesNotLeakBetweenCalls() {
+        JdbcQueryBuilder builder = mysqlBuilder();
+        // First call with columns that have different local→remote names
+        JdbcColumnHandle remapped = new JdbcColumnHandle("local_col", "REMOTE_COL");
+        String sql1 = builder.buildQuery(DB, TABLE,
+                Collections.singletonList(remapped),
+                Optional.of(new ConnectorComparison(
+                        ConnectorComparison.Operator.EQ,
+                        new ConnectorColumnRef("local_col", INT_TYPE),
+                        ConnectorLiteral.ofInt(1))),
+                -1);
+        Assertions.assertTrue(sql1.contains("REMOTE_COL"),
+                "First call should use remapped column name. SQL: " + sql1);
+
+        // Second call with a different column set — must NOT see first call's mapping
+        String sql2 = builder.buildQuery(DB, TABLE,
+                columns("other_col"),
+                Optional.of(new ConnectorComparison(
+                        ConnectorComparison.Operator.EQ,
+                        new ConnectorColumnRef("local_col", INT_TYPE),
+                        ConnectorLiteral.ofInt(2))),
+                -1);
+        // "local_col" is not in the second call's column handles, so it falls back
+        // to using the column name as-is (no remapping)
+        Assertions.assertFalse(sql2.contains("REMOTE_COL"),
+                "Second call must not see first call's column mapping. SQL: " + sql2);
+    }
 }
