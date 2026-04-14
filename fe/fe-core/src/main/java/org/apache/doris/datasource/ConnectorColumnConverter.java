@@ -27,6 +27,9 @@ import org.apache.doris.catalog.Type;
 import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorType;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -40,6 +43,8 @@ import java.util.stream.Collectors;
  * (from fe-connector-api) and the internal Doris catalog types (from fe-type/fe-core).</p>
  */
 public final class ConnectorColumnConverter {
+
+    private static final Logger LOG = LogManager.getLogger(ConnectorColumnConverter.class);
 
     private ConnectorColumnConverter() {
     }
@@ -154,11 +159,10 @@ public final class ConnectorColumnConverter {
             case "JSONB":
                 return ScalarType.createType("JSON");
             case "UNSUPPORTED":
-                // Plugin-driven tables have no legacy planner fallback, so Type.UNSUPPORTED
-                // causes a hard Nereids error. Map to STRING so the column is at least readable.
-                return ScalarType.createStringType();
+                return Type.UNSUPPORTED;
             default:
-                return ScalarType.createType(typeName);
+                LOG.warn("Unrecognized connector type '{}', marking as UNSUPPORTED", typeName);
+                return Type.UNSUPPORTED;
         }
     }
 }
