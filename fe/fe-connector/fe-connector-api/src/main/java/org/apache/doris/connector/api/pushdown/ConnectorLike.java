@@ -58,11 +58,6 @@ public final class ConnectorLike implements ConnectorExpression {
     }
 
     @Override
-    public ConnectorExprType getExprType() {
-        return ConnectorExprType.LIKE;
-    }
-
-    @Override
     public List<ConnectorExpression> getChildren() {
         return Arrays.asList(value, pattern);
     }

@@ -41,11 +41,6 @@ public final class ConnectorAnd implements ConnectorExpression {
     }
 
     @Override
-    public ConnectorExprType getExprType() {
-        return ConnectorExprType.AND;
-    }
-
-    @Override
     public List<ConnectorExpression> getChildren() {
         return conjuncts;
     }

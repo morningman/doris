@@ -59,11 +59,6 @@ public final class ConnectorFunctionCall implements ConnectorExpression {
     }
 
     @Override
-    public ConnectorExprType getExprType() {
-        return ConnectorExprType.FUNCTION_CALL;
-    }
-
-    @Override
     public List<ConnectorExpression> getChildren() {
         return arguments;
     }

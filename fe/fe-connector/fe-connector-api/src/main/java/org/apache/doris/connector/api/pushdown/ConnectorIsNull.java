@@ -46,11 +46,6 @@ public final class ConnectorIsNull implements ConnectorExpression {
     }
 
     @Override
-    public ConnectorExprType getExprType() {
-        return ConnectorExprType.IS_NULL;
-    }
-
-    @Override
     public List<ConnectorExpression> getChildren() {
         return Collections.singletonList(operand);
     }

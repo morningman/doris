@@ -39,11 +39,6 @@ public final class ConnectorNot implements ConnectorExpression {
     }
 
     @Override
-    public ConnectorExprType getExprType() {
-        return ConnectorExprType.NOT;
-    }
-
-    @Override
     public List<ConnectorExpression> getChildren() {
         return Collections.singletonList(operand);
     }

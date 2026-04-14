@@ -75,11 +75,6 @@ public final class ConnectorComparison implements ConnectorExpression {
     }
 
     @Override
-    public ConnectorExprType getExprType() {
-        return ConnectorExprType.COMPARISON;
-    }
-
-    @Override
     public List<ConnectorExpression> getChildren() {
         return Arrays.asList(left, right);
     }

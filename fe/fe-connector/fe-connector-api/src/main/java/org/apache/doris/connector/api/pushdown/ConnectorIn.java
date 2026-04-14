@@ -55,11 +55,6 @@ public final class ConnectorIn implements ConnectorExpression {
     }
 
     @Override
-    public ConnectorExprType getExprType() {
-        return ConnectorExprType.IN;
-    }
-
-    @Override
     public List<ConnectorExpression> getChildren() {
         List<ConnectorExpression> children = new ArrayList<>(inList.size() + 1);
         children.add(value);

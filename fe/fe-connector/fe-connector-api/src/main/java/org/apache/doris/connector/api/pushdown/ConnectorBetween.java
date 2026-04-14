@@ -52,11 +52,6 @@ public final class ConnectorBetween implements ConnectorExpression {
     }
 
     @Override
-    public ConnectorExprType getExprType() {
-        return ConnectorExprType.BETWEEN;
-    }
-
-    @Override
     public List<ConnectorExpression> getChildren() {
         return Arrays.asList(value, lower, upper);
     }

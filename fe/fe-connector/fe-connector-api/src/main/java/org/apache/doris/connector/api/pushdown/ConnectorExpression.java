@@ -30,9 +30,6 @@ import java.util.List;
  */
 public interface ConnectorExpression extends Serializable {
 
-    /** Returns the expression type discriminator. */
-    ConnectorExprType getExprType();
-
     /** Returns child expressions (empty for leaf nodes). */
     List<ConnectorExpression> getChildren();
 }

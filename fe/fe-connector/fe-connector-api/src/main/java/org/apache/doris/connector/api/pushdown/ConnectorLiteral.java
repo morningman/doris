@@ -92,11 +92,6 @@ public final class ConnectorLiteral implements ConnectorExpression {
     }
 
     @Override
-    public ConnectorExprType getExprType() {
-        return ConnectorExprType.LITERAL;
-    }
-
-    @Override
     public List<ConnectorExpression> getChildren() {
         return Collections.emptyList();
     }

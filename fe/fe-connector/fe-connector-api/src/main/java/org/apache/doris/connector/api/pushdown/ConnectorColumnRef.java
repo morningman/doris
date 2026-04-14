@@ -47,11 +47,6 @@ public final class ConnectorColumnRef implements ConnectorExpression {
     }
 
     @Override
-    public ConnectorExprType getExprType() {
-        return ConnectorExprType.COLUMN_REF;
-    }
-
-    @Override
     public List<ConnectorExpression> getChildren() {
         return Collections.emptyList();
     }
