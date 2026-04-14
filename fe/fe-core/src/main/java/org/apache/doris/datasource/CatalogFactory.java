@@ -112,6 +112,22 @@ public class CatalogFactory {
                     name, catalogType);
             catalog = new PluginDrivenExternalCatalog(
                     catalogId, name, resource, props, comment, spiConnector);
+        } else if (SPI_READY_TYPES.contains(catalogType)) {
+            // SPI-only type but no connector provider loaded.
+            if (isReplay) {
+                // During replay we must not throw — FE startup would be blocked.
+                // Register a degraded catalog; it will throw at first access with a
+                // clear error message from initLocalObjectsImpl().
+                LOG.warn("No SPI connector plugin loaded for type '{}'. Catalog '{}' will be "
+                        + "registered in degraded mode until the plugin is available.",
+                        catalogType, name);
+                catalog = new PluginDrivenExternalCatalog(
+                        catalogId, name, resource, props, comment, null);
+            } else {
+                throw new DdlException("No connector plugin loaded for catalog type '"
+                        + catalogType + "'. Ensure the connector plugin is installed in the "
+                        + "plugin directory configured by connector_plugin_root.");
+            }
         }
 
         // Fallback to built-in catalog types if no SPI connector matched.
