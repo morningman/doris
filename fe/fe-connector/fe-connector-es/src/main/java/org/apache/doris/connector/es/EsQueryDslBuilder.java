@@ -510,7 +510,7 @@ public final class EsQueryDslBuilder {
                 return null;
             }
             String pattern = String.valueOf(((ConnectorLiteral) patternExpr).getValue());
-            return wildcardQuery(column, pattern);
+            return regexpQuery(column, pattern);
         }
 
         // LIKE: only native keyword fields can safely apply wildcard queries.
@@ -643,6 +643,16 @@ public final class EsQueryDslBuilder {
         ObjectNode root = MAPPER.createObjectNode();
         ObjectNode wildcardNode = root.putObject("wildcard");
         wildcardNode.put(field, pattern);
+        return root.toString();
+    }
+
+    /**
+     * Build a regexp query: {@code {"regexp":{"field":"pattern"}}}.
+     */
+    private static String regexpQuery(String field, String pattern) {
+        ObjectNode root = MAPPER.createObjectNode();
+        ObjectNode regexpNode = root.putObject("regexp");
+        regexpNode.put(field, pattern);
         return root.toString();
     }
 
