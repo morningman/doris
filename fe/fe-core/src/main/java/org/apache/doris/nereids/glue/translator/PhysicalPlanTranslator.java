@@ -48,6 +48,7 @@ import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.ConnectorWriteOps;
+import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
 import org.apache.doris.connector.api.write.ConnectorWriteConfig;
 import org.apache.doris.connector.api.write.ConnectorWriteType;
@@ -685,11 +686,14 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
 
         ConnectorWriteConfig writeConfig;
         if (metadata instanceof ConnectorWriteOps) {
+            ConnectorTableHandle tableHandle = metadata.getTableHandle(connSession,
+                    targetTable.getRemoteDbName(), targetTable.getRemoteName())
+                    .orElseThrow(() -> new AnalysisException(
+                            "Table not found: " + targetTable.getRemoteDbName()
+                                    + "." + targetTable.getRemoteName()
+                                    + " in catalog " + catalog.getName()));
             writeConfig = ((ConnectorWriteOps) metadata).getWriteConfig(
-                    connSession,
-                    metadata.getTableHandle(connSession,
-                            targetTable.getDbName(), targetTable.getName()).orElse(null),
-                    connectorColumns);
+                    connSession, tableHandle, connectorColumns);
         } else {
             // Fallback: create a minimal file-write config
             writeConfig = ConnectorWriteConfig.builder(ConnectorWriteType.FILE_WRITE).build();
