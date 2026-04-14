@@ -42,6 +42,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
@@ -61,24 +62,20 @@ public class EsConnectorRestClient {
             .readTimeout(10, TimeUnit.SECONDS).build();
     private static volatile OkHttpClient sslClient;
 
-    private final Request.Builder builder;
+    private final String authHeader;
     private final String[] nodes;
     private final boolean httpSslEnable;
     private final ConnectorHttpSecurityHook securityHook;
-    private int currentNodeIndex = 0;
-    private String currentNode;
+    private final AtomicInteger nodeIndex = new AtomicInteger(0);
 
     public EsConnectorRestClient(String[] nodes, String user, String password,
             boolean httpSslEnable, ConnectorHttpSecurityHook securityHook) {
         this.nodes = nodes;
         this.httpSslEnable = httpSslEnable;
         this.securityHook = securityHook != null ? securityHook : ConnectorHttpSecurityHook.NOOP;
-        this.builder = new Request.Builder();
-        if (user != null && !user.isEmpty()
-                && password != null && !password.isEmpty()) {
-            this.builder.addHeader("Authorization", Credentials.basic(user, password));
-        }
-        this.currentNode = nodes[currentNodeIndex];
+        this.authHeader = (user != null && !user.isEmpty()
+                && password != null && !password.isEmpty())
+                ? Credentials.basic(user, password) : null;
     }
 
     public EsConnectorRestClient(String[] nodes, String user, String password,
@@ -107,7 +104,8 @@ public class EsConnectorRestClient {
     public boolean existIndex(String indexName) {
         String path = indexName + "/_mapping";
         OkHttpClient client = httpSslEnable ? getOrCreateSslClient() : PLAIN_CLIENT;
-        try (Response response = executeResponse(client, path, null)) {
+        String node = currentNode();
+        try (Response response = executeResponse(client, node, path, null)) {
             return response.isSuccessful();
         } catch (IOException e) {
             LOG.warn("existIndex error", e);
@@ -245,7 +243,8 @@ public class EsConnectorRestClient {
         DorisConnectorException lastException = null;
         OkHttpClient client = httpSslEnable ? getOrCreateSslClient() : PLAIN_CLIENT;
         for (int i = 0; i < retrySize; i++) {
-            try (Response response = executeResponse(client, path, requestBody)) {
+            String node = currentNode();
+            try (Response response = executeResponse(client, node, path, requestBody)) {
                 if (response.isSuccessful()) {
                     return response.body().string();
                 } else {
@@ -254,10 +253,10 @@ public class EsConnectorRestClient {
                     lastException = new DorisConnectorException(response.message());
                 }
             } catch (IOException e) {
-                LOG.warn("ES request node [{}] [{}] failure: {}", currentNode, path, e);
+                LOG.warn("ES request node [{}] [{}] failure: {}", node, path, e);
                 lastException = new DorisConnectorException(e.getMessage());
             }
-            selectNextNode();
+            advanceNode();
         }
         if (lastException != null) {
             throw lastException;
@@ -265,23 +264,27 @@ public class EsConnectorRestClient {
         return null;
     }
 
-    private Response executeResponse(OkHttpClient client, String path,
+    private Response executeResponse(OkHttpClient client, String nodeAddress, String path,
             RequestBody requestBody) throws IOException {
-        currentNode = currentNode.trim();
-        if (!currentNode.startsWith("http://") && !currentNode.startsWith("https://")) {
-            currentNode = "http://" + currentNode;
+        String currentUrl = nodeAddress.trim();
+        if (!currentUrl.startsWith("http://") && !currentUrl.startsWith("https://")) {
+            currentUrl = "http://" + currentUrl;
         }
-        if (!currentNode.endsWith("/")) {
-            currentNode = currentNode + "/";
+        if (!currentUrl.endsWith("/")) {
+            currentUrl = currentUrl + "/";
         }
-        String url = currentNode + path;
+        String url = currentUrl + path;
         try {
             securityHook.beforeRequest(url);
+            Request.Builder reqBuilder = new Request.Builder();
+            if (authHeader != null) {
+                reqBuilder.addHeader("Authorization", authHeader);
+            }
             Request request;
             if (requestBody != null) {
-                request = builder.post(requestBody).url(url).build();
+                request = reqBuilder.post(requestBody).url(url).build();
             } else {
-                request = builder.get().url(url).build();
+                request = reqBuilder.get().url(url).build();
             }
             if (LOG.isInfoEnabled()) {
                 LOG.info("ES rest client request URL: {}", request.url().toString());
@@ -296,12 +299,12 @@ public class EsConnectorRestClient {
         }
     }
 
-    private void selectNextNode() {
-        currentNodeIndex++;
-        if (currentNodeIndex >= nodes.length) {
-            currentNodeIndex = 0;
-        }
-        currentNode = nodes[currentNodeIndex];
+    private String currentNode() {
+        return nodes[Math.floorMod(nodeIndex.get(), nodes.length)];
+    }
+
+    private void advanceNode() {
+        nodeIndex.incrementAndGet();
     }
 
     private static synchronized OkHttpClient getOrCreateSslClient() {
