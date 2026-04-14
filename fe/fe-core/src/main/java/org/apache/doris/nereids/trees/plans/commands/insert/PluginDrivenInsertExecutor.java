@@ -80,12 +80,15 @@ public class PluginDrivenInsertExecutor extends BaseExternalTableInsertExecutor 
                     + table.getName());
         }
 
-        // Get table handle
+        // Get table handle using remote names (not local/mapped names)
         ExternalTable extTable = (ExternalTable) table;
+        String remoteDbName = extTable.getRemoteDbName();
+        String remoteTableName = extTable.getRemoteName();
         Optional<ConnectorTableHandle> tableHandle = metadata.getTableHandle(
-                connectorSession, extTable.getDbName(), extTable.getName());
+                connectorSession, remoteDbName, remoteTableName);
         if (!tableHandle.isPresent()) {
-            throw new UserException("Table not found via connector: " + extTable.getName());
+            throw new UserException("Table not found via connector: "
+                    + remoteDbName + "." + remoteTableName);
         }
 
         // Convert Doris columns to connector columns
@@ -98,7 +101,7 @@ public class PluginDrivenInsertExecutor extends BaseExternalTableInsertExecutor 
         // Begin insert
         insertHandle = writeOps.beginInsert(connectorSession, tableHandle.get(), columns);
         LOG.info("Plugin-driven insert started for table {}.{}, txnId={}",
-                extTable.getDbName(), extTable.getName(), txnId);
+                remoteDbName, remoteTableName, txnId);
     }
 
     @Override
@@ -106,6 +109,20 @@ public class PluginDrivenInsertExecutor extends BaseExternalTableInsertExecutor 
         if (writeOps != null && insertHandle != null) {
             writeOps.finishInsert(connectorSession, insertHandle, Collections.emptyList());
         }
+    }
+
+    @Override
+    protected void onFail(Throwable t) {
+        // Abort the connector-level write before the Doris-level transaction rollback
+        if (writeOps != null && insertHandle != null) {
+            try {
+                writeOps.abortInsert(connectorSession, insertHandle);
+            } catch (Exception e) {
+                LOG.warn("Failed to abort connector insert for table {}: {}",
+                        table.getName(), e.getMessage(), e);
+            }
+        }
+        super.onFail(t);
     }
 
     @Override
