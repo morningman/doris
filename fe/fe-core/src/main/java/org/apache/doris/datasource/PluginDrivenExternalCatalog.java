@@ -126,10 +126,11 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
     @Override
     public void checkWhenCreating() throws DdlException {
         // Let the connector perform its type-specific pre-creation validation
-        // (e.g., JDBC driver security, checksum, BE connectivity test).
+        // (e.g., JDBC driver security, checksum computation).
+        DefaultConnectorValidationContext validationCtx =
+                new DefaultConnectorValidationContext(getId(), catalogProperty);
         try {
-            connector.preCreateValidation(
-                    new DefaultConnectorValidationContext(getId(), catalogProperty));
+            connector.preCreateValidation(validationCtx);
         } catch (DdlException e) {
             throw e;
         } catch (Exception e) {
@@ -150,6 +151,9 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
                     + name + "': " + result.getMessage());
         }
         LOG.info("Connectivity test passed for plugin-driven catalog '{}': {}", name, result);
+
+        // Execute any BE→external connectivity test the connector registered.
+        validationCtx.executePendingBeTests();
     }
 
     /**

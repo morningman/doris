@@ -40,13 +40,22 @@ import java.util.concurrent.Future;
  * Engine-side implementation of {@link ConnectorValidationContext}.
  *
  * <p>Provides driver validation (via {@link JdbcResource}), checksum computation,
- * and BE→external JDBC connectivity testing (via BRPC) as infrastructure services
- * that connectors can call during pre-creation validation.</p>
+ * and deferred BE→external connectivity testing (via BRPC) as infrastructure
+ * services that connectors can call during pre-creation validation.</p>
+ *
+ * <p>Connectors register a BE connectivity test via {@link #requestBeConnectivityTest};
+ * the engine calls {@link #executePendingBeTests()} after validation to send
+ * the BRPC request to an alive backend.</p>
  */
 public class DefaultConnectorValidationContext implements ConnectorValidationContext {
 
     private final long catalogId;
     private final CatalogProperty catalogProperty;
+
+    // Pending BE connectivity test, populated by connector during preCreateValidation().
+    private byte[] pendingBeTestPayload;
+    private int pendingBeTestConnectionType;
+    private String pendingBeTestQuery;
 
     public DefaultConnectorValidationContext(long catalogId, CatalogProperty catalogProperty) {
         this.catalogId = catalogId;
@@ -79,8 +88,24 @@ public class DefaultConnectorValidationContext implements ConnectorValidationCon
     }
 
     @Override
-    public void testBeJdbcConnection(byte[] serializedTableDescriptor, int tableTypeValue,
-            String testQuery) throws Exception {
+    public void requestBeConnectivityTest(byte[] serializedDescriptor, int connectionTypeValue,
+            String testQuery) {
+        this.pendingBeTestPayload = serializedDescriptor;
+        this.pendingBeTestConnectionType = connectionTypeValue;
+        this.pendingBeTestQuery = testQuery;
+    }
+
+    /**
+     * Executes the pending BE connectivity test, if any was registered by
+     * the connector during {@code preCreateValidation()}.
+     *
+     * <p>This is an engine-only method (not on the SPI interface). It finds
+     * an alive backend and sends a BRPC test-connection request.</p>
+     */
+    public void executePendingBeTests() throws DdlException {
+        if (pendingBeTestPayload == null) {
+            return;
+        }
         if (FeConstants.runningUnitTest) {
             return;
         }
@@ -88,20 +113,20 @@ public class DefaultConnectorValidationContext implements ConnectorValidationCon
         TNetworkAddress address = new TNetworkAddress(aliveBe.getHost(), aliveBe.getBrpcPort());
         try {
             PJdbcTestConnectionRequest request = PJdbcTestConnectionRequest.newBuilder()
-                    .setJdbcTable(ByteString.copyFrom(serializedTableDescriptor))
-                    .setJdbcTableType(tableTypeValue)
-                    .setQueryStr(testQuery)
+                    .setJdbcTable(ByteString.copyFrom(pendingBeTestPayload))
+                    .setJdbcTableType(pendingBeTestConnectionType)
+                    .setQueryStr(pendingBeTestQuery)
                     .build();
             Future<PJdbcTestConnectionResult> future = BackendServiceProxy.getInstance()
                     .testJdbcConnection(address, request);
             PJdbcTestConnectionResult result = future.get();
             TStatusCode code = TStatusCode.findByValue(result.getStatus().getStatusCode());
             if (code != TStatusCode.OK) {
-                throw new DdlException("Test BE Connection to JDBC Failed: "
+                throw new DdlException("BE connectivity test failed: "
                         + result.getStatus().getErrorMsgs(0));
             }
         } catch (RpcException | ExecutionException | InterruptedException e) {
-            throw new DdlException("Test BE Connection to JDBC Failed: " + e.getMessage(), e);
+            throw new DdlException("BE connectivity test failed: " + e.getMessage(), e);
         }
     }
 
@@ -115,6 +140,6 @@ public class DefaultConnectorValidationContext implements ConnectorValidationCon
         } catch (Exception e) {
             throw new DdlException("Failed to find alive backend: " + e.getMessage(), e);
         }
-        throw new DdlException("Test BE Connection to JDBC Failed: No alive backends");
+        throw new DdlException("BE connectivity test failed: No alive backends");
     }
 }

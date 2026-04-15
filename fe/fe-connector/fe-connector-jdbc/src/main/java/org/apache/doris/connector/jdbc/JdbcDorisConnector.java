@@ -131,13 +131,14 @@ public class JdbcDorisConnector implements Connector {
         }
 
         // 3. Test BE→JDBC connectivity via BRPC (only when test_connection is enabled).
+        // The connector builds the serialized payload; the engine sends it after validation.
         boolean testConnection = Boolean.parseBoolean(
                 properties.getOrDefault("test_connection", "true"));
         if (testConnection) {
             TTableDescriptor testThrift = buildTestTableDescriptor(context);
             TOdbcTableType tableType = parseOdbcType();
             byte[] serialized = new TSerializer().serialize(testThrift);
-            context.testBeJdbcConnection(serialized, tableType.getValue(), getTestQuery());
+            context.requestBeConnectivityTest(serialized, tableType.getValue(), getTestQuery());
         }
     }
 

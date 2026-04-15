@@ -59,16 +59,17 @@ public interface ConnectorValidationContext {
     String computeDriverChecksum(String driverUrl) throws Exception;
 
     /**
-     * Tests BE→external JDBC connectivity via BRPC.
+     * Registers a BE→external connectivity test request. The engine will
+     * execute this test after {@code preCreateValidation()} returns by
+     * sending the payload to an alive backend via BRPC.
      *
-     * <p>The connector builds the serialized Thrift payload (TTableDescriptor);
-     * the engine handles finding an alive backend and BRPC transport.</p>
+     * <p>Connectors build the serialized Thrift descriptor (e.g., TTableDescriptor);
+     * the engine handles finding an alive backend, BRPC transport, and result checking.</p>
      *
-     * @param serializedTableDescriptor TSerializer-serialized TTableDescriptor
-     * @param tableTypeValue TOdbcTableType enum value
-     * @param testQuery SQL query to execute (e.g., "SELECT 1")
-     * @throws Exception if the BE connectivity test fails
+     * @param serializedDescriptor the Thrift-serialized connection descriptor
+     * @param connectionTypeValue the connection type identifier (e.g., TOdbcTableType value)
+     * @param testQuery a simple query to verify connectivity (e.g., "SELECT 1")
      */
-    void testBeJdbcConnection(byte[] serializedTableDescriptor, int tableTypeValue,
-            String testQuery) throws Exception;
+    void requestBeConnectivityTest(byte[] serializedDescriptor, int connectionTypeValue,
+            String testQuery);
 }
