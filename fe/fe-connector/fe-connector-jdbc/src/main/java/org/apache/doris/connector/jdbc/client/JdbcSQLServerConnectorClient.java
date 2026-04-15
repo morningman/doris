@@ -51,9 +51,10 @@ public class JdbcSQLServerConnectorClient extends JdbcConnectorClient {
     @Override
     public ConnectorType jdbcTypeToConnectorType(JdbcFieldInfo fieldInfo) {
         String rawType = fieldInfo.getDataTypeName().orElse("unknown").toLowerCase();
-        // SQL Server JDBC driver appends " identity" to type names for IDENTITY columns,
-        // e.g., "int identity", "decimal identity". Strip the suffix to get the base type.
-        String ssType = rawType.split(" ")[0];
+        // SQL Server JDBC driver decorates type names for IDENTITY columns,
+        // e.g., "int identity", "decimal() identity". Strip parenthesized parts
+        // and suffixes to get the base type name.
+        String ssType = rawType.replaceAll("[\\s(].*", "");
         switch (ssType) {
             case "bit":
                 return ConnectorType.of("BOOLEAN");

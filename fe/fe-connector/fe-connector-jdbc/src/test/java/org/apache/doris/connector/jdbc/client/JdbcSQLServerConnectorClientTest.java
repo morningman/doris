@@ -58,6 +58,32 @@ public class JdbcSQLServerConnectorClientTest {
     }
 
     @Test
+    void testDecimalParenIdentityTypeMapping() {
+        // SQL Server JDBC driver 11.x returns "decimal() identity" for IDENTITY decimal columns
+        JdbcSQLServerConnectorClient client = createClient();
+        JdbcFieldInfo info = new JdbcFieldInfo(
+                "id", Optional.of("decimal() identity"), 3 /* DECIMAL */,
+                Optional.of(18), Optional.of(0), Optional.empty());
+        ConnectorType ct = client.jdbcTypeToConnectorType(info);
+        Assertions.assertEquals("DECIMALV3", ct.getTypeName(),
+                "decimal() identity should map to DECIMALV3");
+        Assertions.assertEquals(18, ct.getPrecision());
+        Assertions.assertEquals(0, ct.getScale());
+    }
+
+    @Test
+    void testNumericParenIdentityTypeMapping() {
+        // SQL Server JDBC driver may also return "numeric(18, 0) identity"
+        JdbcSQLServerConnectorClient client = createClient();
+        JdbcFieldInfo info = new JdbcFieldInfo(
+                "id", Optional.of("numeric(18, 0) identity"), 2 /* NUMERIC */,
+                Optional.of(18), Optional.of(0), Optional.empty());
+        ConnectorType ct = client.jdbcTypeToConnectorType(info);
+        Assertions.assertEquals("DECIMALV3", ct.getTypeName(),
+                "numeric(18, 0) identity should map to DECIMALV3");
+    }
+
+    @Test
     void testIntIdentityTypeMapping() {
         JdbcSQLServerConnectorClient client = createClient();
         JdbcFieldInfo info = new JdbcFieldInfo(

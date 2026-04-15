@@ -209,8 +209,12 @@ public final class ConnectorColumnConverter {
             case "UNSUPPORTED":
                 return Type.UNSUPPORTED;
             default:
-                LOG.warn("Unrecognized connector type '{}', marking as UNSUPPORTED", typeName);
-                return Type.UNSUPPORTED;
+                try {
+                    return ScalarType.createType(typeName);
+                } catch (Exception e) {
+                    LOG.warn("Unrecognized connector type '{}', marking as UNSUPPORTED", typeName);
+                    return Type.UNSUPPORTED;
+                }
         }
     }
 }
