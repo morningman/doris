@@ -21,10 +21,9 @@ import org.apache.doris.common.util.DebugUtil;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.GlobalVariable;
-import org.apache.doris.qe.SessionVariable;
+import org.apache.doris.qe.VariableMgr;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -109,25 +108,12 @@ public final class ConnectorSessionBuilder {
     }
 
     /**
-     * Extracts connector-relevant session variables from the connect context.
-     * Only variables that connectors may need are included.
+     * Extracts all visible session variables from the connect context.
+     * Uses {@link VariableMgr#toMap} to avoid maintaining a hard-coded whitelist.
+     * Server-level globals (e.g., lower_case_table_names) are also included.
      */
     private static Map<String, String> extractSessionProperties(ConnectContext ctx) {
-        Map<String, String> props = new HashMap<>();
-        SessionVariable sv = ctx.getSessionVariable();
-        props.put(SessionVariable.ENABLE_ES_PARALLEL_SCROLL,
-                String.valueOf(sv.enableESParallelScroll));
-        props.put(SessionVariable.ENABLE_ODBC_TRANSCATION,
-                String.valueOf(sv.isEnableOdbcTransaction()));
-        // JDBC function pushdown & scan modifiers
-        props.put(SessionVariable.ENABLE_EXT_FUNC_PRED_PUSHDOWN,
-                String.valueOf(sv.enableExtFuncPredPushdown));
-        props.put(SessionVariable.JDBC_CLICKHOUSE_QUERY_FINAL,
-                String.valueOf(sv.jdbcClickhouseQueryFinal));
-        props.put(SessionVariable.ENABLE_JDBC_ORACLE_NULL_PREDICATE_PUSH_DOWN,
-                String.valueOf(sv.enableJdbcOracleNullPredicatePushDown));
-        props.put(SessionVariable.ENABLE_JDBC_CAST_PREDICATE_PUSH_DOWN,
-                String.valueOf(sv.enableJdbcCastPredicatePushDown));
+        Map<String, String> props = VariableMgr.toMap(ctx.getSessionVariable());
         // Server-level lower_case_table_names for identifier mapping
         props.put("lower_case_table_names",
                 String.valueOf(GlobalVariable.lowerCaseTableNames));
