@@ -163,7 +163,7 @@ public class HudiConnectorMetadata implements ConnectorMetadata {
                 .prunedPartitionPaths(partitionNames)
                 .build();
 
-        return Optional.of(new FilterApplicationResult<>(updatedHandle, null, false));
+        return Optional.of(new FilterApplicationResult<>(updatedHandle, constraint.getExpression(), false));
     }
 
     @Override

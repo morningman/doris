@@ -129,8 +129,15 @@ public class PluginDrivenEsScanNode extends ExternalScanNode {
         Optional<FilterApplicationResult<ConnectorTableHandle>> result =
                 metadata.applyFilter(connectorSession, currentHandle, constraint);
         if (result.isPresent()) {
-            currentHandle = result.get().getHandle();
-            LOG.debug("Filter pushdown accepted for plugin-driven ES scan");
+            FilterApplicationResult<ConnectorTableHandle> filterResult = result.get();
+            currentHandle = filterResult.getHandle();
+            ConnectorExpression remaining = filterResult.getRemainingFilter();
+            if (remaining == null) {
+                conjuncts.clear();
+                LOG.debug("ES filter fully pushed down via applyFilter, cleared conjuncts");
+            } else {
+                LOG.debug("ES filter pushdown accepted with remaining, keeping conjuncts");
+            }
         }
     }
 

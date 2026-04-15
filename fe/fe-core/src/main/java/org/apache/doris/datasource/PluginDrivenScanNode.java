@@ -274,8 +274,22 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         Optional<FilterApplicationResult<ConnectorTableHandle>> result =
                 metadata.applyFilter(connectorSession, currentHandle, constraint);
         if (result.isPresent()) {
-            currentHandle = result.get().getHandle();
-            LOG.debug("Filter pushdown accepted for plugin-driven scan, updated handle");
+            FilterApplicationResult<ConnectorTableHandle> filterResult = result.get();
+            currentHandle = filterResult.getHandle();
+
+            // Consume remainingFilter to avoid duplicate predicate evaluation on BE:
+            // - null means all predicates were fully pushed down → clear conjuncts
+            // - non-null means some/all predicates remain → keep conjuncts (conservative)
+            ConnectorExpression remaining = filterResult.getRemainingFilter();
+            if (remaining == null) {
+                conjuncts.clear();
+                LOG.debug("Filter fully pushed down for plugin-driven scan, cleared conjuncts");
+            } else {
+                // Partial or full remaining: keep all conjuncts for BE-side evaluation.
+                // Fine-grained conjunct removal (matching individual remaining sub-expressions
+                // back to original Expr conjuncts) is deferred to a future enhancement.
+                LOG.debug("Filter pushdown accepted with remaining filter, keeping conjuncts");
+            }
         }
         // Invalidate cached properties so they are rebuilt with the updated conjuncts/handle.
         scanNodeProperties = null;
