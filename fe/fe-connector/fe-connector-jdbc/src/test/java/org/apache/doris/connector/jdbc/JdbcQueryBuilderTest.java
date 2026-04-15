@@ -29,6 +29,7 @@ import org.apache.doris.connector.api.pushdown.ConnectorLiteral;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -292,5 +293,88 @@ class JdbcQueryBuilderTest {
         // to using the column name as-is (no remapping)
         Assertions.assertFalse(sql2.contains("REMOTE_COL"),
                 "Second call must not see first call's column mapping. SQL: " + sql2);
+    }
+
+    // --- Oracle/OceanBase timestamp microsecond formatting tests ---
+
+    private static final ConnectorType DATETIME_TYPE = ConnectorType.of("DATETIMEV2");
+
+    @Test
+    void testOracleTimestampLeadingZeroMicroseconds() {
+        JdbcQueryBuilder builder = oracleBuilder();
+        // 00:00:00.000001 → nanos=1000, micros=1 → must be "000001" not "1"
+        LocalDateTime dt = LocalDateTime.of(2024, 1, 15, 10, 30, 0, 1000);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("ts", DATETIME_TYPE),
+                ConnectorLiteral.ofDatetime(dt));
+        String sql = builder.buildQuery(DB, TABLE, columns("ts"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains(".000001"),
+                "Leading-zero microseconds must be preserved. SQL: " + sql);
+        Assertions.assertTrue(sql.contains("FF6"),
+                "Oracle timestamp must use FF6 format. SQL: " + sql);
+    }
+
+    @Test
+    void testOracleTimestampNormalMicroseconds() {
+        JdbcQueryBuilder builder = oracleBuilder();
+        // 10:30:45.123456 → nanos=123456000, micros=123456
+        LocalDateTime dt = LocalDateTime.of(2024, 1, 15, 10, 30, 45, 123456000);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("ts", DATETIME_TYPE),
+                ConnectorLiteral.ofDatetime(dt));
+        String sql = builder.buildQuery(DB, TABLE, columns("ts"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains(".123456"),
+                "Normal microseconds must be preserved. SQL: " + sql);
+    }
+
+    @Test
+    void testOracleTimestampTrailingZeroMicroseconds() {
+        JdbcQueryBuilder builder = oracleBuilder();
+        // 10:30:45.100000 → nanos=100000000, micros=100000
+        LocalDateTime dt = LocalDateTime.of(2024, 1, 15, 10, 30, 45, 100000000);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("ts", DATETIME_TYPE),
+                ConnectorLiteral.ofDatetime(dt));
+        String sql = builder.buildQuery(DB, TABLE, columns("ts"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains(".100000"),
+                "Trailing-zero microseconds must be 6-digit padded. SQL: " + sql);
+    }
+
+    @Test
+    void testOracleTimestampNoFractionalPart() {
+        JdbcQueryBuilder builder = oracleBuilder();
+        // 10:30:45.000000 → nanos=0 → should use to_date, no FF6
+        LocalDateTime dt = LocalDateTime.of(2024, 1, 15, 10, 30, 45, 0);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("ts", DATETIME_TYPE),
+                ConnectorLiteral.ofDatetime(dt));
+        String sql = builder.buildQuery(DB, TABLE, columns("ts"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains("to_date("),
+                "Zero fractional part should use to_date, not to_timestamp. SQL: " + sql);
+        Assertions.assertFalse(sql.contains("FF6"),
+                "Zero fractional part should not use FF6. SQL: " + sql);
+    }
+
+    @Test
+    void testOceanBaseOracleTimestampLeadingZeroMicroseconds() {
+        JdbcQueryBuilder builder = oceanBaseOracleBuilder();
+        // Same bug affects OceanBase Oracle mode
+        LocalDateTime dt = LocalDateTime.of(2024, 1, 15, 0, 0, 0, 1000);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("ts", DATETIME_TYPE),
+                ConnectorLiteral.ofDatetime(dt));
+        String sql = builder.buildQuery(DB, TABLE, columns("ts"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains(".000001"),
+                "OceanBase Oracle mode must also pad microseconds. SQL: " + sql);
     }
 }

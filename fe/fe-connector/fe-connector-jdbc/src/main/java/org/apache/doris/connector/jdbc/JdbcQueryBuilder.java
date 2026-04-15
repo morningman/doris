@@ -585,7 +585,8 @@ public final class JdbcQueryBuilder {
             String dateStr = ((LocalDateTime) val).format(DATETIME_FMT);
             int nanos = ((LocalDateTime) val).getNano();
             if (nanos > 0) {
-                String fracStr = String.valueOf(nanos / 1000);
+                long micros = nanos / 1000;
+                String fracStr = String.format("%06d", micros);
                 dateStr = dateStr + "." + fracStr;
                 return "to_timestamp('" + dateStr + "', 'yyyy-mm-dd hh24:mi:ss.FF6')";
             }
