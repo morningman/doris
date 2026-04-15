@@ -200,6 +200,15 @@ suite("test_oracle_jdbc_catalog", "p0,external") {
         // Test mixed date functions and string dates
         order_qt_mixed """select * from TEST_TIMESTAMP where T1 >= CAST(CURDATE() AS DATETIME) AND T2 < '2023-01-01 00:00:00' order by ID;"""
 
+        // Test Oracle timestamp leading-zero microseconds pushdown
+        // Verifies that sub-second predicate pushdown correctly left-pads microseconds
+        // to 6 digits in the FF6 format. Before the fix, .000001 was formatted as ".1"
+        // which Oracle FF6 interprets as ".100000" — a completely different time.
+        // t3 is timestamp(6), row 4 has value '2019-11-12 20:33:57.999998'
+        order_qt_ts_micros1 """select ID, T3 from TEST_TIMESTAMP where T3 = '2019-11-12 20:33:57.999998' order by ID;"""
+        order_qt_ts_micros2 """select ID, T3 from TEST_TIMESTAMP where T3 > '2019-11-12 20:33:57.000001' order by ID;"""
+        order_qt_ts_micros3 """select ID, T3 from TEST_TIMESTAMP where T3 < '2019-11-12 20:33:58.000001' order by ID;"""
+
         // test nvl
         explain {
             sql("SELECT * FROM STUDENT WHERE nvl(score, 0) < score;")
