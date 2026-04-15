@@ -33,6 +33,8 @@ import org.apache.doris.connector.api.handle.PassthroughQueryTableHandle;
 import org.apache.doris.connector.api.pushdown.ConnectorExpression;
 import org.apache.doris.connector.api.pushdown.ConnectorFilterConstraint;
 import org.apache.doris.connector.api.pushdown.FilterApplicationResult;
+import org.apache.doris.connector.api.pushdown.LimitApplicationResult;
+import org.apache.doris.connector.api.pushdown.ProjectionApplicationResult;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.planner.PlanNodeId;
@@ -295,8 +297,51 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         scanNodeProperties = null;
     }
 
+    /**
+     * Attempts to push the limit down via the SPI applyLimit() protocol.
+     * Called before getSplits(), after filter pushdown.
+     *
+     * <p>If the connector accepts the limit, the handle is updated.
+     * The limit is still passed to planScan() as a parameter for
+     * connectors that handle limit directly in planScan().</p>
+     */
+    private void tryPushDownLimit() {
+        if (limit <= 0) {
+            return;
+        }
+        ConnectorMetadata metadata = connector.getMetadata(connectorSession);
+        Optional<LimitApplicationResult<ConnectorTableHandle>> result =
+                metadata.applyLimit(connectorSession, currentHandle, limit);
+        if (result.isPresent()) {
+            currentHandle = result.get().getHandle();
+            LOG.debug("Limit {} pushed down via applyLimit for plugin-driven scan", limit);
+        }
+    }
+
+    /**
+     * Attempts to push the projection down via the SPI applyProjection() protocol.
+     * Called before getSplits(), after filter and limit pushdown.
+     *
+     * <p>If the connector accepts the projection, the handle is updated.</p>
+     */
+    private void tryPushDownProjection(List<ConnectorColumnHandle> columns) {
+        if (columns.isEmpty()) {
+            return;
+        }
+        ConnectorMetadata metadata = connector.getMetadata(connectorSession);
+        Optional<ProjectionApplicationResult<ConnectorTableHandle>> result =
+                metadata.applyProjection(connectorSession, currentHandle, columns);
+        if (result.isPresent()) {
+            currentHandle = result.get().getHandle();
+            LOG.debug("Projection pushed down via applyProjection for plugin-driven scan");
+        }
+    }
+
     @Override
     public List<Split> getSplits(int numBackends) throws UserException {
+        // Attempt limit and projection pushdown via SPI protocol
+        tryPushDownLimit();
+
         ConnectorScanPlanProvider scanProvider = connector.getScanPlanProvider();
         if (scanProvider == null) {
             LOG.warn("Connector does not provide a scan plan provider, returning empty splits");
@@ -304,6 +349,7 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         }
 
         List<ConnectorColumnHandle> columns = buildColumnHandles();
+        tryPushDownProjection(columns);
         Optional<ConnectorExpression> remainingFilter = buildRemainingFilter();
 
         List<ConnectorScanRange> ranges = scanProvider.planScan(

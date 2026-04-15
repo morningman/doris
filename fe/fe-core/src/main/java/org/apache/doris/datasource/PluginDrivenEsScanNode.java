@@ -30,6 +30,7 @@ import org.apache.doris.connector.api.handle.NamedColumnHandle;
 import org.apache.doris.connector.api.pushdown.ConnectorExpression;
 import org.apache.doris.connector.api.pushdown.ConnectorFilterConstraint;
 import org.apache.doris.connector.api.pushdown.FilterApplicationResult;
+import org.apache.doris.connector.api.pushdown.ProjectionApplicationResult;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.planner.PlanNodeId;
@@ -141,10 +142,30 @@ public class PluginDrivenEsScanNode extends ExternalScanNode {
         }
     }
 
+    /**
+     * Attempts to push the projection down via the SPI applyProjection() protocol.
+     */
+    private void tryPushDownProjection(List<ConnectorColumnHandle> columns) {
+        if (columns.isEmpty()) {
+            return;
+        }
+        ConnectorMetadata metadata = connector.getMetadata(connectorSession);
+        Optional<ProjectionApplicationResult<ConnectorTableHandle>> result =
+                metadata.applyProjection(connectorSession, currentHandle, columns);
+        if (result.isPresent()) {
+            currentHandle = result.get().getHandle();
+            LOG.debug("ES projection pushed down via applyProjection");
+        }
+    }
+
     @Override
     protected void createScanRangeLocations() throws UserException {
         ConnectorScanPlanProvider scanProvider = connector.getScanPlanProvider();
         List<ConnectorColumnHandle> columns = buildColumnHandles();
+
+        // Attempt projection pushdown via SPI protocol
+        tryPushDownProjection(columns);
+
         Optional<ConnectorExpression> remainingFilter = buildRemainingFilter();
 
         // Get scan ranges (shard routing)
