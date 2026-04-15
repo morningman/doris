@@ -104,7 +104,7 @@ export DORIS_FS_TEST_S3_SK=your-secret-key
 # Run S3-related environment tests
 cd fe
 mvn test -pl fe-filesystem \
-  -Dsurefire.excludedGroups= \
+  -Dtest.excludedGroups=none \
   -Dgroups=s3 \
   -Dcheckstyle.skip=true \
   -DfailIfNoTests=false \
@@ -113,7 +113,7 @@ mvn test -pl fe-filesystem \
 
 # Run HDFS + Kerberos environment tests
 mvn test -pl fe-filesystem \
-  -Dsurefire.excludedGroups= \
+  -Dtest.excludedGroups=none \
   -Dgroups="hdfs | kerberos" \
   -Dcheckstyle.skip=true \
   -DfailIfNoTests=false \
@@ -209,9 +209,10 @@ respectively.
 2. **S3 multipart upload tests** upload ~5 MB of data. Ensure the test bucket has sufficient
    space and permissions.
 
-3. **Environment tests are not run by default** (configured via Maven Surefire's
-   `<excludedGroups>environment</excludedGroups>`). They only run when explicitly enabled with
-   `-Dsurefire.excludedGroups= -Dgroups=<tag>`.
+3. **Environment tests are not run by default** (the module POM sets
+   `<excludedGroups>${test.excludedGroups}</excludedGroups>` with a default value of
+   `environment`). They only run when explicitly enabled with
+   `-Dtest.excludedGroups=none -Dgroups=<tag>`.
 
 4. **Never commit credentials to the code repository**. Use environment variables or CI/CD
    secret management instead.
