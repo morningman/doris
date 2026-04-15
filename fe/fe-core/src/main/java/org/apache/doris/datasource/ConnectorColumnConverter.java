@@ -207,15 +207,10 @@ public final class ConnectorColumnConverter {
             case "JSONB":
                 return ScalarType.createType("JSON");
             case "UNSUPPORTED":
-                LOG.warn("Column type marked UNSUPPORTED by connector, degrading to STRING");
-                return ScalarType.createStringType();
+                return Type.UNSUPPORTED;
             default:
-                try {
-                    return ScalarType.createType(typeName);
-                } catch (Exception e) {
-                    LOG.warn("Unrecognized connector type '{}', degrading to STRING", typeName);
-                    return ScalarType.createStringType();
-                }
+                LOG.warn("Unrecognized connector type '{}', marking as UNSUPPORTED", typeName);
+                return Type.UNSUPPORTED;
         }
     }
 }
