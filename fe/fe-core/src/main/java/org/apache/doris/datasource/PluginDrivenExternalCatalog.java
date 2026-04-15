@@ -17,41 +17,23 @@
 
 package org.apache.doris.datasource;
 
-import org.apache.doris.catalog.Env;
-import org.apache.doris.catalog.JdbcResource;
 import org.apache.doris.common.DdlException;
-import org.apache.doris.common.FeConstants;
 import org.apache.doris.connector.ConnectorFactory;
 import org.apache.doris.connector.ConnectorSessionBuilder;
 import org.apache.doris.connector.DefaultConnectorContext;
+import org.apache.doris.connector.DefaultConnectorValidationContext;
 import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTestResult;
-import org.apache.doris.proto.InternalService.PJdbcTestConnectionRequest;
-import org.apache.doris.proto.InternalService.PJdbcTestConnectionResult;
 import org.apache.doris.qe.ConnectContext;
-import org.apache.doris.rpc.BackendServiceProxy;
-import org.apache.doris.rpc.RpcException;
-import org.apache.doris.system.Backend;
-import org.apache.doris.thrift.TJdbcTable;
-import org.apache.doris.thrift.TNetworkAddress;
-import org.apache.doris.thrift.TOdbcTableType;
-import org.apache.doris.thrift.TStatusCode;
-import org.apache.doris.thrift.TTableDescriptor;
-import org.apache.doris.thrift.TTableType;
 import org.apache.doris.transaction.PluginDrivenTransactionManager;
 
-import com.google.protobuf.ByteString;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.thrift.TException;
-import org.apache.thrift.TSerializer;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 /**
  * An {@link ExternalCatalog} backed by a Connector SPI plugin.
@@ -143,13 +125,15 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
 
     @Override
     public void checkWhenCreating() throws DdlException {
-        Map<String, String> properties = catalogProperty.getProperties();
-        String catalogType = properties.getOrDefault(CatalogMgr.CATALOG_TYPE_PROP, "");
-
-        // JDBC-specific engine-level validation: driver security, checksum, URL safety.
-        // These are security policies that belong in the engine, not the connector SPI.
-        if ("jdbc".equalsIgnoreCase(catalogType)) {
-            validateJdbcDriver(properties);
+        // Let the connector perform its type-specific pre-creation validation
+        // (e.g., JDBC driver security, checksum, BE connectivity test).
+        try {
+            connector.preCreateValidation(
+                    new DefaultConnectorValidationContext(getId(), catalogProperty));
+        } catch (DdlException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new DdlException(e.getMessage(), e);
         }
 
         boolean testConnection = Boolean.parseBoolean(
@@ -166,139 +150,6 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
                     + name + "': " + result.getMessage());
         }
         LOG.info("Connectivity test passed for plugin-driven catalog '{}': {}", name, result);
-
-        // JDBC-specific: test BE→external connectivity via BRPC.
-        if ("jdbc".equalsIgnoreCase(catalogType)) {
-            testBeToJdbcConnection(properties);
-        }
-    }
-
-    /**
-     * Validates JDBC driver URL format, whitelist, secure_path, file existence,
-     * and computes/verifies the MD5 checksum. This ensures the SPI path has the
-     * same security guarantees as the old JdbcExternalCatalog path.
-     */
-    private void validateJdbcDriver(Map<String, String> properties) throws DdlException {
-        String driverUrl = properties.get(JdbcResource.DRIVER_URL);
-        if (driverUrl == null || driverUrl.isEmpty()) {
-            return;
-        }
-        // Validate format, whitelist, secure_path, file existence, cloud download.
-        // Throws IllegalArgumentException on any violation.
-        try {
-            JdbcResource.getFullDriverUrl(driverUrl);
-        } catch (IllegalArgumentException e) {
-            throw new DdlException("JDBC driver validation failed: " + e.getMessage(), e);
-        }
-
-        // Compute and verify checksum.
-        String computedChecksum = JdbcResource.computeObjectChecksum(driverUrl);
-        if (properties.containsKey(JdbcResource.CHECK_SUM)) {
-            String providedChecksum = properties.get(JdbcResource.CHECK_SUM);
-            if (!providedChecksum.equals(computedChecksum)) {
-                throw new DdlException(
-                        "The provided checksum (" + providedChecksum
-                                + ") does not match the computed checksum (" + computedChecksum
-                                + ") for the driver_url.");
-            }
-        } else {
-            catalogProperty.addProperty(JdbcResource.CHECK_SUM, computedChecksum);
-        }
-    }
-
-    /**
-     * Tests BE→JDBC connectivity by sending a BRPC test-connection request to an
-     * alive backend. Replicates the old JdbcExternalCatalog.testBeToJdbcConnection().
-     */
-    private void testBeToJdbcConnection(Map<String, String> properties) throws DdlException {
-        if (FeConstants.runningUnitTest) {
-            return;
-        }
-        Backend aliveBe = findAliveBackend();
-        TNetworkAddress address = new TNetworkAddress(aliveBe.getHost(), aliveBe.getBrpcPort());
-        try {
-            TTableDescriptor testThrift = buildJdbcTestConnectionThrift(properties);
-            TOdbcTableType tableType = parseJdbcOdbcType(properties);
-            PJdbcTestConnectionRequest request = PJdbcTestConnectionRequest.newBuilder()
-                    .setJdbcTable(ByteString.copyFrom(new TSerializer().serialize(testThrift)))
-                    .setJdbcTableType(tableType.getValue())
-                    .setQueryStr(getJdbcTestQuery(properties))
-                    .build();
-            Future<PJdbcTestConnectionResult> future = BackendServiceProxy.getInstance()
-                    .testJdbcConnection(address, request);
-            PJdbcTestConnectionResult result = future.get();
-            TStatusCode code = TStatusCode.findByValue(result.getStatus().getStatusCode());
-            if (code != TStatusCode.OK) {
-                throw new DdlException("Test BE Connection to JDBC Failed: "
-                        + result.getStatus().getErrorMsgs(0));
-            }
-        } catch (TException | RpcException | ExecutionException | InterruptedException e) {
-            throw new DdlException("Test BE Connection to JDBC Failed: " + e.getMessage(), e);
-        }
-    }
-
-    private Backend findAliveBackend() throws DdlException {
-        try {
-            for (Backend be : Env.getCurrentSystemInfo().getAllBackendsByAllCluster().values()) {
-                if (be.isAlive()) {
-                    return be;
-                }
-            }
-        } catch (Exception e) {
-            throw new DdlException("Failed to find alive backend: " + e.getMessage(), e);
-        }
-        throw new DdlException("Test BE Connection to JDBC Failed: No alive backends");
-    }
-
-    private TTableDescriptor buildJdbcTestConnectionThrift(Map<String, String> props) throws DdlException {
-        TJdbcTable tJdbcTable = new TJdbcTable();
-        tJdbcTable.setCatalogId(this.getId());
-        tJdbcTable.setJdbcUrl(props.getOrDefault(JdbcResource.JDBC_URL, ""));
-        tJdbcTable.setJdbcUser(props.getOrDefault(JdbcResource.USER, ""));
-        tJdbcTable.setJdbcPassword(props.getOrDefault(JdbcResource.PASSWORD, ""));
-        tJdbcTable.setJdbcTableName("test_jdbc_connection");
-        tJdbcTable.setJdbcDriverClass(props.getOrDefault(JdbcResource.DRIVER_CLASS, ""));
-        tJdbcTable.setJdbcDriverUrl(props.getOrDefault(JdbcResource.DRIVER_URL, ""));
-        tJdbcTable.setJdbcResourceName("");
-        tJdbcTable.setJdbcDriverChecksum(JdbcResource.computeObjectChecksum(
-                props.getOrDefault(JdbcResource.DRIVER_URL, "")));
-        tJdbcTable.setConnectionPoolMinSize(
-                Integer.parseInt(props.getOrDefault(JdbcResource.CONNECTION_POOL_MIN_SIZE, "1")));
-        tJdbcTable.setConnectionPoolMaxSize(
-                Integer.parseInt(props.getOrDefault(JdbcResource.CONNECTION_POOL_MAX_SIZE, "30")));
-        tJdbcTable.setConnectionPoolMaxWaitTime(
-                Integer.parseInt(props.getOrDefault(JdbcResource.CONNECTION_POOL_MAX_WAIT_TIME, "5000")));
-        tJdbcTable.setConnectionPoolMaxLifeTime(
-                Integer.parseInt(props.getOrDefault(JdbcResource.CONNECTION_POOL_MAX_LIFE_TIME, "1800000")));
-        tJdbcTable.setConnectionPoolKeepAlive(
-                Boolean.parseBoolean(props.getOrDefault(JdbcResource.CONNECTION_POOL_KEEP_ALIVE, "false")));
-        TTableDescriptor tTableDescriptor = new TTableDescriptor(0, TTableType.JDBC_TABLE, 0, 0,
-                "test_jdbc_connection", "");
-        tTableDescriptor.setJdbcTable(tJdbcTable);
-        return tTableDescriptor;
-    }
-
-    private static TOdbcTableType parseJdbcOdbcType(Map<String, String> props) {
-        String jdbcUrl = props.getOrDefault(JdbcResource.JDBC_URL, "");
-        try {
-            String dbType = JdbcResource.parseDbType(jdbcUrl);
-            return TOdbcTableType.valueOf(dbType);
-        } catch (Exception e) {
-            return TOdbcTableType.MYSQL;
-        }
-    }
-
-    private static String getJdbcTestQuery(Map<String, String> props) {
-        String jdbcUrl = props.getOrDefault(JdbcResource.JDBC_URL, "");
-        try {
-            String dbType = JdbcResource.parseDbType(jdbcUrl);
-            if ("ORACLE".equals(dbType)) {
-                return "SELECT 1 FROM dual";
-            }
-        } catch (Exception e) {
-            // ignore
-        }
-        return "SELECT 1";
     }
 
     /**

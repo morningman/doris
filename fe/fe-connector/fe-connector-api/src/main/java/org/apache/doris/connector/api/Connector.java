@@ -57,6 +57,24 @@ public interface Connector extends Closeable {
     }
 
     /**
+     * Performs connector-specific validation during CREATE CATALOG.
+     *
+     * <p>Called before {@link #testConnection(ConnectorSession)}. Connectors
+     * may override this to validate driver security, compute checksums,
+     * test BE connectivity, or perform any other pre-creation checks.</p>
+     *
+     * <p>The engine provides infrastructure services through the
+     * {@link ConnectorValidationContext}; each connector calls only the
+     * services relevant to its validation needs.</p>
+     *
+     * @param context engine services for validation
+     * @throws Exception if validation fails
+     */
+    default void preCreateValidation(ConnectorValidationContext context) throws Exception {
+        // No-op by default
+    }
+
+    /**
      * Tests connectivity to the underlying data source.
      *
      * <p>Connectors should override this to verify they can reach the

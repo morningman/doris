@@ -21,13 +21,19 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTestResult;
+import org.apache.doris.connector.api.ConnectorValidationContext;
 import org.apache.doris.connector.api.DorisConnectorException;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.jdbc.client.JdbcConnectorClient;
 import org.apache.doris.connector.spi.ConnectorContext;
+import org.apache.doris.thrift.TJdbcTable;
+import org.apache.doris.thrift.TOdbcTableType;
+import org.apache.doris.thrift.TTableDescriptor;
+import org.apache.doris.thrift.TTableType;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.thrift.TSerializer;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -100,6 +106,39 @@ public class JdbcDorisConnector implements Connector {
             }
         }
         return scanPlanProvider;
+    }
+
+    @Override
+    public void preCreateValidation(ConnectorValidationContext context) throws Exception {
+        // 1. Validate/resolve JDBC driver — format, whitelist, secure_path, file existence.
+        String driverUrl = properties.get(JdbcConnectorProperties.DRIVER_URL);
+        if (driverUrl != null && !driverUrl.isEmpty()) {
+            context.validateAndResolveDriverPath(driverUrl);
+
+            // 2. Compute and verify checksum.
+            String computedChecksum = context.computeDriverChecksum(driverUrl);
+            String providedChecksum = context.getProperty(JdbcConnectorProperties.DRIVER_CHECKSUM);
+            if (providedChecksum != null && !providedChecksum.isEmpty()) {
+                if (!providedChecksum.equals(computedChecksum)) {
+                    throw new DorisConnectorException(
+                            "The provided checksum (" + providedChecksum
+                                    + ") does not match the computed checksum (" + computedChecksum
+                                    + ") for the driver_url.");
+                }
+            } else {
+                context.storeProperty(JdbcConnectorProperties.DRIVER_CHECKSUM, computedChecksum);
+            }
+        }
+
+        // 3. Test BE→JDBC connectivity via BRPC (only when test_connection is enabled).
+        boolean testConnection = Boolean.parseBoolean(
+                properties.getOrDefault("test_connection", "true"));
+        if (testConnection) {
+            TTableDescriptor testThrift = buildTestTableDescriptor(context);
+            TOdbcTableType tableType = parseOdbcType();
+            byte[] serialized = new TSerializer().serialize(testThrift);
+            context.testBeJdbcConnection(serialized, tableType.getValue(), getTestQuery());
+        }
     }
 
     @Override
@@ -207,5 +246,55 @@ public class JdbcDorisConnector implements Connector {
             return resolved;
         }
         return "file://" + driverUrl;
+    }
+
+    private TTableDescriptor buildTestTableDescriptor(ConnectorValidationContext context) {
+        TJdbcTable tJdbcTable = new TJdbcTable();
+        tJdbcTable.setCatalogId(context.getCatalogId());
+        tJdbcTable.setJdbcUrl(properties.getOrDefault(JdbcConnectorProperties.JDBC_URL, ""));
+        tJdbcTable.setJdbcUser(properties.getOrDefault(JdbcConnectorProperties.USER, ""));
+        tJdbcTable.setJdbcPassword(properties.getOrDefault(JdbcConnectorProperties.PASSWORD, ""));
+        tJdbcTable.setJdbcTableName("test_jdbc_connection");
+        tJdbcTable.setJdbcDriverClass(
+                properties.getOrDefault(JdbcConnectorProperties.DRIVER_CLASS, ""));
+        tJdbcTable.setJdbcDriverUrl(
+                properties.getOrDefault(JdbcConnectorProperties.DRIVER_URL, ""));
+        tJdbcTable.setJdbcResourceName("");
+        // Use the checksum that was computed/verified during driver validation.
+        String checksum = context.getProperty(JdbcConnectorProperties.DRIVER_CHECKSUM);
+        tJdbcTable.setJdbcDriverChecksum(checksum != null ? checksum : "");
+        tJdbcTable.setConnectionPoolMinSize(JdbcConnectorProperties.getInt(
+                properties, JdbcConnectorProperties.CONNECTION_POOL_MIN_SIZE, 1));
+        tJdbcTable.setConnectionPoolMaxSize(JdbcConnectorProperties.getInt(
+                properties, JdbcConnectorProperties.CONNECTION_POOL_MAX_SIZE, 30));
+        tJdbcTable.setConnectionPoolMaxWaitTime(JdbcConnectorProperties.getInt(
+                properties, JdbcConnectorProperties.CONNECTION_POOL_MAX_WAIT_TIME, 5000));
+        tJdbcTable.setConnectionPoolMaxLifeTime(JdbcConnectorProperties.getInt(
+                properties, JdbcConnectorProperties.CONNECTION_POOL_MAX_LIFE_TIME, 1800000));
+        tJdbcTable.setConnectionPoolKeepAlive(Boolean.parseBoolean(
+                properties.getOrDefault(JdbcConnectorProperties.CONNECTION_POOL_KEEP_ALIVE, "false")));
+        TTableDescriptor tTableDescriptor = new TTableDescriptor(
+                0, TTableType.JDBC_TABLE, 0, 0, "test_jdbc_connection", "");
+        tTableDescriptor.setJdbcTable(tJdbcTable);
+        return tTableDescriptor;
+    }
+
+    private TOdbcTableType parseOdbcType() {
+        String jdbcUrl = properties.getOrDefault(JdbcConnectorProperties.JDBC_URL, "");
+        JdbcDbType dbType = JdbcDbType.parseFromUrl(jdbcUrl);
+        try {
+            return TOdbcTableType.valueOf(dbType.name());
+        } catch (Exception e) {
+            return TOdbcTableType.MYSQL;
+        }
+    }
+
+    private String getTestQuery() {
+        String jdbcUrl = properties.getOrDefault(JdbcConnectorProperties.JDBC_URL, "");
+        JdbcDbType dbType = JdbcDbType.parseFromUrl(jdbcUrl);
+        if (dbType == JdbcDbType.ORACLE) {
+            return "SELECT 1 FROM dual";
+        }
+        return "SELECT 1";
     }
 }
