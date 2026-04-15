@@ -89,7 +89,11 @@ public class ConnectorSessionImpl implements ConnectorSession {
     public <T> T getProperty(String name, Class<T> type) {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(type, "type");
-        String value = catalogProperties.get(name);
+        // Session properties take precedence over catalog properties.
+        String value = sessionProperties.get(name);
+        if (value == null) {
+            value = catalogProperties.get(name);
+        }
         if (value == null) {
             return null;
         }

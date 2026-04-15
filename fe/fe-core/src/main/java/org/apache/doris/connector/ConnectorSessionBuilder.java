@@ -131,6 +131,9 @@ public final class ConnectorSessionBuilder {
         // Server-level lower_case_table_names for identifier mapping
         props.put("lower_case_table_names",
                 String.valueOf(GlobalVariable.lowerCaseTableNames));
+        // File-split size used by Hive/file-based connectors
+        props.put(SessionVariable.FILE_SPLIT_SIZE,
+                String.valueOf(sv.getFileSplitSize()));
         return props;
     }
 }
