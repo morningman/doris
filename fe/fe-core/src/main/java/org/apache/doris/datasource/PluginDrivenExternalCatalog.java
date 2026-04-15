@@ -51,12 +51,9 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
 
     private static final Logger LOG = LogManager.getLogger(PluginDrivenExternalCatalog.class);
 
-    // Volatile for cross-thread visibility; all mutations also happen under synchronized(this).
+    // Volatile for cross-thread visibility; all mutations happen under synchronized(this)
+    // via makeSureInitialized() → initLocalObjectsImpl(), or resetToUninitialized() → onClose().
     private transient volatile Connector connector;
-
-    // When true, onClose() skips closing the connector because notifyPropertiesUpdated()
-    // manages the connector lifecycle (create-before-swap pattern).
-    private transient volatile boolean connectorSwapInProgress = false;
 
     /** No-arg constructor for GSON deserialization. */
     public PluginDrivenExternalCatalog() {
@@ -175,61 +172,18 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
     }
 
     /**
-     * Handles catalog property updates with a create-before-swap pattern to avoid
-     * race conditions between ALTER CATALOG and concurrent queries.
+     * Handles catalog property updates. Delegates to the parent which resets
+     * caches, sets objectCreated=false, and calls onClose() to release the
+     * current connector. The next makeSureInitialized() call will trigger
+     * initLocalObjectsImpl() which creates a new connector with the updated
+     * properties and proper engine context (auth, etc.).
      *
-     * <p>The old implementation had a TOCTOU race: {@code super.notifyPropertiesUpdated()}
-     * called {@code resetToUninitialized()} which closed the connector via {@code onClose()},
-     * leaving a window where concurrent queries could trigger {@code initLocalObjectsImpl()}
-     * and create an orphaned connector that was immediately overwritten.</p>
-     *
-     * <p>New approach:
-     * <ol>
-     *   <li>Create the replacement connector <b>first</b> (outside lock — may involve I/O).</li>
-     *   <li>Atomically swap the connector and set {@code connectorSwapInProgress} to suppress
-     *       {@code onClose()} from closing the new connector during reset.</li>
-     *   <li>Let the parent reset catalog state (caches, objectCreated, etc.).</li>
-     *   <li>Close the old connector <b>after</b> the swap, outside any lock.</li>
-     * </ol></p>
+     * <p>This follows the same lifecycle pattern as all other ExternalCatalog
+     * subclasses: reset → lazy re-initialization on next access.</p>
      */
     @Override
     public void notifyPropertiesUpdated(Map<String, String> updatedProps) {
-        // 1. Create replacement connector FIRST (may involve I/O — outside any lock).
-        Connector newConnector = createConnectorFromProperties();
-        if (newConnector == null) {
-            LOG.warn("Failed to create replacement connector for catalog '{}', "
-                    + "falling back to full reset", name);
-            super.notifyPropertiesUpdated(updatedProps);
-            return;
-        }
-
-        // 2. Atomically swap connector and suppress onClose() from closing it during reset.
-        Connector oldConnector;
-        synchronized (this) {
-            oldConnector = connector;
-            connector = newConnector;
-            connectorSwapInProgress = true;
-        }
-        try {
-            // 3. Let parent reset catalog state (caches, objectCreated, etc.).
-            //    resetToUninitialized() → onClose() sees connectorSwapInProgress and skips close.
-            //    After reset, concurrent makeSureInitialized() will find connector != null
-            //    and reuse the new connector without creating an orphan.
-            super.notifyPropertiesUpdated(updatedProps);
-        } finally {
-            synchronized (this) {
-                connectorSwapInProgress = false;
-            }
-        }
-
-        // 4. Close old connector outside any lock.
-        if (oldConnector != null) {
-            try {
-                oldConnector.close();
-            } catch (IOException e) {
-                LOG.warn("Failed to close old connector for catalog {}", name, e);
-            }
-        }
+        super.notifyPropertiesUpdated(updatedProps);
     }
 
     @Override
@@ -316,10 +270,6 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
     @Override
     public void onClose() {
         super.onClose();
-        if (connectorSwapInProgress) {
-            // During notifyPropertiesUpdated(), connector lifecycle is managed externally.
-            return;
-        }
         if (connector != null) {
             try {
                 connector.close();
