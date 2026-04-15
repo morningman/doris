@@ -97,6 +97,20 @@ public class JdbcFieldInfo {
         this.arrayDimensions = Optional.of(0);
     }
 
+    /**
+     * Minimal constructor for unit testing — sets only the fields used by type mapping.
+     */
+    public JdbcFieldInfo(String columnName, Optional<String> dataTypeName, int dataType,
+            Optional<Integer> columnSize, Optional<Integer> decimalDigits,
+            Optional<Integer> arrayDimensions) {
+        this.columnName = columnName;
+        this.dataType = dataType;
+        this.dataTypeName = dataTypeName;
+        this.columnSize = columnSize;
+        this.decimalDigits = decimalDigits;
+        this.arrayDimensions = arrayDimensions;
+    }
+
     // -- accessors --
 
     public String getColumnName() {
