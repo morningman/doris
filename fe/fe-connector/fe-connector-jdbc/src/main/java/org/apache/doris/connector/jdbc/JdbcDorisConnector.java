@@ -265,15 +265,20 @@ public class JdbcDorisConnector implements Connector {
         String checksum = context.getProperty(JdbcConnectorProperties.DRIVER_CHECKSUM);
         tJdbcTable.setJdbcDriverChecksum(checksum != null ? checksum : "");
         tJdbcTable.setConnectionPoolMinSize(JdbcConnectorProperties.getInt(
-                properties, JdbcConnectorProperties.CONNECTION_POOL_MIN_SIZE, 1));
+                properties, JdbcConnectorProperties.CONNECTION_POOL_MIN_SIZE,
+                JdbcConnectorProperties.DEFAULT_POOL_MIN_SIZE));
         tJdbcTable.setConnectionPoolMaxSize(JdbcConnectorProperties.getInt(
-                properties, JdbcConnectorProperties.CONNECTION_POOL_MAX_SIZE, 30));
+                properties, JdbcConnectorProperties.CONNECTION_POOL_MAX_SIZE,
+                JdbcConnectorProperties.DEFAULT_POOL_MAX_SIZE));
         tJdbcTable.setConnectionPoolMaxWaitTime(JdbcConnectorProperties.getInt(
-                properties, JdbcConnectorProperties.CONNECTION_POOL_MAX_WAIT_TIME, 5000));
+                properties, JdbcConnectorProperties.CONNECTION_POOL_MAX_WAIT_TIME,
+                JdbcConnectorProperties.DEFAULT_POOL_MAX_WAIT_TIME));
         tJdbcTable.setConnectionPoolMaxLifeTime(JdbcConnectorProperties.getInt(
-                properties, JdbcConnectorProperties.CONNECTION_POOL_MAX_LIFE_TIME, 1800000));
+                properties, JdbcConnectorProperties.CONNECTION_POOL_MAX_LIFE_TIME,
+                JdbcConnectorProperties.DEFAULT_POOL_MAX_LIFE_TIME));
         tJdbcTable.setConnectionPoolKeepAlive(Boolean.parseBoolean(
-                properties.getOrDefault(JdbcConnectorProperties.CONNECTION_POOL_KEEP_ALIVE, "false")));
+                properties.getOrDefault(JdbcConnectorProperties.CONNECTION_POOL_KEEP_ALIVE,
+                        String.valueOf(JdbcConnectorProperties.DEFAULT_POOL_KEEP_ALIVE))));
         TTableDescriptor tTableDescriptor = new TTableDescriptor(
                 0, TTableType.JDBC_TABLE, 0, 0, "test_jdbc_connection", "");
         tTableDescriptor.setJdbcTable(tJdbcTable);

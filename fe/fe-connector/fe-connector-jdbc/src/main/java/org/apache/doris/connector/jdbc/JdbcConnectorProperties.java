@@ -46,7 +46,7 @@ public final class JdbcConnectorProperties {
 
     // -- defaults --
     public static final int DEFAULT_POOL_MIN_SIZE = 1;
-    public static final int DEFAULT_POOL_MAX_SIZE = 10;
+    public static final int DEFAULT_POOL_MAX_SIZE = 30;
     public static final int DEFAULT_POOL_MAX_WAIT_TIME = 5000;
     public static final int DEFAULT_POOL_MAX_LIFE_TIME = 1800000;
     public static final boolean DEFAULT_POOL_KEEP_ALIVE = false;
