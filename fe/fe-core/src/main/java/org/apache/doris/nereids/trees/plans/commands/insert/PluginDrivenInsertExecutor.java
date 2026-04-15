@@ -18,6 +18,7 @@
 package org.apache.doris.nereids.trees.plans.commands.insert;
 
 import org.apache.doris.catalog.Column;
+import org.apache.doris.common.DdlException;
 import org.apache.doris.common.UserException;
 import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorColumn;
@@ -106,6 +107,30 @@ public class PluginDrivenInsertExecutor extends BaseExternalTableInsertExecutor 
     protected void doBeforeCommit() throws UserException {
         if (writeOps != null && insertHandle != null) {
             writeOps.finishInsert(connectorSession, insertHandle, Collections.emptyList());
+        }
+    }
+
+    /**
+     * Post-commit refresh is best-effort for connector writes.
+     *
+     * <p>For JDBC_WRITE, the remote write is committed directly by BE via
+     * PreparedStatement — FE cannot roll it back. If the post-commit cache
+     * refresh fails (e.g., catalog dropped concurrently, edit log I/O error),
+     * reporting the INSERT as failed would mislead the user into retrying,
+     * causing duplicate data. The old JdbcInsertExecutor avoided this by
+     * not performing any post-commit work at all.</p>
+     *
+     * <p>We preserve that safety guarantee while still attempting the refresh
+     * so that cache stays fresh in the common case.</p>
+     */
+    @Override
+    protected void doAfterCommit() throws DdlException {
+        try {
+            super.doAfterCommit();
+        } catch (Exception e) {
+            LOG.warn("Post-commit cache refresh failed for table {} (write type: {}). "
+                    + "Data was committed successfully; cache may be stale until next refresh.",
+                    table.getName(), resolvedWriteType, e);
         }
     }
 
