@@ -216,6 +216,15 @@ public class JdbcConnectorMetadata implements ConnectorMetadata {
         return desc;
     }
 
+    // ========= ConnectorPushdownOps =========
+
+    @Override
+    public boolean supportsCastPredicatePushdown(ConnectorSession session) {
+        return Boolean.parseBoolean(
+                session.getSessionProperties()
+                        .getOrDefault("enable_jdbc_cast_predicate_push_down", "true"));
+    }
+
     // ========= ConnectorIdentifierOps =========
 
     @Override

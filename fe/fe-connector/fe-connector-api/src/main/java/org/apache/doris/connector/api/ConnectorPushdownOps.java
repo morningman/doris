@@ -56,4 +56,20 @@ public interface ConnectorPushdownOps {
                     ConnectorTableHandle handle, long limit) {
         return Optional.empty();
     }
+
+    /**
+     * Returns whether this connector supports pushing down predicates that contain
+     * implicit CAST expressions.
+     *
+     * <p>When this returns {@code false}, the engine will strip any conjuncts
+     * containing CAST expressions from the filter before passing it to the connector.
+     * The default is {@code true} (CASTs are pushed down).</p>
+     *
+     * <p>Connectors that delegate filtering to remote systems with different type
+     * coercion rules (e.g., JDBC databases) may override this to disable CAST
+     * pushdown when the session configuration indicates it is unsafe.</p>
+     */
+    default boolean supportsCastPredicatePushdown(ConnectorSession session) {
+        return true;
+    }
 }

@@ -37,7 +37,6 @@ import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.planner.PlanNodeId;
 import org.apache.doris.planner.ScanContext;
-import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.qe.SessionVariable;
 import org.apache.doris.spi.Split;
 import org.apache.doris.thrift.TExplainLevel;
@@ -730,15 +729,15 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
     /**
      * Builds the remaining filter expression from unconsumed conjuncts.
      * If no conjuncts remain, returns {@link Optional#empty()}.
-     * Filters out CAST-containing predicates when enable_jdbc_cast_predicate_push_down is false.
+     * Filters out CAST-containing predicates when the connector does not support CAST pushdown.
      */
     private Optional<ConnectorExpression> buildRemainingFilter() {
         if (conjuncts == null || conjuncts.isEmpty()) {
             return Optional.empty();
         }
         List<Expr> pushableConjuncts = conjuncts;
-        if (ConnectContext.get() == null || !ConnectContext.get()
-                .getSessionVariable().enableJdbcCastPredicatePushDown) {
+        ConnectorMetadata metadata = connector.getMetadata(connectorSession);
+        if (!metadata.supportsCastPredicatePushdown(connectorSession)) {
             pushableConjuncts = conjuncts.stream()
                     .filter(expr -> !containsCastExpr(expr))
                     .collect(Collectors.toList());
