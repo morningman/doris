@@ -95,13 +95,8 @@ public class HudiConnector implements Connector {
         LOG.info("Creating Hudi connector HMS client for catalog='{}', uri={}, poolSize={}",
                 context.getCatalogName(), config.getMetastoreUri(), poolSize);
 
-        ThriftHmsClient.AuthAction simpleAuth = new ThriftHmsClient.AuthAction() {
-            @Override
-            public <T> T execute(java.util.concurrent.Callable<T> callable) throws Exception {
-                return callable.call();
-            }
-        };
-        return new ThriftHmsClient(config, simpleAuth);
+        ThriftHmsClient.AuthAction authAction = context::executeAuthenticated;
+        return new ThriftHmsClient(config, authAction);
     }
 
     @Override

@@ -25,6 +25,7 @@ import org.apache.doris.connector.DefaultConnectorValidationContext;
 import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTestResult;
+import org.apache.doris.datasource.property.metastore.MetastoreProperties;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.transaction.PluginDrivenTransactionManager;
 
@@ -80,22 +81,39 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
 
     @Override
     protected void initLocalObjectsImpl() {
-        if (connector != null) {
-            transactionManager = new PluginDrivenTransactionManager();
-            initPreExecutionAuthenticator();
-            return;
+        // Always (re-)create the connector so it gets the proper engine context,
+        // including the catalog's execution authenticator for Kerberos/secured HMS.
+        // The connector created by CatalogFactory used a lightweight context
+        // without auth (the catalog didn't exist yet); we replace it now.
+        Connector newConnector = createConnectorFromProperties();
+        if (newConnector != null) {
+            connector = newConnector;
         }
-        connector = createConnectorFromProperties();
         if (connector == null) {
             String catalogType = catalogProperty.getOrDefault(CatalogMgr.CATALOG_TYPE_PROP, "");
             throw new RuntimeException("No ConnectorProvider found for plugin-driven catalog: "
                     + name + ", type: " + catalogType
                     + ". Ensure the connector plugin is installed.");
         }
-        LOG.info("Recreated connector for plugin-driven catalog {}:{}, type={}",
-                name, id, catalogProperty.getOrDefault(CatalogMgr.CATALOG_TYPE_PROP, ""));
         transactionManager = new PluginDrivenTransactionManager();
         initPreExecutionAuthenticator();
+    }
+
+    @Override
+    protected synchronized void initPreExecutionAuthenticator() {
+        if (executionAuthenticator != null) {
+            return;
+        }
+        try {
+            MetastoreProperties msp = catalogProperty.getMetastoreProperties();
+            if (msp != null) {
+                executionAuthenticator = msp.getExecutionAuthenticator();
+                return;
+            }
+        } catch (Exception ignored) {
+            // Not all catalog types have metastore properties (e.g., JDBC, ES)
+        }
+        super.initPreExecutionAuthenticator();
     }
 
     /**
@@ -106,7 +124,7 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
         String catalogType = catalogProperty.getOrDefault(CatalogMgr.CATALOG_TYPE_PROP, "");
         return ConnectorFactory.createConnector(catalogType,
                 catalogProperty.getProperties(),
-                new DefaultConnectorContext(name, id));
+                new DefaultConnectorContext(name, id, this::getExecutionAuthenticator));
     }
 
     @Override

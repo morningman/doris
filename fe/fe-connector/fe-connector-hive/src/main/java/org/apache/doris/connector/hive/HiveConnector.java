@@ -92,13 +92,8 @@ public class HiveConnector implements Connector {
                 context.getCatalogName(), config.getMetastoreUri(),
                 config.getMetastoreType(), poolSize);
 
-        ThriftHmsClient.AuthAction simpleAuth = new ThriftHmsClient.AuthAction() {
-            @Override
-            public <T> T execute(java.util.concurrent.Callable<T> callable) throws Exception {
-                return callable.call();
-            }
-        };
-        return new ThriftHmsClient(config, simpleAuth);
+        ThriftHmsClient.AuthAction authAction = context::executeAuthenticated;
+        return new ThriftHmsClient(config, authAction);
     }
 
     @Override

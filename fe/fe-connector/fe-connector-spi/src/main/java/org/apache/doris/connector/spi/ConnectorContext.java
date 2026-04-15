@@ -21,6 +21,7 @@ import org.apache.doris.connector.api.ConnectorHttpSecurityHook;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.Callable;
 
 /**
  * Runtime context provided by fe-core to connector implementations.
@@ -71,5 +72,24 @@ public interface ConnectorContext {
      */
     default String sanitizeJdbcUrl(String jdbcUrl) {
         return jdbcUrl;
+    }
+
+    /**
+     * Executes a task within the catalog's authentication context.
+     * For secured deployments (e.g., Kerberos), this wraps the call
+     * with the appropriate UGI.doAs() or equivalent mechanism.
+     *
+     * <p>Connectors accessing secured external systems (e.g., Hive Metastore
+     * with Kerberos) MUST use this method to wrap their external calls.</p>
+     *
+     * <p>The default implementation simply executes the task directly (simple auth).</p>
+     *
+     * @param task the task to execute within the authentication context
+     * @param <T>  the return type of the task
+     * @return the result of the task
+     * @throws Exception if the task execution or authentication fails
+     */
+    default <T> T executeAuthenticated(Callable<T> task) throws Exception {
+        return task.call();
     }
 }

@@ -20,6 +20,7 @@ package org.apache.doris.connector;
 import org.apache.doris.cloud.security.SecurityChecker;
 import org.apache.doris.common.Config;
 import org.apache.doris.common.EnvUtils;
+import org.apache.doris.common.security.authentication.ExecutionAuthenticator;
 import org.apache.doris.connector.api.ConnectorHttpSecurityHook;
 import org.apache.doris.connector.spi.ConnectorContext;
 
@@ -27,6 +28,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.function.Supplier;
 
 /**
  * Default implementation of {@link ConnectorContext}.
@@ -36,9 +39,12 @@ import java.util.Objects;
  */
 public class DefaultConnectorContext implements ConnectorContext {
 
+    private static final ExecutionAuthenticator NOOP_AUTH = new ExecutionAuthenticator() {};
+
     private final String catalogName;
     private final long catalogId;
     private final Map<String, String> environment;
+    private final Supplier<ExecutionAuthenticator> authSupplier;
 
     private final ConnectorHttpSecurityHook httpSecurityHook = new ConnectorHttpSecurityHook() {
         @Override
@@ -53,8 +59,14 @@ public class DefaultConnectorContext implements ConnectorContext {
     };
 
     public DefaultConnectorContext(String catalogName, long catalogId) {
+        this(catalogName, catalogId, () -> NOOP_AUTH);
+    }
+
+    public DefaultConnectorContext(String catalogName, long catalogId,
+            Supplier<ExecutionAuthenticator> authSupplier) {
         this.catalogName = Objects.requireNonNull(catalogName, "catalogName");
         this.catalogId = catalogId;
+        this.authSupplier = Objects.requireNonNull(authSupplier, "authSupplier");
         this.environment = buildEnvironment();
     }
 
@@ -85,6 +97,11 @@ public class DefaultConnectorContext implements ConnectorContext {
         } catch (Exception e) {
             throw new RuntimeException("JDBC URL security check failed: " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public <T> T executeAuthenticated(Callable<T> task) throws Exception {
+        return authSupplier.get().execute(task);
     }
 
     private static Map<String, String> buildEnvironment() {
