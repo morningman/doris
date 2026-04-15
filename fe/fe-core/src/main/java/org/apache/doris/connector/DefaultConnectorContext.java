@@ -78,6 +78,15 @@ public class DefaultConnectorContext implements ConnectorContext {
         return httpSecurityHook;
     }
 
+    @Override
+    public String sanitizeJdbcUrl(String jdbcUrl) {
+        try {
+            return SecurityChecker.getInstance().getSafeJdbcUrl(jdbcUrl);
+        } catch (Exception e) {
+            throw new RuntimeException("JDBC URL security check failed: " + e.getMessage(), e);
+        }
+    }
+
     private static Map<String, String> buildEnvironment() {
         Map<String, String> env = new HashMap<>();
         String dorisHome = EnvUtils.getDorisHome();
@@ -85,6 +94,9 @@ public class DefaultConnectorContext implements ConnectorContext {
             env.put("doris_home", dorisHome);
         }
         env.put("jdbc_drivers_dir", Config.jdbc_drivers_dir);
+        env.put("force_sqlserver_jdbc_encrypt_false",
+                String.valueOf(Config.force_sqlserver_jdbc_encrypt_false));
+        env.put("jdbc_driver_secure_path", Config.jdbc_driver_secure_path);
         return Collections.unmodifiableMap(env);
     }
 }

@@ -56,4 +56,20 @@ public interface ConnectorContext {
     default ConnectorHttpSecurityHook getHttpSecurityHook() {
         return ConnectorHttpSecurityHook.NOOP;
     }
+
+    /**
+     * Sanitizes a JDBC URL according to engine-level security policies.
+     * The engine may reject URLs that target internal networks, contain
+     * banned parameters, or otherwise violate security rules.
+     *
+     * <p>Connectors MUST call this method before using any JDBC URL
+     * to establish a database connection.
+     *
+     * @param jdbcUrl the raw JDBC URL
+     * @return the sanitized URL (may be the same string if no changes needed)
+     * @throws RuntimeException if the URL violates security policies
+     */
+    default String sanitizeJdbcUrl(String jdbcUrl) {
+        return jdbcUrl;
+    }
 }

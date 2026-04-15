@@ -17,6 +17,9 @@
 
 package org.apache.doris.connector.jdbc;
 
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * Normalizes JDBC URLs by adding required parameters for correct behavior.
  * Replicates the logic from {@code JdbcResource.handleJdbcUrl()} in fe-core,
@@ -52,9 +55,21 @@ public final class JdbcUrlNormalizer {
      * <p>For SQL Server:
      * <ul>
      *   <li>{@code useBulkCopyForBatchInsert=true}</li>
+     *   <li>{@code encrypt=false} — when {@code force_sqlserver_jdbc_encrypt_false} is set</li>
      * </ul>
      */
     public static String normalize(String jdbcUrl, JdbcDbType dbType) {
+        return normalize(jdbcUrl, dbType, Collections.emptyMap());
+    }
+
+    /**
+     * Normalize a JDBC URL with engine environment context.
+     *
+     * @param jdbcUrl the raw JDBC URL
+     * @param dbType  the database type
+     * @param environment engine environment properties (from ConnectorContext)
+     */
+    public static String normalize(String jdbcUrl, JdbcDbType dbType, Map<String, String> environment) {
         if (jdbcUrl == null || jdbcUrl.isEmpty()) {
             return jdbcUrl;
         }
@@ -80,6 +95,10 @@ public final class JdbcUrlNormalizer {
                 url = setParam(url, dbType, "reWriteBatchedInserts", "false", "true");
                 break;
             case SQLSERVER:
+                if ("true".equalsIgnoreCase(environment.getOrDefault(
+                        "force_sqlserver_jdbc_encrypt_false", "false"))) {
+                    url = setParam(url, dbType, "encrypt", "true", "false");
+                }
                 url = setParam(url, dbType, "useBulkCopyForBatchInsert", "false", "true");
                 break;
             default:

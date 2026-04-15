@@ -72,7 +72,7 @@ public class JdbcDorisConnector implements Connector {
         if (rawUrl != null && !rawUrl.isEmpty()) {
             JdbcDbType dbType = JdbcDbType.parseFromUrl(rawUrl);
             normalized.put(JdbcConnectorProperties.JDBC_URL,
-                    JdbcUrlNormalizer.normalize(rawUrl, dbType));
+                    JdbcUrlNormalizer.normalize(rawUrl, dbType, context.getEnvironment()));
         }
         this.properties = Collections.unmodifiableMap(normalized);
         this.context = context;
@@ -168,7 +168,8 @@ public class JdbcDorisConnector implements Connector {
                 driverUrl, driverClass,
                 poolMinSize, poolMaxSize, poolMaxWaitTime, poolMaxLifeTime,
                 onlySpecifiedDatabase, properties,
-                enableMappingVarbinary, enableMappingTimestampTz);
+                enableMappingVarbinary, enableMappingTimestampTz,
+                context::sanitizeJdbcUrl);
     }
 
     @Override

@@ -116,6 +116,36 @@ public class JdbcUrlNormalizerTest {
                 "Unsupported DB type should leave URL unchanged");
     }
 
+    @Test
+    void testSqlServerEncryptOverrideWhenForced() {
+        java.util.Map<String, String> env = java.util.Map.of(
+                "force_sqlserver_jdbc_encrypt_false", "true");
+        String url = "jdbc:sqlserver://host:1433;databaseName=test";
+        String result = JdbcUrlNormalizer.normalize(url, JdbcDbType.SQLSERVER, env);
+        Assertions.assertTrue(result.contains(";encrypt=false"),
+                "encrypt=false should be added when force_sqlserver_jdbc_encrypt_false is true; got: " + result);
+    }
+
+    @Test
+    void testSqlServerEncryptOverrideReplacesTrue() {
+        java.util.Map<String, String> env = java.util.Map.of(
+                "force_sqlserver_jdbc_encrypt_false", "true");
+        String url = "jdbc:sqlserver://host:1433;encrypt=true;databaseName=test";
+        String result = JdbcUrlNormalizer.normalize(url, JdbcDbType.SQLSERVER, env);
+        Assertions.assertTrue(result.contains("encrypt=false"),
+                "encrypt=true should be replaced with encrypt=false; got: " + result);
+        Assertions.assertFalse(result.contains("encrypt=true"),
+                "encrypt=true should not remain; got: " + result);
+    }
+
+    @Test
+    void testSqlServerEncryptNotOverriddenByDefault() {
+        String url = "jdbc:sqlserver://host:1433;databaseName=test";
+        String result = JdbcUrlNormalizer.normalize(url, JdbcDbType.SQLSERVER);
+        Assertions.assertFalse(result.contains("encrypt=false"),
+                "encrypt=false should NOT be added without force flag; got: " + result);
+    }
+
     private static int countOccurrences(String str, String sub) {
         int count = 0;
         int idx = 0;

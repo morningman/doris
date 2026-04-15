@@ -45,6 +45,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 
 /**
  * Base JDBC metadata client. Mirrors the structure of fe-core's {@code JdbcClient}
@@ -94,6 +95,10 @@ public abstract class JdbcConnectorClient implements Closeable {
 
     /**
      * Factory method to create the correct client subclass for the given DB type.
+     *
+     * @param urlSanitizer engine-level JDBC URL sanitizer (e.g., SSRF protection).
+     *                     Applied before passing the URL to HikariCP. Pass
+     *                     {@link UnaryOperator#identity()} if no sanitization is needed.
      */
     @SuppressWarnings("checkstyle:ParameterNumber")
     public static JdbcConnectorClient create(
@@ -105,7 +110,8 @@ public abstract class JdbcConnectorClient implements Closeable {
             boolean onlySpecifiedDatabase,
             Map<String, String> allProperties,
             boolean enableMappingVarbinary,
-            boolean enableMappingTimestampTz) {
+            boolean enableMappingTimestampTz,
+            UnaryOperator<String> urlSanitizer) {
         Map<String, Boolean> includeMap = parseDatabaseMap(
                 allProperties.get("include_database_list"));
         Map<String, Boolean> excludeMap = parseDatabaseMap(
@@ -178,7 +184,8 @@ public abstract class JdbcConnectorClient implements Closeable {
                 throw new DorisConnectorException("Unsupported JDBC DB type: " + dbType);
         }
         client.initializeClassLoader(driverUrl);
-        client.initializeDataSource(jdbcUrl, user, password, driverClass,
+        String sanitizedUrl = urlSanitizer.apply(jdbcUrl);
+        client.initializeDataSource(sanitizedUrl, user, password, driverClass,
                 poolMinSize, poolMaxSize, poolMaxWaitTime, poolMaxLifeTime);
         client.postInitialize();
         return client;
