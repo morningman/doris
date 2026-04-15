@@ -72,7 +72,9 @@ providers in two phases:
    classpath (built-in providers, test overrides).
 2. **Directory plugin scan** — Uses `DirectoryPluginRuntimeManager` to scan the directory
    configured by `Config.filesystem_plugin_root` (default: `${DORIS_HOME}/plugins/filesystem`).
-   Each subdirectory is expected to contain a plugin zip produced by the Maven assembly plugin.
+   Each direct child directory is treated as an **unpacked** plugin directory. The runtime
+   manager resolves `pluginDir/*.jar` (root-level jars, scanned for ServiceLoader registration)
+   and `pluginDir/lib/*.jar` (dependency jars, available for class loading only).
 
 Classpath providers have higher priority than directory-loaded providers.
 
@@ -108,16 +110,27 @@ request. For example:
 
 ### Plugin Packaging & Class Loading
 
-Each implementation module uses `maven-assembly-plugin` to produce a zip with the following
-layout:
+Each implementation module uses `maven-assembly-plugin` to produce a **zip build artifact**.
+The zip must be **unpacked** before deployment. At runtime, `DirectoryPluginRuntimeManager`
+expects each plugin to be an unpacked directory under `filesystem_plugin_root`:
 
 ```
-doris-fe-filesystem-xxx.zip
-├── doris-fe-filesystem-xxx.jar       ← plugin jar (at root, scanned for ServiceLoader)
-└── lib/
-    ├── aws-sdk-*.jar                 ← third-party dependencies
-    └── ...
+${DORIS_HOME}/plugins/filesystem/
+├── s3/                                   ← one directory per plugin
+│   ├── doris-fe-filesystem-s3.jar        ← plugin jar at root (scanned for ServiceLoader)
+│   └── lib/
+│       ├── aws-sdk-*.jar                 ← third-party dependencies
+│       └── ...
+├── hdfs/
+│   ├── doris-fe-filesystem-hdfs.jar
+│   └── lib/...
+└── ...
 ```
+
+The Maven build produces a zip with the same layout. To deploy, unzip it into the appropriate
+subdirectory (e.g., `unzip doris-fe-filesystem-s3.zip -d plugins/filesystem/s3/`). Dropping
+the raw `.zip` file into the directory will **not** work — `DirectoryPluginRuntimeManager`
+resolves `pluginDir/*.jar` and `pluginDir/lib/*.jar` from unpacked directories only.
 
 Jars that are already on the fe-core classpath (`fe-filesystem-api`, `fe-filesystem-spi`,
 `fe-extension-spi`) are **excluded** from the zip to avoid duplication.
@@ -358,17 +371,25 @@ Add your module to `fe-filesystem/pom.xml`:
   `@Tag("environment")`. They are excluded by default and can be enabled with
   `-Dtest.excludedGroups=none`.
 
-### 9. Build and verify
+### 9. Build and deploy
 
 ```bash
 # Build the new module
 cd fe/fe-filesystem/fe-filesystem-gcs
 mvn package -DskipTests
 
-# The plugin zip is at:
-#   target/doris-fe-filesystem-gcs.zip
+# The build produces a zip at: target/doris-fe-filesystem-gcs.zip
+# Deploy by unpacking into the plugin directory:
+mkdir -p ${DORIS_HOME}/plugins/filesystem/gcs
+unzip target/doris-fe-filesystem-gcs.zip -d ${DORIS_HOME}/plugins/filesystem/gcs/
+
+# The unpacked layout should be:
+#   plugins/filesystem/gcs/
+#   ├── doris-fe-filesystem-gcs.jar
+#   └── lib/
+#       └── *.jar
 #
-# To deploy, unzip into ${DORIS_HOME}/plugins/filesystem/gcs/
+# NOTE: Do NOT drop the .zip file directly — it must be unpacked.
 ```
 
 ### Checklist
