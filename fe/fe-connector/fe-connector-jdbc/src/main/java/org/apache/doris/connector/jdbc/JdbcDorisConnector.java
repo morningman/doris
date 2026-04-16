@@ -18,6 +18,7 @@
 package org.apache.doris.connector.jdbc;
 
 import org.apache.doris.connector.api.Connector;
+import org.apache.doris.connector.api.ConnectorCapability;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTestResult;
@@ -37,9 +38,11 @@ import org.apache.thrift.TSerializer;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * JDBC connector implementation. Manages the lifecycle of
@@ -87,6 +90,14 @@ public class JdbcDorisConnector implements Connector {
     @Override
     public ConnectorMetadata getMetadata(ConnectorSession session) {
         return new JdbcConnectorMetadata(getOrCreateClient(), properties);
+    }
+
+    @Override
+    public Set<ConnectorCapability> getCapabilities() {
+        return EnumSet.of(
+                ConnectorCapability.SUPPORTS_INSERT,
+                ConnectorCapability.SUPPORTS_PASSTHROUGH_QUERY
+        );
     }
 
     @Override

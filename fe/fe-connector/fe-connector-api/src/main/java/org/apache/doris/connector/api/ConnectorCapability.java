@@ -48,5 +48,13 @@ public enum ConnectorCapability {
      * <p>File-based connectors (Hive, Iceberg, etc.) that can safely handle
      * parallel writers should declare this capability.</p>
      */
-    SUPPORTS_PARALLEL_WRITE
+    SUPPORTS_PARALLEL_WRITE,
+    /**
+     * Indicates the connector supports passthrough query via the {@code query()} TVF.
+     *
+     * <p>Connectors declaring this capability must implement
+     * {@link ConnectorTableOps#getColumnsFromQuery} to provide column metadata
+     * for arbitrary SQL queries passed through to the remote data source.</p>
+     */
+    SUPPORTS_PASSTHROUGH_QUERY
 }
