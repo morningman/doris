@@ -20,6 +20,7 @@ package org.apache.doris.nereids.trees.plans.physical;
 import org.apache.doris.catalog.Column;
 import org.apache.doris.datasource.ExternalDatabase;
 import org.apache.doris.datasource.ExternalTable;
+import org.apache.doris.datasource.PluginDrivenExternalTable;
 import org.apache.doris.nereids.memo.GroupExpression;
 import org.apache.doris.nereids.properties.LogicalProperties;
 import org.apache.doris.nereids.properties.PhysicalProperties;
@@ -103,11 +104,19 @@ public class PhysicalConnectorTableSink<CHILD_TYPE extends Plan> extends Physica
     }
 
     /**
-     * Get output physical properties.
-     * Generic connector sink uses random partitioning (no connector-specific partition awareness).
+     * Get required physical properties for sink distribution.
+     *
+     * <p>Connectors that declare {@code SUPPORTS_PARALLEL_WRITE} capability
+     * (e.g., Hive, Iceberg) use random partitioned distribution for parallel writers.
+     * All other connectors (e.g., JDBC, ES) default to GATHER (single writer)
+     * for transactional safety.</p>
      */
     @Override
     public PhysicalProperties getRequirePhysicalProperties() {
-        return PhysicalProperties.SINK_RANDOM_PARTITIONED;
+        if (targetTable instanceof PluginDrivenExternalTable
+                && ((PluginDrivenExternalTable) targetTable).supportsParallelWrite()) {
+            return PhysicalProperties.SINK_RANDOM_PARTITIONED;
+        }
+        return PhysicalProperties.GATHER;
     }
 }

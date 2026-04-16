@@ -37,5 +37,16 @@ public enum ConnectorCapability {
     SUPPORTS_STATISTICS,
     SUPPORTS_VENDED_CREDENTIALS,
     SUPPORTS_ACID_TRANSACTIONS,
-    SUPPORTS_TIME_TRAVEL
+    SUPPORTS_TIME_TRAVEL,
+    /**
+     * Indicates the connector supports multiple concurrent writers (sink instances).
+     *
+     * <p>Connectors that do NOT declare this capability will use GATHER distribution
+     * (single writer), which is the safe default for transactional sinks like JDBC
+     * where each writer commits independently.</p>
+     *
+     * <p>File-based connectors (Hive, Iceberg, etc.) that can safely handle
+     * parallel writers should declare this capability.</p>
+     */
+    SUPPORTS_PARALLEL_WRITE
 }

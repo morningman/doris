@@ -22,6 +22,7 @@ import org.apache.doris.catalog.Env;
 import org.apache.doris.catalog.TableIf;
 import org.apache.doris.catalog.TableIf.TableType;
 import org.apache.doris.connector.api.Connector;
+import org.apache.doris.connector.api.ConnectorCapability;
 import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
@@ -60,6 +61,19 @@ public class PluginDrivenExternalTable extends ExternalTable {
     public PluginDrivenExternalTable(long id, String name, String remoteName,
             ExternalCatalog catalog, ExternalDatabase db) {
         super(id, name, remoteName, catalog, db, TableType.PLUGIN_EXTERNAL_TABLE);
+    }
+
+    /**
+     * Returns whether the underlying connector supports multiple concurrent writers.
+     * Used by the planner to decide GATHER (single writer) vs parallel distribution.
+     */
+    public boolean supportsParallelWrite() {
+        if (!(catalog instanceof PluginDrivenExternalCatalog)) {
+            return false;
+        }
+        Connector connector = ((PluginDrivenExternalCatalog) catalog).getConnector();
+        return connector != null
+                && connector.getCapabilities().contains(ConnectorCapability.SUPPORTS_PARALLEL_WRITE);
     }
 
     @Override

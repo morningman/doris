@@ -41,6 +41,7 @@ import org.apache.doris.nereids.trees.plans.physical.PhysicalAssertNumRows;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalBlackholeSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalBucketedHashAggregate;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalCTEAnchor;
+import org.apache.doris.nereids.trees.plans.physical.PhysicalConnectorTableSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalDeferMaterializeResultSink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalDictionarySink;
 import org.apache.doris.nereids.trees.plans.physical.PhysicalFileSink;
@@ -205,6 +206,23 @@ public class RequestPropertyDeriver extends PlanVisitor<Void, PlanContext> {
             addRequestPropertyToChildren(PhysicalProperties.ANY);
         } else {
             addRequestPropertyToChildren(icebergMergeSink.getRequirePhysicalProperties());
+        }
+        return null;
+    }
+
+    @Override
+    public Void visitPhysicalConnectorTableSink(
+            PhysicalConnectorTableSink<? extends Plan> connectorTableSink, PlanContext context) {
+        PhysicalProperties requiredProps = connectorTableSink.getRequirePhysicalProperties();
+        if (PhysicalProperties.GATHER.equals(requiredProps)) {
+            // Connector does not support parallel write (e.g., JDBC, ES).
+            // Always gather to a single writer for transactional safety.
+            addRequestPropertyToChildren(PhysicalProperties.GATHER);
+        } else if (connectContext != null
+                && !connectContext.getSessionVariable().isEnableStrictConsistencyDml()) {
+            addRequestPropertyToChildren(PhysicalProperties.ANY);
+        } else {
+            addRequestPropertyToChildren(requiredProps);
         }
         return null;
     }
