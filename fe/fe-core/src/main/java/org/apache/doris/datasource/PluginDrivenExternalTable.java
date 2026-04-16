@@ -193,6 +193,24 @@ public class PluginDrivenExternalTable extends ExternalTable {
     }
 
     @Override
+    public String getEngine() {
+        // Return the legacy engine name based on the actual catalog type,
+        // not the generic "Plugin" from PLUGIN_EXTERNAL_TABLE.toEngineName().
+        // This preserves user-visible compatibility for migrated JDBC/ES tables
+        // across SHOW TABLE STATUS, information_schema.tables, REST API, etc.
+        String catalogType = catalog instanceof PluginDrivenExternalCatalog
+                ? ((PluginDrivenExternalCatalog) catalog).getType() : "";
+        switch (catalogType) {
+            case "jdbc":
+                return TableType.JDBC_EXTERNAL_TABLE.toEngineName();
+            case "es":
+                return TableType.ES_EXTERNAL_TABLE.toEngineName();
+            default:
+                return super.getEngine();
+        }
+    }
+
+    @Override
     public String getEngineTableTypeName() {
         String catalogType = catalog instanceof PluginDrivenExternalCatalog
                 ? ((PluginDrivenExternalCatalog) catalog).getType() : "";
