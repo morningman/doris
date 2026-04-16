@@ -48,8 +48,9 @@ import java.util.function.Supplier;
 public class PluginDrivenExternalCatalogConcurrencyTest {
 
     /**
-     * Verify that notifyPropertiesUpdated() creates the new connector BEFORE
-     * closing the old one, and that the old connector is closed exactly once.
+     * Verify that notifyPropertiesUpdated() closes the old connector via
+     * resetToUninitialized → onClose, and that lazy re-initialization
+     * creates the new connector on next makeSureInitialized().
      */
     @Test
     public void testPropertyUpdateClosesOldConnectorAfterSwap() throws Exception {
@@ -65,16 +66,22 @@ public class PluginDrivenExternalCatalogConcurrencyTest {
 
         Assertions.assertEquals(1, closeOrder.size(), "Old connector should be closed exactly once");
         Assertions.assertEquals("old", closeOrder.poll(), "Should close the OLD connector, not the new one");
+        // After notifyPropertiesUpdated, connector is null until lazy re-init
+        Assertions.assertNull(catalog.getConnectorDirect(),
+                "Connector should be null after property update (lazy re-init)");
+
+        // Trigger lazy re-initialization
+        catalog.makeSureInitialized();
         Assertions.assertSame(newConnector, catalog.getConnectorDirect(),
-                "Catalog should hold the new connector after property update");
+                "Catalog should hold the new connector after re-initialization");
     }
 
     /**
-     * Verify that onClose() during resetToUninitialized does NOT close the new
-     * connector when connectorSwapInProgress is true.
+     * Verify that onClose() during resetToUninitialized closes the old connector
+     * and the new connector is NOT created until lazy re-initialization.
      */
     @Test
-    public void testOnCloseSkipsConnectorDuringSwap() throws Exception {
+    public void testOnCloseClosesOldConnectorDuringReset() throws Exception {
         ConcurrentLinkedQueue<String> closeOrder = new ConcurrentLinkedQueue<>();
         Connector oldConnector = mockConnector("old", closeOrder);
         Connector newConnector = mockConnector("new", closeOrder);
@@ -84,8 +91,11 @@ public class PluginDrivenExternalCatalogConcurrencyTest {
 
         catalog.notifyPropertiesUpdated(Collections.singletonMap("k", "v"));
 
-        Mockito.verify(newConnector, Mockito.never()).close();
+        // Old connector is closed, new connector is NOT yet created (lazy init)
         Mockito.verify(oldConnector, Mockito.times(1)).close();
+        Mockito.verify(newConnector, Mockito.never()).close();
+        Assertions.assertNull(catalog.getConnectorDirect(),
+                "Connector should be null after reset (lazy re-init)");
     }
 
     /**
@@ -194,7 +204,8 @@ public class PluginDrivenExternalCatalogConcurrencyTest {
     }
 
     /**
-     * Verify connector field is volatile by checking visibility across threads.
+     * Verify connector field visibility across threads after property update
+     * and lazy re-initialization.
      */
     @Test
     public void testConnectorVisibilityAcrossThreads() throws Exception {
@@ -210,14 +221,8 @@ public class PluginDrivenExternalCatalogConcurrencyTest {
         Thread reader = new Thread(() -> {
             try {
                 updated.await(5, TimeUnit.SECONDS);
-                for (int i = 0; i < 1000; i++) {
-                    Connector c = catalog.getConnectorDirect();
-                    if (c == connector2) {
-                        seen.set(c);
-                        return;
-                    }
-                    Thread.yield();
-                }
+                // After property update + makeSureInitialized, reader should see c2
+                catalog.makeSureInitialized();
                 seen.set(catalog.getConnectorDirect());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -231,7 +236,7 @@ public class PluginDrivenExternalCatalogConcurrencyTest {
 
         reader.join(5000);
         Assertions.assertSame(connector2, seen.get(),
-                "Reader thread should see the new connector (volatile guarantees visibility)");
+                "Reader thread should see the new connector after re-initialization");
     }
 
     // -------- Helpers --------
