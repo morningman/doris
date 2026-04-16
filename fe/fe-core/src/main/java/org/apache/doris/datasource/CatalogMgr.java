@@ -256,6 +256,8 @@ public class CatalogMgr implements Writable, GsonPostProcessable {
         writeLock();
         try {
             if (nameToCatalog.containsKey(catalog.getName())) {
+                // Close the already-constructed catalog to release connector resources.
+                catalog.onClose();
                 if (ifNotExists) {
                     LOG.warn("Catalog {} is already exist.", catalogName);
                     return;
@@ -275,17 +277,19 @@ public class CatalogMgr implements Writable, GsonPostProcessable {
     public void createCatalog(CreateCatalogCommand cmd) throws UserException {
         // Fast-path: skip connector/pool creation for catalogs that already exist.
         // This avoids resource leaks from checkWhenCreating() when the catalog won't be registered.
-        // A TOCTOU race is benign — createCatalogImpl() also checks under write lock.
-        if (cmd.isSetIfNotExists()) {
-            readLock();
-            try {
-                if (nameToCatalog.containsKey(cmd.getCatalogName())) {
+        // The TOCTOU race (another thread creates catalog after this check) is handled by
+        // createCatalogImpl() which closes the constructed catalog under write lock.
+        readLock();
+        try {
+            if (nameToCatalog.containsKey(cmd.getCatalogName())) {
+                if (cmd.isSetIfNotExists()) {
                     LOG.warn("Catalog {} is already exist.", cmd.getCatalogName());
                     return;
                 }
-            } finally {
-                readUnlock();
+                throw new DdlException("Catalog had already exist with name: " + cmd.getCatalogName());
             }
+        } finally {
+            readUnlock();
         }
         long id = Env.getCurrentEnv().getNextId();
         CatalogIf catalog = CatalogFactory.createFromCommand(id, cmd);
