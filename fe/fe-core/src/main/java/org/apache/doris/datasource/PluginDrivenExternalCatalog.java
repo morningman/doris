@@ -34,6 +34,7 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -87,9 +88,8 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
             connector = newConnector;
         }
         if (connector == null) {
-            String catalogType = catalogProperty.getOrDefault(CatalogMgr.CATALOG_TYPE_PROP, "");
             throw new RuntimeException("No ConnectorProvider found for plugin-driven catalog: "
-                    + name + ", type: " + catalogType
+                    + name + ", type: " + getType()
                     + ". Ensure the connector plugin is installed.");
         }
         transactionManager = new PluginDrivenTransactionManager();
@@ -118,7 +118,10 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
      * so tests can override without depending on the static ConnectorFactory registry.
      */
     protected Connector createConnectorFromProperties() {
-        String catalogType = catalogProperty.getOrDefault(CatalogMgr.CATALOG_TYPE_PROP, "");
+        // Use getType() which falls back to logType when "type" is not in properties.
+        // This handles image deserialization of old resource-backed catalogs whose
+        // properties never contained "type" (it was derived from the Resource object).
+        String catalogType = getType();
         return ConnectorFactory.createConnector(catalogType,
                 catalogProperty.getProperties(),
                 new DefaultConnectorContext(name, id, this::getExecutionAuthenticator));
@@ -127,7 +130,7 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
     @Override
     public void checkProperties() throws DdlException {
         super.checkProperties();
-        String catalogType = catalogProperty.getOrDefault(CatalogMgr.CATALOG_TYPE_PROP, "");
+        String catalogType = getType();
         try {
             ConnectorFactory.validateProperties(catalogType, catalogProperty.getProperties());
         } catch (IllegalArgumentException e) {
@@ -259,8 +262,23 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
     @Override
     public void gsonPostProcess() throws IOException {
         super.gsonPostProcess();
+        // For old resource-backed catalogs (e.g., ES, JDBC), the "type" property was never
+        // persisted — it was derived from the Resource object at runtime. After image
+        // deserialization with registerCompatibleSubtype, those catalogs land here as
+        // PluginDrivenExternalCatalog with logType still set to the original value (ES/JDBC).
+        // Backfill "type" from logType before we overwrite it below, so that
+        // createConnectorFromProperties() and getType() can resolve the catalog type.
+        if (logType != null && logType != InitCatalogLog.Type.PLUGIN
+                && logType != InitCatalogLog.Type.UNKNOWN) {
+            String oldType = logType.name().toLowerCase(Locale.ROOT);
+            if (catalogProperty.getOrDefault(CatalogMgr.CATALOG_TYPE_PROP, "").isEmpty()) {
+                LOG.info("Backfilling missing 'type' property for catalog '{}' from logType: {}",
+                        name, oldType);
+                catalogProperty.addProperty(CatalogMgr.CATALOG_TYPE_PROP, oldType);
+            }
+        }
         // After deserializing a migrated old catalog (e.g., ES → PluginDriven), fix logType
-        // so that subsequent getType() returns "plugin" and buildDbForInit uses PLUGIN path.
+        // so that buildDbForInit uses PLUGIN path.
         if (logType != InitCatalogLog.Type.PLUGIN) {
             LOG.info("Migrating catalog '{}' logType from {} to PLUGIN", name, logType);
             logType = InitCatalogLog.Type.PLUGIN;
