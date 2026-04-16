@@ -103,7 +103,7 @@ export DORIS_FS_TEST_S3_SK=your-secret-key
 
 # Run S3-related environment tests
 cd fe
-mvn test -pl fe-filesystem \
+mvn test -pl fe-filesystem/fe-filesystem-s3 \
   -Dtest.excludedGroups=none \
   -Dgroups=s3 \
   -Dcheckstyle.skip=true \
@@ -112,7 +112,7 @@ mvn test -pl fe-filesystem \
   --also-make
 
 # Run HDFS + Kerberos environment tests
-mvn test -pl fe-filesystem \
+mvn test -pl fe-filesystem/fe-filesystem-hdfs \
   -Dtest.excludedGroups=none \
   -Dgroups="hdfs | kerberos" \
   -Dcheckstyle.skip=true \

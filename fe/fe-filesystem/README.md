@@ -58,8 +58,9 @@ fe-filesystem/                        (aggregator POM — no Java code)
 * **SPI** — The `FileSystemProvider` interface (extends `PluginFactory` from `fe-extension-spi`)
   plus the object-storage layer (`ObjStorage`, `ObjFileSystem`, `HadoopAuthenticator`). Also
   compiled into `fe-core`.
-* **IMPL** — Concrete backends. Each one depends only on `fe-filesystem-spi` (and transitively on
-  `fe-filesystem-api`). They **must not** depend on `fe-core`, `fe-common`, or `fe-catalog`.
+* **IMPL** — Concrete backends. Each one depends on `fe-filesystem-spi` (and transitively on
+  `fe-filesystem-api`). S3-delegating backends (OSS, COS, OBS) also depend on `fe-filesystem-s3`
+  to reuse `S3FileSystem`. They **must not** depend on `fe-core`, `fe-common`, or `fe-catalog`.
 
 ## How It Works
 
@@ -103,7 +104,7 @@ request. For example:
 |----------|---------------|
 | S3 | `AWS_ACCESS_KEY` + (`AWS_ENDPOINT` or `AWS_REGION`) |
 | OSS | Endpoint contains `aliyuncs.com` or `_STORAGE_TYPE_` = `"OSS"` |
-| HDFS | `_STORAGE_TYPE_` = `"HDFS"` or URI scheme is `hdfs`/`viewfs`/`ofs`/`jfs` |
+| HDFS | `_STORAGE_TYPE_` = `"HDFS"` or URI scheme is `hdfs`/`viewfs`/`ofs`/`jfs`/`oss` |
 | Azure | `AZURE_ACCOUNT_NAME` or endpoint contains `blob.core.windows.net` |
 | Local | URI starts with `file://` or `local://` |
 | Broker | `_STORAGE_TYPE_` = `"BROKER"` and `BROKER_HOST` present |
@@ -374,14 +375,16 @@ Add your module to `fe-filesystem/pom.xml`:
 ### 9. Build and deploy
 
 ```bash
-# Build the new module
-cd fe/fe-filesystem/fe-filesystem-gcs
-mvn package -DskipTests
+# Build the new module (must go through the reactor so sibling SNAPSHOTs resolve)
+cd fe
+mvn package -pl fe-filesystem/fe-filesystem-gcs --also-make -DskipTests
 
-# The build produces a zip at: target/doris-fe-filesystem-gcs.zip
+# The build produces a zip at:
+#   fe-filesystem/fe-filesystem-gcs/target/doris-fe-filesystem-gcs.zip
 # Deploy by unpacking into the plugin directory:
 mkdir -p ${DORIS_HOME}/plugins/filesystem/gcs
-unzip target/doris-fe-filesystem-gcs.zip -d ${DORIS_HOME}/plugins/filesystem/gcs/
+unzip fe-filesystem/fe-filesystem-gcs/target/doris-fe-filesystem-gcs.zip \
+  -d ${DORIS_HOME}/plugins/filesystem/gcs/
 
 # The unpacked layout should be:
 #   plugins/filesystem/gcs/
