@@ -23,8 +23,10 @@ import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Scan range for Elasticsearch — represents one shard to scan.
@@ -34,6 +36,10 @@ import java.util.Map;
  *
  * <p>Properties include: es.index, es.type, es.shard_id, and
  * es.hosts (comma-separated host:port list).</p>
+ *
+ * <p>{@link #getHosts()} returns plain hostnames (no port, no scheme) for
+ * backend locality scheduling. {@link #getEsHosts()} returns the full
+ * host:port strings that BE needs to connect to Elasticsearch.</p>
  */
 public class EsScanRange implements ConnectorScanRange {
 
@@ -48,6 +54,7 @@ public class EsScanRange implements ConnectorScanRange {
     private final String mappingType;
     private final int shardId;
     private final List<String> esHosts;
+    private final List<String> plainHostnames;
 
     public EsScanRange(String indexName, String mappingType,
             int shardId, List<String> esHosts) {
@@ -57,6 +64,7 @@ public class EsScanRange implements ConnectorScanRange {
         this.esHosts = esHosts != null
                 ? Collections.unmodifiableList(new ArrayList<>(esHosts))
                 : Collections.emptyList();
+        this.plainHostnames = extractHostnames(this.esHosts);
     }
 
     @Override
@@ -64,9 +72,13 @@ public class EsScanRange implements ConnectorScanRange {
         return ConnectorScanRangeType.ES_SCAN;
     }
 
+    /**
+     * Returns plain hostnames for backend locality scheduling.
+     * Strips port and scheme from host:port or https://host:port strings.
+     */
     @Override
     public List<String> getHosts() {
-        return esHosts;
+        return plainHostnames;
     }
 
     @Override
@@ -95,6 +107,31 @@ public class EsScanRange implements ConnectorScanRange {
 
     public List<String> getEsHosts() {
         return esHosts;
+    }
+
+    /**
+     * Extracts plain hostnames from host:port or scheme://host:port strings,
+     * preserving order and deduplicating.
+     */
+    static List<String> extractHostnames(List<String> hostPorts) {
+        Set<String> seen = new LinkedHashSet<>();
+        for (String hp : hostPorts) {
+            String s = hp;
+            // Strip scheme (http:// or https://)
+            int schemeEnd = s.indexOf("://");
+            if (schemeEnd >= 0) {
+                s = s.substring(schemeEnd + 3);
+            }
+            // Strip port
+            int colonIdx = s.lastIndexOf(':');
+            if (colonIdx > 0) {
+                s = s.substring(0, colonIdx);
+            }
+            if (!s.isEmpty()) {
+                seen.add(s);
+            }
+        }
+        return Collections.unmodifiableList(new ArrayList<>(seen));
     }
 
     @Override

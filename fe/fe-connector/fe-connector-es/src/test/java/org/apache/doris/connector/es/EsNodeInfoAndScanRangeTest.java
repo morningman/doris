@@ -136,9 +136,27 @@ class EsNodeInfoAndScanRangeTest {
     }
 
     @Test
-    void testScanRangeGetHostsMatchesEsHosts() {
+    void testScanRangeGetHostsReturnsPlainHostnames() {
         EsScanRange range = new EsScanRange("idx", null, 0,
                 Arrays.asList("a:9200", "b:9200"));
-        Assertions.assertEquals(range.getEsHosts(), range.getHosts());
+        // getHosts() returns plain hostnames for locality scheduling
+        Assertions.assertEquals(Arrays.asList("a", "b"), range.getHosts());
+        // getEsHosts() returns full host:port for BE
+        Assertions.assertEquals(Arrays.asList("a:9200", "b:9200"), range.getEsHosts());
+    }
+
+    @Test
+    void testScanRangeGetHostsStripsScheme() {
+        EsScanRange range = new EsScanRange("idx", null, 0,
+                Arrays.asList("https://es1.example.com:9243", "http://es2.example.com:9200"));
+        Assertions.assertEquals(Arrays.asList("es1.example.com", "es2.example.com"), range.getHosts());
+    }
+
+    @Test
+    void testScanRangeGetHostsDeduplicates() {
+        EsScanRange range = new EsScanRange("idx", null, 0,
+                Arrays.asList("h1:9200", "h1:9201", "h2:9200"));
+        // h1 appears twice (different ports) but should be deduplicated
+        Assertions.assertEquals(Arrays.asList("h1", "h2"), range.getHosts());
     }
 }
