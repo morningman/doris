@@ -153,30 +153,33 @@ mvn test -pl fe-filesystem \
 | `kerberos` | `DORIS_FS_TEST_KDC_PRINCIPAL` | Kerberos principal |
 | | `DORIS_FS_TEST_KDC_KEYTAB` | Keytab file path |
 | | `DORIS_FS_TEST_HDFS_HOST` | Kerberos-enabled HDFS address |
+| | `DORIS_FS_TEST_HDFS_PORT` | NameNode port (optional, defaults to 8020) |
 | `broker` | `DORIS_FS_TEST_BROKER_HOST` | Broker process address |
 | | `DORIS_FS_TEST_BROKER_PORT` | Broker process port |
 
 ## Test Case Overview
 
-### T-E1: S3ObjStorage Environment Tests (5 tests, tag: `s3`)
+### T-E1: S3ObjStorage Environment Tests (6 tests, tag: `s3`)
 - `putAndHeadObject` — Upload a small file → verify size and etag via headObject
 - `listObjects` — Upload multiple files → verify returned count via listObjects
 - `copyAndDeleteObject` — Upload → copy → verify → delete → verify non-existence
 - `multipartUpload_completeSucceeds` — initiate → uploadPart × 2 → complete → verify via headObject
 - `abortMultipartUpload_leavesNoObject` — initiate → abort → object does not exist
+- `getPresignedUrl_returnsValidUrlAndUploadWorks` — Generate presigned URL → PUT upload → verify object exists
 
-### T-E2: S3FileSystem Environment Tests (7 tests, tag: `s3`)
+### T-E2: S3FileSystem Environment Tests (8 tests, tag: `s3`)
 - `exists` — Existing / non-existing objects
 - `deleteRemovesObject` — Upload → delete → exists returns false
 - `renameMovesObject` — Upload → rename → old does not exist / new exists
 - `listReturnsCorrectEntries` — Upload multiple → verify via list
 - `inputOutputRoundTrip` — Write → read → content matches (including UTF-8 + emoji)
 - `inputFileLength` — Upload with known size → verify length()
+- `getPresignedUrl_returnsValidUrlAndUploadWorks` — Generate presigned URL → PUT upload → verify object exists
 
-### T-E3: Azure Environment Tests (7 tests, tag: `azure`)
+### T-E3: Azure Environment Tests (8 tests, tag: `azure`)
 Same test cases as T-E2, using the `wasbs://` scheme.
 
-### T-E3b/c/d: COS / OSS / OBS Environment Tests (7 tests each, tags: `cos` / `oss` / `obs`)
+### T-E3b/c/d: COS / OSS / OBS Environment Tests (8 tests each, tags: `cos` / `oss` / `obs`)
 Same test cases as T-E2, using the Tencent Cloud / Alibaba Cloud / Huawei Cloud SDKs
 respectively.
 
