@@ -64,7 +64,8 @@ public class ESCatalogAction extends RestBaseController {
         String catalogName = request.getParameter(CATALOG);
         String tableName = request.getParameter(TABLE);
         CatalogIf catalog = env.getCatalogMgr().getCatalog(catalogName);
-        if (!(catalog instanceof PluginDrivenExternalCatalog)) {
+        if (!(catalog instanceof PluginDrivenExternalCatalog)
+                || !"es".equals(((PluginDrivenExternalCatalog) catalog).getType())) {
             return ResponseEntityBuilder.badRequest("unknown ES Catalog: " + catalogName);
         }
         ((PluginDrivenExternalCatalog) catalog).makeSureInitialized();
