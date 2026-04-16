@@ -19,7 +19,6 @@ package org.apache.doris.datasource;
 
 import org.apache.doris.catalog.Column;
 import org.apache.doris.catalog.Env;
-import org.apache.doris.catalog.TableIf;
 import org.apache.doris.catalog.TableIf.TableType;
 import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorCapability;
@@ -119,11 +118,11 @@ public class PluginDrivenExternalTable extends ExternalTable {
 
     @Override
     public long getCachedRowCount() {
-        try {
-            makeSureInitialized();
-        } catch (Exception e) {
-            LOG.warn("Failed to initialize table {}.{}.{}", catalog.getName(), dbName, name, e);
-            return TableIf.UNKNOWN_ROW_COUNT;
+        // Do NOT call makeSureInitialized() here.
+        // ExternalTable.getCachedRowCount() intentionally returns -1 for uninitialized tables
+        // so that SHOW TABLE STATUS / information_schema.tables stays non-blocking.
+        if (!isObjectCreated()) {
+            return -1;
         }
         return Env.getCurrentEnv().getExtMetaCacheMgr().getRowCountCache()
                 .getCachedRowCount(catalog.getId(), dbId, id);
