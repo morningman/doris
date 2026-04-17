@@ -83,9 +83,20 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
         // including the catalog's execution authenticator for Kerberos/secured HMS.
         // The connector created by CatalogFactory used a lightweight context
         // without auth (the catalog didn't exist yet); we replace it now.
+        Connector oldConnector = connector;
         Connector newConnector = createConnectorFromProperties();
         if (newConnector != null) {
             connector = newConnector;
+            // Close the old connector (e.g., the one injected by CatalogFactory during
+            // checkWhenCreating) to release its connection pool and classloader reference.
+            if (oldConnector != null && oldConnector != newConnector) {
+                try {
+                    oldConnector.close();
+                } catch (IOException e) {
+                    LOG.warn("Failed to close old connector during re-initialization "
+                            + "for catalog {}", name, e);
+                }
+            }
         }
         if (connector == null) {
             throw new RuntimeException("No ConnectorProvider found for plugin-driven catalog: "
