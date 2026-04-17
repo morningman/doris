@@ -90,11 +90,21 @@ public class JdbcConnectorProvider implements ConnectorProvider {
         // 5. Connection pool settings
         checkConnectionPoolProperties(properties);
 
-        // 6. Validate meta_names_mapping
+        // 6. Validate meta_names_mapping with actual lower_case_meta_names setting.
+        // At runtime, JdbcConnectorMetadata builds the mapper with lower_case_meta_names
+        // from catalog properties and lower_case_table_names from session. We validate
+        // with the real lower_case_meta_names and both possible lower_case_table_names
+        // states to catch mapping collisions that only appear after lowercasing.
         String metaNamesMapping = resolve(properties, JdbcConnectorProperties.META_NAMES_MAPPING);
         if (metaNamesMapping != null && !metaNamesMapping.isEmpty()) {
+            boolean isLowerCaseMetaNames = Boolean.parseBoolean(
+                    resolve(properties, JdbcConnectorProperties.LOWER_CASE_META_NAMES));
             try {
-                new JdbcIdentifierMapper(false, false, metaNamesMapping);
+                // Validate with lower_case_table_names=false
+                new JdbcIdentifierMapper(false, isLowerCaseMetaNames, metaNamesMapping);
+                // Also validate with lower_case_table_names=true since the session
+                // variable may enable it at runtime
+                new JdbcIdentifierMapper(true, isLowerCaseMetaNames, metaNamesMapping);
             } catch (DorisConnectorException e) {
                 throw new IllegalArgumentException(e.getMessage(), e);
             }

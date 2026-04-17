@@ -222,4 +222,28 @@ public class JdbcConnectorProviderValidateTest {
         props.put("connection_pool_max_life_time", "300000");
         Assertions.assertDoesNotThrow(() -> provider.validateProperties(props));
     }
+
+    @Test
+    public void testMetaNamesMappingCollisionWithLowerCase() {
+        Map<String, String> props = validProps();
+        props.put("lower_case_meta_names", "true");
+        // "DB_A" maps to "db_a" and "Db_A" maps to "Db_A". After lowercasing,
+        // both resolve to "db_a" — this must be caught at CREATE CATALOG time.
+        props.put("meta_names_mapping",
+                "{\"databases\":[{\"remoteDatabase\":\"DB_A\",\"mapping\":\"db_a\"},"
+                        + "{\"remoteDatabase\":\"Db_A\",\"mapping\":\"Db_A\"}]}");
+        Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> provider.validateProperties(props));
+    }
+
+    @Test
+    public void testMetaNamesMappingNoCollisionWithoutLowerCase() {
+        Map<String, String> props = validProps();
+        // Without lower_case_meta_names, different-case mappings should pass
+        props.put("meta_names_mapping",
+                "{\"databases\":[{\"remoteDatabase\":\"DB_A\",\"mapping\":\"db_a\"},"
+                        + "{\"remoteDatabase\":\"Db_A\",\"mapping\":\"Db_A\"}]}");
+        Assertions.assertDoesNotThrow(() -> provider.validateProperties(props));
+    }
 }
