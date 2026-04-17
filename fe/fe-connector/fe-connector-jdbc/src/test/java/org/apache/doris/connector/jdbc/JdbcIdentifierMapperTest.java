@@ -118,4 +118,52 @@ public class JdbcIdentifierMapperTest {
         JdbcIdentifierMapper mapper = new JdbcIdentifierMapper(false, false, null);
         Assertions.assertEquals("original", mapper.fromRemoteDatabaseName("original"));
     }
+
+    @Test
+    void testSameTableMappingAcrossDatabasesIsValid() {
+        // db1.t1 -> foo and db2.t2 -> foo should be valid because table
+        // mappings are resolved per-database at runtime
+        String json = "{\"tables\": ["
+                + "{\"remoteDatabase\": \"db1\", \"remoteTable\": \"t1\", \"mapping\": \"foo\"},"
+                + "{\"remoteDatabase\": \"db2\", \"remoteTable\": \"t2\", \"mapping\": \"foo\"}"
+                + "]}";
+        Assertions.assertDoesNotThrow(() -> new JdbcIdentifierMapper(false, false, json));
+    }
+
+    @Test
+    void testSameColumnMappingAcrossTablesIsValid() {
+        // db1.tbl1.col_a -> x and db1.tbl2.col_b -> x should be valid because
+        // column mappings are resolved per-(database, table) at runtime
+        String json = "{\"columns\": ["
+                + "{\"remoteDatabase\": \"db1\", \"remoteTable\": \"tbl1\","
+                + " \"remoteColumn\": \"col_a\", \"mapping\": \"x\"},"
+                + "{\"remoteDatabase\": \"db1\", \"remoteTable\": \"tbl2\","
+                + " \"remoteColumn\": \"col_b\", \"mapping\": \"x\"}"
+                + "]}";
+        Assertions.assertDoesNotThrow(() -> new JdbcIdentifierMapper(false, false, json));
+    }
+
+    @Test
+    void testDuplicateTableMappingWithinSameDatabaseIsRejected() {
+        // db1.t1 -> foo and db1.t2 -> foo should be rejected (same database)
+        String json = "{\"tables\": ["
+                + "{\"remoteDatabase\": \"db1\", \"remoteTable\": \"t1\", \"mapping\": \"foo\"},"
+                + "{\"remoteDatabase\": \"db1\", \"remoteTable\": \"t2\", \"mapping\": \"foo\"}"
+                + "]}";
+        Assertions.assertThrows(Exception.class,
+                () -> new JdbcIdentifierMapper(false, false, json));
+    }
+
+    @Test
+    void testDuplicateColumnMappingWithinSameTableIsRejected() {
+        // Same table, different columns mapping to same name
+        String json = "{\"columns\": ["
+                + "{\"remoteDatabase\": \"db1\", \"remoteTable\": \"tbl1\","
+                + " \"remoteColumn\": \"col_a\", \"mapping\": \"x\"},"
+                + "{\"remoteDatabase\": \"db1\", \"remoteTable\": \"tbl1\","
+                + " \"remoteColumn\": \"col_b\", \"mapping\": \"x\"}"
+                + "]}";
+        Assertions.assertThrows(Exception.class,
+                () -> new JdbcIdentifierMapper(false, false, json));
+    }
 }

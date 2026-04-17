@@ -327,7 +327,9 @@ public final class JdbcIdentifierMapper {
     private void validateTables(Map<String, Set<String>> errors,
             Map<String, Set<String>> tableKeySet,
             Map<String, Map<String, Set<String>>> tableMappingCheck) {
-        Map<String, String> mappingSet = new HashMap<>();
+        // Scope mapping uniqueness per database — at runtime, fromRemoteTableName()
+        // only resolves within a single remote database.
+        Map<String, Map<String, String>> perDbMappingSet = new HashMap<>();
         for (TableMapping m : tableMappings) {
             Set<String> tables = tableKeySet.computeIfAbsent(m.remoteDatabase, k -> new HashSet<>());
             if (!tables.add(m.remoteTable)) {
@@ -335,6 +337,8 @@ public final class JdbcIdentifierMapper {
                         .add(String.format("Duplicate remoteTable found in database %s: %s",
                                 m.remoteDatabase, m.remoteTable));
             }
+            Map<String, String> mappingSet = perDbMappingSet.computeIfAbsent(
+                    m.remoteDatabase, k -> new HashMap<>());
             String existed = mappingSet.get(m.mapping);
             if (existed != null) {
                 errors.computeIfAbsent("tables", k -> new LinkedHashSet<>())
@@ -354,7 +358,9 @@ public final class JdbcIdentifierMapper {
     private void validateColumns(Map<String, Set<String>> errors,
             Map<String, Map<String, Set<String>>> columnKeySet,
             Map<String, Map<String, Map<String, Set<String>>>> columnMappingCheck) {
-        Map<String, String> mappingSet = new HashMap<>();
+        // Scope mapping uniqueness per (database, table) — at runtime,
+        // fromRemoteColumnName() only resolves within a single table.
+        Map<String, Map<String, Map<String, String>>> perTableMappingSet = new HashMap<>();
         for (ColumnMapping m : columnMappings) {
             Map<String, Set<String>> tblMap = columnKeySet.computeIfAbsent(
                     m.remoteDatabase, k -> new HashMap<>());
@@ -364,6 +370,10 @@ public final class JdbcIdentifierMapper {
                         .add(String.format("Duplicate remoteColumn found in database %s, table %s: %s",
                                 m.remoteDatabase, m.remoteTable, m.remoteColumn));
             }
+            Map<String, Map<String, String>> dbMappings = perTableMappingSet.computeIfAbsent(
+                    m.remoteDatabase, k -> new HashMap<>());
+            Map<String, String> mappingSet = dbMappings.computeIfAbsent(
+                    m.remoteTable, k -> new HashMap<>());
             String existed = mappingSet.get(m.mapping);
             if (existed != null) {
                 errors.computeIfAbsent("columns", k -> new LinkedHashSet<>())
