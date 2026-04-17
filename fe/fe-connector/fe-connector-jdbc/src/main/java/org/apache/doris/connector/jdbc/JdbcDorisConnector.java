@@ -333,9 +333,16 @@ public class JdbcDorisConnector implements Connector {
     private String getTestQuery() {
         String jdbcUrl = properties.getOrDefault(JdbcConnectorProperties.JDBC_URL, "");
         JdbcDbType dbType = JdbcDbType.parseFromUrl(jdbcUrl);
-        if (dbType == JdbcDbType.ORACLE) {
-            return "SELECT 1 FROM dual";
+        switch (dbType) {
+            case ORACLE:
+            case OCEANBASE_ORACLE:
+                return "SELECT 1 FROM dual";
+            case DB2:
+                return "SELECT 1 FROM SYSIBM.SYSDUMMY1";
+            case SAP_HANA:
+                return "SELECT 1 FROM DUMMY";
+            default:
+                return "SELECT 1";
         }
-        return "SELECT 1";
     }
 }
