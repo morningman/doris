@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TSerializer;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -257,8 +258,26 @@ public class JdbcDorisConnector implements Connector {
         // Plain filename — resolve using jdbc_drivers_dir from environment
         Map<String, String> env = context.getEnvironment();
         String driversDir = env.get("jdbc_drivers_dir");
+        String dorisHome = env.get("doris_home");
         if (driversDir != null && !driversDir.isEmpty()) {
-            String resolved = "file://" + driversDir + "/" + driverUrl;
+            String newPath = driversDir + "/" + driverUrl;
+            if (new File(newPath).exists()) {
+                return "file://" + newPath;
+            }
+            // Backward compatibility: check the old default directory
+            // (DORIS_HOME/jdbc_drivers) when the user hasn't customized jdbc_drivers_dir
+            if (dorisHome != null) {
+                String defaultNewDir = dorisHome + "/plugins/jdbc_drivers";
+                if (driversDir.equals(defaultNewDir)) {
+                    String oldPath = dorisHome + "/jdbc_drivers/" + driverUrl;
+                    if (new File(oldPath).exists()) {
+                        LOG.info("Resolved driver_url '{}' from old default directory: {}",
+                                driverUrl, oldPath);
+                        return "file://" + oldPath;
+                    }
+                }
+            }
+            String resolved = "file://" + newPath;
             LOG.info("Resolved driver_url '{}' to '{}' using jdbc_drivers_dir", driverUrl, resolved);
             return resolved;
         }
