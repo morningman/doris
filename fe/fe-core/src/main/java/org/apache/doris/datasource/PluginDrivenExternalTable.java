@@ -135,20 +135,20 @@ public class PluginDrivenExternalTable extends ExternalTable {
 
     @Override
     public String getComment(boolean escapeQuota) {
+        String remoteDbName = db != null ? db.getRemoteName() : "";
         try {
             PluginDrivenExternalCatalog pluginCatalog = (PluginDrivenExternalCatalog) catalog;
             Connector connector = pluginCatalog.getConnector();
             ConnectorSession session = pluginCatalog.buildConnectorSession();
             ConnectorMetadata metadata = connector.getMetadata(session);
-            String dbName = db != null ? db.getRemoteName() : "";
             String tableName = getRemoteName();
-            String comment = metadata.getTableComment(session, dbName, tableName);
+            String comment = metadata.getTableComment(session, remoteDbName, tableName);
             if (escapeQuota && comment != null) {
                 return comment.replace("'", "\\'");
             }
             return comment != null ? comment : "";
         } catch (Exception e) {
-            LOG.debug("Failed to get table comment for {}.{}", dbName, name, e);
+            LOG.debug("Failed to get table comment for {}.{}", remoteDbName, name, e);
             return "";
         }
     }
