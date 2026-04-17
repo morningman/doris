@@ -463,4 +463,88 @@ class JdbcQueryBuilderTest {
         Assertions.assertTrue(sql.contains("10:30:45.123456"),
                 "ClickHouse must preserve fractional seconds. SQL: " + sql);
     }
+
+    // ---- Boolean literal tests ----
+
+    @Test
+    void testMysqlBooleanLiteralTrue() {
+        JdbcQueryBuilder builder = mysqlBuilder();
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("flag", ConnectorType.of("BOOLEAN")),
+                ConnectorLiteral.ofBoolean(true));
+        String sql = builder.buildQuery(DB, TABLE, columns("flag"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains("TRUE"),
+                "MySQL booleans should use TRUE/FALSE keywords. SQL: " + sql);
+    }
+
+    @Test
+    void testPostgresqlBooleanLiteral() {
+        JdbcQueryBuilder builder = new JdbcQueryBuilder(JdbcDbType.POSTGRESQL);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("flag", ConnectorType.of("BOOLEAN")),
+                ConnectorLiteral.ofBoolean(true));
+        String sql = builder.buildQuery(DB, TABLE, columns("flag"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains("TRUE"),
+                "PostgreSQL booleans must use TRUE/FALSE keywords. SQL: " + sql);
+    }
+
+    @Test
+    void testTrinoBooleanLiteralFalse() {
+        JdbcQueryBuilder builder = new JdbcQueryBuilder(JdbcDbType.TRINO);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("flag", ConnectorType.of("BOOLEAN")),
+                ConnectorLiteral.ofBoolean(false));
+        String sql = builder.buildQuery(DB, TABLE, columns("flag"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains("FALSE"),
+                "Trino booleans must use TRUE/FALSE keywords. SQL: " + sql);
+    }
+
+    @Test
+    void testOracleBooleanLiteral() {
+        JdbcQueryBuilder builder = oracleBuilder();
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("flag", ConnectorType.of("BOOLEAN")),
+                ConnectorLiteral.ofBoolean(true));
+        String sql = builder.buildQuery(DB, TABLE, columns("flag"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains(" 1"),
+                "Oracle booleans must use 1/0 integers. SQL: " + sql);
+        Assertions.assertFalse(sql.contains("TRUE"),
+                "Oracle must not render TRUE keyword. SQL: " + sql);
+    }
+
+    @Test
+    void testSqlserverBooleanLiteral() {
+        JdbcQueryBuilder builder = sqlserverBuilder();
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("flag", ConnectorType.of("BOOLEAN")),
+                ConnectorLiteral.ofBoolean(false));
+        String sql = builder.buildQuery(DB, TABLE, columns("flag"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains(" 0"),
+                "SQL Server booleans must use 1/0 integers. SQL: " + sql);
+        Assertions.assertFalse(sql.contains("FALSE"),
+                "SQL Server must not render FALSE keyword. SQL: " + sql);
+    }
+
+    @Test
+    void testOceanbaseOracleBooleanLiteral() {
+        JdbcQueryBuilder builder = oceanBaseOracleBuilder();
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("flag", ConnectorType.of("BOOLEAN")),
+                ConnectorLiteral.ofBoolean(true));
+        String sql = builder.buildQuery(DB, TABLE, columns("flag"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains(" 1"),
+                "OceanBase Oracle booleans must use 1/0 integers. SQL: " + sql);
+    }
 }

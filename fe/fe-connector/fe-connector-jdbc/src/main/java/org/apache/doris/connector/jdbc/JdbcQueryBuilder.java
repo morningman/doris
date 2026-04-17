@@ -545,7 +545,7 @@ public final class JdbcQueryBuilder {
         if (val instanceof String) {
             return "'" + escapeSql((String) val) + "'";
         } else if (val instanceof Boolean) {
-            return ((Boolean) val) ? "1" : "0";
+            return formatBooleanLiteral((Boolean) val);
         } else if (val instanceof Double) {
             double d = (Double) val;
             if (d == Math.floor(d) && !Double.isInfinite(d)) {
@@ -576,6 +576,25 @@ public final class JdbcQueryBuilder {
             return null;
         }
         return formatDateLiteralDirect(lit);
+    }
+
+    /**
+     * Formats a boolean literal with database-specific syntax.
+     * Databases with strict BOOLEAN types (PostgreSQL, Trino) require TRUE/FALSE keywords.
+     * Databases that represent booleans as integers (Oracle, SQL Server, DB2) need 1/0.
+     * MySQL-compatible databases accept either; we use TRUE/FALSE for consistency
+     * with the old ExprToSqlVisitor.visitBoolLiteral() behavior.
+     */
+    private String formatBooleanLiteral(boolean val) {
+        switch (dbType) {
+            case ORACLE:
+            case OCEANBASE_ORACLE:
+            case SQLSERVER:
+            case DB2:
+                return val ? "1" : "0";
+            default:
+                return val ? "TRUE" : "FALSE";
+        }
     }
 
     private String formatDateLiteralDirect(ConnectorLiteral lit) {
