@@ -50,7 +50,6 @@ import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
 import org.apache.doris.connector.api.write.ConnectorWriteConfig;
-import org.apache.doris.connector.api.write.ConnectorWriteType;
 import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.FileQueryScanNode;
 import org.apache.doris.datasource.PluginDrivenEsScanNode;
@@ -694,8 +693,9 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
             writeConfig = metadata.getWriteConfig(
                     connSession, tableHandle, connectorColumns);
         } else {
-            // Fallback: create a minimal file-write config
-            writeConfig = ConnectorWriteConfig.builder(ConnectorWriteType.FILE_WRITE).build();
+            throw new AnalysisException(
+                    "Connector '" + catalog.getName() + "' (type: " + catalog.getType()
+                            + ") does not support INSERT operations");
         }
 
         PluginDrivenTableSink sink = new PluginDrivenTableSink(targetTable, writeConfig);
