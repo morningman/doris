@@ -101,6 +101,11 @@ public class JdbcDorisConnector implements Connector {
     }
 
     @Override
+    public boolean defaultTestConnection() {
+        return true;
+    }
+
+    @Override
     public ConnectorScanPlanProvider getScanPlanProvider() {
         if (scanPlanProvider == null) {
             synchronized (this) {

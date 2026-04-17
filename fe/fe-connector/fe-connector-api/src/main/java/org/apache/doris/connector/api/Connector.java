@@ -57,6 +57,20 @@ public interface Connector extends Closeable {
     }
 
     /**
+     * Returns whether connectivity testing should be enabled by default when
+     * the user does not explicitly set the {@code test_connection} property.
+     *
+     * <p>Connectors that rely on external drivers or remote connectivity
+     * (e.g., JDBC) should return {@code true} so that bad configurations
+     * are caught at CREATE CATALOG time rather than at first query.</p>
+     *
+     * @return {@code true} if test_connection defaults to enabled
+     */
+    default boolean defaultTestConnection() {
+        return false;
+    }
+
+    /**
      * Performs connector-specific validation during CREATE CATALOG.
      *
      * <p>Called before {@link #testConnection(ConnectorSession)}. Connectors

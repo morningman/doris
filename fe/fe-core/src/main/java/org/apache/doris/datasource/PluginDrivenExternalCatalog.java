@@ -157,7 +157,7 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
 
         boolean testConnection = Boolean.parseBoolean(
                 catalogProperty.getOrDefault(ExternalCatalog.TEST_CONNECTION,
-                        String.valueOf(ExternalCatalog.DEFAULT_TEST_CONNECTION)));
+                        String.valueOf(connector.defaultTestConnection())));
         if (!testConnection) {
             return;
         }
