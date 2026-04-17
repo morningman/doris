@@ -39,6 +39,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -64,6 +66,22 @@ public final class JdbcQueryBuilder {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    /**
+     * Formatter that preserves fractional seconds (up to microsecond precision).
+     * Used for non-Oracle paths where the previous JDBC scan path emitted
+     * {@code expr.getStringValue()}, keeping DATETIMEV2 literals intact.
+     */
+    private static final DateTimeFormatter DATETIME_FRAC_FMT;
+
+    static {
+        DATETIME_FRAC_FMT = new DateTimeFormatterBuilder()
+                .appendPattern("yyyy-MM-dd HH:mm:ss")
+                .optionalStart()
+                .appendFraction(ChronoField.NANO_OF_SECOND, 0, 6, true)
+                .optionalEnd()
+                .toFormatter();
+    }
 
     private final JdbcDbType dbType;
     private final JdbcFunctionPushdownConfig functionConfig;
@@ -600,7 +618,7 @@ public final class JdbcQueryBuilder {
 
     private String formatTrinoDate(Object val, boolean isDatetime) {
         if (isDatetime && val instanceof LocalDateTime) {
-            return "timestamp '" + ((LocalDateTime) val).format(DATETIME_FMT) + "'";
+            return "timestamp '" + ((LocalDateTime) val).format(DATETIME_FRAC_FMT) + "'";
         }
         if (val instanceof LocalDate) {
             return "date '" + ((LocalDate) val).format(DATE_FMT) + "'";
@@ -610,7 +628,7 @@ public final class JdbcQueryBuilder {
 
     private String formatSqlServerDate(Object val, boolean isDatetime) {
         if (isDatetime && val instanceof LocalDateTime) {
-            return "CONVERT(DATETIME, '" + ((LocalDateTime) val).format(DATETIME_FMT) + "', 121)";
+            return "CONVERT(DATETIME, '" + ((LocalDateTime) val).format(DATETIME_FRAC_FMT) + "', 121)";
         }
         if (val instanceof LocalDate) {
             return "CONVERT(DATE, '" + ((LocalDate) val).format(DATE_FMT) + "', 23)";
@@ -620,7 +638,7 @@ public final class JdbcQueryBuilder {
 
     private String formatGenericDate(Object val, boolean isDatetime) {
         if (isDatetime && val instanceof LocalDateTime) {
-            return "'" + ((LocalDateTime) val).format(DATETIME_FMT) + "'";
+            return "'" + ((LocalDateTime) val).format(DATETIME_FRAC_FMT) + "'";
         }
         if (val instanceof LocalDate) {
             return "'" + ((LocalDate) val).format(DATE_FMT) + "'";

@@ -377,4 +377,90 @@ class JdbcQueryBuilderTest {
         Assertions.assertTrue(sql.contains(".000001"),
                 "OceanBase Oracle mode must also pad microseconds. SQL: " + sql);
     }
+
+    // --- Non-Oracle datetime fractional-seconds preservation tests ---
+
+    @Test
+    void testMysqlDatetimeFractionalSeconds() {
+        JdbcQueryBuilder builder = new JdbcQueryBuilder(JdbcDbType.MYSQL);
+        LocalDateTime dt = LocalDateTime.of(2024, 1, 15, 10, 30, 45, 123456000);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("ts", DATETIME_TYPE),
+                ConnectorLiteral.ofDatetime(dt));
+        String sql = builder.buildQuery(DB, TABLE, columns("ts"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains("10:30:45.123456"),
+                "MySQL must preserve fractional seconds. SQL: " + sql);
+    }
+
+    @Test
+    void testMysqlDatetimeNoFraction() {
+        JdbcQueryBuilder builder = new JdbcQueryBuilder(JdbcDbType.MYSQL);
+        LocalDateTime dt = LocalDateTime.of(2024, 1, 15, 10, 30, 45, 0);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("ts", DATETIME_TYPE),
+                ConnectorLiteral.ofDatetime(dt));
+        String sql = builder.buildQuery(DB, TABLE, columns("ts"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains("10:30:45'"),
+                "MySQL datetime without fraction must not have trailing dot. SQL: " + sql);
+    }
+
+    @Test
+    void testTrinoDatetimeFractionalSeconds() {
+        JdbcQueryBuilder builder = new JdbcQueryBuilder(JdbcDbType.TRINO);
+        LocalDateTime dt = LocalDateTime.of(2024, 1, 15, 10, 30, 45, 123456000);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("ts", DATETIME_TYPE),
+                ConnectorLiteral.ofDatetime(dt));
+        String sql = builder.buildQuery(DB, TABLE, columns("ts"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains("timestamp '2024-01-15 10:30:45.123456'"),
+                "Trino must preserve fractional seconds. SQL: " + sql);
+    }
+
+    @Test
+    void testSqlServerDatetimeFractionalSeconds() {
+        JdbcQueryBuilder builder = new JdbcQueryBuilder(JdbcDbType.SQLSERVER);
+        LocalDateTime dt = LocalDateTime.of(2024, 1, 15, 10, 30, 45, 123456000);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("ts", DATETIME_TYPE),
+                ConnectorLiteral.ofDatetime(dt));
+        String sql = builder.buildQuery(DB, TABLE, columns("ts"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains("10:30:45.123456"),
+                "SQL Server must preserve fractional seconds. SQL: " + sql);
+    }
+
+    @Test
+    void testPostgresqlDatetimeFractionalSeconds() {
+        JdbcQueryBuilder builder = new JdbcQueryBuilder(JdbcDbType.POSTGRESQL);
+        LocalDateTime dt = LocalDateTime.of(2024, 1, 15, 10, 30, 45, 123456000);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("ts", DATETIME_TYPE),
+                ConnectorLiteral.ofDatetime(dt));
+        String sql = builder.buildQuery(DB, TABLE, columns("ts"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains("10:30:45.123456"),
+                "PostgreSQL must preserve fractional seconds. SQL: " + sql);
+    }
+
+    @Test
+    void testClickhouseDatetimeFractionalSeconds() {
+        JdbcQueryBuilder builder = new JdbcQueryBuilder(JdbcDbType.CLICKHOUSE);
+        LocalDateTime dt = LocalDateTime.of(2024, 1, 15, 10, 30, 45, 123456000);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("ts", DATETIME_TYPE),
+                ConnectorLiteral.ofDatetime(dt));
+        String sql = builder.buildQuery(DB, TABLE, columns("ts"),
+                Optional.of(filter), -1);
+        Assertions.assertTrue(sql.contains("10:30:45.123456"),
+                "ClickHouse must preserve fractional seconds. SQL: " + sql);
+    }
 }
