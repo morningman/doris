@@ -240,6 +240,8 @@ public interface TableIf {
                     return "Broker";
                 case ELASTICSEARCH:
                     return "ElasticSearch";
+                case ES_EXTERNAL_TABLE:
+                    return "es";
                 case HIVE:
                     return "Hive";
                 case HUDI:
