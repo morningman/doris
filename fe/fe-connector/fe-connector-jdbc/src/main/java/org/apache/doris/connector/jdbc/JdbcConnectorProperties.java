@@ -56,6 +56,9 @@ public final class JdbcConnectorProperties {
     public static final String INCLUDE_DATABASE_LIST = "include_database_list";
     public static final String EXCLUDE_DATABASE_LIST = "exclude_database_list";
 
+    // -- connectivity test --
+    public static final String TEST_CONNECTION = "test_connection";
+
     // -- driver --
     public static final String DRIVER_CHECKSUM = "checksum";
 
