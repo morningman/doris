@@ -121,4 +121,31 @@ public interface ConnectorScanPlanProvider {
             ConnectorTableHandle handle) {
         return -1;
     }
+
+    /**
+     * Returns scan-node-level properties along with filter pushdown results.
+     *
+     * <p>Override this when the connector performs fine-grained conjunct pushdown
+     * (e.g., ES query DSL building) and needs to report which conjuncts
+     * were NOT pushed. The indices in {@link ScanNodePropertiesResult#getNotPushedConjunctIndices()}
+     * refer to the AND children of the filter expression, in the same order as
+     * the conjuncts list.</p>
+     *
+     * <p>The default wraps {@link #getScanNodeProperties} with an empty not-pushed set,
+     * meaning all conjuncts are assumed to have been pushed.</p>
+     *
+     * @param session the current session
+     * @param handle  the table handle (may have been updated by applyFilter)
+     * @param columns the columns to read
+     * @param filter  an optional remaining filter expression
+     * @return properties with filter pushdown metadata
+     */
+    default ScanNodePropertiesResult getScanNodePropertiesResult(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            List<ConnectorColumnHandle> columns,
+            Optional<ConnectorExpression> filter) {
+        return new ScanNodePropertiesResult(
+                getScanNodeProperties(session, handle, columns, filter));
+    }
 }
