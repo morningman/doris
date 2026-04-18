@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -69,7 +70,22 @@ public class EsScanRange implements ConnectorScanRange {
 
     @Override
     public ConnectorScanRangeType getRangeType() {
-        return ConnectorScanRangeType.ES_SCAN;
+        return ConnectorScanRangeType.FILE_SCAN;
+    }
+
+    @Override
+    public Optional<String> getPath() {
+        return Optional.of("es://" + indexName + "/" + shardId);
+    }
+
+    @Override
+    public String getTableFormatType() {
+        return "es";
+    }
+
+    @Override
+    public String getFileFormat() {
+        return "es_http";
     }
 
     /**

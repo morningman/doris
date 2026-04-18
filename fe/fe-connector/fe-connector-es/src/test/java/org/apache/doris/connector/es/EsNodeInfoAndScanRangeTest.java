@@ -99,7 +99,7 @@ class EsNodeInfoAndScanRangeTest {
     @Test
     void testScanRangeType() {
         EsScanRange range = new EsScanRange("idx", null, 1, Collections.emptyList());
-        Assertions.assertEquals(ConnectorScanRangeType.ES_SCAN, range.getRangeType());
+        Assertions.assertEquals(ConnectorScanRangeType.FILE_SCAN, range.getRangeType());
     }
 
     @Test
