@@ -37,6 +37,7 @@ import org.apache.doris.connector.api.pushdown.LimitApplicationResult;
 import org.apache.doris.connector.api.pushdown.ProjectionApplicationResult;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
+import org.apache.doris.connector.api.scan.ScanNodePropertiesResult;
 import org.apache.doris.planner.PlanNodeId;
 import org.apache.doris.planner.ScanContext;
 import org.apache.doris.qe.SessionVariable;
@@ -62,6 +63,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -154,6 +156,21 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
                 output.append(prefix).append("PREDICATES: ")
                         .append(expr.accept(ExprToSqlVisitor.INSTANCE, ToSqlParams.WITH_TABLE))
                         .append("\n");
+            }
+            // ES-specific EXPLAIN info
+            String esIndex = props.get("_es_index");
+            if (esIndex != null) {
+                String queryDsl = props.getOrDefault("query_dsl", "N/A");
+                output.append(prefix).append("REMOTE_PREDICATES: ")
+                        .append(queryDsl).append("\n");
+                output.append(prefix).append("ES index/type: ")
+                        .append(esIndex).append("/")
+                        .append(props.getOrDefault("_es_type", "_doc")).append("\n");
+                String docValueScan = props.get("doc_values_mode");
+                if (docValueScan != null) {
+                    output.append(prefix).append("DOC_VALUE_SCAN: ")
+                            .append(docValueScan).append("\n");
+                }
             }
         }
         if (useTopnFilter()) {
@@ -386,6 +403,8 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
             setHudiParams(tableFormatFileDesc, scanRange, rangeDesc);
         } else if ("paimon".equals(formatType)) {
             setPaimonParams(tableFormatFileDesc, scanRange, rangeDesc);
+        } else if ("es".equals(formatType)) {
+            setEsParams(tableFormatFileDesc, scanRange);
         } else {
             setGenericParams(tableFormatFileDesc, scanRange);
         }
@@ -673,6 +692,16 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         }
     }
 
+    /**
+     * Sets ES-specific per-range params in TTableFormatFileDesc.es_params.
+     * These carry shard-level routing info for each scan range.
+     */
+    private void setEsParams(TTableFormatFileDesc formatDesc,
+            ConnectorScanRange scanRange) {
+        Map<String, String> esParams = new HashMap<>(scanRange.getProperties());
+        formatDesc.setEsParams(esParams);
+    }
+
     @Override
     protected Optional<String> getSerializedTable() {
         Map<String, String> props = getOrLoadScanNodeProperties();
@@ -687,6 +716,8 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
     public void createScanRangeLocations() throws UserException {
         super.createScanRangeLocations();
         setPaimonScanLevelParams();
+        setEsScanLevelParams();
+        pruneConjunctsFromNodeProperties();
     }
 
     /**
@@ -712,6 +743,102 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
                 LOG.warn("Failed to parse paimon.options_json, using empty map", e);
             }
         }
+    }
+
+    /**
+     * Sets ES scan-level params on TFileScanRangeParams.
+     * These apply to all scan ranges: query_dsl, auth, doc_values_mode,
+     * docvalue_context, and fields_context.
+     */
+    private void setEsScanLevelParams() {
+        Map<String, String> props = getOrLoadScanNodeProperties();
+        // Only apply for ES scans (identified by file_format_type=es_http)
+        String formatType = props.get("file_format_type");
+        if (!"es_http".equals(formatType)) {
+            return;
+        }
+
+        // Build es_properties map from scan node properties
+        Map<String, String> esProperties = new HashMap<>();
+        copyIfPresent(props, "query_dsl", esProperties);
+        copyIfPresent(props, "user", esProperties);
+        copyIfPresent(props, "password", esProperties);
+        copyIfPresent(props, "http_ssl_enabled", esProperties);
+        copyIfPresent(props, "doc_values_mode", esProperties);
+        params.setEsProperties(esProperties);
+
+        // Deserialize docvalue_context and fields_context from JSON
+        String docvalueJson = props.get("docvalue_context_json");
+        if (docvalueJson != null && !docvalueJson.isEmpty()) {
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, String> docCtx = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readValue(docvalueJson,
+                                new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+                params.setEsDocvalueContext(docCtx);
+            } catch (Exception e) {
+                LOG.warn("Failed to parse docvalue_context_json", e);
+            }
+        }
+
+        String fieldsJson = props.get("fields_context_json");
+        if (fieldsJson != null && !fieldsJson.isEmpty()) {
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, String> fieldsCtx = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readValue(fieldsJson,
+                                new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+                params.setEsFieldsContext(fieldsCtx);
+            } catch (Exception e) {
+                LOG.warn("Failed to parse fields_context_json", e);
+            }
+        }
+    }
+
+    private static void copyIfPresent(Map<String, String> from, String key,
+            Map<String, String> to) {
+        String value = from.get(key);
+        if (value != null) {
+            to.put(key, value);
+        }
+    }
+
+    /**
+     * Prunes pushed-down conjuncts using the structured result from
+     * {@link ConnectorScanPlanProvider#getScanNodePropertiesResult()}.
+     *
+     * <p>Only conjuncts whose indices are in the not-pushed set are retained.
+     * If the connector has no not-pushed tracking (empty set), all conjuncts
+     * are considered pushed and cleared.</p>
+     */
+    private void pruneConjunctsFromNodeProperties() {
+        if (conjuncts == null || conjuncts.isEmpty()) {
+            return;
+        }
+        ConnectorScanPlanProvider scanProvider = connector.getScanPlanProvider();
+        if (scanProvider == null) {
+            return;
+        }
+
+        List<ConnectorColumnHandle> columns = buildColumnHandles();
+        Optional<ConnectorExpression> filter = buildRemainingFilter();
+        ScanNodePropertiesResult result = scanProvider.getScanNodePropertiesResult(
+                connectorSession, currentHandle, columns, filter);
+
+        if (!result.hasNotPushedConjuncts()) {
+            // No not-pushed tracking — do not prune (keep all conjuncts for safety)
+            return;
+        }
+
+        Set<Integer> notPushedSet = result.getNotPushedConjunctIndices();
+        List<Expr> remaining = new ArrayList<>();
+        for (int i = 0; i < conjuncts.size(); i++) {
+            if (notPushedSet.contains(i)) {
+                remaining.add(conjuncts.get(i));
+            }
+        }
+        conjuncts.clear();
+        conjuncts.addAll(remaining);
     }
 
     /**
@@ -749,6 +876,8 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
                 return TFileFormatType.FORMAT_JSON;
             case "avro":
                 return TFileFormatType.FORMAT_AVRO;
+            case "es_http":
+                return TFileFormatType.FORMAT_ES_HTTP;
             default:
                 return TFileFormatType.FORMAT_JNI;
         }
