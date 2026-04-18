@@ -78,6 +78,7 @@
 #include "format/table/remote_doris_reader.h"
 #include "format/table/transactional_hive_reader.h"
 #include "format/table/trino_connector_jni_reader.h"
+#include "format/table/es_http_reader.h"
 #include "format/text/text_reader.h"
 #ifdef BUILD_RUST_READERS
 #include "format/lance/lance_rust_reader.h"
@@ -1153,6 +1154,12 @@ Status FileScanner::_get_next_reader() {
             break;
         }
 #endif
+        case TFileFormatType::FORMAT_ES_HTTP: {
+            _cur_reader = EsHttpReader::create_unique(_file_slot_descs, _state, _profile, range,
+                                                      *_params, _real_tuple_desc);
+            init_status = static_cast<EsHttpReader*>(_cur_reader.get())->init_reader();
+            break;
+        }
         default:
             return Status::NotSupported("Not supported create reader for file format: {}.",
                                         to_string(_params->format_type));

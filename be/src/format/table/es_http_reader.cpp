@@ -36,6 +36,8 @@ EsHttpReader::EsHttpReader(const std::vector<SlotDescriptor*>& file_slot_descs,
           _range(range),
           _params(params) {}
 
+EsHttpReader::~EsHttpReader() = default;
+
 Status EsHttpReader::init_reader() {
     // Build properties map from Thrift params, combining per-range (es_params)
     // and per-node (es_properties) parameters.

@@ -34,8 +34,8 @@ class RuntimeProfile;
 class RuntimeState;
 class SlotDescriptor;
 class TupleDescriptor;
-struct TFileRangeDesc;
-struct TFileScanRangeParams;
+class TFileRangeDesc;
+class TFileScanRangeParams;
 
 class EsHttpReader : public GenericReader {
     ENABLE_FACTORY_CREATOR(EsHttpReader);
@@ -45,7 +45,7 @@ public:
                  RuntimeProfile* profile, const TFileRangeDesc& range,
                  const TFileScanRangeParams& params, const TupleDescriptor* tuple_desc);
 
-    ~EsHttpReader() override = default;
+    ~EsHttpReader() override;
 
     Status init_reader();
 
