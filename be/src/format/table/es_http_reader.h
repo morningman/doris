@@ -1,0 +1,79 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+#pragma once
+
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "common/factory_creator.h"
+#include "common/status.h"
+#include "format/generic_reader.h"
+
+namespace doris {
+
+class ESScanReader;
+class ScrollParser;
+class RuntimeProfile;
+class RuntimeState;
+class SlotDescriptor;
+class TupleDescriptor;
+struct TFileRangeDesc;
+struct TFileScanRangeParams;
+
+class EsHttpReader : public GenericReader {
+    ENABLE_FACTORY_CREATOR(EsHttpReader);
+
+public:
+    EsHttpReader(const std::vector<SlotDescriptor*>& file_slot_descs, RuntimeState* state,
+                 RuntimeProfile* profile, const TFileRangeDesc& range,
+                 const TFileScanRangeParams& params, const TupleDescriptor* tuple_desc);
+
+    ~EsHttpReader() override = default;
+
+    Status init_reader();
+
+    Status get_next_block(Block* block, size_t* read_rows, bool* eof) override;
+
+    Status close() override;
+
+    bool fill_all_columns() const override { return true; }
+
+private:
+    Status _scroll_and_parse();
+
+    RuntimeState* _state;
+    const TupleDescriptor* _tuple_desc;
+    const TFileRangeDesc& _range;
+    const TFileScanRangeParams& _params;
+
+    std::map<std::string, std::string> _es_properties;
+    std::map<std::string, std::string> _docvalue_context;
+    std::map<std::string, std::string> _fields_context;
+    bool _doc_value_mode = false;
+
+    std::unique_ptr<ESScanReader> _es_reader;
+    std::unique_ptr<ScrollParser> _es_scroll_parser;
+
+    bool _es_eof = false;
+    bool _line_eof = true;
+    bool _batch_eof = false;
+};
+
+} // namespace doris
