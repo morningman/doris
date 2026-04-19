@@ -27,10 +27,9 @@
 
 namespace doris {
 
-EsHttpReader::EsHttpReader(const std::vector<SlotDescriptor*>& file_slot_descs,
-                           RuntimeState* state, RuntimeProfile* profile,
-                           const TFileRangeDesc& range, const TFileScanRangeParams& params,
-                           const TupleDescriptor* tuple_desc)
+EsHttpReader::EsHttpReader(const std::vector<SlotDescriptor*>& file_slot_descs, RuntimeState* state,
+                           RuntimeProfile* profile, const TFileRangeDesc& range,
+                           const TFileScanRangeParams& params, const TupleDescriptor* tuple_desc)
         : _state(state),
           _tuple_desc(tuple_desc),
           _range(range),
@@ -74,9 +73,8 @@ Status EsHttpReader::init_reader() {
     }
 
     // Build the final query body using ESScrollQueryBuilder
-    properties[ESScanReader::KEY_QUERY] =
-            ESScrollQueryBuilder::build(properties, column_names, _docvalue_context,
-                                        &_doc_value_mode);
+    properties[ESScanReader::KEY_QUERY] = ESScrollQueryBuilder::build(
+            properties, column_names, _docvalue_context, &_doc_value_mode);
 
     // Extract host for ESScanReader constructor
     const std::string& host = properties.at(ESScanReader::KEY_HOST_PORT);
@@ -118,9 +116,8 @@ Status EsHttpReader::get_next_block(Block* block, size_t* read_rows, bool* eof) 
                 }
             }
 
-            RETURN_IF_ERROR(_es_scroll_parser->fill_columns(_tuple_desc, columns, &_line_eof,
-                                                            _docvalue_context,
-                                                            _state->timezone_obj()));
+            RETURN_IF_ERROR(_es_scroll_parser->fill_columns(
+                    _tuple_desc, columns, &_line_eof, _docvalue_context, _state->timezone_obj()));
             if (!_line_eof) {
                 break;
             }
@@ -146,7 +143,7 @@ Status EsHttpReader::close() {
 }
 
 Status EsHttpReader::get_columns(std::unordered_map<std::string, DataTypePtr>* name_to_type,
-                                  std::unordered_set<std::string>* missing_cols) {
+                                 std::unordered_set<std::string>* missing_cols) {
     for (const auto* slot : _file_slot_descs) {
         name_to_type->emplace(slot->col_name(), slot->type());
     }

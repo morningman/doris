@@ -64,6 +64,7 @@
 #include "format/native/native_reader.h"
 #include "format/orc/vorc_reader.h"
 #include "format/parquet/vparquet_reader.h"
+#include "format/table/es_http_reader.h"
 #include "format/table/hive_reader.h"
 #include "format/table/hudi_jni_reader.h"
 #include "format/table/hudi_reader.h"
@@ -78,7 +79,6 @@
 #include "format/table/remote_doris_reader.h"
 #include "format/table/transactional_hive_reader.h"
 #include "format/table/trino_connector_jni_reader.h"
-#include "format/table/es_http_reader.h"
 #include "format/text/text_reader.h"
 #ifdef BUILD_RUST_READERS
 #include "format/lance/lance_rust_reader.h"
