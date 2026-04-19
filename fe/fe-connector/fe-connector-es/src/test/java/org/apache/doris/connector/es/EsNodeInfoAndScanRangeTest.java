@@ -110,7 +110,8 @@ class EsNodeInfoAndScanRangeTest {
         Assertions.assertEquals("logs", props.get(EsScanRange.PROP_INDEX));
         Assertions.assertEquals("_doc", props.get(EsScanRange.PROP_TYPE));
         Assertions.assertEquals("3", props.get(EsScanRange.PROP_SHARD_ID));
-        Assertions.assertEquals("a:9200,b:9200", props.get(EsScanRange.PROP_HOSTS));
+        // host_port is the first host for BE ESScanReader
+        Assertions.assertEquals("a:9200", props.get(EsScanRange.PROP_HOST_PORT));
     }
 
     @Test
@@ -124,7 +125,8 @@ class EsNodeInfoAndScanRangeTest {
     void testScanRangeNullHostsBecomesEmptyList() {
         EsScanRange range = new EsScanRange("idx", null, 0, null);
         Assertions.assertTrue(range.getEsHosts().isEmpty());
-        Assertions.assertEquals("", range.getProperties().get(EsScanRange.PROP_HOSTS));
+        // No host_port when hosts list is empty
+        Assertions.assertFalse(range.getProperties().containsKey(EsScanRange.PROP_HOST_PORT));
     }
 
     @Test

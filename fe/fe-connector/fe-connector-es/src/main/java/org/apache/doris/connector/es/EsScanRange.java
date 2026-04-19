@@ -46,10 +46,10 @@ public class EsScanRange implements ConnectorScanRange {
 
     private static final long serialVersionUID = 1L;
 
-    public static final String PROP_INDEX = "es.index";
-    public static final String PROP_TYPE = "es.type";
-    public static final String PROP_SHARD_ID = "es.shard_id";
-    public static final String PROP_HOSTS = "es.hosts";
+    public static final String PROP_INDEX = "index";
+    public static final String PROP_TYPE = "type";
+    public static final String PROP_SHARD_ID = "shard_id";
+    public static final String PROP_HOST_PORT = "host_port";
 
     private final String indexName;
     private final String mappingType;
@@ -100,15 +100,13 @@ public class EsScanRange implements ConnectorScanRange {
     @Override
     public Map<String, String> getProperties() {
         Map<String, String> props = new HashMap<>();
-        // Use BE-compatible keys matching ESScanReader constants
-        props.put("index", indexName);
+        props.put(PROP_INDEX, indexName);
         if (mappingType != null) {
-            props.put("type", mappingType);
+            props.put(PROP_TYPE, mappingType);
         }
-        props.put("shard_id", String.valueOf(shardId));
-        // host_port = first host for ESScanReader constructor
+        props.put(PROP_SHARD_ID, String.valueOf(shardId));
         if (!esHosts.isEmpty()) {
-            props.put("host_port", esHosts.get(0));
+            props.put(PROP_HOST_PORT, esHosts.get(0));
         }
         return props;
     }
