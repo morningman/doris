@@ -62,6 +62,9 @@ public:
 
 private:
     Status _scroll_and_parse();
+    std::string _select_host(const std::map<std::string, std::string>& properties) const;
+
+    static const std::string KEY_ES_HOSTS;
 
     RuntimeState* _state;
     const TupleDescriptor* _tuple_desc;

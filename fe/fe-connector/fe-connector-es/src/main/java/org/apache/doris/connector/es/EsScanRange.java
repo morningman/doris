@@ -50,6 +50,7 @@ public class EsScanRange implements ConnectorScanRange {
     public static final String PROP_TYPE = "type";
     public static final String PROP_SHARD_ID = "shard_id";
     public static final String PROP_HOST_PORT = "host_port";
+    public static final String PROP_ES_HOSTS = "es_hosts";
 
     private final String indexName;
     private final String mappingType;
@@ -107,6 +108,7 @@ public class EsScanRange implements ConnectorScanRange {
         props.put(PROP_SHARD_ID, String.valueOf(shardId));
         if (!esHosts.isEmpty()) {
             props.put(PROP_HOST_PORT, esHosts.get(0));
+            props.put(PROP_ES_HOSTS, String.join(",", esHosts));
         }
         return props;
     }
