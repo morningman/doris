@@ -454,7 +454,7 @@ struct TTableFormatFileDesc {
     12: optional TLanceFileDesc lance_params
 =======
     // ES per-shard parameters (used when table_format_type == "es")
-    // Contains: es.hosts, es.index, es.type, es.shard_id
+    // Contains: index, type, shard_id, host_port, es_hosts
     12: optional map<string, string> es_params
 >>>>>>> 3bee45d20ab ([feature](thrift) Add ES HTTP scan format type and params for unified scan path)
 }

@@ -41,8 +41,7 @@ public interface ConnectorScanPlanProvider {
      *
      * <p>The engine uses this to determine which Thrift scan range structure
      * to generate. For example, {@link ConnectorScanRangeType#FILE_SCAN}
-     * produces TFileScanRange, while {@link ConnectorScanRangeType#ES_SCAN}
-     * produces TEsScanRange.</p>
+     * produces TFileScanRange.</p>
      *
      * @return the scan range type (default: FILE_SCAN)
      */

@@ -72,7 +72,6 @@ private:
     const TFileScanRangeParams& _params;
     const std::vector<SlotDescriptor*>& _file_slot_descs;
 
-    std::map<std::string, std::string> _es_properties;
     std::map<std::string, std::string> _docvalue_context;
     std::map<std::string, std::string> _fields_context;
     bool _doc_value_mode = false;

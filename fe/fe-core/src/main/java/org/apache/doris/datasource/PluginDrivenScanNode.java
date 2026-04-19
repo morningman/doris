@@ -53,6 +53,8 @@ import org.apache.doris.thrift.TPaimonFileDesc;
 import org.apache.doris.thrift.TTableFormatFileDesc;
 import org.apache.doris.thrift.TTrinoConnectorFileDesc;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -89,6 +91,9 @@ import java.util.stream.Collectors;
 public class PluginDrivenScanNode extends FileQueryScanNode {
 
     private static final Logger LOG = LogManager.getLogger(PluginDrivenScanNode.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final TypeReference<Map<String, String>> MAP_TYPE_REF =
+            new TypeReference<Map<String, String>>() {};
 
     private static final String TABLE_FORMAT_TYPE = "plugin_driven";
 
@@ -468,10 +473,8 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         // Options is a map — parse from JSON or use directly
         String optionsJson = props.getOrDefault("trino_connector_options", "{}");
         try {
-            @SuppressWarnings("unchecked")
-            Map<String, String> options = new com.fasterxml.jackson.databind.ObjectMapper()
-                    .readValue(optionsJson,
-                            new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+            Map<String, String> options = OBJECT_MAPPER
+                    .readValue(optionsJson, MAP_TYPE_REF);
             fileDesc.setTrinoConnectorOptions(options);
         } catch (Exception e) {
             LOG.warn("Failed to parse trino_connector_options JSON, using empty map", e);
@@ -740,10 +743,8 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         String optionsJson = props.get("paimon.options_json");
         if (optionsJson != null && !optionsJson.isEmpty()) {
             try {
-                @SuppressWarnings("unchecked")
-                Map<String, String> options = new com.fasterxml.jackson.databind.ObjectMapper()
-                        .readValue(optionsJson,
-                                new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+                Map<String, String> options = OBJECT_MAPPER
+                        .readValue(optionsJson, MAP_TYPE_REF);
                 params.setPaimonOptions(options);
             } catch (Exception e) {
                 LOG.warn("Failed to parse paimon.options_json, using empty map", e);
@@ -777,10 +778,8 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         String docvalueJson = props.get("docvalue_context_json");
         if (docvalueJson != null && !docvalueJson.isEmpty()) {
             try {
-                @SuppressWarnings("unchecked")
-                Map<String, String> docCtx = new com.fasterxml.jackson.databind.ObjectMapper()
-                        .readValue(docvalueJson,
-                                new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+                Map<String, String> docCtx = OBJECT_MAPPER
+                        .readValue(docvalueJson, MAP_TYPE_REF);
                 params.setEsDocvalueContext(docCtx);
             } catch (Exception e) {
                 LOG.warn("Failed to parse docvalue_context_json", e);
@@ -790,10 +789,8 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         String fieldsJson = props.get("fields_context_json");
         if (fieldsJson != null && !fieldsJson.isEmpty()) {
             try {
-                @SuppressWarnings("unchecked")
-                Map<String, String> fieldsCtx = new com.fasterxml.jackson.databind.ObjectMapper()
-                        .readValue(fieldsJson,
-                                new com.fasterxml.jackson.core.type.TypeReference<Map<String, String>>() {});
+                Map<String, String> fieldsCtx = OBJECT_MAPPER
+                        .readValue(fieldsJson, MAP_TYPE_REF);
                 params.setEsFieldsContext(fieldsCtx);
             } catch (Exception e) {
                 LOG.warn("Failed to parse fields_context_json", e);
