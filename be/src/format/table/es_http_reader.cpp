@@ -156,8 +156,7 @@ Status EsHttpReader::get_columns(std::unordered_map<std::string, DataTypePtr>* n
     return Status::OK();
 }
 
-std::string EsHttpReader::_select_host(
-        const std::map<std::string, std::string>& properties) const {
+std::string EsHttpReader::_select_host(const std::map<std::string, std::string>& properties) const {
     // If es_hosts contains multiple hosts, prefer localhost for locality
     auto it = properties.find(KEY_ES_HOSTS);
     if (it != properties.end() && !it->second.empty()) {

@@ -60,6 +60,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -103,8 +104,11 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
     // Set during filter pushdown; may be updated from the original table handle.
     private ConnectorTableHandle currentHandle;
 
-    // Populated from ConnectorScanPlanProvider.getScanNodeProperties()
+    // Populated from ConnectorScanPlanProvider.getScanNodePropertiesResult()
+    private ScanNodePropertiesResult cachedPropertiesResult;
     private Map<String, String> scanNodeProperties;
+    // Maps filtered conjunct indices (after CAST removal) back to original conjunct indices
+    private List<Integer> filteredToOriginalIndex;
 
     public PluginDrivenScanNode(PlanNodeId id, TupleDescriptor desc,
             boolean needCheckColumnPriv, SessionVariable sv,
@@ -312,6 +316,8 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         }
         // Invalidate cached properties so they are rebuilt with the updated conjuncts/handle.
         scanNodeProperties = null;
+        cachedPropertiesResult = null;
+        filteredToOriginalIndex = null;
     }
 
     /**
@@ -815,25 +821,42 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         if (conjuncts == null || conjuncts.isEmpty()) {
             return;
         }
-        ConnectorScanPlanProvider scanProvider = connector.getScanPlanProvider();
-        if (scanProvider == null) {
-            return;
-        }
-
-        List<ConnectorColumnHandle> columns = buildColumnHandles();
-        Optional<ConnectorExpression> filter = buildRemainingFilter();
-        ScanNodePropertiesResult result = scanProvider.getScanNodePropertiesResult(
-                connectorSession, currentHandle, columns, filter);
+        ScanNodePropertiesResult result = getOrLoadPropertiesResult();
 
         if (!result.hasConjunctTracking()) {
             // No conjunct tracking — do not prune (keep all conjuncts for safety)
             return;
         }
 
+        // notPushedSet indices are relative to the filtered conjunct list
+        // (after CAST expr removal). Map them back to original conjunct indices.
         Set<Integer> notPushedSet = result.getNotPushedConjunctIndices();
+        Set<Integer> originalNotPushed = new HashSet<>();
+        if (filteredToOriginalIndex != null) {
+            for (int filteredIdx : notPushedSet) {
+                if (filteredIdx < filteredToOriginalIndex.size()) {
+                    originalNotPushed.add(filteredToOriginalIndex.get(filteredIdx));
+                }
+            }
+        } else {
+            // No CAST filtering was applied — indices map 1:1
+            originalNotPushed.addAll(notPushedSet);
+        }
+
+        // Also keep any conjuncts that were filtered out (CAST expressions)
+        // since those were never sent to the connector for pushdown
+        if (filteredToOriginalIndex != null) {
+            Set<Integer> sentToConnector = new HashSet<>(filteredToOriginalIndex);
+            for (int i = 0; i < conjuncts.size(); i++) {
+                if (!sentToConnector.contains(i)) {
+                    originalNotPushed.add(i);
+                }
+            }
+        }
+
         List<Expr> remaining = new ArrayList<>();
         for (int i = 0; i < conjuncts.size(); i++) {
-            if (notPushedSet.contains(i)) {
+            if (originalNotPushed.contains(i)) {
                 remaining.add(conjuncts.get(i));
             }
         }
@@ -842,17 +865,32 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
     }
 
     /**
-     * Lazily loads scan node properties from the connector's scan plan provider.
+     * Lazily loads and caches the ScanNodePropertiesResult from the connector.
+     * Both getOrLoadScanNodeProperties() and pruneConjunctsFromNodeProperties()
+     * use this to avoid redundant computation.
      */
-    private Map<String, String> getOrLoadScanNodeProperties() {
-        if (scanNodeProperties == null) {
+    private ScanNodePropertiesResult getOrLoadPropertiesResult() {
+        if (cachedPropertiesResult == null) {
             ConnectorScanPlanProvider scanProvider = connector.getScanPlanProvider();
             if (scanProvider != null) {
                 List<ConnectorColumnHandle> columns = buildColumnHandles();
                 Optional<ConnectorExpression> filter = buildRemainingFilter();
-                scanNodeProperties = scanProvider.getScanNodeProperties(
+                cachedPropertiesResult = scanProvider.getScanNodePropertiesResult(
                         connectorSession, currentHandle, columns, filter);
             }
+            if (cachedPropertiesResult == null) {
+                cachedPropertiesResult = new ScanNodePropertiesResult(Collections.emptyMap());
+            }
+        }
+        return cachedPropertiesResult;
+    }
+
+    /**
+     * Lazily loads scan node properties from the connector's scan plan provider.
+     */
+    private Map<String, String> getOrLoadScanNodeProperties() {
+        if (scanNodeProperties == null) {
+            scanNodeProperties = getOrLoadPropertiesResult().getProperties();
             if (scanNodeProperties == null) {
                 scanNodeProperties = Collections.emptyMap();
             }
@@ -922,14 +960,26 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
      */
     private Optional<ConnectorExpression> buildRemainingFilter() {
         if (conjuncts == null || conjuncts.isEmpty()) {
+            filteredToOriginalIndex = null;
             return Optional.empty();
         }
         List<Expr> pushableConjuncts = conjuncts;
         ConnectorMetadata metadata = connector.getMetadata(connectorSession);
         if (!metadata.supportsCastPredicatePushdown(connectorSession)) {
-            pushableConjuncts = conjuncts.stream()
-                    .filter(expr -> !containsCastExpr(expr))
-                    .collect(Collectors.toList());
+            filteredToOriginalIndex = new ArrayList<>();
+            pushableConjuncts = new ArrayList<>();
+            for (int i = 0; i < conjuncts.size(); i++) {
+                if (!containsCastExpr(conjuncts.get(i))) {
+                    pushableConjuncts.add(conjuncts.get(i));
+                    filteredToOriginalIndex.add(i);
+                }
+            }
+            // If no filtering occurred, clear the mapping (1:1)
+            if (filteredToOriginalIndex.size() == conjuncts.size()) {
+                filteredToOriginalIndex = null;
+            }
+        } else {
+            filteredToOriginalIndex = null;
         }
         if (pushableConjuncts.isEmpty()) {
             return Optional.empty();
