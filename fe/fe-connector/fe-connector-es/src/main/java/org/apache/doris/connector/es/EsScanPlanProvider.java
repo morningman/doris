@@ -299,7 +299,11 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
         }
 
         List<String> columnNames = new ArrayList<>();
-        // Column names not strictly needed for scan planning but useful for field context
+        for (ConnectorColumnHandle col : columns) {
+            if (col instanceof NamedColumnHandle) {
+                columnNames.add(((NamedColumnHandle) col).getName());
+            }
+        }
         String mappingType = properties.getOrDefault(
                 EsConnectorProperties.MAPPING_TYPE, null);
         boolean nodesDiscovery = Boolean.parseBoolean(properties.getOrDefault(

@@ -34,7 +34,8 @@ EsHttpReader::EsHttpReader(const std::vector<SlotDescriptor*>& file_slot_descs,
         : _state(state),
           _tuple_desc(tuple_desc),
           _range(range),
-          _params(params) {}
+          _params(params),
+          _file_slot_descs(file_slot_descs) {}
 
 EsHttpReader::~EsHttpReader() = default;
 
@@ -140,6 +141,14 @@ Status EsHttpReader::_scroll_and_parse() {
 Status EsHttpReader::close() {
     if (_es_reader) {
         RETURN_IF_ERROR(_es_reader->close());
+    }
+    return Status::OK();
+}
+
+Status EsHttpReader::get_columns(std::unordered_map<std::string, DataTypePtr>* name_to_type,
+                                  std::unordered_set<std::string>* missing_cols) {
+    for (const auto* slot : _file_slot_descs) {
+        name_to_type->emplace(slot->col_name(), slot->type());
     }
     return Status::OK();
 }

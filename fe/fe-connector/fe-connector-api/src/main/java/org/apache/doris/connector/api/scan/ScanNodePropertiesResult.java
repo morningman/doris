@@ -37,35 +37,50 @@ public class ScanNodePropertiesResult {
 
     private final Map<String, String> properties;
     private final Set<Integer> notPushedConjunctIndices;
+    private final boolean hasConjunctTracking;
 
     /**
-     * Creates a result where all conjuncts are assumed pushed (or no fine-grained tracking).
+     * Creates a result where no fine-grained conjunct tracking is provided.
+     * The engine will NOT prune any conjuncts.
      */
     public ScanNodePropertiesResult(Map<String, String> properties) {
-        this(properties, Collections.emptySet());
+        this.properties = properties;
+        this.notPushedConjunctIndices = null;
+        this.hasConjunctTracking = false;
     }
 
     /**
      * Creates a result with explicit not-pushed conjunct tracking.
+     * An empty set means ALL conjuncts were pushed down and should be pruned.
      *
      * @param properties              scan-node-level properties
-     * @param notPushedConjunctIndices indices of conjuncts that were NOT pushed down
+     * @param notPushedConjunctIndices indices of conjuncts that were NOT pushed down;
+     *                                 empty set means all were pushed
      */
     public ScanNodePropertiesResult(Map<String, String> properties,
             Set<Integer> notPushedConjunctIndices) {
         this.properties = properties;
         this.notPushedConjunctIndices = notPushedConjunctIndices;
+        this.hasConjunctTracking = true;
     }
 
     public Map<String, String> getProperties() {
         return properties;
     }
 
+    /**
+     * Returns indices of conjuncts NOT pushed down, or empty set if all pushed.
+     * Only valid when {@link #hasConjunctTracking()} is true.
+     */
     public Set<Integer> getNotPushedConjunctIndices() {
-        return notPushedConjunctIndices;
+        return notPushedConjunctIndices != null ? notPushedConjunctIndices : Collections.emptySet();
     }
 
-    public boolean hasNotPushedConjuncts() {
-        return !notPushedConjunctIndices.isEmpty();
+    /**
+     * Returns true if this result carries conjunct pushdown tracking.
+     * False means no tracking — the engine should keep all conjuncts.
+     */
+    public boolean hasConjunctTracking() {
+        return hasConjunctTracking;
     }
 }

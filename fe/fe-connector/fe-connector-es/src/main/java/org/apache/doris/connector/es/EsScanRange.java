@@ -100,12 +100,16 @@ public class EsScanRange implements ConnectorScanRange {
     @Override
     public Map<String, String> getProperties() {
         Map<String, String> props = new HashMap<>();
-        props.put(PROP_INDEX, indexName);
+        // Use BE-compatible keys matching ESScanReader constants
+        props.put("index", indexName);
         if (mappingType != null) {
-            props.put(PROP_TYPE, mappingType);
+            props.put("type", mappingType);
         }
-        props.put(PROP_SHARD_ID, String.valueOf(shardId));
-        props.put(PROP_HOSTS, String.join(",", esHosts));
+        props.put("shard_id", String.valueOf(shardId));
+        // host_port = first host for ESScanReader constructor
+        if (!esHosts.isEmpty()) {
+            props.put("host_port", esHosts.get(0));
+        }
         return props;
     }
 

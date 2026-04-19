@@ -825,8 +825,8 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         ScanNodePropertiesResult result = scanProvider.getScanNodePropertiesResult(
                 connectorSession, currentHandle, columns, filter);
 
-        if (!result.hasNotPushedConjuncts()) {
-            // No not-pushed tracking — do not prune (keep all conjuncts for safety)
+        if (!result.hasConjunctTracking()) {
+            // No conjunct tracking — do not prune (keep all conjuncts for safety)
             return;
         }
 

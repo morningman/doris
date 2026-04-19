@@ -20,6 +20,8 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "common/factory_creator.h"
@@ -55,6 +57,9 @@ public:
 
     bool fill_all_columns() const override { return true; }
 
+    Status get_columns(std::unordered_map<std::string, DataTypePtr>* name_to_type,
+                       std::unordered_set<std::string>* missing_cols) override;
+
 private:
     Status _scroll_and_parse();
 
@@ -62,6 +67,7 @@ private:
     const TupleDescriptor* _tuple_desc;
     const TFileRangeDesc& _range;
     const TFileScanRangeParams& _params;
+    const std::vector<SlotDescriptor*>& _file_slot_descs;
 
     std::map<std::string, std::string> _es_properties;
     std::map<std::string, std::string> _docvalue_context;
