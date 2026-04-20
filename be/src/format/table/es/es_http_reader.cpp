@@ -19,6 +19,8 @@
 
 #include <gen_cpp/PlanNodes_types.h>
 
+#include <algorithm>
+#include <cctype>
 #include <sstream>
 
 #include "format/table/es/es_scan_reader.h"
@@ -60,6 +62,32 @@ void EsHttpReader::_init_profile() {
             ADD_CHILD_COUNTER_WITH_LEVEL(_profile, "EsBatchesRead", TUnit::UNIT, es_profile, 1);
     _es_profile.rows_read =
             ADD_CHILD_COUNTER_WITH_LEVEL(_profile, "EsRowsRead", TUnit::UNIT, es_profile, 1);
+}
+
+std::string EsHttpReader::_extract_hostname(std::string host) {
+    auto scheme_end = host.find("://");
+    if (scheme_end != std::string::npos) {
+        host = host.substr(scheme_end + 3);
+    }
+
+    if (!host.empty() && host.front() == '[') {
+        auto bracket_end = host.find(']');
+        if (bracket_end != std::string::npos) {
+            return host.substr(1, bracket_end - 1);
+        }
+        return host;
+    }
+
+    auto colon = host.rfind(':');
+    if (colon == std::string::npos) {
+        return host;
+    }
+    std::string port = host.substr(colon + 1);
+    if (!port.empty() && std::all_of(port.begin(), port.end(),
+                                     [](unsigned char ch) { return std::isdigit(ch) != 0; })) {
+        return host.substr(0, colon);
+    }
+    return host;
 }
 
 Status EsHttpReader::init_reader() {
@@ -211,16 +239,7 @@ std::string EsHttpReader::_select_host(const std::map<std::string, std::string>&
             if (best.empty()) {
                 best = host;
             }
-            // Extract hostname (strip scheme and port) for comparison
-            std::string hostname = host;
-            auto scheme_end = hostname.find("://");
-            if (scheme_end != std::string::npos) {
-                hostname = hostname.substr(scheme_end + 3);
-            }
-            auto colon = hostname.rfind(':');
-            if (colon != std::string::npos) {
-                hostname = hostname.substr(0, colon);
-            }
+            std::string hostname = _extract_hostname(host);
             if (hostname == localhost) {
                 return host;
             }

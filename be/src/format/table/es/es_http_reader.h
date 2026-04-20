@@ -65,6 +65,7 @@ private:
         RuntimeProfile::Counter* rows_read = nullptr;
     };
 
+    static std::string _extract_hostname(std::string host);
     void _init_profile();
     void _collect_profile_before_close() override;
     Status _scroll_and_parse();

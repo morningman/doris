@@ -149,7 +149,7 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
                 }
                 List<String> hosts = new ArrayList<>();
                 for (EsShardRouting routing : shardRouting) {
-                    hosts.add(routing.getHttpHost() + ":" + routing.getHttpPort());
+                    hosts.add(EsHostAddress.formatHostPort(routing.getHttpHost(), routing.getHttpPort()));
                 }
                 ranges.add(new EsScanRange(
                         shardRouting.get(0).getIndexName(),
@@ -470,7 +470,7 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
         List<String> hosts = new ArrayList<>();
         for (List<EsShardRouting> routings : routingsMap.values()) {
             for (EsShardRouting routing : routings) {
-                String addr = routing.getHttpHost() + ":" + routing.getHttpPort();
+                String addr = EsHostAddress.formatHostPort(routing.getHttpHost(), routing.getHttpPort());
                 if (!hosts.contains(addr)) {
                     hosts.add(addr);
                 }

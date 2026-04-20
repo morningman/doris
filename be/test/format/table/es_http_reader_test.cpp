@@ -61,4 +61,12 @@ TEST_F(EsHttpReaderTest, NullProfileIsSafe) {
     SUCCEED();
 }
 
+TEST_F(EsHttpReaderTest, ExtractHostnameHandlesIpv4AndIpv6) {
+    EXPECT_EQ("10.0.0.1", EsHttpReader::_extract_hostname("10.0.0.1:9200"));
+    EXPECT_EQ("::1", EsHttpReader::_extract_hostname("[::1]:9200"));
+    EXPECT_EQ("::1", EsHttpReader::_extract_hostname("http://[::1]:9200"));
+    EXPECT_EQ("fd00::1", EsHttpReader::_extract_hostname("[fd00::1]:9200"));
+    EXPECT_EQ("fd00::1", EsHttpReader::_extract_hostname("fd00::1:9200"));
+}
+
 } // namespace doris

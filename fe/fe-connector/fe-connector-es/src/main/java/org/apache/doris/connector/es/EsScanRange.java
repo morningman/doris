@@ -138,17 +138,7 @@ public class EsScanRange implements ConnectorScanRange {
     static List<String> extractHostnames(List<String> hostPorts) {
         Set<String> seen = new LinkedHashSet<>();
         for (String hp : hostPorts) {
-            String s = hp;
-            // Strip scheme (http:// or https://)
-            int schemeEnd = s.indexOf("://");
-            if (schemeEnd >= 0) {
-                s = s.substring(schemeEnd + 3);
-            }
-            // Strip port
-            int colonIdx = s.lastIndexOf(':');
-            if (colonIdx > 0) {
-                s = s.substring(0, colonIdx);
-            }
+            String s = EsHostAddress.extractHostname(hp);
             if (!s.isEmpty()) {
                 seen.add(s);
             }
