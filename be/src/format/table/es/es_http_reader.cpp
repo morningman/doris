@@ -25,6 +25,7 @@
 #include "format/table/es/es_scroll_parser.h"
 #include "format/table/es/es_scroll_query.h"
 #include "runtime/descriptors.h"
+#include "runtime/runtime_profile.h"
 #include "runtime/runtime_state.h"
 #include "service/backend_options.h"
 
@@ -36,12 +37,30 @@ EsHttpReader::EsHttpReader(const std::vector<SlotDescriptor*>& file_slot_descs, 
                            RuntimeProfile* profile, const TFileRangeDesc& range,
                            const TFileScanRangeParams& params, const TupleDescriptor* tuple_desc)
         : _state(state),
+          _profile(profile),
           _tuple_desc(tuple_desc),
           _range(range),
           _params(params),
-          _file_slot_descs(file_slot_descs) {}
+          _file_slot_descs(file_slot_descs) {
+    _init_profile();
+}
 
 EsHttpReader::~EsHttpReader() = default;
+
+void EsHttpReader::_init_profile() {
+    if (_profile == nullptr) {
+        return;
+    }
+    static const char* es_profile = "EsHttpReader";
+    ADD_TIMER_WITH_LEVEL(_profile, es_profile, 1);
+    _es_profile.read_time = ADD_CHILD_TIMER_WITH_LEVEL(_profile, "EsReadTime", es_profile, 1);
+    _es_profile.materialize_time =
+            ADD_CHILD_TIMER_WITH_LEVEL(_profile, "EsMaterializeTime", es_profile, 1);
+    _es_profile.batches_read =
+            ADD_CHILD_COUNTER_WITH_LEVEL(_profile, "EsBatchesRead", TUnit::UNIT, es_profile, 1);
+    _es_profile.rows_read =
+            ADD_CHILD_COUNTER_WITH_LEVEL(_profile, "EsRowsRead", TUnit::UNIT, es_profile, 1);
+}
 
 Status EsHttpReader::init_reader() {
     // Build properties map from Thrift params, combining per-range (es_params)
@@ -86,7 +105,11 @@ Status EsHttpReader::init_reader() {
     properties[ESScanReader::KEY_HOST_PORT] = target_host;
     _es_reader = std::make_unique<ESScanReader>(target_host, properties, _doc_value_mode);
 
-    return _es_reader->open();
+    {
+        SCOPED_RAW_TIMER(&_read_timer_ns);
+        RETURN_IF_ERROR(_es_reader->open());
+    }
+    return Status::OK();
 }
 
 Status EsHttpReader::_do_get_next_block(Block* block, size_t* read_rows, bool* eof) {
@@ -122,8 +145,12 @@ Status EsHttpReader::_do_get_next_block(Block* block, size_t* read_rows, bool* e
                 }
             }
 
-            RETURN_IF_ERROR(_es_scroll_parser->fill_columns(
-                    _tuple_desc, columns, &_line_eof, _docvalue_context, _state->timezone_obj()));
+            {
+                SCOPED_RAW_TIMER(&_materialize_timer_ns);
+                RETURN_IF_ERROR(_es_scroll_parser->fill_columns(_tuple_desc, columns, &_line_eof,
+                                                                _docvalue_context,
+                                                                _state->timezone_obj()));
+            }
             if (!_line_eof) {
                 break;
             }
@@ -131,14 +158,31 @@ Status EsHttpReader::_do_get_next_block(Block* block, size_t* read_rows, bool* e
     }
 
     *read_rows = columns[0]->size() - rows_before;
+    _rows_read += *read_rows;
     *eof = _es_eof && *read_rows == 0;
     return Status::OK();
 }
 
 Status EsHttpReader::_scroll_and_parse() {
-    RETURN_IF_ERROR(_es_reader->get_next(&_batch_eof, _es_scroll_parser));
+    {
+        SCOPED_RAW_TIMER(&_read_timer_ns);
+        RETURN_IF_ERROR(_es_reader->get_next(&_batch_eof, _es_scroll_parser));
+    }
+    if (!_batch_eof) {
+        ++_batches_read;
+    }
     _line_eof = false;
     return Status::OK();
+}
+
+void EsHttpReader::_collect_profile_before_close() {
+    if (_profile == nullptr) {
+        return;
+    }
+    COUNTER_UPDATE(_es_profile.read_time, _read_timer_ns);
+    COUNTER_UPDATE(_es_profile.materialize_time, _materialize_timer_ns);
+    COUNTER_UPDATE(_es_profile.batches_read, _batches_read);
+    COUNTER_UPDATE(_es_profile.rows_read, _rows_read);
 }
 
 Status EsHttpReader::close() {

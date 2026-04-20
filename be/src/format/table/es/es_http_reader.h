@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <string>
@@ -26,12 +27,12 @@
 #include "common/factory_creator.h"
 #include "common/status.h"
 #include "format/generic_reader.h"
+#include "runtime/runtime_profile.h"
 
 namespace doris {
 
 class ESScanReader;
 class ScrollParser;
-class RuntimeProfile;
 class RuntimeState;
 class SlotDescriptor;
 class TupleDescriptor;
@@ -57,16 +58,32 @@ public:
     Status _get_columns_impl(std::unordered_map<std::string, DataTypePtr>* name_to_type) override;
 
 private:
+    struct EsProfile {
+        RuntimeProfile::Counter* read_time = nullptr;
+        RuntimeProfile::Counter* materialize_time = nullptr;
+        RuntimeProfile::Counter* batches_read = nullptr;
+        RuntimeProfile::Counter* rows_read = nullptr;
+    };
+
+    void _init_profile();
+    void _collect_profile_before_close() override;
     Status _scroll_and_parse();
     std::string _select_host(const std::map<std::string, std::string>& properties) const;
 
     static const std::string KEY_ES_HOSTS;
 
     RuntimeState* _state;
+    RuntimeProfile* _profile;
     const TupleDescriptor* _tuple_desc;
     const TFileRangeDesc& _range;
     const TFileScanRangeParams& _params;
     const std::vector<SlotDescriptor*>& _file_slot_descs;
+    EsProfile _es_profile;
+
+    int64_t _read_timer_ns = 0;
+    int64_t _materialize_timer_ns = 0;
+    int64_t _batches_read = 0;
+    int64_t _rows_read = 0;
 
     std::map<std::string, std::string> _docvalue_context;
     std::map<std::string, std::string> _fields_context;
