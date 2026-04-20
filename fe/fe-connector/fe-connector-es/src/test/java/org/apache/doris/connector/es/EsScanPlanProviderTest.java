@@ -189,4 +189,28 @@ class EsScanPlanProviderTest {
         Assertions.assertFalse(metadata.supportsMerge(),
                 "ES connector metadata should not support MERGE");
     }
+
+    @Test
+    void testAppendExplainInfoShowsEsIndex() {
+        CountingRestClient client = new CountingRestClient();
+        EsScanPlanProvider provider = new EsScanPlanProvider(client, minimalProps());
+        EsTableHandle handle = new EsTableHandle("my_test_index");
+
+        Map<String, String> props = provider.getScanNodeProperties(
+                EMPTY_SESSION, handle, Collections.emptyList(), java.util.Optional.empty());
+        StringBuilder output = new StringBuilder();
+        provider.appendExplainInfo(output, "", props);
+
+        Assertions.assertTrue(output.toString().contains("ES index: my_test_index"));
+    }
+
+    @Test
+    void testAppendExplainInfoMissingIndex() {
+        EsScanPlanProvider provider = new EsScanPlanProvider(new CountingRestClient(), minimalProps());
+        StringBuilder output = new StringBuilder();
+
+        provider.appendExplainInfo(output, "", Collections.emptyMap());
+
+        Assertions.assertFalse(output.toString().contains("ES index:"));
+    }
 }

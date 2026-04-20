@@ -75,6 +75,7 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
     public static final String PROP_PASSWORD = "password";
     public static final String PROP_HTTP_SSL_ENABLED = "http_ssl_enabled";
     public static final String PROP_DOC_VALUES_MODE = "doc_values_mode";
+    public static final String PROP_ES_INDEX = "_es_index";
 
     public static final String PROP_DOCVALUE_CONTEXT_JSON = "docvalue_context_json";
     public static final String PROP_FIELDS_CONTEXT_JSON = "fields_context_json";
@@ -197,7 +198,7 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
 
         // Table/index metadata for EXPLAIN
         nodeProps.put("_table_name", esHandle.getIndexName());
-        nodeProps.put("_es_index", esHandle.getIndexName());
+        nodeProps.put(PROP_ES_INDEX, esHandle.getIndexName());
 
         // Auth properties
         String user = properties.getOrDefault(EsConnectorProperties.USER, null);
@@ -430,7 +431,7 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
     @Override
     public void appendExplainInfo(StringBuilder output, String prefix,
             Map<String, String> properties) {
-        String indexName = properties.get("index");
+        String indexName = properties.get(PROP_ES_INDEX);
         if (indexName != null) {
             output.append(prefix).append("ES index: ").append(indexName)
                     .append("\n");
