@@ -89,7 +89,7 @@ Status EsHttpReader::init_reader() {
     return _es_reader->open();
 }
 
-Status EsHttpReader::get_next_block(Block* block, size_t* read_rows, bool* eof) {
+Status EsHttpReader::_do_get_next_block(Block* block, size_t* read_rows, bool* eof) {
     if (_es_eof) {
         *eof = true;
         *read_rows = 0;
@@ -148,8 +148,7 @@ Status EsHttpReader::close() {
     return Status::OK();
 }
 
-Status EsHttpReader::get_columns(std::unordered_map<std::string, DataTypePtr>* name_to_type,
-                                 std::unordered_set<std::string>* missing_cols) {
+Status EsHttpReader::_get_columns_impl(std::unordered_map<std::string, DataTypePtr>* name_to_type) {
     for (const auto* slot : _file_slot_descs) {
         name_to_type->emplace(slot->col_name(), slot->type());
     }

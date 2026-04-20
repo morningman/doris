@@ -21,7 +21,6 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include "common/factory_creator.h"
@@ -51,14 +50,11 @@ public:
 
     Status init_reader();
 
-    Status get_next_block(Block* block, size_t* read_rows, bool* eof) override;
+    Status _do_get_next_block(Block* block, size_t* read_rows, bool* eof) override;
 
     Status close() override;
 
-    bool fill_all_columns() const override { return true; }
-
-    Status get_columns(std::unordered_map<std::string, DataTypePtr>* name_to_type,
-                       std::unordered_set<std::string>* missing_cols) override;
+    Status _get_columns_impl(std::unordered_map<std::string, DataTypePtr>* name_to_type) override;
 
 private:
     Status _scroll_and_parse();
