@@ -19,6 +19,8 @@ package org.apache.doris.connector.es;
 
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
+import org.apache.doris.thrift.TFileRangeDesc;
+import org.apache.doris.thrift.TTableFormatFileDesc;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -159,5 +161,11 @@ public class EsScanRange implements ConnectorScanRange {
         return "EsScanRange{index='" + indexName
                 + "', shard=" + shardId
                 + ", hosts=" + esHosts + "}";
+    }
+
+    @Override
+    public void populateRangeParams(TTableFormatFileDesc formatDesc,
+            TFileRangeDesc rangeDesc) {
+        formatDesc.setEsParams(new HashMap<>(getProperties()));
     }
 }

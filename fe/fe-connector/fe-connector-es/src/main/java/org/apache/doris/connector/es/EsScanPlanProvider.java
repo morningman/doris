@@ -26,8 +26,10 @@ import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
 import org.apache.doris.connector.api.scan.ScanNodePropertiesResult;
+import org.apache.doris.thrift.TFileScanRangeParams;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -375,6 +377,92 @@ public class EsScanPlanProvider implements ConnectorScanPlanProvider {
             }
         }
         return 1;
+    }
+
+    @Override
+    public void populateScanLevelParams(TFileScanRangeParams params,
+            Map<String, String> properties) {
+        // Build es_properties map from scan node properties
+        Map<String, String> esProperties = new HashMap<>();
+        copyIfPresent(properties, PROP_QUERY_DSL, esProperties);
+        copyIfPresent(properties, PROP_USER, esProperties);
+        copyIfPresent(properties, PROP_PASSWORD, esProperties);
+        copyIfPresent(properties, PROP_HTTP_SSL_ENABLED, esProperties);
+        copyIfPresent(properties, PROP_DOC_VALUES_MODE, esProperties);
+        params.setEsProperties(esProperties);
+
+        // Deserialize docvalue_context and fields_context from JSON
+        String docvalueJson = properties.get(PROP_DOCVALUE_CONTEXT_JSON);
+        if (docvalueJson != null && !docvalueJson.isEmpty()) {
+            try {
+                TypeReference<Map<String, String>> mapTypeRef =
+                        new TypeReference<Map<String, String>>() {};
+                Map<String, String> docCtx =
+                        JSON_MAPPER.readValue(docvalueJson, mapTypeRef);
+                params.setEsDocvalueContext(docCtx);
+            } catch (Exception e) {
+                LOG.warn("Failed to parse docvalue_context_json", e);
+            }
+        }
+
+        String fieldsJson = properties.get(PROP_FIELDS_CONTEXT_JSON);
+        if (fieldsJson != null && !fieldsJson.isEmpty()) {
+            try {
+                TypeReference<Map<String, String>> mapTypeRef =
+                        new TypeReference<Map<String, String>>() {};
+                Map<String, String> fieldsCtx =
+                        JSON_MAPPER.readValue(fieldsJson, mapTypeRef);
+                params.setEsFieldsContext(fieldsCtx);
+            } catch (Exception e) {
+                LOG.warn("Failed to parse fields_context_json", e);
+            }
+        }
+    }
+
+    private static void copyIfPresent(Map<String, String> src,
+            String key, Map<String, String> dst) {
+        String value = src.get(key);
+        if (value != null) {
+            dst.put(key, value);
+        }
+    }
+
+    @Override
+    public void appendExplainInfo(StringBuilder output, String prefix,
+            Map<String, String> properties) {
+        String indexName = properties.get("index");
+        if (indexName != null) {
+            output.append(prefix).append("ES index: ").append(indexName)
+                    .append("\n");
+        }
+        String docvalueJson = properties.get(PROP_DOCVALUE_CONTEXT_JSON);
+        if (docvalueJson != null && !docvalueJson.isEmpty()) {
+            try {
+                TypeReference<Map<String, String>> mapTypeRef =
+                        new TypeReference<Map<String, String>>() {};
+                Map<String, String> dvMap =
+                        JSON_MAPPER.readValue(docvalueJson, mapTypeRef);
+                output.append(prefix).append("ES doc-value fields: ")
+                        .append(dvMap.keySet()).append("\n");
+            } catch (Exception e) {
+                output.append(prefix).append("ES doc-value fields: ")
+                        .append("(parse error)").append("\n");
+            }
+        }
+        String fieldsJson = properties.get(PROP_FIELDS_CONTEXT_JSON);
+        if (fieldsJson != null && !fieldsJson.isEmpty()) {
+            try {
+                TypeReference<Map<String, String>> mapTypeRef =
+                        new TypeReference<Map<String, String>>() {};
+                Map<String, String> fMap =
+                        JSON_MAPPER.readValue(fieldsJson, mapTypeRef);
+                output.append(prefix).append("ES source fields: ")
+                        .append(fMap.keySet()).append("\n");
+            } catch (Exception e) {
+                output.append(prefix).append("ES source fields: ")
+                        .append("(parse error)").append("\n");
+            }
+        }
     }
 
     private List<String> collectAllHosts(
