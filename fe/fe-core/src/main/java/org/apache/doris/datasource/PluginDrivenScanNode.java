@@ -162,6 +162,12 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
             if (scanProvider != null) {
                 scanProvider.appendExplainInfo(output, prefix, props);
             }
+            // Show ES terminate_after optimization when limit is pushed to ES
+            if (limit > 0 && conjuncts.isEmpty()
+                    && "es_http".equals(props.get(PROP_FILE_FORMAT_TYPE))) {
+                output.append(prefix).append("ES terminate_after: ")
+                        .append(limit).append("\n");
+            }
         }
         if (useTopnFilter()) {
             String topnFilterSources = String.join(",",
@@ -412,6 +418,14 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
             scanProvider.populateScanLevelParams(params, props);
         }
         pruneConjunctsFromNodeProperties();
+
+        // Push down limit to ES via terminate_after optimization.
+        // When all predicates are pushed to ES (conjuncts empty) and limit fits in one batch,
+        // ES can use terminate_after to stop scanning early instead of scrolling all results.
+        if (limit > 0 && limit <= sessionVariable.batchSize && conjuncts.isEmpty()
+                && params.isSetEsProperties()) {
+            params.getEsProperties().put("limit", String.valueOf(limit));
+        }
     }
 
 
