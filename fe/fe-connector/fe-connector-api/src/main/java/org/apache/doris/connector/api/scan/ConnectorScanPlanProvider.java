@@ -21,6 +21,7 @@ import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.pushdown.ConnectorExpression;
+import org.apache.doris.thrift.TFileScanRangeParams;
 
 import java.util.Collections;
 import java.util.List;
@@ -146,5 +147,50 @@ public interface ConnectorScanPlanProvider {
             Optional<ConnectorExpression> filter) {
         return new ScanNodePropertiesResult(
                 getScanNodeProperties(session, handle, columns, filter));
+    }
+
+    /**
+     * Populates scan-level Thrift params that apply to all scan ranges.
+     * Called once after all ranges are distributed.
+     *
+     * <p>Connectors that need to set fields on TFileScanRangeParams
+     * (e.g., Paimon predicate, ES docvalue context) override this method.</p>
+     *
+     * @param params         the TFileScanRangeParams to populate
+     * @param nodeProperties the scan node properties from getScanNodeProperties()
+     */
+    default void populateScanLevelParams(TFileScanRangeParams params,
+            Map<String, String> nodeProperties) {
+        // Default: no scan-level params needed
+    }
+
+    /**
+     * Appends connector-specific EXPLAIN output.
+     * Called after the generic TABLE/QUERY/PREDICATES lines.
+     *
+     * <p>Each connector decides its own EXPLAIN format. For example, ES
+     * appends "ES index/type" and "REMOTE_PREDICATES" lines.</p>
+     *
+     * @param output         the StringBuilder to append to
+     * @param prefix         the indentation prefix for this explain level
+     * @param nodeProperties the scan node properties
+     */
+    default void appendExplainInfo(StringBuilder output,
+            String prefix, Map<String, String> nodeProperties) {
+        // Default: no extra EXPLAIN info
+    }
+
+    /**
+     * Returns the serialized table representation for this connector,
+     * or {@code null} if not applicable.
+     *
+     * <p>Currently used by Paimon to pass the serialized Paimon Table
+     * object to BE for JNI-based reading.</p>
+     *
+     * @param nodeProperties the scan node properties
+     * @return serialized table string, or null
+     */
+    default String getSerializedTable(Map<String, String> nodeProperties) {
+        return null;
     }
 }
