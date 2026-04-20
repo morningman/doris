@@ -47,14 +47,8 @@ import org.apache.doris.thrift.TFileAttributes;
 import org.apache.doris.thrift.TFileFormatType;
 import org.apache.doris.thrift.TFileRangeDesc;
 import org.apache.doris.thrift.TFileTextScanRangeParams;
-import org.apache.doris.thrift.TMaxComputeFileDesc;
-import org.apache.doris.thrift.TPaimonDeletionFileDesc;
-import org.apache.doris.thrift.TPaimonFileDesc;
 import org.apache.doris.thrift.TTableFormatFileDesc;
-import org.apache.doris.thrift.TTrinoConnectorFileDesc;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -91,9 +85,6 @@ import java.util.stream.Collectors;
 public class PluginDrivenScanNode extends FileQueryScanNode {
 
     private static final Logger LOG = LogManager.getLogger(PluginDrivenScanNode.class);
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-    private static final TypeReference<Map<String, String>> MAP_TYPE_REF =
-            new TypeReference<Map<String, String>>() {};
 
     private static final String TABLE_FORMAT_TYPE = "plugin_driven";
 
@@ -166,20 +157,10 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
                         .append(expr.accept(ExprToSqlVisitor.INSTANCE, ToSqlParams.WITH_TABLE))
                         .append("\n");
             }
-            // ES-specific EXPLAIN info
-            String esIndex = props.get("_es_index");
-            if (esIndex != null) {
-                String queryDsl = props.getOrDefault("query_dsl", "N/A");
-                output.append(prefix).append("REMOTE_PREDICATES: ")
-                        .append(queryDsl).append("\n");
-                output.append(prefix).append("ES index/type: ")
-                        .append(esIndex).append("/")
-                        .append(props.getOrDefault("_es_type", "_doc")).append("\n");
-                String docValueScan = props.get("doc_values_mode");
-                if (docValueScan != null) {
-                    output.append(prefix).append("DOC_VALUE_SCAN: ")
-                            .append(docValueScan).append("\n");
-                }
+            // Delegate connector-specific EXPLAIN info to the SPI
+            ConnectorScanPlanProvider scanProvider = connector.getScanPlanProvider();
+            if (scanProvider != null) {
+                scanProvider.appendExplainInfo(output, prefix, props);
             }
         }
         if (useTopnFilter()) {
@@ -401,322 +382,22 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         TTableFormatFileDesc tableFormatFileDesc = new TTableFormatFileDesc();
         tableFormatFileDesc.setTableFormatType(scanRange.getTableFormatType());
 
-        String formatType = scanRange.getTableFormatType();
-        if ("max_compute".equals(formatType)) {
-            setMaxComputeParams(tableFormatFileDesc, scanRange, rangeDesc);
-        } else if ("trino_connector".equals(formatType)) {
-            setTrinoConnectorParams(tableFormatFileDesc, scanRange);
-        } else if ("hive".equals(formatType)) {
-            setHiveParams(tableFormatFileDesc, scanRange);
-        } else if ("transactional_hive".equals(formatType)) {
-            setTransactionalHiveParams(tableFormatFileDesc, scanRange);
-        } else if ("hudi".equals(formatType)) {
-            setHudiParams(tableFormatFileDesc, scanRange, rangeDesc);
-        } else if ("paimon".equals(formatType)) {
-            setPaimonParams(tableFormatFileDesc, scanRange, rangeDesc);
-        } else if ("es".equals(formatType)) {
-            setEsParams(tableFormatFileDesc, scanRange);
-        } else {
-            setGenericParams(tableFormatFileDesc, scanRange);
-        }
+        // Delegate format-specific Thrift construction to the connector SPI
+        scanRange.populateRangeParams(tableFormatFileDesc, rangeDesc);
 
         rangeDesc.setTableFormatParams(tableFormatFileDesc);
     }
 
-    /**
-     * Sets MaxCompute-specific scan params via TMaxComputeFileDesc.
-     * BE expects typed Thrift fields, not a generic Map.
-     */
-    private void setMaxComputeParams(TTableFormatFileDesc formatDesc,
-            ConnectorScanRange scanRange, TFileRangeDesc rangeDesc) {
-        Map<String, String> props = scanRange.getProperties();
-        TMaxComputeFileDesc fileDesc = new TMaxComputeFileDesc();
-        fileDesc.setPartitionSpec("deprecated");
-        fileDesc.setTableBatchReadSession(
-                props.getOrDefault("table_batch_read_session", ""));
-        fileDesc.setSessionId(props.getOrDefault("session_id", ""));
-        fileDesc.setReadTimeout(
-                Integer.parseInt(props.getOrDefault("read_timeout", "120")));
-        fileDesc.setConnectTimeout(
-                Integer.parseInt(props.getOrDefault("connect_timeout", "10")));
-        fileDesc.setRetryTimes(
-                Integer.parseInt(props.getOrDefault("retry_times", "4")));
-        formatDesc.setMaxComputeParams(fileDesc);
-
-        rangeDesc.setPath("[ " + scanRange.getStart() + " , " + scanRange.getLength() + " ]");
-        rangeDesc.setStartOffset(scanRange.getStart());
-        rangeDesc.setSize(scanRange.getLength());
-    }
-
-    /**
-     * Sets Trino connector-specific scan params via TTrinoConnectorFileDesc.
-     * All values are pre-serialized JSON strings from the plugin module.
-     */
-    private void setTrinoConnectorParams(TTableFormatFileDesc formatDesc,
-            ConnectorScanRange scanRange) {
-        Map<String, String> props = scanRange.getProperties();
-        TTrinoConnectorFileDesc fileDesc = new TTrinoConnectorFileDesc();
-        fileDesc.setCatalogName(props.getOrDefault("catalog_name", ""));
-        fileDesc.setDbName(props.getOrDefault("db_name", ""));
-        fileDesc.setTableName(props.getOrDefault("table_name", ""));
-        fileDesc.setTrinoConnectorSplit(
-                props.getOrDefault("trino_connector_split", ""));
-        fileDesc.setTrinoConnectorTableHandle(
-                props.getOrDefault("trino_connector_table_handle", ""));
-        fileDesc.setTrinoConnectorColumnHandles(
-                props.getOrDefault("trino_connector_column_handles", ""));
-        fileDesc.setTrinoConnectorColumnMetadata(
-                props.getOrDefault("trino_connector_column_metadata", ""));
-        fileDesc.setTrinoConnectorTrascationHandle(
-                props.getOrDefault("trino_connector_trascation_handle", ""));
-
-        // Options is a map — parse from JSON or use directly
-        String optionsJson = props.getOrDefault("trino_connector_options", "{}");
-        try {
-            Map<String, String> options = OBJECT_MAPPER
-                    .readValue(optionsJson, MAP_TYPE_REF);
-            fileDesc.setTrinoConnectorOptions(options);
-        } catch (Exception e) {
-            LOG.warn("Failed to parse trino_connector_options JSON, using empty map", e);
-            fileDesc.setTrinoConnectorOptions(new HashMap<>());
-        }
-        formatDesc.setTrinoConnectorParams(fileDesc);
-    }
-
-    /**
-     * Sets generic scan params via jdbc_params map (for JDBC, plugin_driven, etc.).
-     */
-    private void setGenericParams(TTableFormatFileDesc formatDesc,
-            ConnectorScanRange scanRange) {
-        Map<String, String> props = new HashMap<>(scanRange.getProperties());
-        props.put("connector_scan_range_type", scanRange.getRangeType().name());
-        props.put("connector_file_format", scanRange.getFileFormat());
-
-        Map<String, String> partValues = scanRange.getPartitionValues();
-        if (partValues != null && !partValues.isEmpty()) {
-            for (Map.Entry<String, String> entry : partValues.entrySet()) {
-                props.put("partition." + entry.getKey(), entry.getValue());
-            }
-        }
-
-        formatDesc.setJdbcParams(props);
-    }
-
-    /**
-     * Sets Hive-specific scan params. For non-transactional Hive tables,
-     * the TTableFormatFileDesc carries "hive" as the table format type.
-     * The file path/offset/length are already set by the FileSplit pipeline.
-     */
-    private void setHiveParams(TTableFormatFileDesc formatDesc,
-            ConnectorScanRange scanRange) {
-        // For non-transactional hive, minimal params needed.
-        // The file format, partition values, and text properties are
-        // handled at the scan-node level via getFileFormatType(),
-        // getPathPartitionKeys(), and getFileAttributes().
-        // No per-split TTableFormatFileDesc fields needed beyond the type.
-    }
-
-    /**
-     * Sets transactional Hive (ACID) scan params. Populates
-     * TTransactionalHiveDesc with partition location and delete deltas.
-     */
-    private void setTransactionalHiveParams(TTableFormatFileDesc formatDesc,
-            ConnectorScanRange scanRange) {
-        Map<String, String> props = scanRange.getProperties();
-        org.apache.doris.thrift.TTransactionalHiveDesc txnDesc =
-                new org.apache.doris.thrift.TTransactionalHiveDesc();
-
-        String partLoc = props.get("acid.partition_location");
-        if (partLoc != null) {
-            txnDesc.setPartition(partLoc);
-        }
-
-        String countStr = props.get("acid.delete_delta_count");
-        if (countStr != null) {
-            int count = Integer.parseInt(countStr);
-            List<org.apache.doris.thrift.TTransactionalHiveDeleteDeltaDesc> deltas =
-                    new ArrayList<>(count);
-            for (int i = 0; i < count; i++) {
-                String deltaStr = props.get("acid.delete_delta." + i);
-                if (deltaStr != null) {
-                    org.apache.doris.thrift.TTransactionalHiveDeleteDeltaDesc delta =
-                            new org.apache.doris.thrift.TTransactionalHiveDeleteDeltaDesc();
-                    delta.setDirectoryLocation(deltaStr.contains("|")
-                            ? deltaStr.substring(0, deltaStr.indexOf('|'))
-                            : deltaStr);
-                    deltas.add(delta);
-                }
-            }
-            txnDesc.setDeleteDeltas(deltas);
-        }
-
-        formatDesc.setTransactionalHiveParams(txnDesc);
-    }
-
-    /**
-     * Sets Hudi-specific scan params via THudiFileDesc.
-     * Handles dynamic format downgrade: MOR splits with no delta logs
-     * fall back to native Parquet/ORC reader.
-     */
-    private void setHudiParams(TTableFormatFileDesc formatDesc,
-            ConnectorScanRange scanRange, TFileRangeDesc rangeDesc) {
-        Map<String, String> props = scanRange.getProperties();
-        org.apache.doris.thrift.THudiFileDesc fileDesc = new org.apache.doris.thrift.THudiFileDesc();
-
-        String fileFormat = scanRange.getFileFormat();
-        boolean isJni = "jni".equalsIgnoreCase(fileFormat);
-
-        // Dynamic format downgrade: if JNI but no delta logs, use native reader
-        if (isJni) {
-            String deltaLogs = props.get("hudi.delta_logs");
-            if (deltaLogs == null || deltaLogs.isEmpty()) {
-                String dataFilePath = props.getOrDefault("hudi.data_file_path", "");
-                if (!dataFilePath.isEmpty()) {
-                    String lower = dataFilePath.toLowerCase();
-                    if (lower.endsWith(".parquet")) {
-                        rangeDesc.setFormatType(TFileFormatType.FORMAT_PARQUET);
-                        isJni = false;
-                    } else if (lower.endsWith(".orc")) {
-                        rangeDesc.setFormatType(TFileFormatType.FORMAT_ORC);
-                        isJni = false;
-                    }
-                }
-            }
-        }
-
-        if (isJni) {
-            // JNI reader: full metadata needed for Hudi merge reader
-            fileDesc.setInstantTime(props.getOrDefault("hudi.instant_time", ""));
-            fileDesc.setSerde(props.getOrDefault("hudi.serde", ""));
-            fileDesc.setInputFormat(props.getOrDefault("hudi.input_format", ""));
-            fileDesc.setBasePath(props.getOrDefault("hudi.base_path", ""));
-            fileDesc.setDataFilePath(props.getOrDefault("hudi.data_file_path", ""));
-            fileDesc.setDataFileLength(
-                    Long.parseLong(props.getOrDefault("hudi.data_file_length", "0")));
-
-            String deltaLogs = props.get("hudi.delta_logs");
-            if (deltaLogs != null && !deltaLogs.isEmpty()) {
-                fileDesc.setDeltaLogs(Arrays.asList(deltaLogs.split(",")));
-            }
-            String colNames = props.get("hudi.column_names");
-            if (colNames != null && !colNames.isEmpty()) {
-                fileDesc.setColumnNames(Arrays.asList(colNames.split(",")));
-            }
-            String colTypes = props.get("hudi.column_types");
-            if (colTypes != null && !colTypes.isEmpty()) {
-                fileDesc.setColumnTypes(Arrays.asList(colTypes.split(",")));
-            }
-        }
-
-        formatDesc.setHudiParams(fileDesc);
-
-        // Set partition values for path-based partition extraction
-        Map<String, String> partValues = scanRange.getPartitionValues();
-        if (partValues != null && !partValues.isEmpty()) {
-            List<String> pathKeys = new ArrayList<>();
-            List<String> pathValues = new ArrayList<>();
-            for (Map.Entry<String, String> entry : partValues.entrySet()) {
-                pathKeys.add(entry.getKey());
-                pathValues.add(entry.getValue());
-            }
-            rangeDesc.setColumnsFromPathKeys(pathKeys);
-            rangeDesc.setColumnsFromPath(pathValues);
-        }
-    }
-
-    /**
-     * Sets Paimon-specific scan params via TPaimonFileDesc.
-     * Handles both JNI reader (serialized split) and native reader (file path) paths.
-     */
-    private void setPaimonParams(TTableFormatFileDesc formatDesc,
-            ConnectorScanRange scanRange, TFileRangeDesc rangeDesc) {
-        Map<String, String> props = scanRange.getProperties();
-        TPaimonFileDesc fileDesc = new TPaimonFileDesc();
-
-        String paimonSplit = props.get("paimon.split");
-        if (paimonSplit != null) {
-            // JNI reader path
-            rangeDesc.setFormatType(TFileFormatType.FORMAT_JNI);
-            fileDesc.setPaimonSplit(paimonSplit);
-            String tableLocation = props.get("paimon.table_location");
-            if (tableLocation != null) {
-                fileDesc.setPaimonTable(tableLocation);
-            }
-            String weightStr = props.get("paimon.self_split_weight");
-            if (weightStr != null) {
-                rangeDesc.setSelfSplitWeight(Long.parseLong(weightStr));
-            }
-        } else {
-            // Native reader path — format already set by file extension
-            String fileFormat = scanRange.getFileFormat();
-            if ("orc".equals(fileFormat)) {
-                rangeDesc.setFormatType(TFileFormatType.FORMAT_ORC);
-            } else if ("parquet".equals(fileFormat)) {
-                rangeDesc.setFormatType(TFileFormatType.FORMAT_PARQUET);
-            }
-            String schemaIdStr = props.get("paimon.schema_id");
-            if (schemaIdStr != null) {
-                fileDesc.setSchemaId(Long.parseLong(schemaIdStr));
-            }
-        }
-
-        fileDesc.setFileFormat(scanRange.getFileFormat());
-
-        // Deletion file
-        String deletionPath = props.get("paimon.deletion_file.path");
-        if (deletionPath != null) {
-            TPaimonDeletionFileDesc deletionFile = new TPaimonDeletionFileDesc();
-            deletionFile.setPath(deletionPath);
-            deletionFile.setOffset(Long.parseLong(
-                    props.getOrDefault("paimon.deletion_file.offset", "0")));
-            deletionFile.setLength(Long.parseLong(
-                    props.getOrDefault("paimon.deletion_file.length", "0")));
-            fileDesc.setDeletionFile(deletionFile);
-        }
-
-        // Row count for count pushdown
-        String rowCountStr = props.get("paimon.row_count");
-        if (rowCountStr != null) {
-            formatDesc.setTableLevelRowCount(Long.parseLong(rowCountStr));
-        } else {
-            formatDesc.setTableLevelRowCount(-1);
-        }
-
-        formatDesc.setPaimonParams(fileDesc);
-
-        // Partition values
-        Map<String, String> partValues = scanRange.getPartitionValues();
-        if (partValues != null && !partValues.isEmpty()) {
-            List<String> pathKeys = new ArrayList<>();
-            List<String> pathValues = new ArrayList<>();
-            List<Boolean> pathIsNull = new ArrayList<>();
-            for (Map.Entry<String, String> entry : partValues.entrySet()) {
-                pathKeys.add(entry.getKey());
-                pathValues.add(entry.getValue() != null ? entry.getValue() : "");
-                pathIsNull.add(entry.getValue() == null);
-            }
-            rangeDesc.setColumnsFromPathKeys(pathKeys);
-            rangeDesc.setColumnsFromPath(pathValues);
-            rangeDesc.setColumnsFromPathIsNull(pathIsNull);
-        }
-    }
-
-    /**
-     * Sets ES-specific per-range params in TTableFormatFileDesc.es_params.
-     * These carry shard-level routing info for each scan range.
-     */
-    private void setEsParams(TTableFormatFileDesc formatDesc,
-            ConnectorScanRange scanRange) {
-        Map<String, String> esParams = new HashMap<>(scanRange.getProperties());
-        formatDesc.setEsParams(esParams);
-    }
 
     @Override
     protected Optional<String> getSerializedTable() {
-        Map<String, String> props = getOrLoadScanNodeProperties();
-        String serializedTable = props.get("paimon.serialized_table");
-        if (serializedTable != null) {
-            return Optional.of(serializedTable);
+        ConnectorScanPlanProvider scanProvider = connector.getScanPlanProvider();
+        if (scanProvider != null) {
+            Map<String, String> props = getOrLoadScanNodeProperties();
+            String serialized = scanProvider.getSerializedTable(props);
+            if (serialized != null) {
+                return Optional.of(serialized);
+            }
         }
         return Optional.empty();
     }
@@ -724,87 +405,15 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
     @Override
     public void createScanRangeLocations() throws UserException {
         super.createScanRangeLocations();
-        setPaimonScanLevelParams();
-        setEsScanLevelParams();
+        // Delegate scan-level Thrift params to the connector SPI
+        ConnectorScanPlanProvider scanProvider = connector.getScanPlanProvider();
+        if (scanProvider != null) {
+            Map<String, String> props = getOrLoadScanNodeProperties();
+            scanProvider.populateScanLevelParams(params, props);
+        }
         pruneConjunctsFromNodeProperties();
     }
 
-    /**
-     * Sets Paimon scan-level params (predicate + options) on the TFileScanRangeParams.
-     * These apply to all splits, not per-split.
-     */
-    private void setPaimonScanLevelParams() {
-        Map<String, String> props = getOrLoadScanNodeProperties();
-        String predicate = props.get("paimon.predicate");
-        if (predicate != null) {
-            params.setPaimonPredicate(predicate);
-        }
-
-        String optionsJson = props.get("paimon.options_json");
-        if (optionsJson != null && !optionsJson.isEmpty()) {
-            try {
-                Map<String, String> options = OBJECT_MAPPER
-                        .readValue(optionsJson, MAP_TYPE_REF);
-                params.setPaimonOptions(options);
-            } catch (Exception e) {
-                LOG.warn("Failed to parse paimon.options_json, using empty map", e);
-            }
-        }
-    }
-
-    /**
-     * Sets ES scan-level params on TFileScanRangeParams.
-     * These apply to all scan ranges: query_dsl, auth, doc_values_mode,
-     * docvalue_context, and fields_context.
-     */
-    private void setEsScanLevelParams() {
-        Map<String, String> props = getOrLoadScanNodeProperties();
-        // Only apply for ES scans (identified by file_format_type=es_http)
-        String formatType = props.get("file_format_type");
-        if (!"es_http".equals(formatType)) {
-            return;
-        }
-
-        // Build es_properties map from scan node properties
-        Map<String, String> esProperties = new HashMap<>();
-        copyIfPresent(props, "query_dsl", esProperties);
-        copyIfPresent(props, "user", esProperties);
-        copyIfPresent(props, "password", esProperties);
-        copyIfPresent(props, "http_ssl_enabled", esProperties);
-        copyIfPresent(props, "doc_values_mode", esProperties);
-        params.setEsProperties(esProperties);
-
-        // Deserialize docvalue_context and fields_context from JSON
-        String docvalueJson = props.get("docvalue_context_json");
-        if (docvalueJson != null && !docvalueJson.isEmpty()) {
-            try {
-                Map<String, String> docCtx = OBJECT_MAPPER
-                        .readValue(docvalueJson, MAP_TYPE_REF);
-                params.setEsDocvalueContext(docCtx);
-            } catch (Exception e) {
-                LOG.warn("Failed to parse docvalue_context_json", e);
-            }
-        }
-
-        String fieldsJson = props.get("fields_context_json");
-        if (fieldsJson != null && !fieldsJson.isEmpty()) {
-            try {
-                Map<String, String> fieldsCtx = OBJECT_MAPPER
-                        .readValue(fieldsJson, MAP_TYPE_REF);
-                params.setEsFieldsContext(fieldsCtx);
-            } catch (Exception e) {
-                LOG.warn("Failed to parse fields_context_json", e);
-            }
-        }
-    }
-
-    private static void copyIfPresent(Map<String, String> from, String key,
-            Map<String, String> to) {
-        String value = from.get(key);
-        if (value != null) {
-            to.put(key, value);
-        }
-    }
 
     /**
      * Prunes pushed-down conjuncts using the structured result from
