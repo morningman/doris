@@ -15,15 +15,15 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#include "format/table/es_http_reader.h"
+#include "format/table/es/es_http_reader.h"
 
 #include <gen_cpp/PlanNodes_types.h>
 
 #include <sstream>
 
-#include "exec/es/es_scan_reader.h"
-#include "exec/es/es_scroll_parser.h"
-#include "exec/es/es_scroll_query.h"
+#include "format/table/es/es_scan_reader.h"
+#include "format/table/es/es_scroll_parser.h"
+#include "format/table/es/es_scroll_query.h"
 #include "runtime/descriptors.h"
 #include "runtime/runtime_state.h"
 #include "service/backend_options.h"

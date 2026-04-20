@@ -64,7 +64,7 @@
 #include "format/native/native_reader.h"
 #include "format/orc/vorc_reader.h"
 #include "format/parquet/vparquet_reader.h"
-#include "format/table/es_http_reader.h"
+#include "format/table/es/es_http_reader.h"
 #include "format/table/hive_reader.h"
 #include "format/table/hudi_jni_reader.h"
 #include "format/table/hudi_reader.h"
