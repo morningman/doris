@@ -393,16 +393,32 @@ public class S3FileSystem extends ObjFileSystem {
      * marker created by {@link #mkdirs(Location)} (a zero-byte object whose key ends in
      * {@code "/"}) is filtered out of the result.
      *
-     * <p>Glob expansion (paths containing {@code *}, {@code ?}, etc.) still flows through
-     * {@link #globListWithLimit(Location, String, long, long)} which performs its own
-     * recursive prefix scan with PathMatcher filtering.
+     * <p>Glob handling is split to mirror HDFS {@code DFSFileSystem.listFiles} semantics:
+     * <ul>
+     *   <li><b>Single-level glob</b> (wildcards confined to the last path segment, e.g.
+     *       {@code s3://b/data/2024_*.parquet}) — list immediate children of the parent
+     *       prefix via delimiter-mode {@code listObjectsNonRecursive} and filter by the
+     *       basename glob. This matches HDFS's behaviour where a last-segment glob
+     *       returns only direct children of the parent directory.</li>
+     *   <li><b>Cross-segment glob</b> (wildcards in any non-last segment, e.g.
+     *       {@code s3://b/a/*\/file.csv}) — fall back to
+     *       {@link #globListWithLimit(Location, String, long, long)} which performs a
+     *       recursive prefix scan with regex filtering. S3 cannot evaluate wildcards
+     *       per-segment cheaply, so we explicitly defer for that case.</li>
+     * </ul>
      */
     @Override
     public List<FileEntry> listFiles(Location location) throws IOException {
         // BrokerLoadPendingTask passes paths with glob characters (e.g. _*).
-        // S3 list-objects does not expand globs; reuse globListWithLimit for glob paths.
-        if (containsGlob(location.toString())) {
-            // Use 0 (FileSystem contract: 0 = unlimited) for both byte and file limits
+        // S3 list-objects does not expand globs; reuse globListWithLimit for non
+        // single-level glob paths (cross-segment globs need the recursive scan).
+        String locationStr = location.toString();
+        if (containsGlob(locationStr)) {
+            if (isSingleLevelGlob(locationStr)) {
+                return listFilesSingleLevelGlob(location);
+            }
+            // Cross-segment glob: keep the existing recursive prefix scan.
+            // 0 (FileSystem contract: 0 = unlimited) for both byte and file limits
             // so a single listFiles() call returns every match without paging.
             GlobListing listing = globListWithLimit(location, null, 0L, 0L);
             return listing.getFiles();
@@ -431,6 +447,50 @@ public class S3FileSystem extends ObjFileSystem {
         } while (continuation != null);
         return result;
     }
+
+    /**
+     * Single-level glob branch of {@link #listFiles(Location)}: lists the immediate
+     * children of the parent prefix and filters them by the last-segment glob,
+     * mirroring the HDFS {@code globStatus} → "non-directory entries" pipeline for
+     * last-segment patterns. Sub-directory markers (keys ending in {@code "/"}) are
+     * skipped so cross-prefix entries cannot leak through.
+     */
+    private List<FileEntry> listFilesSingleLevelGlob(Location location) throws IOException {
+        String uri = location.uri();
+        // containsGlob + isSingleLevelGlob guarantee a glob in the last segment,
+        // and Location URIs always have at least one '/' (from "scheme://").
+        int lastSlash = uri.lastIndexOf('/');
+        String parentPrefix = uri.substring(0, lastSlash + 1);
+        String basenameGlob = uri.substring(lastSlash + 1);
+        Pattern matcher = Pattern.compile(globToRegex(basenameGlob));
+        String parentKey = parseUri(parentPrefix).key();
+
+        S3ObjStorage s3 = (S3ObjStorage) objStorage;
+        List<FileEntry> result = new ArrayList<>();
+        String continuation = null;
+        do {
+            RemoteObjects page = s3.listObjectsNonRecursive(parentPrefix, continuation);
+            for (RemoteObject obj : page.getObjectList()) {
+                String key = obj.getKey();
+                // Skip the synthetic directory marker for the parent itself, and any
+                // other "directory" placeholder objects.
+                if (key.equals(parentKey) || key.endsWith(DIR_MARKER_SUFFIX)) {
+                    continue;
+                }
+                int keyLastSlash = key.lastIndexOf('/');
+                String basename = keyLastSlash >= 0 ? key.substring(keyLastSlash + 1) : key;
+                if (!matcher.matcher(basename).matches()) {
+                    continue;
+                }
+                result.add(new FileEntry(
+                        Location.of(reconstructUri(parentPrefix, key)),
+                        obj.getSize(), false, obj.getModificationTime(), List.of()));
+            }
+            continuation = page.isTruncated() ? page.getContinuationToken() : null;
+        } while (continuation != null);
+        return result;
+    }
+
     // TODO(audit#6): listDirectories may also be improved to surface S3 CommonPrefixes;
     // skipped here to keep the scope of this change small. See plan-doc/s3.md.
 
@@ -446,6 +506,25 @@ public class S3FileSystem extends ObjFileSystem {
      */
     private static boolean containsGlob(String path) {
         return path.indexOf('*') >= 0 || path.indexOf('?') >= 0;
+    }
+
+    /**
+     * Returns true iff {@code pathStr} contains a glob (only {@code *} and {@code ?} are
+     * recognised, matching {@link #containsGlob}) confined entirely to the last path
+     * segment — i.e. the basename has at least one wildcard and the parent prefix has
+     * none. This is the case where S3 can satisfy the {@code listFiles} contract with a
+     * single delimiter-mode listing of the parent prefix, mirroring HDFS semantics.
+     * Cross-segment globs (wildcards in any non-last segment) return false and fall back
+     * to the recursive {@link #globListWithLimit} scan.
+     */
+    static boolean isSingleLevelGlob(String pathStr) {
+        int lastSlash = pathStr.lastIndexOf('/');
+        String basename = lastSlash >= 0 ? pathStr.substring(lastSlash + 1) : pathStr;
+        if (basename.indexOf('*') < 0 && basename.indexOf('?') < 0) {
+            return false;
+        }
+        String parent = lastSlash >= 0 ? pathStr.substring(0, lastSlash) : "";
+        return parent.indexOf('*') < 0 && parent.indexOf('?') < 0;
     }
 
     @Override

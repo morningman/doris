@@ -728,14 +728,13 @@ class S3FileSystemTest {
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings = {
-            "s3://bucket/dir/*.csv",
-            "s3://bucket/dir/file?.csv"
+            "s3://bucket/*/file.csv",
+            "s3://bucket/dir?/file.csv"
     })
-    void listFiles_starAndQuestionMarkRouteThroughGlob(String uri) throws IOException {
-        // For real glob characters the call must NOT touch listObjectsNonRecursive.
-        // We do not stub the underlying S3 list call so the glob branch will
-        // raise during the real listing — catch and ignore; what matters is the
-        // routing decision.
+    void listFiles_crossSegmentGlobRoutesThroughRecursiveScan(String uri) throws IOException {
+        // Cross-segment globs (wildcards in non-last segments) cannot be answered by a
+        // single delimiter-mode listing, so they must fall back to the recursive
+        // globListWithLimit path and must NOT touch listObjectsNonRecursive.
         try {
             fs.listFiles(Location.of(uri));
         } catch (Exception ignored) {
@@ -746,27 +745,27 @@ class S3FileSystemTest {
     }
 
     // ------------------------------------------------------------------
-    // listFiles() glob branch passes 0L (unlimited) per FileSystem contract (#18)
+    // listFiles() cross-segment glob branch passes 0L (unlimited) per FileSystem contract (#18)
     // ------------------------------------------------------------------
 
     @Test
-    void listFiles_globBranchRequestsUnlimitedByteAndFileCount() throws IOException {
+    void listFiles_crossSegmentGlobBranchRequestsUnlimitedByteAndFileCount() throws IOException {
         // Spy on the FileSystem so we can intercept globListWithLimit without
         // executing the real S3 listing. Verify that listFiles forwards 0L/0L
         // (unlimited) rather than the legacy -1L/-1L sentinel.
         S3FileSystem spyFs = Mockito.spy(fs);
         Mockito.doReturn(new org.apache.doris.filesystem.GlobListing(
-                        List.of(), "bucket", "dir/", ""))
+                        List.of(), "bucket", "", ""))
                 .when(spyFs).globListWithLimit(
                         ArgumentMatchers.any(Location.class),
                         ArgumentMatchers.any(),
                         ArgumentMatchers.anyLong(),
                         ArgumentMatchers.anyLong());
 
-        spyFs.listFiles(Location.of("s3://bucket/dir/*.csv"));
+        spyFs.listFiles(Location.of("s3://bucket/*/file.csv"));
 
         Mockito.verify(spyFs).globListWithLimit(
-                ArgumentMatchers.eq(Location.of("s3://bucket/dir/*.csv")),
+                ArgumentMatchers.eq(Location.of("s3://bucket/*/file.csv")),
                 ArgumentMatchers.isNull(),
                 ArgumentMatchers.eq(0L),
                 ArgumentMatchers.eq(0L));
@@ -902,5 +901,159 @@ class S3FileSystemTest {
                 "Underlying input stream must be closed when seekable stream closes");
         Assertions.assertThrows(IOException.class, is::read,
                 "read() after close() must throw");
+    }
+
+    // ------------------------------------------------------------------
+    // listFiles() — single-level glob (HDFS-aligned semantics)
+    // ------------------------------------------------------------------
+
+    @Test
+    void listFiles_singleLevelGlobMatchesBasenameAndSkipsSubdirs() throws IOException {
+        // Parent prefix listing (delimiter mode) returns:
+        //   - the parent directory marker (skipped)
+        //   - 2 matching files: data_2024_01.csv, data_2024_02.csv
+        //   - 1 non-matching file: notes.txt
+        //   - 1 sub-directory marker: sub/ (skipped)
+        // CommonPrefixes (sub/) won't appear in Contents at all because of delimiter.
+        // A file that lives one level deeper (sub/inner.csv) must NOT be returned —
+        // delimiter-mode listing wouldn't surface it; we double-check the non-recursion.
+        Mockito.when(mockStorage.listObjectsNonRecursive(
+                ArgumentMatchers.eq("s3://bucket/dir/"), ArgumentMatchers.isNull()))
+                .thenReturn(new RemoteObjects(
+                        List.of(
+                                new RemoteObject("dir/", "", null, 0L, 0L),
+                                new RemoteObject("dir/data_2024_01.csv", "data_2024_01.csv",
+                                        null, 11L, 0L),
+                                new RemoteObject("dir/data_2024_02.csv", "data_2024_02.csv",
+                                        null, 12L, 0L),
+                                new RemoteObject("dir/notes.txt", "notes.txt", null, 5L, 0L),
+                                new RemoteObject("dir/sub/", "sub/", null, 0L, 0L)),
+                        false, null));
+
+        List<org.apache.doris.filesystem.FileEntry> files =
+                fs.listFiles(Location.of("s3://bucket/dir/data_2024_*.csv"));
+
+        Assertions.assertEquals(2, files.size());
+        java.util.Set<String> uris = new java.util.HashSet<>();
+        for (org.apache.doris.filesystem.FileEntry e : files) {
+            uris.add(e.location().uri());
+            Assertions.assertFalse(e.isDirectory());
+        }
+        Assertions.assertTrue(uris.contains("s3://bucket/dir/data_2024_01.csv"));
+        Assertions.assertTrue(uris.contains("s3://bucket/dir/data_2024_02.csv"));
+        // Recursive flat list MUST NOT have been used.
+        Mockito.verify(mockStorage, Mockito.never()).listObjects(
+                ArgumentMatchers.anyString(), ArgumentMatchers.any());
+    }
+
+    @Test
+    void listFiles_singleLevelGlobReturnsEmptyWhenNoMatches() throws IOException {
+        Mockito.when(mockStorage.listObjectsNonRecursive(
+                ArgumentMatchers.eq("s3://bucket/dir/"), ArgumentMatchers.isNull()))
+                .thenReturn(new RemoteObjects(
+                        List.of(
+                                new RemoteObject("dir/notes.txt", "notes.txt", null, 5L, 0L),
+                                new RemoteObject("dir/readme.md", "readme.md", null, 7L, 0L)),
+                        false, null));
+
+        List<org.apache.doris.filesystem.FileEntry> files =
+                fs.listFiles(Location.of("s3://bucket/dir/data_*.csv"));
+
+        Assertions.assertTrue(files.isEmpty());
+    }
+
+    @Test
+    void listFiles_singleLevelGlobIsNonRecursive() throws IOException {
+        // Even if the underlying mock returns a deeper key (which a real S3 delimiter
+        // listing would not), the basename matcher must reject "parent/2024/foo/bar.parquet"
+        // for glob "s3://b/parent/2024_*" because cross-prefix recursion is forbidden
+        // for single-level globs.
+        Mockito.when(mockStorage.listObjectsNonRecursive(
+                ArgumentMatchers.eq("s3://bucket/parent/"), ArgumentMatchers.isNull()))
+                .thenReturn(new RemoteObjects(
+                        List.of(
+                                new RemoteObject("parent/2024_jan.parquet", "2024_jan.parquet",
+                                        null, 10L, 0L),
+                                new RemoteObject("parent/2024/foo/bar.parquet",
+                                        "2024/foo/bar.parquet", null, 20L, 0L)),
+                        false, null));
+
+        List<org.apache.doris.filesystem.FileEntry> files =
+                fs.listFiles(Location.of("s3://bucket/parent/2024_*"));
+
+        Assertions.assertEquals(1, files.size());
+        Assertions.assertEquals("s3://bucket/parent/2024_jan.parquet",
+                files.get(0).location().uri());
+    }
+
+    @Test
+    void listFiles_singleLevelGlobPaginatesAcrossContinuationTokens() throws IOException {
+        Mockito.when(mockStorage.listObjectsNonRecursive(
+                ArgumentMatchers.eq("s3://bucket/dir/"), ArgumentMatchers.isNull()))
+                .thenReturn(new RemoteObjects(
+                        List.of(new RemoteObject("dir/a.csv", "a.csv", null, 1L, 0L)),
+                        true, "tok1"));
+        Mockito.when(mockStorage.listObjectsNonRecursive(
+                ArgumentMatchers.eq("s3://bucket/dir/"), ArgumentMatchers.eq("tok1")))
+                .thenReturn(new RemoteObjects(
+                        List.of(new RemoteObject("dir/b.csv", "b.csv", null, 2L, 0L)),
+                        false, null));
+
+        List<org.apache.doris.filesystem.FileEntry> files =
+                fs.listFiles(Location.of("s3://bucket/dir/*.csv"));
+
+        Assertions.assertEquals(2, files.size());
+    }
+
+    @Test
+    void listFiles_crossSegmentGlobStillRecursive() throws IOException {
+        // A cross-segment glob must NOT call listObjectsNonRecursive on the parent;
+        // the recursive globListWithLimit path runs instead. Use a spy to assert
+        // dispatch without executing the real S3 scan.
+        S3FileSystem spyFs = Mockito.spy(fs);
+        Mockito.doReturn(new org.apache.doris.filesystem.GlobListing(
+                        List.of(), "bucket", "", ""))
+                .when(spyFs).globListWithLimit(
+                        ArgumentMatchers.any(Location.class), ArgumentMatchers.any(),
+                        ArgumentMatchers.anyLong(), ArgumentMatchers.anyLong());
+
+        spyFs.listFiles(Location.of("s3://bucket/a/*/b.parquet"));
+
+        Mockito.verify(spyFs).globListWithLimit(
+                ArgumentMatchers.eq(Location.of("s3://bucket/a/*/b.parquet")),
+                ArgumentMatchers.isNull(),
+                ArgumentMatchers.eq(0L), ArgumentMatchers.eq(0L));
+        Mockito.verify(mockStorage, Mockito.never()).listObjectsNonRecursive(
+                ArgumentMatchers.anyString(), ArgumentMatchers.any());
+    }
+
+    // ------------------------------------------------------------------
+    // isSingleLevelGlob() — package-visible static
+    // ------------------------------------------------------------------
+
+    @Test
+    void isSingleLevelGlob_lastSegmentWildcardIsTrue() {
+        Assertions.assertTrue(S3FileSystem.isSingleLevelGlob("s3://bucket/dir/*.csv"));
+        Assertions.assertTrue(S3FileSystem.isSingleLevelGlob("s3://bucket/dir/file?.csv"));
+        Assertions.assertTrue(S3FileSystem.isSingleLevelGlob("s3://bucket/2024_*"));
+    }
+
+    @Test
+    void isSingleLevelGlob_noWildcardIsFalse() {
+        Assertions.assertFalse(S3FileSystem.isSingleLevelGlob("s3://bucket/dir/file.csv"));
+        Assertions.assertFalse(S3FileSystem.isSingleLevelGlob("s3://bucket/dir/has[brackets].csv"));
+        Assertions.assertFalse(S3FileSystem.isSingleLevelGlob("s3://bucket/dir/has{braces}.csv"));
+    }
+
+    @Test
+    void isSingleLevelGlob_wildcardInNonLastSegmentIsFalse() {
+        Assertions.assertFalse(S3FileSystem.isSingleLevelGlob("s3://bucket/*/file.csv"));
+        Assertions.assertFalse(S3FileSystem.isSingleLevelGlob("s3://bucket/a/*/b.parquet"));
+        Assertions.assertFalse(S3FileSystem.isSingleLevelGlob("s3://bucket/a/b?/c.parquet"));
+    }
+
+    @Test
+    void isSingleLevelGlob_wildcardInBothSegmentsIsFalse() {
+        Assertions.assertFalse(S3FileSystem.isSingleLevelGlob("s3://bucket/a*b/c*d.csv"));
     }
 }
