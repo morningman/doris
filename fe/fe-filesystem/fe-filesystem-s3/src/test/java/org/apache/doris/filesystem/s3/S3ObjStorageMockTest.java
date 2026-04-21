@@ -349,6 +349,40 @@ class S3ObjStorageMockTest {
         Assertions.assertEquals("upload-123", captor.getValue().uploadId());
     }
 
+    @Test
+    void abortMultipartUpload_throwsIOExceptionOnSdkException() {
+        // Generic SdkException (not S3Exception): simple wrap.
+        Mockito.when(mockS3.abortMultipartUpload(ArgumentMatchers.any(AbortMultipartUploadRequest.class)))
+                .thenThrow(software.amazon.awssdk.core.exception.SdkException.builder()
+                        .message("network down").build());
+
+        IOException ex = Assertions.assertThrows(IOException.class,
+                () -> storage.abortMultipartUpload("s3://my-bucket/file", "upload-xyz"));
+        Assertions.assertTrue(ex.getMessage().contains("upload-xyz"),
+                "exception must mention uploadId; got: " + ex.getMessage());
+        Assertions.assertTrue(ex.getMessage().contains("network down"),
+                "exception must surface root cause; got: " + ex.getMessage());
+    }
+
+    @Test
+    void abortMultipartUpload_throwsIOExceptionOnS3ExceptionWithStatusCode() {
+        S3Exception s3ex = (S3Exception) S3Exception.builder()
+                .statusCode(403)
+                .awsErrorDetails(software.amazon.awssdk.awscore.exception.AwsErrorDetails.builder()
+                        .errorCode("AccessDenied").errorMessage("Forbidden").build())
+                .message("Forbidden")
+                .build();
+        Mockito.when(mockS3.abortMultipartUpload(ArgumentMatchers.any(AbortMultipartUploadRequest.class)))
+                .thenThrow(s3ex);
+
+        IOException ex = Assertions.assertThrows(IOException.class,
+                () -> storage.abortMultipartUpload("s3://my-bucket/file", "upload-403"));
+        Assertions.assertTrue(ex.getMessage().contains("403"),
+                "exception must include status code; got: " + ex.getMessage());
+        Assertions.assertTrue(ex.getMessage().contains("AccessDenied"),
+                "exception must include AWS error code; got: " + ex.getMessage());
+    }
+
     // ------------------------------------------------------------------
     // getPresignedUrl() - requires bucket
     // ------------------------------------------------------------------

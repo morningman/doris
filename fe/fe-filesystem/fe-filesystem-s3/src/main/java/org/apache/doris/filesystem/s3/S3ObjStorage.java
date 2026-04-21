@@ -164,6 +164,15 @@ public class S3ObjStorage implements ObjStorage<S3Client> {
         this.bucket = normalized.get(PROP_BUCKET);
     }
 
+    /**
+     * Returns whether path-style (vs virtual-hosted-style) bucket access is enabled.
+     * Used by {@link S3FileSystem} when parsing URIs that may be path-style
+     * ({@code https://endpoint/bucket/key}) instead of virtual-hosted ({@code s3://bucket/key}).
+     */
+    public boolean isUsePathStyle() {
+        return usePathStyle;
+    }
+
     @Override
     public S3Client getClient() throws IOException {
         if (closed.get()) {
@@ -509,8 +518,15 @@ public class S3ObjStorage implements ObjStorage<S3Client> {
         try {
             getClient().abortMultipartUpload(AbortMultipartUploadRequest.builder()
                     .bucket(uri.bucket()).key(uri.key()).uploadId(uploadId).build());
+        } catch (S3Exception e) {
+            // Re-throw so callers know the abort failed; orphaned parts may still exist
+            // and require manual cleanup or a lifecycle rule.
+            throw new IOException("abortMultipartUpload failed for " + remotePath
+                    + " (uploadId=" + uploadId + "): HTTP " + e.statusCode()
+                    + " " + e.awsErrorDetails().errorCode() + ": " + e.getMessage(), e);
         } catch (SdkException e) {
-            LOG.warn("abortMultipartUpload failed for {}: {}", remotePath, e.getMessage());
+            throw new IOException("abortMultipartUpload failed for " + remotePath
+                    + " (uploadId=" + uploadId + "): " + e.getMessage(), e);
         }
     }
 

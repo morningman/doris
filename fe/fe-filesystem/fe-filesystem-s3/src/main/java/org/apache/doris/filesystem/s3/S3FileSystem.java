@@ -40,11 +40,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.FileAlreadyExistsException;
-import java.nio.file.FileSystems;
-import java.nio.file.PathMatcher;
-import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 /* S3-backed FileSystem implementation for the Doris FE filesystem SPI.
  * Does not depend on fe-core, fe-common, or fe-catalog.
@@ -67,12 +69,64 @@ public class S3FileSystem extends ObjFileSystem {
 
     @Override
     public void mkdirs(Location location) throws IOException {
-        // S3 is flat; create a zero-byte directory marker for compatibility
-        String path = location.uri().endsWith(DIR_MARKER_SUFFIX)
-                ? location.uri()
-                : location.uri() + DIR_MARKER_SUFFIX;
-        objStorage.putObject(path,
-                RequestBody.of(InputStream.nullInputStream(), 0));
+        // S3 has no real directories; emulate POSIX mkdir -p:
+        //   1) Idempotent: if the dir marker already exists, do nothing.
+        //   2) Refuse to clobber: if a real (non-marker) key already exists at the same
+        //      bare path, fail rather than silently turn the file into a 0-byte marker.
+        //   3) Write a marker for every missing ancestor prefix between the bucket root
+        //      and the leaf, so that subsequent list/exists semantics see the chain.
+        // Full atomicity is impossible on S3; HEAD-then-PUT and never-overwrite is our
+        // best-effort guarantee against concurrent deletes.
+        String uri = location.uri();
+        String marker = uri.endsWith(DIR_MARKER_SUFFIX) ? uri : uri + DIR_MARKER_SUFFIX;
+        String bareKey = uri.endsWith(DIR_MARKER_SUFFIX)
+                ? uri.substring(0, uri.length() - 1) : uri;
+
+        if (objectExists(marker)) {
+            return;
+        }
+        if (objectExists(bareKey)) {
+            throw new IOException("mkdirs: a non-directory object already exists at " + bareKey);
+        }
+
+        // Walk parent prefixes (excluding bucket root and the leaf marker itself) and
+        // PUT a 0-byte marker for any that are missing. Keys are derived from the parsed
+        // S3Uri so this is correct for both virtual-hosted and path-style URIs.
+        S3Uri parsed = parseUri(uri);
+        String base = uriBase(uri, parsed);
+        String dirKey = parsed.key().endsWith(DIR_MARKER_SUFFIX)
+                ? parsed.key() : parsed.key() + DIR_MARKER_SUFFIX;
+        List<String> ancestorKeys = new ArrayList<>();
+        int idx = dirKey.length() - 1;
+        while (true) {
+            int slash = dirKey.lastIndexOf('/', idx - 1);
+            if (slash <= 0) {
+                break;
+            }
+            ancestorKeys.add(dirKey.substring(0, slash + 1));
+            idx = slash;
+        }
+        Collections.reverse(ancestorKeys); // top-down for predictability
+        for (String ancestor : ancestorKeys) {
+            String ancestorUri = base + ancestor;
+            if (!objectExists(ancestorUri)) {
+                objStorage.putObject(ancestorUri,
+                        RequestBody.of(InputStream.nullInputStream(), 0));
+            }
+        }
+        objStorage.putObject(marker, RequestBody.of(InputStream.nullInputStream(), 0));
+    }
+
+    private boolean objectExists(String fullUri) throws IOException {
+        try {
+            objStorage.headObject(fullUri);
+            return true;
+        } catch (IOException e) {
+            if (isNotFoundError(e)) {
+                return false;
+            }
+            throw e;
+        }
     }
 
     @Override
@@ -87,7 +141,7 @@ public class S3FileSystem extends ObjFileSystem {
             // S3 has no real directories, so probe the prefix for any non-marker child.
             String prefix = location.uri().endsWith(DIR_MARKER_SUFFIX)
                     ? location.uri() : location.uri() + DIR_MARKER_SUFFIX;
-            String markerKey = stripBucketPrefix(prefix);
+            String markerKey = parseUri(prefix).key();
             RemoteObjects probe = ((S3ObjStorage) objStorage).listObjects(prefix, null, 2);
             for (RemoteObject obj : probe.getObjectList()) {
                 if (!obj.getKey().equals(markerKey)) {
@@ -105,48 +159,70 @@ public class S3FileSystem extends ObjFileSystem {
         }
     }
 
+    /**
+     * Batched implementation of {@link org.apache.doris.filesystem.FileSystem#deleteFiles}.
+     * Groups input locations by bucket, then issues a single
+     * {@link S3ObjStorage#deleteObjectsByKeys(String, java.util.List)} call per bucket
+     * (which already chunks at the S3 1000-key DeleteObjects limit). Uses the same
+     * URI parsing as the rest of this class so path-style URIs work transparently.
+     */
+    @Override
+    public void deleteFiles(Collection<Location> locations) throws IOException {
+        if (locations == null || locations.isEmpty()) {
+            return;
+        }
+        // Preserve insertion order across buckets for stable test assertions.
+        Map<String, List<String>> byBucket = new LinkedHashMap<>();
+        for (Location loc : locations) {
+            S3Uri u = parseUri(loc.uri());
+            byBucket.computeIfAbsent(u.bucket(), b -> new ArrayList<>()).add(u.key());
+        }
+        S3ObjStorage s3 = (S3ObjStorage) objStorage;
+        for (Map.Entry<String, List<String>> e : byBucket.entrySet()) {
+            s3.deleteObjectsByKeys(e.getKey(), e.getValue());
+        }
+    }
+
     private void deleteRecursive(String prefix) throws IOException {
+        // Single batched DeleteObjects per page (up to 1000 keys), instead of one
+        // DeleteObject HTTP call per key. The deleteObjectsByKeys helper itself chunks
+        // requests at the S3 1000-key limit.
+        S3Uri prefixUri = parseUri(prefix);
+        String bucket = prefixUri.bucket();
+        S3ObjStorage s3 = (S3ObjStorage) objStorage;
         String continuationToken = null;
         do {
-            RemoteObjects batch = objStorage.listObjects(prefix, continuationToken);
-            for (RemoteObject obj : batch.getObjectList()) {
-                objStorage.deleteObject(reconstructUri(prefix, obj.getKey()));
+            RemoteObjects batch = s3.listObjects(prefix, continuationToken);
+            if (!batch.getObjectList().isEmpty()) {
+                List<String> keys = new ArrayList<>(batch.getObjectList().size());
+                for (RemoteObject obj : batch.getObjectList()) {
+                    keys.add(obj.getKey());
+                }
+                s3.deleteObjectsByKeys(bucket, keys);
             }
             continuationToken = batch.isTruncated() ? batch.getContinuationToken() : null;
         } while (continuationToken != null);
     }
 
-    private static String reconstructUri(String prefix, String key) {
-        // prefix is like "s3://bucket/path/", key is the full object key
-        int schemeEnd = prefix.indexOf("://");
-        if (schemeEnd >= 0) {
-            String scheme = prefix.substring(0, schemeEnd);
-            int slashAfterScheme = prefix.indexOf('/', schemeEnd + 3);
-            if (slashAfterScheme >= 0) {
-                String bucket = prefix.substring(schemeEnd + 3, slashAfterScheme);
-                return scheme + "://" + bucket + "/" + key;
-            }
-        }
-        return prefix + key;
+    /** Parses {@code uri} respecting the underlying client's path-style configuration. */
+    private S3Uri parseUri(String uri) {
+        return S3Uri.parse(uri, ((S3ObjStorage) objStorage).isUsePathStyle());
     }
 
-    /** Returns {@code [scheme, bucket, key]} for a {@code scheme://bucket/key} URI. */
-    private static String[] parseSchemeBucketKey(String uri) {
-        int schemeEnd = uri.indexOf("://");
-        if (schemeEnd < 0) {
-            return new String[] {"", "", uri};
-        }
-        String scheme = uri.substring(0, schemeEnd);
-        String rest = uri.substring(schemeEnd + 3);
-        int slash = rest.indexOf('/');
-        if (slash < 0) {
-            return new String[] {scheme, rest, ""};
-        }
-        return new String[] {scheme, rest.substring(0, slash), rest.substring(slash + 1)};
+    /**
+     * Returns the URI prefix that, when appended with a full object key, reconstructs the
+     * fully-qualified URI: e.g. {@code "s3://bucket/"} or {@code "https://endpoint/bucket/"}.
+     * Computed by stripping the parsed key off the original URI string, so it is correct
+     * for both virtual-hosted and path-style URIs without re-deriving the host.
+     */
+    private static String uriBase(String uri, S3Uri parsed) {
+        String key = parsed.key();
+        String base = key.isEmpty() ? uri : uri.substring(0, uri.length() - key.length());
+        return base.endsWith("/") ? base : base + "/";
     }
 
-    private static String stripBucketPrefix(String uri) {
-        return parseSchemeBucketKey(uri)[2];
+    private String reconstructUri(String prefix, String fullKey) {
+        return uriBase(prefix, parseUri(prefix)) + fullKey;
     }
 
     /**
@@ -269,17 +345,18 @@ public class S3FileSystem extends ObjFileSystem {
         }
 
         // 3. Copy every key under src to the matching destination key.
-        String srcKeyPrefix = stripBucketPrefix(srcPrefix);
-        String dstKeyPrefix = stripBucketPrefix(dstPrefix);
-        String[] srcParts = parseSchemeBucketKey(srcUri);
-        String scheme = srcParts[0];
-        String bucket = srcParts[1];
+        S3Uri srcParsed = parseUri(srcPrefix);
+        S3Uri dstParsed = parseUri(dstPrefix);
+        String srcKeyPrefix = srcParsed.key();
+        String dstKeyPrefix = dstParsed.key();
+        String srcBase = uriBase(srcPrefix, srcParsed);
+        String dstBase = uriBase(dstPrefix, dstParsed);
+        String bucket = srcParsed.bucket();
         for (String key : srcKeys) {
             String relative = key.startsWith(srcKeyPrefix)
                     ? key.substring(srcKeyPrefix.length()) : key;
             String dstKey = dstKeyPrefix + relative;
-            objStorage.copyObject(scheme + "://" + bucket + "/" + key,
-                    scheme + "://" + bucket + "/" + dstKey);
+            objStorage.copyObject(srcBase + key, dstBase + dstKey);
         }
 
         // 4. Batch-delete the original keys.
@@ -326,7 +403,7 @@ public class S3FileSystem extends ObjFileSystem {
         }
         String uri = location.uri();
         String prefix = uri.endsWith(DIR_MARKER_SUFFIX) ? uri : uri + DIR_MARKER_SUFFIX;
-        String prefixKey = stripBucketPrefix(prefix);
+        String prefixKey = parseUri(prefix).key();
 
         S3ObjStorage s3 = (S3ObjStorage) objStorage;
         List<FileEntry> result = new ArrayList<>();
@@ -682,17 +759,19 @@ public class S3FileSystem extends ObjFileSystem {
     @Override
     public GlobListing globListWithLimit(Location path, String startAfter, long maxBytes,
             long maxFiles) throws IOException {
-        // Parse s3://bucket/keyPattern from the Location URI
+        // Parse the URI via the same path-style-aware helper as the rest of this class.
         String uri = path.uri();
-        int schemeEnd = uri.indexOf("://");
-        String bucketAndKey = schemeEnd >= 0 ? uri.substring(schemeEnd + 3) : uri;
-        int firstSlash = bucketAndKey.indexOf('/');
-        String bucket = firstSlash >= 0 ? bucketAndKey.substring(0, firstSlash) : bucketAndKey;
-        String keyPattern = firstSlash >= 0 ? bucketAndKey.substring(firstSlash + 1) : "";
+        S3Uri parsed = parseUri(uri);
+        String bucket = parsed.bucket();
+        String keyPattern = parsed.key();
+        String base = uriBase(uri, parsed);
 
         String expandedKeyPattern = expandNumericRanges(keyPattern);
-        java.nio.file.Path pathPattern = Paths.get(expandedKeyPattern);
-        PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pathPattern);
+        // Translate the glob to a regex and match against the raw S3 key. We do NOT
+        // route through java.nio.file.Paths because (a) on Windows the filesystem
+        // separator is '\' which would corrupt S3 keys, and (b) Paths.get rejects keys
+        // containing characters illegal in the host OS path syntax (':', '\', etc.).
+        Pattern matcher = Pattern.compile(globToRegex(expandedKeyPattern));
         String listPrefix = longestNonGlobPrefix(expandedKeyPattern);
 
         S3ObjStorage s3 = (S3ObjStorage) objStorage;
@@ -720,18 +799,18 @@ public class S3FileSystem extends ObjFileSystem {
                     if (reachLimit) {
                         // After hitting limit: find the first matching key so callers know more data exists.
                         if (nextMatchAfterLimit.isEmpty()
-                                && matcher.matches(Paths.get(obj.key()))) {
+                                && matcher.matcher(obj.key()).matches()) {
                             nextMatchAfterLimit = obj.key();
                         }
                         continue;
                     }
 
-                    if (!matcher.matches(Paths.get(obj.key()))) {
+                    if (!matcher.matcher(obj.key()).matches()) {
                         continue;
                     }
 
                     files.add(new FileEntry(
-                            Location.of("s3://" + bucket + "/" + obj.key()),
+                            Location.of(base + obj.key()),
                             obj.size(),
                             false,
                             obj.lastModified() != null ? obj.lastModified().toEpochMilli() : 0L,
@@ -764,5 +843,106 @@ public class S3FileSystem extends ObjFileSystem {
         // maxFile is the next matching key after the returned page (if found), or the last returned key.
         String maxFile = nextMatchAfterLimit.isEmpty() ? lastMatchedKey : nextMatchAfterLimit;
         return new GlobListing(files, bucket, listPrefix, maxFile);
+    }
+
+    /**
+     * Translates a Java NIO glob pattern to a regular expression that can be matched
+     * against raw S3 object keys. Mirrors the JDK's glob → regex conversion but operates
+     * on plain strings instead of {@link java.nio.file.Path}, so it tolerates keys with
+     * characters that the OS-level FileSystem refuses (e.g. {@code :}, {@code \}, spaces
+     * with arbitrary code points). Supports:
+     * <ul>
+     *   <li>{@code *} → any run of non-{@code /} characters;</li>
+     *   <li>{@code **} → any run of characters including {@code /};</li>
+     *   <li>{@code ?} → any single non-{@code /} character;</li>
+     *   <li>{@code [...]} character class (with {@code !} for negation);</li>
+     *   <li>{@code {a,b,c}} alternation;</li>
+     *   <li>{@code \X} escapes the next character literally.</li>
+     * </ul>
+     * All other regex metacharacters are escaped, and {@code /} is always literal so that
+     * a single {@code *} does not cross directory levels.
+     */
+    static String globToRegex(String glob) {
+        StringBuilder sb = new StringBuilder("^");
+        boolean inClass = false;
+        boolean inGroup = false;
+        int i = 0;
+        while (i < glob.length()) {
+            char c = glob.charAt(i);
+            if (c == '\\') {
+                if (i + 1 < glob.length()) {
+                    sb.append(Pattern.quote(String.valueOf(glob.charAt(i + 1))));
+                    i += 2;
+                } else {
+                    sb.append("\\\\");
+                    i++;
+                }
+                continue;
+            }
+            if (inClass) {
+                if (c == ']') {
+                    inClass = false;
+                    sb.append(']');
+                } else if (c == '\\' || c == '[') {
+                    sb.append('\\').append(c);
+                } else {
+                    sb.append(c);
+                }
+                i++;
+                continue;
+            }
+            switch (c) {
+                case '*':
+                    if (i + 1 < glob.length() && glob.charAt(i + 1) == '*') {
+                        sb.append(".*");
+                        i += 2;
+                    } else {
+                        sb.append("[^/]*");
+                        i++;
+                    }
+                    break;
+                case '?':
+                    sb.append("[^/]");
+                    i++;
+                    break;
+                case '[':
+                    inClass = true;
+                    sb.append('[');
+                    i++;
+                    if (i < glob.length() && glob.charAt(i) == '!') {
+                        sb.append('^');
+                        i++;
+                    }
+                    break;
+                case '{':
+                    inGroup = true;
+                    sb.append("(?:");
+                    i++;
+                    break;
+                case '}':
+                    inGroup = false;
+                    sb.append(')');
+                    i++;
+                    break;
+                case ',':
+                    if (inGroup) {
+                        sb.append('|');
+                    } else {
+                        sb.append(',');
+                    }
+                    i++;
+                    break;
+                default:
+                    if ("\\.^$|+()".indexOf(c) >= 0) {
+                        sb.append('\\').append(c);
+                    } else {
+                        sb.append(c);
+                    }
+                    i++;
+                    break;
+            }
+        }
+        sb.append('$');
+        return sb.toString();
     }
 }

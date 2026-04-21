@@ -26,7 +26,6 @@ import org.apache.doris.filesystem.spi.RequestBody;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
@@ -90,27 +89,79 @@ class S3FileSystemTest {
     // ------------------------------------------------------------------
 
     @Test
-    void mkdirs_putsZeroByteMarkerWithTrailingSlash() throws IOException {
+    void mkdirs_putsZeroByteMarkerWithTrailingSlashAndParentMarkers() throws IOException {
+        // Nothing exists: HEAD on every probed URI returns 404 → FileNotFoundException.
+        Mockito.when(mockStorage.headObject(ArgumentMatchers.anyString()))
+                .thenThrow(new FileNotFoundException("missing"));
+
         fs.mkdirs(Location.of("s3://bucket/dir/subdir"));
 
-        ArgumentCaptor<String> pathCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<RequestBody> bodyCaptor = ArgumentCaptor.forClass(RequestBody.class);
-        Mockito.verify(mockStorage).putObject(pathCaptor.capture(), bodyCaptor.capture());
-
-        Assertions.assertEquals("s3://bucket/dir/subdir/", pathCaptor.getValue(),
-                "mkdirs must append trailing slash for directory marker");
-        Assertions.assertEquals(0, bodyCaptor.getValue().contentLength(),
-                "Directory marker must be zero bytes");
+        // Both the leaf marker and the missing parent marker must be PUT (top-down).
+        org.mockito.InOrder inOrder = Mockito.inOrder(mockStorage);
+        inOrder.verify(mockStorage).putObject(ArgumentMatchers.eq("s3://bucket/dir/"),
+                ArgumentMatchers.any(RequestBody.class));
+        inOrder.verify(mockStorage).putObject(ArgumentMatchers.eq("s3://bucket/dir/subdir/"),
+                ArgumentMatchers.any(RequestBody.class));
+        Mockito.verify(mockStorage, Mockito.times(2)).putObject(
+                ArgumentMatchers.anyString(), ArgumentMatchers.any(RequestBody.class));
     }
 
     @Test
     void mkdirs_doesNotDoubleSlashIfAlreadyPresent() throws IOException {
+        Mockito.when(mockStorage.headObject(ArgumentMatchers.anyString()))
+                .thenThrow(new FileNotFoundException("missing"));
+
         fs.mkdirs(Location.of("s3://bucket/dir/"));
 
-        ArgumentCaptor<String> pathCaptor = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(mockStorage).putObject(pathCaptor.capture(), ArgumentMatchers.any(RequestBody.class));
+        // Single-level dir under bucket root has no parent ancestor to create.
+        Mockito.verify(mockStorage).putObject(ArgumentMatchers.eq("s3://bucket/dir/"),
+                ArgumentMatchers.any(RequestBody.class));
+        Mockito.verify(mockStorage, Mockito.times(1)).putObject(
+                ArgumentMatchers.anyString(), ArgumentMatchers.any(RequestBody.class));
+    }
 
-        Assertions.assertEquals("s3://bucket/dir/", pathCaptor.getValue());
+    @Test
+    void mkdirs_isIdempotentWhenMarkerAlreadyExists() throws IOException {
+        // HEAD on the marker succeeds → return without PUT.
+        Mockito.when(mockStorage.headObject("s3://bucket/dir/sub/"))
+                .thenReturn(new RemoteObject("dir/sub/", "", null, 0L, 0L));
+
+        fs.mkdirs(Location.of("s3://bucket/dir/sub"));
+
+        Mockito.verify(mockStorage, Mockito.never()).putObject(
+                ArgumentMatchers.anyString(), ArgumentMatchers.any(RequestBody.class));
+    }
+
+    @Test
+    void mkdirs_skipsParentMarkerWhenAlreadyPresent() throws IOException {
+        // Default: missing. Specific URI: present. Use doThrow/doReturn to allow override.
+        Mockito.doThrow(new FileNotFoundException("missing"))
+                .when(mockStorage).headObject(ArgumentMatchers.anyString());
+        Mockito.doReturn(new RemoteObject("dir/", "", null, 0L, 0L))
+                .when(mockStorage).headObject("s3://bucket/dir/");
+
+        fs.mkdirs(Location.of("s3://bucket/dir/sub"));
+
+        Mockito.verify(mockStorage).putObject(ArgumentMatchers.eq("s3://bucket/dir/sub/"),
+                ArgumentMatchers.any(RequestBody.class));
+        Mockito.verify(mockStorage, Mockito.never()).putObject(ArgumentMatchers.eq("s3://bucket/dir/"),
+                ArgumentMatchers.any(RequestBody.class));
+    }
+
+    @Test
+    void mkdirs_rejectsWhenRealFileExistsAtSamePath() throws IOException {
+        Mockito.doThrow(new FileNotFoundException("missing"))
+                .when(mockStorage).headObject(ArgumentMatchers.anyString());
+        // A real (non-marker) file already lives at the bare path.
+        Mockito.doReturn(new RemoteObject("dir/file", "file", null, 42L, 0L))
+                .when(mockStorage).headObject("s3://bucket/dir/file");
+
+        IOException ex = Assertions.assertThrows(IOException.class,
+                () -> fs.mkdirs(Location.of("s3://bucket/dir/file")));
+        Assertions.assertTrue(ex.getMessage().contains("non-directory"),
+                "expected refusal message, got: " + ex.getMessage());
+        Mockito.verify(mockStorage, Mockito.never()).putObject(
+                ArgumentMatchers.anyString(), ArgumentMatchers.any(RequestBody.class));
     }
 
     // ------------------------------------------------------------------
@@ -175,7 +226,7 @@ class S3FileSystemTest {
     }
 
     @Test
-    void delete_recursiveDeletesAllObjectsUnderPrefix() throws IOException {
+    void delete_recursiveBatchDeletesAllObjectsUnderPrefix() throws IOException {
         RemoteObjects page = new RemoteObjects(
                 List.of(
                         new RemoteObject("dir/a.txt", "a.txt", null, 10L, 0L),
@@ -185,9 +236,13 @@ class S3FileSystemTest {
 
         fs.delete(Location.of("s3://bucket/dir"), true);
 
-        // reconstructUri uses scheme://bucket/ + key, where key is the full object key
-        Mockito.verify(mockStorage).deleteObject("s3://bucket/dir/a.txt");
-        Mockito.verify(mockStorage).deleteObject("s3://bucket/dir/b.txt");
+        // Single batched DeleteObjects (one HTTP call per page) instead of N DeleteObject calls.
+        Mockito.verify(mockStorage).deleteObjectsByKeys(
+                ArgumentMatchers.eq("bucket"),
+                ArgumentMatchers.eq(List.of("dir/a.txt", "dir/b.txt")));
+        Mockito.verify(mockStorage, Mockito.never()).deleteObject(ArgumentMatchers.eq("s3://bucket/dir/a.txt"));
+        Mockito.verify(mockStorage, Mockito.never()).deleteObject(ArgumentMatchers.eq("s3://bucket/dir/b.txt"));
+        // The exact-key delete still runs (no-op when missing).
         Mockito.verify(mockStorage).deleteObject("s3://bucket/dir");
     }
 
@@ -528,5 +583,119 @@ class S3FileSystemTest {
     void close_delegatesToObjStorage() throws IOException {
         fs.close();
         Mockito.verify(mockStorage).close();
+    }
+
+    // ------------------------------------------------------------------
+    // deleteFiles() override (#12)
+    // ------------------------------------------------------------------
+
+    @Test
+    void deleteFiles_groupsByBucketAndCallsBatchDeleteOncePerBucket() throws IOException {
+        fs.deleteFiles(List.of(
+                Location.of("s3://b1/a.txt"),
+                Location.of("s3://b1/b.txt"),
+                Location.of("s3://b2/c.txt")));
+
+        Mockito.verify(mockStorage).deleteObjectsByKeys(
+                ArgumentMatchers.eq("b1"),
+                ArgumentMatchers.eq(List.of("a.txt", "b.txt")));
+        Mockito.verify(mockStorage).deleteObjectsByKeys(
+                ArgumentMatchers.eq("b2"),
+                ArgumentMatchers.eq(List.of("c.txt")));
+        // No per-key DeleteObject calls.
+        Mockito.verify(mockStorage, Mockito.never()).deleteObject(ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void deleteFiles_emptyInputIsNoOp() throws IOException {
+        fs.deleteFiles(List.of());
+        Mockito.verify(mockStorage, Mockito.never()).deleteObjectsByKeys(
+                ArgumentMatchers.anyString(), ArgumentMatchers.anyList());
+    }
+
+    // ------------------------------------------------------------------
+    // globToRegex() — glob → regex conversion (#15)
+    // ------------------------------------------------------------------
+
+    @Test
+    void globToRegex_starDoesNotCrossSlash() {
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                S3FileSystem.globToRegex("*.csv"));
+        Assertions.assertTrue(p.matcher("foo.csv").matches());
+        Assertions.assertFalse(p.matcher("dir/foo.csv").matches(),
+                "single * must not cross /");
+    }
+
+    @Test
+    void globToRegex_singleStarBoundedToOneLevel() {
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                S3FileSystem.globToRegex("dir/*.csv"));
+        Assertions.assertTrue(p.matcher("dir/a.csv").matches());
+        Assertions.assertFalse(p.matcher("dir/sub/x.csv").matches());
+    }
+
+    @Test
+    void globToRegex_doubleStarCrossesSlash() {
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                S3FileSystem.globToRegex("**/*.csv"));
+        Assertions.assertTrue(p.matcher("dir/a.csv").matches());
+        Assertions.assertTrue(p.matcher("dir/sub/a.csv").matches());
+        Assertions.assertTrue(p.matcher("a/b/c/d.csv").matches());
+        // Sanity: a non-csv name is rejected.
+        Assertions.assertFalse(p.matcher("dir/a.txt").matches());
+    }
+
+    @Test
+    void globToRegex_characterClass() {
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                S3FileSystem.globToRegex("file[abc].csv"));
+        Assertions.assertTrue(p.matcher("filea.csv").matches());
+        Assertions.assertTrue(p.matcher("filec.csv").matches());
+        Assertions.assertFalse(p.matcher("filed.csv").matches());
+    }
+
+    @Test
+    void globToRegex_braceAlternation() {
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                S3FileSystem.globToRegex("file_{x,y}.csv"));
+        Assertions.assertTrue(p.matcher("file_x.csv").matches());
+        Assertions.assertTrue(p.matcher("file_y.csv").matches());
+        Assertions.assertFalse(p.matcher("file_z.csv").matches());
+    }
+
+    @Test
+    void globToRegex_keysWithSpaceAreLiteral() {
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                S3FileSystem.globToRegex("file with space.csv"));
+        Assertions.assertTrue(p.matcher("file with space.csv").matches());
+    }
+
+    @Test
+    void globToRegex_keysWithColonAndBackslash() {
+        // Glob "foo:bar/*" must accept S3 keys that contain ':' (illegal in Windows paths).
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                S3FileSystem.globToRegex("foo:bar/*"));
+        Assertions.assertTrue(p.matcher("foo:bar/qux").matches());
+        // Backslash in the key is not special; literal match still works.
+        java.util.regex.Pattern p2 = java.util.regex.Pattern.compile(
+                S3FileSystem.globToRegex("data/*.csv"));
+        Assertions.assertTrue(p2.matcher("data/has\\backslash.csv").matches());
+    }
+
+    @Test
+    void globToRegex_questionMarkMatchesSingleChar() {
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                S3FileSystem.globToRegex("file?.csv"));
+        Assertions.assertTrue(p.matcher("fileA.csv").matches());
+        Assertions.assertFalse(p.matcher("file.csv").matches());
+        Assertions.assertFalse(p.matcher("fileAB.csv").matches());
+    }
+
+    @Test
+    void globToRegex_escapedSpecialChars() {
+        java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                S3FileSystem.globToRegex("file\\*.csv"));
+        Assertions.assertTrue(p.matcher("file*.csv").matches());
+        Assertions.assertFalse(p.matcher("filea.csv").matches());
     }
 }
