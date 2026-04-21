@@ -124,7 +124,7 @@ class AzureFileSystemTest {
         Mockito.when(mockStorage.listObjects(
                 ArgumentMatchers.eq("wasbs://c@a.host/foo/"),
                 ArgumentMatchers.any())).thenReturn(empty);
-        Mockito.doThrow(new IOException("Azure 404 not found"))
+        Mockito.doThrow(new FileNotFoundException("404 not found"))
                 .when(mockStorage).deleteObject("wasbs://c@a.host/foo");
 
         Assertions.assertDoesNotThrow(
@@ -492,5 +492,184 @@ class AzureFileSystemTest {
                 ArgumentMatchers.any())).thenReturn(empty);
 
         Assertions.assertFalse(fs.exists(Location.of("wasbs://c@a.host/nope")));
+    }
+
+    // ---------------------------------------------------------------------
+    // F11 — AzureFileIterator skips directory marker entries
+    // ---------------------------------------------------------------------
+
+    @Test
+    void list_skipsDirectoryMarkerEntries() throws IOException {
+        // Page mixes a marker (key ending in '/') with two real files.
+        RemoteObjects page = new RemoteObjects(
+                List.of(
+                        new RemoteObject("dir/", "", null, 0L, 0L),
+                        new RemoteObject("dir/a.csv", "a.csv", null, 1L, 0L),
+                        new RemoteObject("dir/b.csv", "b.csv", null, 2L, 0L)),
+                false, null);
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("wasbs://c@a.host/dir/"),
+                ArgumentMatchers.any())).thenReturn(page);
+
+        List<FileEntry> entries = new java.util.ArrayList<>();
+        try (org.apache.doris.filesystem.FileIterator it =
+                fs.list(Location.of("wasbs://c@a.host/dir"))) {
+            while (it.hasNext()) {
+                entries.add(it.next());
+            }
+        }
+
+        Assertions.assertEquals(2, entries.size(),
+                "marker entry must be skipped by AzureFileIterator");
+        Assertions.assertEquals("wasbs://c@a.host/dir/a.csv", entries.get(0).location().uri());
+        Assertions.assertEquals("wasbs://c@a.host/dir/b.csv", entries.get(1).location().uri());
+    }
+
+    // ---------------------------------------------------------------------
+    // F16 — AzureFileIterator.next() throws NoSuchElementException when exhausted
+    // ---------------------------------------------------------------------
+
+    @Test
+    void next_throwsNoSuchElementWhenExhausted() throws IOException {
+        RemoteObjects page = new RemoteObjects(
+                List.of(new RemoteObject("dir/only.csv", "only.csv", null, 1L, 0L)),
+                false, null);
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("wasbs://c@a.host/dir/"),
+                ArgumentMatchers.any())).thenReturn(page);
+
+        try (org.apache.doris.filesystem.FileIterator it =
+                fs.list(Location.of("wasbs://c@a.host/dir"))) {
+            Assertions.assertTrue(it.hasNext());
+            it.next();
+            Assertions.assertFalse(it.hasNext());
+            Assertions.assertThrows(java.util.NoSuchElementException.class, it::next);
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // F13 — Reads after close always throw, even at end-of-file
+    // ---------------------------------------------------------------------
+
+    @Test
+    void read_afterClose_throwsEvenAtEndOfFile() throws IOException {
+        // length=0 ⇒ position(0) >= fileLength(0): the stream is at EOF on creation.
+        // After close(), read() must throw — the EOF early-return must not bypass checkOpen().
+        Mockito.when(mockStorage.headObject("wasbs://c@a.host/empty.bin"))
+                .thenReturn(new RemoteObject("empty.bin", "", null, 0L, 0L));
+
+        org.apache.doris.filesystem.DorisInputStream stream =
+                fs.newInputFile(Location.of("wasbs://c@a.host/empty.bin")).newStream();
+        stream.close();
+
+        Assertions.assertThrows(IOException.class, stream::read);
+        Assertions.assertThrows(IOException.class, () -> stream.read(new byte[1], 0, 1));
+    }
+
+    // ---------------------------------------------------------------------
+    // F12 — Streaming output: small writes use single put, large use multipart
+    // ---------------------------------------------------------------------
+
+    @Test
+    void outputStream_smallPayload_usesSinglePut() throws IOException {
+        Mockito.when(mockStorage.headObject(ArgumentMatchers.anyString()))
+                .thenThrow(new FileNotFoundException("404"));
+
+        DorisOutputFile out = fs.newOutputFile(Location.of("wasbs://c@a.host/small.bin"));
+        try (OutputStream s = out.createOrOverwrite()) {
+            s.write(new byte[1024]);  // well under PART_SIZE
+        }
+
+        Mockito.verify(mockStorage).putObject(
+                ArgumentMatchers.eq("wasbs://c@a.host/small.bin"),
+                ArgumentMatchers.any(RequestBody.class));
+        Mockito.verify(mockStorage, Mockito.never()).uploadPart(
+                ArgumentMatchers.anyString(), ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyInt(), ArgumentMatchers.any());
+        Mockito.verify(mockStorage, Mockito.never()).completeMultipartUpload(
+                ArgumentMatchers.anyString(), ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void outputStream_largePayload_usesMultipart() throws IOException {
+        Mockito.when(mockStorage.headObject(ArgumentMatchers.anyString()))
+                .thenThrow(new FileNotFoundException("404"));
+        Mockito.when(mockStorage.uploadPart(
+                        ArgumentMatchers.anyString(), ArgumentMatchers.anyString(),
+                        ArgumentMatchers.anyInt(), ArgumentMatchers.any()))
+                .thenAnswer(inv -> new org.apache.doris.filesystem.spi.UploadPartResult(
+                        inv.getArgument(2), "etag-" + inv.<Integer>getArgument(2)));
+
+        // PART_SIZE is 8 MiB; write 8 MiB + 1 byte ⇒ one full part flushed mid-write,
+        // one tail part flushed on close.
+        int payloadSize = 8 * 1024 * 1024 + 1;
+        byte[] data = new byte[payloadSize];
+
+        DorisOutputFile out = fs.newOutputFile(Location.of("wasbs://c@a.host/big.bin"));
+        try (OutputStream s = out.createOrOverwrite()) {
+            s.write(data);
+        }
+
+        Mockito.verify(mockStorage, Mockito.times(2)).uploadPart(
+                ArgumentMatchers.eq("wasbs://c@a.host/big.bin"),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyInt(),
+                ArgumentMatchers.any());
+        Mockito.verify(mockStorage, Mockito.times(1)).completeMultipartUpload(
+                ArgumentMatchers.eq("wasbs://c@a.host/big.bin"),
+                ArgumentMatchers.anyString(),
+                ArgumentMatchers.anyList());
+        Mockito.verify(mockStorage, Mockito.never()).putObject(
+                ArgumentMatchers.anyString(), ArgumentMatchers.any(RequestBody.class));
+    }
+
+    @Test
+    void outputStream_uploadFailure_callsAbort() throws IOException {
+        Mockito.when(mockStorage.headObject(ArgumentMatchers.anyString()))
+                .thenThrow(new FileNotFoundException("404"));
+        // First uploadPart succeeds, second throws.
+        Mockito.when(mockStorage.uploadPart(
+                        ArgumentMatchers.anyString(), ArgumentMatchers.anyString(),
+                        ArgumentMatchers.anyInt(), ArgumentMatchers.any()))
+                .thenReturn(new org.apache.doris.filesystem.spi.UploadPartResult(1, "etag-1"))
+                .thenThrow(new IOException("network blip on part 2"));
+
+        // 2 full parts ⇒ second flush triggers the failure.
+        int payloadSize = 16 * 1024 * 1024;
+        byte[] data = new byte[payloadSize];
+
+        DorisOutputFile out = fs.newOutputFile(Location.of("wasbs://c@a.host/blip.bin"));
+        OutputStream s = out.createOrOverwrite();
+        s.write(data, 0, 8 * 1024 * 1024);  // fills buffer; no flush yet
+        // Next write triggers flushPart() of the full first buffer (succeeds), then refills
+        // the buffer; close() must then flush the tail part — which is mocked to throw.
+        // Trigger the second uploadPart by writing one more full part-sized chunk + closing.
+        IOException ex = Assertions.assertThrows(IOException.class, () -> {
+            s.write(data, 0, 8 * 1024 * 1024);  // triggers first uploadPart (success)
+            s.write(new byte[]{1});             // requires another flushPart → success path no longer hit?
+            s.close();
+        });
+
+        // The second uploadPart call (either inline-flush during write or tail-flush at close)
+        // throws; abort must have been invoked at least once.
+        Mockito.verify(mockStorage, Mockito.atLeastOnce()).abortMultipartUpload(
+                ArgumentMatchers.eq("wasbs://c@a.host/blip.bin"),
+                ArgumentMatchers.anyString());
+        Assertions.assertNotNull(ex);
+    }
+
+    // ---------------------------------------------------------------------
+    // F14 — isNotFoundError relies on FileNotFoundException, not message text
+    // ---------------------------------------------------------------------
+
+    @Test
+    void isNotFoundError_returnsTrueForFileNotFoundException() {
+        Assertions.assertTrue(fs.isNotFoundError(new FileNotFoundException("anything")));
+    }
+
+    @Test
+    void isNotFoundError_returnsFalseForGenericIOExceptionWith404Message() {
+        Assertions.assertFalse(fs.isNotFoundError(new IOException("server returned 404")));
     }
 }

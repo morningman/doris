@@ -277,6 +277,39 @@ class AzureObjStorageExtensionTest {
                 "Error message should mention the failed key");
     }
 
+    // ------------------------------------------------------------------
+    // listObjects empty-iterator tests (F15)
+    // ------------------------------------------------------------------
+
+    @Test
+    void listObjects_emptyPagedResponseIterator_returnsEmptyResultsAndDoesNotThrow() throws Exception {
+        // PagedIterable whose iterableByPage().iterator() reports no elements.
+        @SuppressWarnings("unchecked")
+        com.azure.core.http.rest.PagedIterable<com.azure.storage.blob.models.BlobItem> emptyPaged =
+                Mockito.mock(com.azure.core.http.rest.PagedIterable.class);
+        Iterable<com.azure.core.http.rest.PagedResponse<com.azure.storage.blob.models.BlobItem>>
+                emptyIterable = Collections::emptyIterator;
+        Mockito.when(emptyPaged.iterableByPage()).thenReturn(emptyIterable);
+
+        BlobContainerClient mockContainerClient = Mockito.mock(BlobContainerClient.class);
+        Mockito.when(mockContainerClient.listBlobs(
+                Mockito.any(com.azure.storage.blob.models.ListBlobsOptions.class),
+                Mockito.any(), Mockito.any())).thenReturn(emptyPaged);
+
+        BlobServiceClient mockServiceClient = Mockito.mock(BlobServiceClient.class);
+        Mockito.when(mockServiceClient.getBlobContainerClient("mycontainer"))
+                .thenReturn(mockContainerClient);
+
+        Map<String, String> props = buildBasicProps();
+        TestableAzureObjStorage storage = new TestableAzureObjStorage(props, mockServiceClient);
+
+        // Must not throw NoSuchElementException; must return an empty result.
+        RemoteObjects result = storage.listObjects(
+                "wasb://mycontainer@myaccount.blob.core.windows.net/empty/", null);
+        Assertions.assertFalse(result.isTruncated());
+        Assertions.assertEquals(0, result.getObjectList().size());
+    }
+
     @Test
     void deleteObjectsByKeys_notFoundIgnored() throws Exception {
         BlobClient mockBlobClient = Mockito.mock(BlobClient.class);

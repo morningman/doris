@@ -28,17 +28,20 @@ import org.apache.doris.filesystem.spi.ObjFileSystem;
 import org.apache.doris.filesystem.spi.RemoteObject;
 import org.apache.doris.filesystem.spi.RemoteObjects;
 import org.apache.doris.filesystem.spi.RequestBody;
+import org.apache.doris.filesystem.spi.UploadPartResult;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -57,10 +60,18 @@ public class AzureFileSystem extends ObjFileSystem {
         super("AZURE", objStorage);
     }
 
+    /**
+     * Recognises 404-style errors strictly via the typed {@link java.io.FileNotFoundException}.
+     *
+     * <p>{@link AzureObjStorage} translates every Azure 404 it surfaces (head/open/list)
+     * into {@code FileNotFoundException}; non-404 BlobStorageExceptions are wrapped as
+     * generic {@link IOException}. Matching only on the typed exception avoids false
+     * positives where an unrelated error happens to embed the substring {@code "404"}
+     * in its message.
+     */
     @Override
     protected boolean isNotFoundError(IOException e) {
-        return e instanceof java.io.FileNotFoundException
-                || (e.getMessage() != null && e.getMessage().contains("404"));
+        return e instanceof java.io.FileNotFoundException;
     }
 
     @Override
@@ -577,11 +588,23 @@ public class AzureFileSystem extends ObjFileSystem {
             return bufferIdx < buffer.size();
         }
 
+        /**
+         * Fetches the next listing page and refills {@link #buffer}.
+         *
+         * <p>Directory marker blobs (keys ending in {@code /}) are intentionally skipped:
+         * the {@code FileSystem.list} contract is "iterate file entries", and surfacing
+         * placeholder markers would force every caller to filter them. This matches the
+         * skip-markers behaviour of {@link AzureFileSystem#listFilesSingleLevelGlob} and
+         * {@link AzureFileSystem#globListWithLimit}.
+         */
         private void fetchNextPage() throws IOException {
             RemoteObjects page = objStorage.listObjects(prefix, continuationToken);
             buffer = new ArrayList<>();
             bufferIdx = 0;
             for (RemoteObject obj : page.getObjectList()) {
+                if (obj.getKey().endsWith(DIR_MARKER_SUFFIX)) {
+                    continue;
+                }
                 Location loc = Location.of(rebuildUri(prefix, obj.getKey()));
                 buffer.add(new FileEntry(loc, obj.getSize(), false, obj.getModificationTime(), List.of()));
             }
@@ -594,6 +617,9 @@ public class AzureFileSystem extends ObjFileSystem {
 
         @Override
         public FileEntry next() throws IOException {
+            if (!hasNext()) {
+                throw new NoSuchElementException("AzureFileIterator exhausted");
+            }
             return buffer.get(bufferIdx++);
         }
 
@@ -777,12 +803,28 @@ public class AzureFileSystem extends ObjFileSystem {
         }
     }
 
-    /** OutputStream that buffers writes in memory and uploads to Azure Blob on close. */
+    /**
+     * Streaming OutputStream backed by Azure block-blob staged blocks.
+     *
+     * <p>Buffers up to {@link #PART_SIZE} bytes; when full, flushes the part via
+     * {@link AzureObjStorage#uploadPart}. Small payloads (≤ {@code PART_SIZE}) are
+     * uploaded as a single {@code putObject} on close to avoid the per-commit cost
+     * of an empty multipart commit. {@link #flush()} is intentionally a no-op:
+     * staging a block per call would multiply round-trips with no durability gain
+     * (uncommitted blocks are not visible until {@link #close()}).
+     */
     private static class AzureOutputStream extends OutputStream {
+        static final int PART_SIZE = 8 * 1024 * 1024;
+
         private final String remotePath;
         private final AzureObjStorage storage;
-        private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        private boolean closed = false;
+        private final byte[] buffer = new byte[PART_SIZE];
+        private final List<UploadPartResult> parts = new ArrayList<>();
+        private int bufferPos;
+        private long totalBytes;
+        private int nextPartNumber = 1;
+        private String uploadId;
+        private boolean closed;
 
         AzureOutputStream(String remotePath, AzureObjStorage storage) {
             this.remotePath = remotePath;
@@ -792,13 +834,34 @@ public class AzureFileSystem extends ObjFileSystem {
         @Override
         public void write(int b) throws IOException {
             checkNotClosed();
-            buffer.write(b);
+            if (bufferPos >= PART_SIZE) {
+                flushPart();
+            }
+            buffer[bufferPos++] = (byte) b;
+            totalBytes++;
         }
 
         @Override
         public void write(byte[] b, int off, int len) throws IOException {
             checkNotClosed();
-            buffer.write(b, off, len);
+            int srcOff = off;
+            int remaining = len;
+            while (remaining > 0) {
+                if (bufferPos >= PART_SIZE) {
+                    flushPart();
+                }
+                int chunk = Math.min(remaining, PART_SIZE - bufferPos);
+                System.arraycopy(b, srcOff, buffer, bufferPos, chunk);
+                bufferPos += chunk;
+                srcOff += chunk;
+                remaining -= chunk;
+                totalBytes += chunk;
+            }
+        }
+
+        @Override
+        public void flush() {
+            // Intentional no-op; see class Javadoc.
         }
 
         @Override
@@ -807,8 +870,57 @@ public class AzureFileSystem extends ObjFileSystem {
                 return;
             }
             closed = true;
-            byte[] data = buffer.toByteArray();
-            storage.putObject(remotePath, RequestBody.of(new ByteArrayInputStream(data), data.length));
+            if (uploadId == null) {
+                // Total payload fits in one part (or is empty): single put avoids the
+                // commit round-trip required by Azure's staged-block API.
+                byte[] data = bufferPos == 0
+                        ? new byte[0]
+                        : Arrays.copyOfRange(buffer, 0, bufferPos);
+                storage.putObject(remotePath,
+                        RequestBody.of(new ByteArrayInputStream(data), data.length));
+                return;
+            }
+            try {
+                if (bufferPos > 0) {
+                    UploadPartResult tail = storage.uploadPart(remotePath, uploadId,
+                            nextPartNumber++,
+                            RequestBody.of(new ByteArrayInputStream(buffer, 0, bufferPos), bufferPos));
+                    parts.add(tail);
+                    bufferPos = 0;
+                }
+                storage.completeMultipartUpload(remotePath, uploadId, parts);
+            } catch (IOException e) {
+                tryAbort(e);
+                throw e;
+            }
+        }
+
+        private void flushPart() throws IOException {
+            if (uploadId == null) {
+                uploadId = UUID.randomUUID().toString();
+            }
+            try {
+                UploadPartResult result = storage.uploadPart(remotePath, uploadId,
+                        nextPartNumber++,
+                        RequestBody.of(new ByteArrayInputStream(buffer, 0, bufferPos), bufferPos));
+                parts.add(result);
+                bufferPos = 0;
+            } catch (IOException e) {
+                tryAbort(e);
+                throw e;
+            }
+        }
+
+        // Best-effort abort; only meaningful once at least one part is staged.
+        private void tryAbort(IOException primary) {
+            if (uploadId == null || parts.isEmpty()) {
+                return;
+            }
+            try {
+                storage.abortMultipartUpload(remotePath, uploadId);
+            } catch (IOException ae) {
+                primary.addSuppressed(ae);
+            }
         }
 
         private void checkNotClosed() throws IOException {

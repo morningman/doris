@@ -53,8 +53,10 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 /**
  * Azure Blob Storage implementation of {@link ObjStorage}.
@@ -187,7 +189,15 @@ public class AzureObjStorage implements ObjStorage<BlobServiceClient> {
             ListBlobsOptions options = new ListBlobsOptions().setPrefix(uri.key());
             BlobContainerClient containerClient = getClient().getBlobContainerClient(uri.container());
             PagedIterable<BlobItem> pagedBlobs = containerClient.listBlobs(options, continuationToken, null);
-            PagedResponse<BlobItem> page = pagedBlobs.iterableByPage().iterator().next();
+            // The Azure SDK returns an empty PagedIterable (rather than throwing) when no
+            // blobs match the prefix. Calling .next() on its page iterator without a hasNext()
+            // guard would surface a NoSuchElementException to callers; treat empty pages as
+            // an empty result instead.
+            Iterator<PagedResponse<BlobItem>> pageIter = pagedBlobs.iterableByPage().iterator();
+            if (!pageIter.hasNext()) {
+                return new RemoteObjects(Collections.emptyList(), false, null);
+            }
+            PagedResponse<BlobItem> page = pageIter.next();
 
             List<RemoteObject> objects = new ArrayList<>();
             for (BlobItem item : page.getElements()) {
@@ -202,6 +212,9 @@ public class AzureObjStorage implements ObjStorage<BlobServiceClient> {
             }
             String nextToken = page.getContinuationToken();
             return new RemoteObjects(objects, nextToken != null && !nextToken.isEmpty(), nextToken);
+        } catch (NoSuchElementException e) {
+            throw new IOException("Failed to list Azure objects at " + remotePath
+                    + ": empty paged response", e);
         } catch (BlobStorageException e) {
             throw new IOException("Failed to list Azure objects at " + remotePath + ": " + e.getMessage(), e);
         }
