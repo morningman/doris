@@ -468,4 +468,82 @@ class S3ObjStorageMockTest {
             return Mockito.mock(StsClient.class);
         }
     }
+
+    // ------------------------------------------------------------------
+    // deleteObjectsByKeys() partial-failure exception message (#19)
+    // ------------------------------------------------------------------
+
+    @Test
+    void deleteObjectsByKeys_partialFailure_messageCarriesCountAndSampleKeys() {
+        // 12 simulated per-key errors so we exceed the 10-key sample cap and
+        // can verify both the truncation suffix and the per-key list.
+        java.util.List<software.amazon.awssdk.services.s3.model.S3Error> errors = new java.util.ArrayList<>();
+        java.util.List<String> keys = new java.util.ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            String k = "dir/file" + i + ".csv";
+            keys.add(k);
+            errors.add(software.amazon.awssdk.services.s3.model.S3Error.builder()
+                    .key(k).code("AccessDenied").message("denied").build());
+        }
+        Mockito.when(mockS3.deleteObjects(ArgumentMatchers.any(
+                        software.amazon.awssdk.services.s3.model.DeleteObjectsRequest.class)))
+                .thenReturn(software.amazon.awssdk.services.s3.model.DeleteObjectsResponse.builder()
+                        .errors(errors).build());
+
+        IOException ex = Assertions.assertThrows(IOException.class,
+                () -> storage.deleteObjectsByKeys("my-bucket", keys));
+
+        String msg = ex.getMessage();
+        Assertions.assertTrue(msg.contains("Failed to delete 12 object(s)"), msg);
+        Assertions.assertTrue(msg.contains("bucket=my-bucket"), msg);
+        // The first 10 failing keys must be in the message.
+        for (int i = 0; i < 10; i++) {
+            Assertions.assertTrue(msg.contains("dir/file" + i + ".csv"),
+                    "missing sample key dir/file" + i + ".csv in: " + msg);
+        }
+        // The 11th and 12th must not (capped sample); the suffix must report the overflow.
+        Assertions.assertFalse(msg.contains("dir/file10.csv"), msg);
+        Assertions.assertTrue(msg.contains("and 2 more"), msg);
+    }
+
+    // ------------------------------------------------------------------
+    // listObjects vs listObjectsWithPrefix consistent relative paths (#20)
+    // ------------------------------------------------------------------
+
+    @Test
+    void listObjects_andListObjectsWithPrefix_relativePathsMatch_noTrailingSlash() throws IOException {
+        // Same logical S3 layout queried via two entry points; the per-object
+        // relative-path strings must match regardless of which path was used and
+        // regardless of whether the caller appended a trailing slash to the prefix.
+        Instant t = Instant.now();
+        S3Object obj = S3Object.builder().key("foo/sub/file.parquet").size(7L).lastModified(t).build();
+        Mockito.when(mockS3.listObjectsV2(ArgumentMatchers.any(ListObjectsV2Request.class)))
+                .thenReturn(ListObjectsV2Response.builder().contents(obj).isTruncated(false).build());
+
+        // Variant A: full URI form, prefix WITHOUT trailing slash.
+        RemoteObjects a = storage.listObjects("s3://my-bucket/foo", null);
+        // Variant B: full URI form, prefix WITH trailing slash.
+        RemoteObjects b = storage.listObjects("s3://my-bucket/foo/", null);
+        // Variant C: cloud-style listObjectsWithPrefix, no trailing slash.
+        RemoteObjects c = storage.listObjectsWithPrefix("foo", null, null);
+        // Variant D: cloud-style listObjectsWithPrefix, with trailing slash.
+        RemoteObjects d = storage.listObjectsWithPrefix("foo/", null, null);
+
+        String expected = "sub/file.parquet";
+        Assertions.assertEquals(expected, a.getObjectList().get(0).getRelativePath());
+        Assertions.assertEquals(expected, b.getObjectList().get(0).getRelativePath());
+        Assertions.assertEquals(expected, c.getObjectList().get(0).getRelativePath());
+        Assertions.assertEquals(expected, d.getObjectList().get(0).getRelativePath());
+    }
+
+    @Test
+    void listObjects_relativePathAtBucketRoot_returnsFullKey() throws IOException {
+        // No prefix (bucket root): relative path equals the full key.
+        S3Object obj = S3Object.builder().key("top/file.parquet").size(1L).build();
+        Mockito.when(mockS3.listObjectsV2(ArgumentMatchers.any(ListObjectsV2Request.class)))
+                .thenReturn(ListObjectsV2Response.builder().contents(obj).isTruncated(false).build());
+
+        RemoteObjects r = storage.listObjects("s3://my-bucket/", null);
+        Assertions.assertEquals("top/file.parquet", r.getObjectList().get(0).getRelativePath());
+    }
 }

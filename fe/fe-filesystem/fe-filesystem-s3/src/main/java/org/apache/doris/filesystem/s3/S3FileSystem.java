@@ -398,7 +398,9 @@ public class S3FileSystem extends ObjFileSystem {
         // BrokerLoadPendingTask passes paths with glob characters (e.g. _*).
         // S3 list-objects does not expand globs; reuse globListWithLimit for glob paths.
         if (containsGlob(location.toString())) {
-            GlobListing listing = globListWithLimit(location, null, -1L, -1L);
+            // Use 0 (FileSystem contract: 0 = unlimited) for both byte and file limits
+            // so a single listFiles() call returns every match without paging.
+            GlobListing listing = globListWithLimit(location, null, 0L, 0L);
             return listing.getFiles();
         }
         String uri = location.uri();
@@ -428,8 +430,18 @@ public class S3FileSystem extends ObjFileSystem {
     // TODO(audit#6): listDirectories may also be improved to surface S3 CommonPrefixes;
     // skipped here to keep the scope of this change small. See plan-doc/s3.md.
 
+    /**
+     * Returns true if {@code path} contains glob wildcards that S3's prefix-based
+     * list cannot evaluate. Only {@code *} and {@code ?} are treated as glob
+     * metacharacters here. {@code [} and {@code {} are legal characters in S3 keys
+     * — treating them as globs would route literal-key requests through
+     * {@link #globListWithLimit} and cause spurious empty results. Users that need
+     * character classes or alternations in their pattern still get them via the
+     * dedicated glob entry point ({@link #globListWithLimit}); they are not
+     * auto-detected from a generic listFiles() argument.
+     */
     private static boolean containsGlob(String path) {
-        return path.contains("*") || path.contains("?") || path.contains("[") || path.contains("{");
+        return path.indexOf('*') >= 0 || path.indexOf('?') >= 0;
     }
 
     @Override
@@ -502,9 +514,24 @@ public class S3FileSystem extends ObjFileSystem {
         }
     }
 
-    /** S3-backed DorisInputFile. */
+    /**
+     * S3-backed {@link DorisInputFile}.
+     *
+     * <p>The first call to {@link #length()}, {@link #exists()}, {@link #lastModifiedTime()}
+     * or {@link #newStream()} issues a single S3 HEAD; the result (length, last-modified,
+     * existence) is cached on this instance so subsequent calls do not re-issue HEAD. The
+     * cache is a snapshot view: if the underlying object changes after this {@code
+     * S3InputFile} was created, callers will keep observing the values from the first HEAD.
+     * Construct a fresh {@code S3InputFile} when an up-to-date view is required.
+     */
     private class S3InputFile implements DorisInputFile {
         private final Location location;
+        // Cached HEAD response state. {@code metadataLoaded} flips to true on the first
+        // (successful or NotFound) HEAD; {@code exists} discriminates the two outcomes.
+        private boolean metadataLoaded;
+        private boolean exists;
+        private long length;
+        private long lastModifiedTime;
 
         S3InputFile(Location location) {
             this.location = location;
@@ -517,31 +544,58 @@ public class S3FileSystem extends ObjFileSystem {
 
         @Override
         public long length() throws IOException {
-            return objStorage.headObject(location.uri()).getSize();
+            ensureMetadata();
+            if (!exists) {
+                throw new java.io.FileNotFoundException("Object not found: " + location.uri());
+            }
+            return length;
         }
 
         @Override
         public boolean exists() throws IOException {
-            try {
-                objStorage.headObject(location.uri());
-                return true;
-            } catch (IOException e) {
-                if (isNotFoundError(e)) {
-                    return false;
-                }
-                throw e;
-            }
+            ensureMetadata();
+            return exists;
         }
 
         @Override
         public long lastModifiedTime() throws IOException {
-            return ((S3ObjStorage) objStorage).headObjectLastModified(location.uri());
+            ensureMetadata();
+            if (!exists) {
+                throw new java.io.FileNotFoundException("Object not found: " + location.uri());
+            }
+            return lastModifiedTime;
         }
 
         @Override
         public DorisInputStream newStream() throws IOException {
-            long fileLength = length();
-            return new S3SeekableInputStream(location.uri(), (S3ObjStorage) objStorage, fileLength);
+            ensureMetadata();
+            if (!exists) {
+                throw new java.io.FileNotFoundException("Object not found: " + location.uri());
+            }
+            return new S3SeekableInputStream(location.uri(), (S3ObjStorage) objStorage, length);
+        }
+
+        /**
+         * Issues a HEAD against {@link #location} on the first call and caches the result
+         * (length, last-modified, existence). NotFound is cached as {@code exists=false}
+         * rather than re-thrown, so a subsequent {@link #exists()} call does not retry.
+         */
+        private void ensureMetadata() throws IOException {
+            if (metadataLoaded) {
+                return;
+            }
+            try {
+                RemoteObject obj = objStorage.headObject(location.uri());
+                length = obj.getSize();
+                lastModifiedTime = obj.getModificationTime();
+                exists = true;
+            } catch (IOException e) {
+                if (!isNotFoundError(e)) {
+                    throw e;
+                }
+                exists = false;
+            }
+            metadataLoaded = true;
         }
     }
 

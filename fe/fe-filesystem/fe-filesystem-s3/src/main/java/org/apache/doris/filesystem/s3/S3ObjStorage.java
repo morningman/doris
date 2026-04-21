@@ -319,8 +319,19 @@ public class S3ObjStorage implements ObjStorage<S3Client> {
         }
     }
 
+    /**
+     * Strips {@code prefix} (with implicit trailing-slash normalisation) from {@code key}
+     * to produce the per-listing relative path. Identical normalisation to
+     * {@link #getRelativePathSafe(String, String)} so callers see the same relative-path
+     * shape regardless of which list entry point ({@link #listObjects},
+     * {@link #listObjectsNonRecursive}, {@link #listObjectsWithPrefix}) was used.
+     * If {@code prefix} does not end in {@code "/"} (e.g. user passed
+     * {@code s3://bucket/foo} expecting "directory" semantics), {@code "/"} is appended
+     * before stripping; if it already ends in {@code "/"} no double-slash is introduced.
+     * Bucket-root prefixes (empty key) leave {@code key} unchanged.
+     */
     private static String getRelativePath(String prefix, String key) {
-        return key.startsWith(prefix) ? key.substring(prefix.length()) : key;
+        return getRelativePathSafe(prefix, key);
     }
 
     /**
@@ -721,8 +732,18 @@ public class S3ObjStorage implements ObjStorage<S3Client> {
             throw new IOException("Failed to batch delete objects from bucket=" + bucket + ": " + e.getMessage(), e);
         }
         if (!failedKeys.isEmpty()) {
-            throw new IOException("Failed to delete " + failedKeys.size() + " object(s), first key: "
-                    + failedKeys.get(0));
+            // Surface the full failure count and a bounded sample of failing keys in
+            // the message so operators can correlate logs with the truncated list
+            // without flooding the exception when DeleteObjects rejects many keys
+            // at once (S3 batch up to 1000). The complete list is already at WARN
+            // in the loop above; do not repeat it here.
+            int sampleSize = Math.min(10, failedKeys.size());
+            String sample = String.join(", ", failedKeys.subList(0, sampleSize));
+            String suffix = failedKeys.size() > sampleSize
+                    ? " (and " + (failedKeys.size() - sampleSize) + " more, see WARN log for full list)"
+                    : "";
+            throw new IOException("Failed to delete " + failedKeys.size() + " object(s) from bucket="
+                    + bucket + "; failing keys [" + sample + "]" + suffix);
         }
     }
 

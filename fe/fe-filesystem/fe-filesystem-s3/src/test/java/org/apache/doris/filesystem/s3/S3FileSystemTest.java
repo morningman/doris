@@ -698,4 +698,110 @@ class S3FileSystemTest {
         Assertions.assertTrue(p.matcher("file*.csv").matches());
         Assertions.assertFalse(p.matcher("filea.csv").matches());
     }
+
+    // ------------------------------------------------------------------
+    // containsGlob() — only '*' and '?' are glob metacharacters (#17)
+    // ------------------------------------------------------------------
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "s3://bucket/dir/has[brackets]/file.csv",
+            "s3://bucket/dir/has{braces}/file.csv",
+            "s3://bucket/dir/plain/file.csv",
+            "s3://bucket/dir/has-dash_under.csv",
+            "s3://bucket/dir/has(parens).csv"
+    })
+    void listFiles_doesNotTreatBracketsOrBracesAsGlob(String uri) throws IOException {
+        // S3 keys may legally contain '[' and '{'; listFiles must NOT route them
+        // through the glob path (which would prefix-truncate at the metacharacter
+        // and almost certainly return zero matches). Verify by asserting that
+        // listObjectsNonRecursive (the non-glob branch) is used.
+        Mockito.when(mockStorage.listObjectsNonRecursive(
+                ArgumentMatchers.anyString(), ArgumentMatchers.any()))
+                .thenReturn(new RemoteObjects(List.of(), false, null));
+
+        fs.listFiles(Location.of(uri));
+
+        Mockito.verify(mockStorage).listObjectsNonRecursive(
+                ArgumentMatchers.anyString(), ArgumentMatchers.any());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "s3://bucket/dir/*.csv",
+            "s3://bucket/dir/file?.csv"
+    })
+    void listFiles_starAndQuestionMarkRouteThroughGlob(String uri) throws IOException {
+        // For real glob characters the call must NOT touch listObjectsNonRecursive.
+        // We do not stub the underlying S3 list call so the glob branch will
+        // raise during the real listing — catch and ignore; what matters is the
+        // routing decision.
+        try {
+            fs.listFiles(Location.of(uri));
+        } catch (Exception ignored) {
+            // globListWithLimit may fail in-mock; routing assertion is below.
+        }
+        Mockito.verify(mockStorage, Mockito.never()).listObjectsNonRecursive(
+                ArgumentMatchers.anyString(), ArgumentMatchers.any());
+    }
+
+    // ------------------------------------------------------------------
+    // listFiles() glob branch passes 0L (unlimited) per FileSystem contract (#18)
+    // ------------------------------------------------------------------
+
+    @Test
+    void listFiles_globBranchRequestsUnlimitedByteAndFileCount() throws IOException {
+        // Spy on the FileSystem so we can intercept globListWithLimit without
+        // executing the real S3 listing. Verify that listFiles forwards 0L/0L
+        // (unlimited) rather than the legacy -1L/-1L sentinel.
+        S3FileSystem spyFs = Mockito.spy(fs);
+        Mockito.doReturn(new org.apache.doris.filesystem.GlobListing(
+                        List.of(), "bucket", "dir/", ""))
+                .when(spyFs).globListWithLimit(
+                        ArgumentMatchers.any(Location.class),
+                        ArgumentMatchers.any(),
+                        ArgumentMatchers.anyLong(),
+                        ArgumentMatchers.anyLong());
+
+        spyFs.listFiles(Location.of("s3://bucket/dir/*.csv"));
+
+        Mockito.verify(spyFs).globListWithLimit(
+                ArgumentMatchers.eq(Location.of("s3://bucket/dir/*.csv")),
+                ArgumentMatchers.isNull(),
+                ArgumentMatchers.eq(0L),
+                ArgumentMatchers.eq(0L));
+    }
+
+    // ------------------------------------------------------------------
+    // S3InputFile caches HEAD across length()/exists()/newStream() (#21)
+    // ------------------------------------------------------------------
+
+    @Test
+    void s3InputFile_singleHeadAcrossLengthExistsAndNewStream() throws IOException {
+        Mockito.when(mockStorage.headObject("s3://bucket/file.bin"))
+                .thenReturn(new RemoteObject("file.bin", "file.bin", "etag", 4242L, 12345L));
+
+        org.apache.doris.filesystem.DorisInputFile in = fs.newInputFile(Location.of("s3://bucket/file.bin"));
+        Assertions.assertEquals(4242L, in.length());
+        Assertions.assertTrue(in.exists());
+        Assertions.assertEquals(12345L, in.lastModifiedTime());
+        in.newStream().close();
+
+        // Exactly one HEAD across all four metadata-using calls.
+        Mockito.verify(mockStorage, Mockito.times(1)).headObject("s3://bucket/file.bin");
+        // No separate headObjectLastModified round-trip.
+        Mockito.verify(mockStorage, Mockito.never()).headObjectLastModified(ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void s3InputFile_existsCachedAsFalseOnNotFound() throws IOException {
+        Mockito.when(mockStorage.headObject("s3://bucket/missing"))
+                .thenThrow(new FileNotFoundException("nope"));
+
+        org.apache.doris.filesystem.DorisInputFile in = fs.newInputFile(Location.of("s3://bucket/missing"));
+        Assertions.assertFalse(in.exists());
+        Assertions.assertFalse(in.exists());
+
+        Mockito.verify(mockStorage, Mockito.times(1)).headObject("s3://bucket/missing");
+    }
 }
