@@ -157,6 +157,48 @@ class S3FileSystemTest {
     }
 
     // ------------------------------------------------------------------
+    // list() - directory boundary enforcement
+    // ------------------------------------------------------------------
+
+    @Test
+    void list_appendsTrailingSlashToAvoidSiblingPrefixPollution() throws IOException {
+        // Simulate object storage where "tpcds1000/store" shares a prefix
+        // with sibling directories "tpcds1000/store_sales", "tpcds1000/store_returns".
+        // The implementation must list with prefix "tpcds1000/store/" so that
+        // sibling objects are not pulled in.
+        RemoteObjects page = new RemoteObjects(
+                List.of(
+                        new RemoteObject("tpcds1000/store/data.orc", "data.orc", null, 1234L, 0L)),
+                false, null);
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("oss://bucket/tpcds1000/store/"),
+                ArgumentMatchers.any())).thenReturn(page);
+
+        List<org.apache.doris.filesystem.FileEntry> files = fs.listFiles(Location.of("oss://bucket/tpcds1000/store"));
+
+        Mockito.verify(mockStorage).listObjects(
+                ArgumentMatchers.eq("oss://bucket/tpcds1000/store/"),
+                ArgumentMatchers.any());
+        Mockito.verify(mockStorage, Mockito.never()).listObjects(
+                ArgumentMatchers.eq("oss://bucket/tpcds1000/store"),
+                ArgumentMatchers.any());
+        Assertions.assertEquals(1, files.size());
+    }
+
+    @Test
+    void list_doesNotDoubleSlashWhenLocationAlreadyEndsWithSlash() throws IOException {
+        RemoteObjects page = new RemoteObjects(List.of(), false, null);
+        Mockito.when(mockStorage.listObjects(ArgumentMatchers.anyString(), ArgumentMatchers.any()))
+                .thenReturn(page);
+
+        fs.listFiles(Location.of("s3://bucket/dir/"));
+
+        Mockito.verify(mockStorage).listObjects(
+                ArgumentMatchers.eq("s3://bucket/dir/"),
+                ArgumentMatchers.any());
+    }
+
+    // ------------------------------------------------------------------
     // longestNonGlobPrefix() - package-visible static
     // ------------------------------------------------------------------
 

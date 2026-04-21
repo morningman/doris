@@ -115,7 +115,16 @@ public class AzureFileSystem extends ObjFileSystem {
 
     @Override
     public FileIterator list(Location location) throws IOException {
-        return new AzureFileIterator(location.uri());
+        // Azure list-blobs is prefix-based, not directory-based: listing
+        // "wasbs://c@a.host/foo" would also return blobs under "foo_bar/"
+        // because they share the same string prefix. The FileSystem.list
+        // contract specifies a directory, so enforce a trailing '/' to
+        // constrain the prefix to a true directory boundary.
+        String uri = location.uri();
+        if (!uri.endsWith(DIR_MARKER_SUFFIX)) {
+            uri = uri + DIR_MARKER_SUFFIX;
+        }
+        return new AzureFileIterator(uri);
     }
 
     @Override

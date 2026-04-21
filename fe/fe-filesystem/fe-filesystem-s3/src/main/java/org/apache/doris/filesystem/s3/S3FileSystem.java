@@ -125,7 +125,16 @@ public class S3FileSystem extends ObjFileSystem {
 
     @Override
     public FileIterator list(Location location) throws IOException {
-        return new S3FileIterator(location.uri());
+        // S3 list-objects is prefix-based, not directory-based: listing
+        // "s3://bucket/foo" would also return objects under "foo_bar/" because
+        // they share the same string prefix. The FileSystem.list contract
+        // specifies a directory, so enforce a trailing '/' to constrain the
+        // prefix to a true directory boundary.
+        String uri = location.uri();
+        if (!uri.endsWith(DIR_MARKER_SUFFIX)) {
+            uri = uri + DIR_MARKER_SUFFIX;
+        }
+        return new S3FileIterator(uri);
     }
 
     @Override
