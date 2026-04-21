@@ -242,25 +242,41 @@ public class DFSFileSystem implements org.apache.doris.filesystem.FileSystem {
         List<FileEntry> files = new ArrayList<>();
         long totalBytes = 0;
         boolean hasStartAfter = startAfter != null && !startAfter.isEmpty();
+        // maxFile is a pagination cursor, per FileSystem#globListWithLimit contract:
+        //   - if a page-limit (maxFiles / maxBytes) was hit AND another matching key
+        //     exists strictly past the page, maxFile is that next matching key;
+        //   - otherwise maxFile is the last matching key on the returned page, or ""
+        //     when nothing matched at all.
+        String maxFile = "";
+        boolean limitHit = false;
         for (FileStatus status : statuses) {
-            if ((maxFiles > 0 && files.size() >= maxFiles) || (maxBytes > 0 && totalBytes >= maxBytes)) {
+            if (status.isDirectory()) {
+                continue;
+            }
+            String filePath = status.getPath().toString();
+            if (hasStartAfter && filePath.compareTo(startAfter) <= 0) {
+                continue;
+            }
+            if (!limitHit && ((maxFiles > 0 && files.size() >= maxFiles)
+                    || (maxBytes > 0 && totalBytes >= maxBytes))) {
+                limitHit = true;
+            }
+            if (limitHit) {
+                // Page limit already reached: this entry is the next matching key past
+                // the page — record as the pagination cursor and stop scanning.
+                maxFile = Location.of(filePath).uri();
                 break;
             }
-            if (!status.isDirectory()) {
-                String filePath = status.getPath().toString();
-                if (hasStartAfter && filePath.compareTo(startAfter) <= 0) {
-                    continue;
-                }
-                // Use Path.toString() (not toUri().toString()) to avoid double URL-encoding.
-                // Hadoop may return paths with percent-encoded characters (e.g., %3A for colons
-                // in Hive timestamp partition values). toUri().toString() would re-encode the %
-                // to %25, producing broken paths like pt7=2024-04-09%2012%253A34%253A56.
-                files.add(new FileEntry(Location.of(filePath),
-                        status.getLen(), false, status.getModificationTime(), null));
-                totalBytes += status.getLen();
-            }
+            // Use Path.toString() (not toUri().toString()) to avoid double URL-encoding.
+            // Hadoop may return paths with percent-encoded characters (e.g., %3A for colons
+            // in Hive timestamp partition values). toUri().toString() would re-encode the %
+            // to %25, producing broken paths like pt7=2024-04-09%2012%253A34%253A56.
+            FileEntry entry = new FileEntry(Location.of(filePath),
+                    status.getLen(), false, status.getModificationTime(), null);
+            files.add(entry);
+            totalBytes += status.getLen();
+            maxFile = entry.location().uri();
         }
-        String maxFile = files.isEmpty() ? "" : files.get(files.size() - 1).location().uri();
         return new GlobListing(files, "", path.toString(), maxFile);
     }
 

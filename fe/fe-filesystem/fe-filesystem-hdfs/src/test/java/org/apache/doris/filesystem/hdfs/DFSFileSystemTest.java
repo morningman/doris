@@ -17,14 +17,22 @@
 
 package org.apache.doris.filesystem.hdfs;
 
+import org.apache.doris.filesystem.FileEntry;
+import org.apache.doris.filesystem.GlobListing;
 import org.apache.doris.filesystem.Location;
 
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Path;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Unit tests for {@link DFSFileSystem} constructor and lifecycle.
@@ -121,5 +129,89 @@ class DFSFileSystemTest {
         IOException ex = Assertions.assertThrows(IOException.class,
                 () -> fs.list(Location.of("hdfs://namenode/dir")));
         Assertions.assertTrue(ex.getMessage().contains("closed"));
+    }
+
+    // ------------------------------------------------------------------
+    // globListWithLimit — maxFile pagination cursor semantics
+    // ------------------------------------------------------------------
+
+    /**
+     * Injects a pre-created Hadoop {@link org.apache.hadoop.fs.FileSystem} into the
+     * {@link DFSFileSystem#fsByAuthority fsByAuthority} cache for {@code authority},
+     * so {@code getHadoopFs(Path)} returns it without touching the real HDFS.
+     */
+    @SuppressWarnings("unchecked")
+    private static void injectHadoopFs(DFSFileSystem fs, String authority,
+            org.apache.hadoop.fs.FileSystem hadoopFs) throws Exception {
+        Field f = DFSFileSystem.class.getDeclaredField("fsByAuthority");
+        f.setAccessible(true);
+        ConcurrentHashMap<String, org.apache.hadoop.fs.FileSystem> map =
+                (ConcurrentHashMap<String, org.apache.hadoop.fs.FileSystem>) f.get(fs);
+        map.put(authority, hadoopFs);
+    }
+
+    private static FileStatus fileStatus(String uri, long len) {
+        return new FileStatus(len, false, 1, 1024L, 0L, new Path(uri));
+    }
+
+    @Test
+    void globListWithLimit_maxFileIsNextCursorWhenPageLimitHit() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        FileStatus[] statuses = new FileStatus[10];
+        for (int i = 0; i < 10; i++) {
+            statuses[i] = fileStatus("hdfs://nn/glob/f" + i + ".csv", 100L);
+        }
+        Mockito.when(hadoopFs.globStatus(ArgumentMatchers.any(Path.class))).thenReturn(statuses);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        GlobListing listing = fs.globListWithLimit(
+                Location.of("hdfs://nn/glob/*.csv"), null, 0L, 3L);
+
+        Assertions.assertEquals(3, listing.getFiles().size());
+        Assertions.assertEquals("hdfs://nn/glob/f0.csv", listing.getFiles().get(0).location().uri());
+        Assertions.assertEquals("hdfs://nn/glob/f2.csv", listing.getFiles().get(2).location().uri());
+        // Page limit hit, next matching key past the page is f3.csv — that is the cursor.
+        Assertions.assertEquals("hdfs://nn/glob/f3.csv", listing.getMaxFile());
+        fs.close();
+    }
+
+    @Test
+    void globListWithLimit_maxFileIsLastKeyWhenListingExhausted() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        FileStatus[] statuses = new FileStatus[] {
+                fileStatus("hdfs://nn/glob/a.csv", 10L),
+                fileStatus("hdfs://nn/glob/b.csv", 10L),
+                fileStatus("hdfs://nn/glob/c.csv", 10L),
+        };
+        Mockito.when(hadoopFs.globStatus(ArgumentMatchers.any(Path.class))).thenReturn(statuses);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        GlobListing listing = fs.globListWithLimit(
+                Location.of("hdfs://nn/glob/*.csv"), null, 0L, 10L);
+
+        Assertions.assertEquals(3, listing.getFiles().size());
+        FileEntry last = listing.getFiles().get(listing.getFiles().size() - 1);
+        Assertions.assertEquals("hdfs://nn/glob/c.csv", last.location().uri());
+        // Listing exhausted before any page limit — maxFile equals last entry on the page.
+        Assertions.assertEquals(last.location().uri(), listing.getMaxFile());
+        fs.close();
+    }
+
+    @Test
+    void globListWithLimit_maxFileIsEmptyWhenNoMatches() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        Mockito.when(hadoopFs.globStatus(ArgumentMatchers.any(Path.class)))
+                .thenReturn(new FileStatus[0]);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        GlobListing listing = fs.globListWithLimit(
+                Location.of("hdfs://nn/glob/*.csv"), null, 0L, 10L);
+
+        Assertions.assertTrue(listing.getFiles().isEmpty());
+        Assertions.assertEquals("", listing.getMaxFile());
+        fs.close();
     }
 }
