@@ -35,7 +35,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -244,6 +243,14 @@ public class DFSFileSystem implements org.apache.doris.filesystem.FileSystem {
         });
     }
 
+    /**
+     * Lists non-directory entries directly under {@code location}. When {@code location}
+     * contains glob meta-characters, glob-matched <em>directory</em> entries are filtered
+     * out (consistent with the contract's "non-directory entries" wording); callers that
+     * need to discover partition directories matched by a glob must use
+     * {@link #listFilesRecursive(Location)} or {@link #list(Location)} instead. As a
+     * consequence, a glob that matches only directories yields an empty list.
+     */
     @Override
     public List<FileEntry> listFiles(Location location) throws IOException {
         String locationStr = location.toString();
@@ -259,27 +266,11 @@ public class DFSFileSystem implements org.apache.doris.filesystem.FileSystem {
             List<FileEntry> result = new ArrayList<>();
             for (FileStatus s : statuses) {
                 if (s.isDirectory()) {
-                    // Expand a directory match into its direct (single-level) file
-                    // children, matching the contract "all non-directory entries directly
-                    // under dir".
-                    FileStatus[] children = authenticator.doAs(() -> hfs.listStatus(s.getPath()));
-                    if (children != null) {
-                        for (FileStatus child : children) {
-                            if (!child.isDirectory()) {
-                                result.add(new FileEntry(Location.of(child.getPath().toString()),
-                                        child.getLen(), false,
-                                        child.getModificationTime(), null));
-                            }
-                        }
-                    }
-                } else {
-                    result.add(new FileEntry(Location.of(s.getPath().toString()),
-                            s.getLen(), false, s.getModificationTime(), null));
+                    continue;
                 }
+                result.add(new FileEntry(Location.of(s.getPath().toString()),
+                        s.getLen(), false, s.getModificationTime(), null));
             }
-            // Deterministic order — globStatus + per-directory listStatus do not guarantee
-            // a global ordering across the merged result.
-            result.sort(Comparator.comparing(e -> e.location().uri()));
             return result;
         }
         return org.apache.doris.filesystem.FileSystem.super.listFiles(location);

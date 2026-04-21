@@ -377,30 +377,38 @@ class DFSFileSystemTest {
     // ------------------------------------------------------------------
 
     @Test
-    void listFiles_globExpandsDirectoryMatchesIntoChildren() throws Exception {
+    void listFiles_globFiltersDirectoryMatches() throws Exception {
         DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
         org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
-        // glob "/data/_*" matches one directory and one file.
+        // glob "/data/_*" matches one directory and one file; the directory must be filtered.
         FileStatus dirMatch = new FileStatus(0L, true, 1, 1024L, 0L, new Path("hdfs://nn/data/_dir"));
         FileStatus fileMatch = fileStatus("hdfs://nn/data/_top.csv", 50L);
         Mockito.when(hadoopFs.globStatus(ArgumentMatchers.any(Path.class)))
                 .thenReturn(new FileStatus[] {dirMatch, fileMatch});
-        // Children of the matched directory: 2 files + 1 nested dir (must be excluded).
-        FileStatus child1 = fileStatus("hdfs://nn/data/_dir/a.csv", 10L);
-        FileStatus child2 = fileStatus("hdfs://nn/data/_dir/b.csv", 20L);
-        FileStatus nestedDir = new FileStatus(0L, true, 1, 1024L, 0L,
-                new Path("hdfs://nn/data/_dir/sub"));
-        Mockito.when(hadoopFs.listStatus(new Path("hdfs://nn/data/_dir")))
-                .thenReturn(new FileStatus[] {child2, child1, nestedDir});
         injectHadoopFs(fs, "nn", hadoopFs);
 
         java.util.List<FileEntry> result = fs.listFiles(Location.of("hdfs://nn/data/_*"));
 
-        Assertions.assertEquals(3, result.size());
-        // Sorted lexicographically.
-        Assertions.assertEquals("hdfs://nn/data/_dir/a.csv", result.get(0).location().uri());
-        Assertions.assertEquals("hdfs://nn/data/_dir/b.csv", result.get(1).location().uri());
-        Assertions.assertEquals("hdfs://nn/data/_top.csv", result.get(2).location().uri());
+        Assertions.assertEquals(1, result.size());
+        Assertions.assertEquals("hdfs://nn/data/_top.csv", result.get(0).location().uri());
+        // listStatus must NOT be invoked: directory matches are filtered, not expanded.
+        Mockito.verify(hadoopFs, Mockito.never()).listStatus(ArgumentMatchers.any(Path.class));
+        fs.close();
+    }
+
+    @Test
+    void listFiles_globReturnsEmptyWhenAllMatchesAreDirectories() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        FileStatus dirA = new FileStatus(0L, true, 1, 1024L, 0L, new Path("hdfs://nn/data/_a"));
+        FileStatus dirB = new FileStatus(0L, true, 1, 1024L, 0L, new Path("hdfs://nn/data/_b"));
+        Mockito.when(hadoopFs.globStatus(ArgumentMatchers.any(Path.class)))
+                .thenReturn(new FileStatus[] {dirA, dirB});
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        java.util.List<FileEntry> result = fs.listFiles(Location.of("hdfs://nn/data/_*"));
+
+        Assertions.assertTrue(result.isEmpty());
         fs.close();
     }
 
