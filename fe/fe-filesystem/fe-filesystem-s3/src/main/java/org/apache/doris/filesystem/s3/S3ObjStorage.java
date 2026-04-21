@@ -314,6 +314,76 @@ public class S3ObjStorage implements ObjStorage<S3Client> {
         return key.startsWith(prefix) ? key.substring(prefix.length()) : key;
     }
 
+    /**
+     * Bounded variant of {@link #listObjects(String, String)}: caps the number of keys
+     * returned in this single call via {@code maxKeys}. Useful for "is this prefix
+     * non-empty?" probes that should not pull a full page of 1000 keys.
+     *
+     * @param maxKeys upper bound of keys to fetch; values {@code <= 0} are treated as no cap
+     */
+    public RemoteObjects listObjects(String remotePath, String continuationToken, int maxKeys)
+            throws IOException {
+        S3Uri uri = S3Uri.parse(remotePath, usePathStyle);
+        ListObjectsV2Request.Builder builder = ListObjectsV2Request.builder()
+                .bucket(uri.bucket())
+                .prefix(uri.key());
+        if (maxKeys > 0) {
+            builder.maxKeys(maxKeys);
+        }
+        if (continuationToken != null && !continuationToken.isEmpty()) {
+            builder.continuationToken(continuationToken);
+        }
+        try {
+            ListObjectsV2Response response = getClient().listObjectsV2(builder.build());
+            List<org.apache.doris.filesystem.spi.RemoteObject> objects = response.contents().stream()
+                    .map(s3Obj -> new org.apache.doris.filesystem.spi.RemoteObject(
+                            s3Obj.key(),
+                            getRelativePath(uri.key(), s3Obj.key()),
+                            s3Obj.eTag(),
+                            s3Obj.size(),
+                            s3Obj.lastModified() != null ? s3Obj.lastModified().toEpochMilli() : 0L))
+                    .collect(Collectors.toList());
+            return new RemoteObjects(objects, response.isTruncated(),
+                    response.nextContinuationToken());
+        } catch (SdkException e) {
+            throw new IOException("Failed to list objects at " + remotePath + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Lists objects using S3 delimiter mode (delimiter {@code "/"}) so only the direct
+     * children under {@code remotePath} are returned in {@code Contents}. Sub-directories
+     * (which appear as {@code CommonPrefixes}) are intentionally NOT exposed here; callers
+     * that need them should issue a separate request. Used to give the FileSystem
+     * abstraction true POSIX-like "list one directory level" semantics on object stores.
+     */
+    public RemoteObjects listObjectsNonRecursive(String remotePath, String continuationToken)
+            throws IOException {
+        S3Uri uri = S3Uri.parse(remotePath, usePathStyle);
+        ListObjectsV2Request.Builder builder = ListObjectsV2Request.builder()
+                .bucket(uri.bucket())
+                .prefix(uri.key())
+                .delimiter("/");
+        if (continuationToken != null && !continuationToken.isEmpty()) {
+            builder.continuationToken(continuationToken);
+        }
+        try {
+            ListObjectsV2Response response = getClient().listObjectsV2(builder.build());
+            List<org.apache.doris.filesystem.spi.RemoteObject> objects = response.contents().stream()
+                    .map(s3Obj -> new org.apache.doris.filesystem.spi.RemoteObject(
+                            s3Obj.key(),
+                            getRelativePath(uri.key(), s3Obj.key()),
+                            s3Obj.eTag(),
+                            s3Obj.size(),
+                            s3Obj.lastModified() != null ? s3Obj.lastModified().toEpochMilli() : 0L))
+                    .collect(Collectors.toList());
+            return new RemoteObjects(objects, response.isTruncated(),
+                    response.nextContinuationToken());
+        } catch (SdkException e) {
+            throw new IOException("Failed to list objects at " + remotePath + ": " + e.getMessage(), e);
+        }
+    }
+
     @Override
     public org.apache.doris.filesystem.spi.RemoteObject headObject(String remotePath) throws IOException {
         S3Uri uri = S3Uri.parse(remotePath, usePathStyle);

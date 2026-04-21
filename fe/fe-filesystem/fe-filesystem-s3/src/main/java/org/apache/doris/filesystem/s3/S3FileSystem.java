@@ -82,6 +82,18 @@ public class S3FileSystem extends ObjFileSystem {
             String prefix = location.uri().endsWith(DIR_MARKER_SUFFIX)
                     ? location.uri() : location.uri() + DIR_MARKER_SUFFIX;
             deleteRecursive(prefix);
+        } else {
+            // Per FileSystem contract, recursive=false must fail on a non-empty directory.
+            // S3 has no real directories, so probe the prefix for any non-marker child.
+            String prefix = location.uri().endsWith(DIR_MARKER_SUFFIX)
+                    ? location.uri() : location.uri() + DIR_MARKER_SUFFIX;
+            String markerKey = stripBucketPrefix(prefix);
+            RemoteObjects probe = ((S3ObjStorage) objStorage).listObjects(prefix, null, 2);
+            for (RemoteObject obj : probe.getObjectList()) {
+                if (!obj.getKey().equals(markerKey)) {
+                    throw new IOException("Directory not empty: " + location.uri());
+                }
+            }
         }
         // Always attempt to delete the exact object too
         try {
@@ -118,10 +130,160 @@ public class S3FileSystem extends ObjFileSystem {
         return prefix + key;
     }
 
+    /** Returns {@code [scheme, bucket, key]} for a {@code scheme://bucket/key} URI. */
+    private static String[] parseSchemeBucketKey(String uri) {
+        int schemeEnd = uri.indexOf("://");
+        if (schemeEnd < 0) {
+            return new String[] {"", "", uri};
+        }
+        String scheme = uri.substring(0, schemeEnd);
+        String rest = uri.substring(schemeEnd + 3);
+        int slash = rest.indexOf('/');
+        if (slash < 0) {
+            return new String[] {scheme, rest, ""};
+        }
+        return new String[] {scheme, rest.substring(0, slash), rest.substring(slash + 1)};
+    }
+
+    private static String stripBucketPrefix(String uri) {
+        return parseSchemeBucketKey(uri)[2];
+    }
+
+    /**
+     * S3 has no notion of a real directory; the bare HEAD only finds files.  Fall back to
+     * a 1-key prefix listing so that a "directory" that exists solely as a set of children
+     * (e.g. an upload tree written by Hive/Spark without explicit markers) still reports
+     * existence. Returns true for any non-empty prefix on object stores.
+     */
+    @Override
+    public boolean exists(Location location) throws IOException {
+        if (super.exists(location)) {
+            return true;
+        }
+        return prefixHasChildren(location.uri());
+    }
+
+    private boolean prefixHasChildren(String uri) throws IOException {
+        String prefix = uri.endsWith(DIR_MARKER_SUFFIX) ? uri : uri + DIR_MARKER_SUFFIX;
+        RemoteObjects page = ((S3ObjStorage) objStorage).listObjects(prefix, null, 1);
+        return !page.getObjectList().isEmpty();
+    }
+
+    /**
+     * Renames a single object key.
+     *
+     * <p>This rename is implemented as <em>copy-then-delete</em> and is therefore
+     * <strong>not atomic</strong>: a crash between the two calls will leave both copies.
+     *
+     * <p>Behaviour:
+     * <ul>
+     *   <li>Throws {@link FileAlreadyExistsException} if {@code dst} already exists.</li>
+     *   <li>Refuses to rename a "directory" (a prefix with children but no key) and
+     *       throws {@link IOException}; callers must use
+     *       {@link #renameDirectory(Location, Location, Runnable)} for that case.</li>
+     * </ul>
+     */
     @Override
     public void rename(Location src, Location dst) throws IOException {
+        // 1) Reject if destination already exists.
+        boolean dstExists;
+        try {
+            objStorage.headObject(dst.uri());
+            dstExists = true;
+        } catch (IOException e) {
+            if (!isNotFoundError(e)) {
+                throw e;
+            }
+            dstExists = false;
+        }
+        if (dstExists) {
+            throw new FileAlreadyExistsException(dst.uri());
+        }
+        // 2) Refuse directory-prefix renames so children are not silently orphaned.
+        boolean srcIsKey;
+        try {
+            objStorage.headObject(src.uri());
+            srcIsKey = true;
+        } catch (IOException e) {
+            if (!isNotFoundError(e)) {
+                throw e;
+            }
+            srcIsKey = false;
+        }
+        if (!srcIsKey && prefixHasChildren(src.uri())) {
+            throw new IOException("rename: source is a directory prefix with children; "
+                    + "use renameDirectory(): " + src.uri());
+        }
         objStorage.copyObject(src.uri(), dst.uri());
         objStorage.deleteObject(src.uri());
+    }
+
+    /**
+     * Atomically-named (but non-atomic in implementation) directory move for object stores.
+     *
+     * <p>S3 has no real directories, so this method:
+     * <ol>
+     *   <li>Lists every key under {@code src + "/"} (paginated).</li>
+     *   <li>If the listing is empty, runs {@code whenSrcNotExists} and returns.</li>
+     *   <li>Verifies that {@code dst + "/"} has no objects yet; otherwise throws
+     *       {@link FileAlreadyExistsException} <em>before</em> any copy.</li>
+     *   <li>Copies each child to the matching destination key.</li>
+     *   <li>Batch-deletes the source keys via
+     *       {@link S3ObjStorage#deleteObjectsByKeys(String, java.util.List)}.</li>
+     * </ol>
+     *
+     * <p>The default implementation in {@link org.apache.doris.filesystem.FileSystem} is unsafe on
+     * S3 because it relies on {@code exists(src)} (which is false for marker-less directories)
+     * and {@link #rename(Location, Location)} (which only handles a single key).
+     */
+    @Override
+    public void renameDirectory(Location src, Location dst, Runnable whenSrcNotExists)
+            throws IOException {
+        String srcUri = src.uri();
+        String dstUri = dst.uri();
+        String srcPrefix = srcUri.endsWith(DIR_MARKER_SUFFIX) ? srcUri : srcUri + DIR_MARKER_SUFFIX;
+        String dstPrefix = dstUri.endsWith(DIR_MARKER_SUFFIX) ? dstUri : dstUri + DIR_MARKER_SUFFIX;
+
+        S3ObjStorage s3 = (S3ObjStorage) objStorage;
+
+        // 1. Collect all source keys (paginated).
+        List<String> srcKeys = new ArrayList<>();
+        String continuation = null;
+        do {
+            RemoteObjects page = s3.listObjects(srcPrefix, continuation);
+            for (RemoteObject obj : page.getObjectList()) {
+                srcKeys.add(obj.getKey());
+            }
+            continuation = page.isTruncated() ? page.getContinuationToken() : null;
+        } while (continuation != null);
+
+        if (srcKeys.isEmpty()) {
+            whenSrcNotExists.run();
+            return;
+        }
+
+        // 2. Refuse to clobber a non-empty destination prefix.
+        RemoteObjects dstProbe = s3.listObjects(dstPrefix, null, 1);
+        if (!dstProbe.getObjectList().isEmpty()) {
+            throw new FileAlreadyExistsException(dstUri);
+        }
+
+        // 3. Copy every key under src to the matching destination key.
+        String srcKeyPrefix = stripBucketPrefix(srcPrefix);
+        String dstKeyPrefix = stripBucketPrefix(dstPrefix);
+        String[] srcParts = parseSchemeBucketKey(srcUri);
+        String scheme = srcParts[0];
+        String bucket = srcParts[1];
+        for (String key : srcKeys) {
+            String relative = key.startsWith(srcKeyPrefix)
+                    ? key.substring(srcKeyPrefix.length()) : key;
+            String dstKey = dstKeyPrefix + relative;
+            objStorage.copyObject(scheme + "://" + bucket + "/" + key,
+                    scheme + "://" + bucket + "/" + dstKey);
+        }
+
+        // 4. Batch-delete the original keys.
+        s3.deleteObjectsByKeys(bucket, srcKeys);
     }
 
     @Override
@@ -138,6 +300,22 @@ public class S3FileSystem extends ObjFileSystem {
         return new S3FileIterator(uri);
     }
 
+    /**
+     * Returns the non-directory entries directly under {@code location} (non-recursive),
+     * matching the {@link org.apache.doris.filesystem.FileSystem#listFiles} contract.
+     *
+     * <p>Unlike {@link #list(Location)} (which is a flat recursive listing on object stores),
+     * this override uses S3 delimiter-mode listing so that only objects in this single
+     * "directory level" are returned. Sub-directories (S3 {@code CommonPrefixes}) are
+     * intentionally <em>not</em> exposed here — callers needing them must use the iterator
+     * from {@link #list(Location)} or a separate listing method. The synthetic directory
+     * marker created by {@link #mkdirs(Location)} (a zero-byte object whose key ends in
+     * {@code "/"}) is filtered out of the result.
+     *
+     * <p>Glob expansion (paths containing {@code *}, {@code ?}, etc.) still flows through
+     * {@link #globListWithLimit(Location, String, long, long)} which performs its own
+     * recursive prefix scan with PathMatcher filtering.
+     */
     @Override
     public List<FileEntry> listFiles(Location location) throws IOException {
         // BrokerLoadPendingTask passes paths with glob characters (e.g. _*).
@@ -146,8 +324,32 @@ public class S3FileSystem extends ObjFileSystem {
             GlobListing listing = globListWithLimit(location, null, -1L, -1L);
             return listing.getFiles();
         }
-        return super.listFiles(location);
+        String uri = location.uri();
+        String prefix = uri.endsWith(DIR_MARKER_SUFFIX) ? uri : uri + DIR_MARKER_SUFFIX;
+        String prefixKey = stripBucketPrefix(prefix);
+
+        S3ObjStorage s3 = (S3ObjStorage) objStorage;
+        List<FileEntry> result = new ArrayList<>();
+        String continuation = null;
+        do {
+            RemoteObjects page = s3.listObjectsNonRecursive(prefix, continuation);
+            for (RemoteObject obj : page.getObjectList()) {
+                // Skip the directory marker placeholder: key equals the listing prefix
+                // or otherwise ends with "/".
+                if (obj.getKey().equals(prefixKey)
+                        || obj.getKey().endsWith(DIR_MARKER_SUFFIX)) {
+                    continue;
+                }
+                result.add(new FileEntry(
+                        Location.of(reconstructUri(prefix, obj.getKey())),
+                        obj.getSize(), false, obj.getModificationTime(), List.of()));
+            }
+            continuation = page.isTruncated() ? page.getContinuationToken() : null;
+        } while (continuation != null);
+        return result;
     }
+    // TODO(audit#6): listDirectories may also be improved to surface S3 CommonPrefixes;
+    // skipped here to keep the scope of this change small. See plan-doc/s3.md.
 
     private static boolean containsGlob(String path) {
         return path.contains("*") || path.contains("?") || path.contains("[") || path.contains("{");
@@ -192,6 +394,13 @@ public class S3FileSystem extends ObjFileSystem {
             buffer = new ArrayList<>();
             bufferIdx = 0;
             for (RemoteObject obj : page.getObjectList()) {
+                // Skip directory-marker placeholders (e.g. created by mkdirs):
+                // those are zero-byte objects whose key ends with "/" or equals the
+                // listing prefix's bare key.  Emitting them as FileEntry causes
+                // downstream readers to attempt opening a non-existent file.
+                if (obj.getKey().endsWith(DIR_MARKER_SUFFIX)) {
+                    continue;
+                }
                 Location loc = Location.of(reconstructUri(prefix, obj.getKey()));
                 buffer.add(new FileEntry(loc, obj.getSize(), false, obj.getModificationTime(), List.of()));
             }

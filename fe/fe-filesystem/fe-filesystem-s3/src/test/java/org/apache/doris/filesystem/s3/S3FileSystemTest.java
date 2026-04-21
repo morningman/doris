@@ -66,6 +66,11 @@ class S3FileSystemTest {
     void exists_returnsFalseForFileNotFoundException() throws IOException {
         Mockito.when(mockStorage.headObject("s3://bucket/missing"))
                 .thenThrow(new FileNotFoundException("not found"));
+        // exists() falls back to a 1-key prefix probe for marker-less directories.
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/missing/"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.eq(1)))
+                .thenReturn(new RemoteObjects(List.of(), false, null));
 
         Assertions.assertFalse(fs.exists(Location.of("s3://bucket/missing")));
     }
@@ -114,19 +119,59 @@ class S3FileSystemTest {
 
     @Test
     void delete_nonRecursiveDeletesExactObject() throws IOException {
+        // Probe must return empty so non-empty check passes.
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/file.txt/"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.eq(2)))
+                .thenReturn(new RemoteObjects(List.of(), false, null));
+
         fs.delete(Location.of("s3://bucket/file.txt"), false);
 
         Mockito.verify(mockStorage).deleteObject("s3://bucket/file.txt");
-        Mockito.verify(mockStorage, Mockito.never()).listObjects(ArgumentMatchers.anyString(), ArgumentMatchers.any());
     }
 
     @Test
     void delete_nonRecursiveSwallowsNotFoundError() throws IOException {
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/gone/"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.eq(2)))
+                .thenReturn(new RemoteObjects(List.of(), false, null));
         Mockito.doThrow(new FileNotFoundException("not found"))
                 .when(mockStorage).deleteObject("s3://bucket/gone");
 
         // Should not throw
         fs.delete(Location.of("s3://bucket/gone"), false);
+    }
+
+    @Test
+    void delete_nonRecursiveOnEmptyDirSucceeds() throws IOException {
+        // Only the directory marker exists; treat as empty.
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/emptydir/"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.eq(2)))
+                .thenReturn(new RemoteObjects(
+                        List.of(new RemoteObject("emptydir/", "", null, 0L, 0L)),
+                        false, null));
+
+        fs.delete(Location.of("s3://bucket/emptydir"), false);
+
+        Mockito.verify(mockStorage).deleteObject("s3://bucket/emptydir");
+    }
+
+    @Test
+    void delete_nonRecursiveOnNonEmptyDirThrows() throws IOException {
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/dir/"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.eq(2)))
+                .thenReturn(new RemoteObjects(
+                        List.of(new RemoteObject("dir/child", "child", null, 1L, 0L)),
+                        false, null));
+
+        IOException ex = Assertions.assertThrows(IOException.class,
+                () -> fs.delete(Location.of("s3://bucket/dir"), false));
+        Assertions.assertTrue(ex.getMessage().contains("Directory not empty"),
+                "expected non-empty error, got: " + ex.getMessage());
+        Mockito.verify(mockStorage, Mockito.never()).deleteObject(ArgumentMatchers.anyString());
     }
 
     @Test
@@ -152,10 +197,206 @@ class S3FileSystemTest {
 
     @Test
     void rename_copyThenDelete() throws IOException {
+        // dst HEAD must report not-found.
+        Mockito.when(mockStorage.headObject("s3://bucket/new"))
+                .thenThrow(new FileNotFoundException("missing"));
+        // src HEAD reports the existing object.
+        Mockito.when(mockStorage.headObject("s3://bucket/old"))
+                .thenReturn(new RemoteObject("old", "old", null, 1L, 0L));
+
         fs.rename(Location.of("s3://bucket/old"), Location.of("s3://bucket/new"));
 
         Mockito.verify(mockStorage).copyObject("s3://bucket/old", "s3://bucket/new");
         Mockito.verify(mockStorage).deleteObject("s3://bucket/old");
+    }
+
+    @Test
+    void rename_throwsFileAlreadyExistsWhenDstExists() throws IOException {
+        Mockito.when(mockStorage.headObject("s3://bucket/dst"))
+                .thenReturn(new RemoteObject("dst", "dst", null, 5L, 0L));
+
+        Assertions.assertThrows(FileAlreadyExistsException.class,
+                () -> fs.rename(Location.of("s3://bucket/src"), Location.of("s3://bucket/dst")));
+        Mockito.verify(mockStorage, Mockito.never()).copyObject(
+                ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        Mockito.verify(mockStorage, Mockito.never()).deleteObject(ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void rename_rejectsDirectoryPrefixSrc() throws IOException {
+        // dst not found, src not a key but prefix has children.
+        Mockito.when(mockStorage.headObject("s3://bucket/dst"))
+                .thenThrow(new FileNotFoundException("missing"));
+        Mockito.when(mockStorage.headObject("s3://bucket/srcdir"))
+                .thenThrow(new FileNotFoundException("missing"));
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/srcdir/"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.eq(1)))
+                .thenReturn(new RemoteObjects(
+                        List.of(new RemoteObject("srcdir/a", "a", null, 1L, 0L)),
+                        false, null));
+
+        IOException ex = Assertions.assertThrows(IOException.class,
+                () -> fs.rename(Location.of("s3://bucket/srcdir"), Location.of("s3://bucket/dst")));
+        Assertions.assertTrue(ex.getMessage().contains("renameDirectory"),
+                "expected hint to use renameDirectory, got: " + ex.getMessage());
+        Mockito.verify(mockStorage, Mockito.never()).copyObject(
+                ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+    }
+
+    // ------------------------------------------------------------------
+    // exists() — marker-less prefix fallback (#4)
+    // ------------------------------------------------------------------
+
+    @Test
+    void exists_returnsTrueForMarkerlessPrefixWithChildren() throws IOException {
+        // HEAD on the bare key returns 404 (no marker), but the prefix has children.
+        Mockito.when(mockStorage.headObject("s3://bucket/hivedir"))
+                .thenThrow(new FileNotFoundException("no marker"));
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/hivedir/"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.eq(1)))
+                .thenReturn(new RemoteObjects(
+                        List.of(new RemoteObject("hivedir/part-0", "part-0", null, 100L, 0L)),
+                        false, null));
+
+        Assertions.assertTrue(fs.exists(Location.of("s3://bucket/hivedir")));
+    }
+
+    @Test
+    void exists_returnsFalseWhenNoKeyAndNoChildren() throws IOException {
+        Mockito.when(mockStorage.headObject("s3://bucket/missing"))
+                .thenThrow(new FileNotFoundException("missing"));
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/missing/"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.eq(1)))
+                .thenReturn(new RemoteObjects(List.of(), false, null));
+
+        Assertions.assertFalse(fs.exists(Location.of("s3://bucket/missing")));
+    }
+
+    // ------------------------------------------------------------------
+    // renameDirectory() (#4)
+    // ------------------------------------------------------------------
+
+    @Test
+    void renameDirectory_copiesEachChildAndBatchDeletes() throws IOException {
+        // Source has two children, dst is empty.
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/src/"), ArgumentMatchers.isNull()))
+                .thenReturn(new RemoteObjects(
+                        List.of(
+                                new RemoteObject("src/a.txt", "a.txt", null, 1L, 0L),
+                                new RemoteObject("src/sub/b.txt", "sub/b.txt", null, 2L, 0L)),
+                        false, null));
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/dst/"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.eq(1)))
+                .thenReturn(new RemoteObjects(List.of(), false, null));
+
+        Runnable notExists = Mockito.mock(Runnable.class);
+        fs.renameDirectory(Location.of("s3://bucket/src"), Location.of("s3://bucket/dst"), notExists);
+
+        Mockito.verify(notExists, Mockito.never()).run();
+        Mockito.verify(mockStorage).copyObject("s3://bucket/src/a.txt", "s3://bucket/dst/a.txt");
+        Mockito.verify(mockStorage).copyObject(
+                "s3://bucket/src/sub/b.txt", "s3://bucket/dst/sub/b.txt");
+        Mockito.verify(mockStorage).deleteObjectsByKeys(
+                ArgumentMatchers.eq("bucket"),
+                ArgumentMatchers.eq(List.of("src/a.txt", "src/sub/b.txt")));
+    }
+
+    @Test
+    void renameDirectory_runsWhenSrcNotExistsCallback() throws IOException {
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/missing/"), ArgumentMatchers.isNull()))
+                .thenReturn(new RemoteObjects(List.of(), false, null));
+
+        Runnable notExists = Mockito.mock(Runnable.class);
+        fs.renameDirectory(
+                Location.of("s3://bucket/missing"), Location.of("s3://bucket/dst"), notExists);
+
+        Mockito.verify(notExists).run();
+        Mockito.verify(mockStorage, Mockito.never()).copyObject(
+                ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        Mockito.verify(mockStorage, Mockito.never()).deleteObjectsByKeys(
+                ArgumentMatchers.anyString(), ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void renameDirectory_abortsWhenDstHasObjects() throws IOException {
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/src/"), ArgumentMatchers.isNull()))
+                .thenReturn(new RemoteObjects(
+                        List.of(new RemoteObject("src/a.txt", "a.txt", null, 1L, 0L)),
+                        false, null));
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/dst/"),
+                ArgumentMatchers.isNull(), ArgumentMatchers.eq(1)))
+                .thenReturn(new RemoteObjects(
+                        List.of(new RemoteObject("dst/existing", "existing", null, 1L, 0L)),
+                        false, null));
+
+        Assertions.assertThrows(FileAlreadyExistsException.class,
+                () -> fs.renameDirectory(Location.of("s3://bucket/src"),
+                        Location.of("s3://bucket/dst"), () -> { }));
+        Mockito.verify(mockStorage, Mockito.never()).copyObject(
+                ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        Mockito.verify(mockStorage, Mockito.never()).deleteObjectsByKeys(
+                ArgumentMatchers.anyString(), ArgumentMatchers.anyList());
+    }
+
+    // ------------------------------------------------------------------
+    // S3FileIterator phantom marker filter (#5)
+    // ------------------------------------------------------------------
+
+    @Test
+    void list_iteratorSkipsDirectoryMarkerEntries() throws IOException {
+        // The mkdirs marker has key "dir/" which equals the listing prefix; iterator must skip it.
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("s3://bucket/dir/"), ArgumentMatchers.any()))
+                .thenReturn(new RemoteObjects(
+                        List.of(
+                                new RemoteObject("dir/", "", null, 0L, 0L),
+                                new RemoteObject("dir/file.txt", "file.txt", null, 7L, 0L),
+                                new RemoteObject("dir/sub/", "sub/", null, 0L, 0L)),
+                        false, null));
+
+        List<org.apache.doris.filesystem.FileEntry> emitted = new java.util.ArrayList<>();
+        try (org.apache.doris.filesystem.FileIterator it =
+                fs.list(Location.of("s3://bucket/dir"))) {
+            while (it.hasNext()) {
+                emitted.add(it.next());
+            }
+        }
+        Assertions.assertEquals(1, emitted.size(), "expected only the real file");
+        Assertions.assertEquals("s3://bucket/dir/file.txt", emitted.get(0).location().uri());
+    }
+
+    // ------------------------------------------------------------------
+    // listFiles() — direct-children only (strategy a, #6)
+    // ------------------------------------------------------------------
+
+    @Test
+    void listFiles_returnsOnlyDirectChildrenAndSkipsMarker() throws IOException {
+        // listObjectsNonRecursive returns Contents: marker + one direct file.
+        // (Sub-directories would be in CommonPrefixes; the helper drops them.)
+        Mockito.when(mockStorage.listObjectsNonRecursive(
+                ArgumentMatchers.eq("s3://bucket/dir/"), ArgumentMatchers.isNull()))
+                .thenReturn(new RemoteObjects(
+                        List.of(
+                                new RemoteObject("dir/", "", null, 0L, 0L),
+                                new RemoteObject("dir/file.txt", "file.txt", null, 12L, 0L)),
+                        false, null));
+
+        List<org.apache.doris.filesystem.FileEntry> files =
+                fs.listFiles(Location.of("s3://bucket/dir"));
+
+        Assertions.assertEquals(1, files.size());
+        Assertions.assertEquals("s3://bucket/dir/file.txt", files.get(0).location().uri());
+        // Recursive flat list MUST NOT have been used.
+        Mockito.verify(mockStorage, Mockito.never()).listObjects(
+                ArgumentMatchers.anyString(), ArgumentMatchers.any());
     }
 
     // ------------------------------------------------------------------
@@ -172,16 +413,16 @@ class S3FileSystemTest {
                 List.of(
                         new RemoteObject("tpcds1000/store/data.orc", "data.orc", null, 1234L, 0L)),
                 false, null);
-        Mockito.when(mockStorage.listObjects(
+        Mockito.when(mockStorage.listObjectsNonRecursive(
                 ArgumentMatchers.eq("oss://bucket/tpcds1000/store/"),
                 ArgumentMatchers.any())).thenReturn(page);
 
         List<org.apache.doris.filesystem.FileEntry> files = fs.listFiles(Location.of("oss://bucket/tpcds1000/store"));
 
-        Mockito.verify(mockStorage).listObjects(
+        Mockito.verify(mockStorage).listObjectsNonRecursive(
                 ArgumentMatchers.eq("oss://bucket/tpcds1000/store/"),
                 ArgumentMatchers.any());
-        Mockito.verify(mockStorage, Mockito.never()).listObjects(
+        Mockito.verify(mockStorage, Mockito.never()).listObjectsNonRecursive(
                 ArgumentMatchers.eq("oss://bucket/tpcds1000/store"),
                 ArgumentMatchers.any());
         Assertions.assertEquals(1, files.size());
@@ -190,12 +431,12 @@ class S3FileSystemTest {
     @Test
     void list_doesNotDoubleSlashWhenLocationAlreadyEndsWithSlash() throws IOException {
         RemoteObjects page = new RemoteObjects(List.of(), false, null);
-        Mockito.when(mockStorage.listObjects(ArgumentMatchers.anyString(), ArgumentMatchers.any()))
+        Mockito.when(mockStorage.listObjectsNonRecursive(ArgumentMatchers.anyString(), ArgumentMatchers.any()))
                 .thenReturn(page);
 
         fs.listFiles(Location.of("s3://bucket/dir/"));
 
-        Mockito.verify(mockStorage).listObjects(
+        Mockito.verify(mockStorage).listObjectsNonRecursive(
                 ArgumentMatchers.eq("s3://bucket/dir/"),
                 ArgumentMatchers.any());
     }
