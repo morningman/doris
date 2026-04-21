@@ -35,9 +35,11 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -173,19 +175,31 @@ public class DFSFileSystem implements org.apache.doris.filesystem.FileSystem {
     public void rename(Location src, Location dst) throws IOException {
         Path srcPath = new Path(src.toString());
         Path dstPath = new Path(dst.toString());
-        boolean success = authenticator.doAs(() ->
-                getHadoopFs(srcPath).rename(srcPath, dstPath));
-        if (!success) {
-            throw new IOException("HDFS rename failed: " + src + " -> " + dst);
-        }
+        authenticator.doAs(() -> {
+            org.apache.hadoop.fs.FileSystem hfs = getHadoopFs(srcPath);
+            boolean ok = hfs.rename(srcPath, dstPath);
+            if (!ok) {
+                boolean srcExists = hfs.exists(srcPath);
+                boolean dstExists = hfs.exists(dstPath);
+                throw new IOException("HDFS rename failed: " + src + " -> " + dst
+                        + " (srcExists=" + srcExists + ", dstExists=" + dstExists + ")");
+            }
+            return null;
+        });
     }
 
     /**
-     * Renames a directory atomically on HDFS, creating the parent of {@code dst} if it
-     * does not exist — matching the behaviour of the legacy {@code RemoteFileSystem.renameDir}.
-     * Without this parent-mkdir the HDFS rename returns {@code false} when the intermediate
-     * partition directory (e.g. {@code pt1=wuu/}) does not yet exist, causing silent data loss
-     * in the Hive write path.
+     * Renames a directory on HDFS, creating any missing parent of {@code dst} first.
+     *
+     * <p>This operation is <em>not atomic</em>; it performs a parent-mkdirs followed by a
+     * rename. Without the parent-mkdirs the HDFS rename returns {@code false} when the
+     * intermediate partition directory (e.g. {@code pt1=wuu/}) does not yet exist, causing
+     * silent data loss in the Hive write path.
+     *
+     * <p>Both source and destination must live on the same HDFS authority; cross-authority
+     * renames fail fast to avoid Hadoop's confusing {@code Wrong FS} mid-sequence partial
+     * state. When {@code src} does not exist, {@code whenSrcNotExists} is invoked and the
+     * method returns without further action.
      */
     @Override
     public void renameDirectory(Location src, Location dst, Runnable whenSrcNotExists)
@@ -194,16 +208,40 @@ public class DFSFileSystem implements org.apache.doris.filesystem.FileSystem {
             whenSrcNotExists.run();
             return;
         }
+        Path srcPath = new Path(src.toString());
         Path dstPath = new Path(dst.toString());
-        Path dstParent = dstPath.getParent();
-        org.apache.hadoop.fs.FileSystem hadoopFs = getHadoopFs(dstPath);
-        if (dstParent != null && !authenticator.doAs(() -> hadoopFs.exists(dstParent))) {
-            authenticator.doAs(() -> {
-                hadoopFs.mkdirs(dstParent);
-                return null;
-            });
+        String srcAuth = srcPath.toUri().getAuthority();
+        String dstAuth = dstPath.toUri().getAuthority();
+        if (!Objects.equals(srcAuth, dstAuth)) {
+            throw new IOException("renameDirectory across authorities is not supported: src="
+                    + src + " dst=" + dst);
         }
-        rename(src, dst);
+        Path dstParent = dstPath.getParent();
+        org.apache.hadoop.fs.FileSystem hadoopFs = getHadoopFs(srcPath);
+        authenticator.doAs(() -> {
+            if (dstParent != null && !hadoopFs.mkdirs(dstParent)) {
+                // mkdirs is idempotent; a false return means either the path exists
+                // already or a real failure. Re-stat to distinguish.
+                try {
+                    FileStatus st = hadoopFs.getFileStatus(dstParent);
+                    if (!st.isDirectory()) {
+                        throw new IOException("renameDirectory parent exists but is not a "
+                                + "directory: " + dstParent);
+                    }
+                } catch (FileNotFoundException e) {
+                    throw new IOException("renameDirectory parent mkdirs returned false for "
+                            + dstParent, e);
+                }
+            }
+            boolean ok = hadoopFs.rename(srcPath, dstPath);
+            if (!ok) {
+                boolean srcExists = hadoopFs.exists(srcPath);
+                boolean dstExists = hadoopFs.exists(dstPath);
+                throw new IOException("HDFS renameDirectory failed: " + src + " -> " + dst
+                        + " (srcExists=" + srcExists + ", dstExists=" + dstExists + ")");
+            }
+            return null;
+        });
     }
 
     @Override
@@ -213,17 +251,35 @@ public class DFSFileSystem implements org.apache.doris.filesystem.FileSystem {
         // Hadoop's listStatusIterator does not expand globs; use globStatus instead.
         if (containsGlob(locationStr)) {
             Path path = new Path(locationStr);
-            FileStatus[] statuses = authenticator.doAs(() -> getHadoopFs(path).globStatus(path));
+            org.apache.hadoop.fs.FileSystem hfs = getHadoopFs(path);
+            FileStatus[] statuses = authenticator.doAs(() -> hfs.globStatus(path));
             if (statuses == null) {
                 throw new FileNotFoundException("Path does not exist: " + location);
             }
             List<FileEntry> result = new ArrayList<>();
             for (FileStatus s : statuses) {
-                if (!s.isDirectory()) {
+                if (s.isDirectory()) {
+                    // Expand a directory match into its direct (single-level) file
+                    // children, matching the contract "all non-directory entries directly
+                    // under dir".
+                    FileStatus[] children = authenticator.doAs(() -> hfs.listStatus(s.getPath()));
+                    if (children != null) {
+                        for (FileStatus child : children) {
+                            if (!child.isDirectory()) {
+                                result.add(new FileEntry(Location.of(child.getPath().toString()),
+                                        child.getLen(), false,
+                                        child.getModificationTime(), null));
+                            }
+                        }
+                    }
+                } else {
                     result.add(new FileEntry(Location.of(s.getPath().toString()),
                             s.getLen(), false, s.getModificationTime(), null));
                 }
             }
+            // Deterministic order — globStatus + per-directory listStatus do not guarantee
+            // a global ordering across the merged result.
+            result.sort(Comparator.comparing(e -> e.location().uri()));
             return result;
         }
         return org.apache.doris.filesystem.FileSystem.super.listFiles(location);
@@ -248,6 +304,12 @@ public class DFSFileSystem implements org.apache.doris.filesystem.FileSystem {
     }
 
     @Override
+    public DorisInputFile newInputFile(Location location, long length) throws IOException {
+        Path path = new Path(location.toString());
+        return new HdfsInputFile(path, authenticator, this, length);
+    }
+
+    @Override
     public DorisOutputFile newOutputFile(Location location) throws IOException {
         Path path = new Path(location.toString());
         return new HdfsOutputFile(path, authenticator, this);
@@ -257,7 +319,10 @@ public class DFSFileSystem implements org.apache.doris.filesystem.FileSystem {
     public GlobListing globListWithLimit(Location path, String startAfter, long maxBytes,
             long maxFiles) throws IOException {
         Path hadoopPath = new Path(path.toString());
-        FileStatus[] statuses = authenticator.doAs(() -> getHadoopFs(hadoopPath).globStatus(hadoopPath));
+        org.apache.hadoop.fs.FileSystem hfs = getHadoopFs(hadoopPath);
+        boolean isGlob = containsGlob(path.toString());
+        FileStatus[] statuses = authenticator.doAs(() ->
+                isGlob ? hfs.globStatus(hadoopPath) : hfs.listStatus(hadoopPath));
         if (statuses == null) {
             throw new FileNotFoundException("Path does not exist: " + path);
         }
@@ -276,6 +341,8 @@ public class DFSFileSystem implements org.apache.doris.filesystem.FileSystem {
                 continue;
             }
             String filePath = status.getPath().toString();
+            // Apply startAfter filter BEFORE the page-limit check, so skipped entries
+            // do not consume the page budget.
             if (hasStartAfter && filePath.compareTo(startAfter) <= 0) {
                 continue;
             }

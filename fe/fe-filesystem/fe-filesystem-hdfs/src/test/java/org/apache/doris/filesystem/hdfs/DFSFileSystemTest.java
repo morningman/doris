@@ -282,4 +282,193 @@ class DFSFileSystemTest {
         Assertions.assertDoesNotThrow(() -> fs.mkdirs(Location.of("hdfs://nn/path/dir")));
         fs.close();
     }
+
+    // ------------------------------------------------------------------
+    // rename() — error context (Finding #8)
+    // ------------------------------------------------------------------
+
+    @Test
+    void rename_errorMessageIncludesSrcDstExistence() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        Mockito.when(hadoopFs.rename(ArgumentMatchers.any(Path.class),
+                ArgumentMatchers.any(Path.class))).thenReturn(false);
+        Path srcPath = new Path("hdfs://nn/a/src");
+        Path dstPath = new Path("hdfs://nn/a/dst");
+        Mockito.when(hadoopFs.exists(srcPath)).thenReturn(true);
+        Mockito.when(hadoopFs.exists(dstPath)).thenReturn(true);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        IOException ex = Assertions.assertThrows(IOException.class,
+                () -> fs.rename(Location.of("hdfs://nn/a/src"), Location.of("hdfs://nn/a/dst")));
+        Assertions.assertTrue(ex.getMessage().contains("srcExists=true"), ex.getMessage());
+        Assertions.assertTrue(ex.getMessage().contains("dstExists=true"), ex.getMessage());
+        fs.close();
+    }
+
+    // ------------------------------------------------------------------
+    // renameDirectory() — Finding #7
+    // ------------------------------------------------------------------
+
+    @Test
+    void renameDirectory_failsFastOnCrossAuthority() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        Mockito.when(hadoopFs.exists(ArgumentMatchers.any(Path.class))).thenReturn(true);
+        injectHadoopFs(fs, "nn1", hadoopFs);
+
+        IOException ex = Assertions.assertThrows(IOException.class,
+                () -> fs.renameDirectory(
+                        Location.of("hdfs://nn1/a/src"),
+                        Location.of("hdfs://nn2/a/dst"),
+                        () -> Assertions.fail("callback should not run")));
+        Assertions.assertTrue(ex.getMessage().contains("across authorities"), ex.getMessage());
+        // No mkdirs / rename should have been attempted on the cached FS for nn1.
+        Mockito.verify(hadoopFs, Mockito.never())
+                .mkdirs(ArgumentMatchers.any(Path.class));
+        Mockito.verify(hadoopFs, Mockito.never())
+                .rename(ArgumentMatchers.any(Path.class), ArgumentMatchers.any(Path.class));
+        fs.close();
+    }
+
+    @Test
+    void renameDirectory_callsCallbackWhenSrcAbsent() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        Mockito.when(hadoopFs.exists(ArgumentMatchers.any(Path.class))).thenReturn(false);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        boolean[] called = {false};
+        fs.renameDirectory(
+                Location.of("hdfs://nn/a/missing"),
+                Location.of("hdfs://nn/b/dst"),
+                () -> called[0] = true);
+        Assertions.assertTrue(called[0], "callback must run when src is absent");
+        Mockito.verify(hadoopFs, Mockito.never())
+                .rename(ArgumentMatchers.any(Path.class), ArgumentMatchers.any(Path.class));
+        fs.close();
+    }
+
+    @Test
+    void renameDirectory_unconditionalParentMkdirs() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        Mockito.when(hadoopFs.exists(new Path("hdfs://nn/a/src"))).thenReturn(true);
+        Mockito.when(hadoopFs.mkdirs(ArgumentMatchers.any(Path.class))).thenReturn(true);
+        Mockito.when(hadoopFs.rename(ArgumentMatchers.any(Path.class),
+                ArgumentMatchers.any(Path.class))).thenReturn(true);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        fs.renameDirectory(
+                Location.of("hdfs://nn/a/src"),
+                Location.of("hdfs://nn/parent/dst"),
+                () -> Assertions.fail("src exists; callback must not run"));
+
+        // No exists() pre-check on dstParent — only exists(src) at the very top.
+        Mockito.verify(hadoopFs, Mockito.never()).exists(new Path("hdfs://nn/parent"));
+        // mkdirs called on dst's parent unconditionally.
+        Mockito.verify(hadoopFs).mkdirs(new Path("hdfs://nn/parent"));
+        Mockito.verify(hadoopFs).rename(new Path("hdfs://nn/a/src"), new Path("hdfs://nn/parent/dst"));
+        fs.close();
+    }
+
+    // ------------------------------------------------------------------
+    // listFiles(glob) — Finding #10
+    // ------------------------------------------------------------------
+
+    @Test
+    void listFiles_globExpandsDirectoryMatchesIntoChildren() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        // glob "/data/_*" matches one directory and one file.
+        FileStatus dirMatch = new FileStatus(0L, true, 1, 1024L, 0L, new Path("hdfs://nn/data/_dir"));
+        FileStatus fileMatch = fileStatus("hdfs://nn/data/_top.csv", 50L);
+        Mockito.when(hadoopFs.globStatus(ArgumentMatchers.any(Path.class)))
+                .thenReturn(new FileStatus[] {dirMatch, fileMatch});
+        // Children of the matched directory: 2 files + 1 nested dir (must be excluded).
+        FileStatus child1 = fileStatus("hdfs://nn/data/_dir/a.csv", 10L);
+        FileStatus child2 = fileStatus("hdfs://nn/data/_dir/b.csv", 20L);
+        FileStatus nestedDir = new FileStatus(0L, true, 1, 1024L, 0L,
+                new Path("hdfs://nn/data/_dir/sub"));
+        Mockito.when(hadoopFs.listStatus(new Path("hdfs://nn/data/_dir")))
+                .thenReturn(new FileStatus[] {child2, child1, nestedDir});
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        java.util.List<FileEntry> result = fs.listFiles(Location.of("hdfs://nn/data/_*"));
+
+        Assertions.assertEquals(3, result.size());
+        // Sorted lexicographically.
+        Assertions.assertEquals("hdfs://nn/data/_dir/a.csv", result.get(0).location().uri());
+        Assertions.assertEquals("hdfs://nn/data/_dir/b.csv", result.get(1).location().uri());
+        Assertions.assertEquals("hdfs://nn/data/_top.csv", result.get(2).location().uri());
+        fs.close();
+    }
+
+    // ------------------------------------------------------------------
+    // globListWithLimit — Findings #11, #12
+    // ------------------------------------------------------------------
+
+    @Test
+    void globListWithLimit_nonGlobPathListsDirectly() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        FileStatus[] statuses = new FileStatus[] {
+                fileStatus("hdfs://nn/dir/a.csv", 10L),
+                fileStatus("hdfs://nn/dir/b.csv", 10L),
+        };
+        Mockito.when(hadoopFs.listStatus(ArgumentMatchers.any(Path.class))).thenReturn(statuses);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        GlobListing listing = fs.globListWithLimit(
+                Location.of("hdfs://nn/dir"), null, 0L, 10L);
+
+        Assertions.assertEquals(2, listing.getFiles().size());
+        // Should have used listStatus, NOT globStatus, for a non-glob path.
+        Mockito.verify(hadoopFs).listStatus(ArgumentMatchers.any(Path.class));
+        Mockito.verify(hadoopFs, Mockito.never()).globStatus(ArgumentMatchers.any(Path.class));
+        fs.close();
+    }
+
+    @Test
+    void globListWithLimit_startAfterAppliedBeforeLimit() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        FileStatus[] statuses = new FileStatus[] {
+                fileStatus("hdfs://nn/glob/a.csv", 10L), // skipped by startAfter
+                fileStatus("hdfs://nn/glob/b.csv", 10L), // skipped by startAfter (== startAfter)
+                fileStatus("hdfs://nn/glob/c.csv", 10L), // page entry 1
+                fileStatus("hdfs://nn/glob/d.csv", 10L), // page entry 2
+                fileStatus("hdfs://nn/glob/e.csv", 10L), // next-page cursor
+        };
+        Mockito.when(hadoopFs.globStatus(ArgumentMatchers.any(Path.class))).thenReturn(statuses);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        // maxFiles=2 — must NOT count the skipped a/b toward the page budget.
+        GlobListing listing = fs.globListWithLimit(
+                Location.of("hdfs://nn/glob/*.csv"), "hdfs://nn/glob/b.csv", 0L, 2L);
+
+        Assertions.assertEquals(2, listing.getFiles().size());
+        Assertions.assertEquals("hdfs://nn/glob/c.csv", listing.getFiles().get(0).location().uri());
+        Assertions.assertEquals("hdfs://nn/glob/d.csv", listing.getFiles().get(1).location().uri());
+        Assertions.assertEquals("hdfs://nn/glob/e.csv", listing.getMaxFile());
+        fs.close();
+    }
+
+    // ------------------------------------------------------------------
+    // newInputFile(Location, long) — Finding #14
+    // ------------------------------------------------------------------
+
+    @Test
+    void newInputFile_withLengthHintSkipsGetFileStatus() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        org.apache.doris.filesystem.DorisInputFile in = fs.newInputFile(
+                Location.of("hdfs://nn/data/file.parquet"), 4242L);
+        Assertions.assertEquals(4242L, in.length());
+        Mockito.verify(hadoopFs, Mockito.never())
+                .getFileStatus(ArgumentMatchers.any(Path.class));
+        fs.close();
+    }
 }
