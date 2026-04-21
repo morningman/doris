@@ -242,8 +242,8 @@ class S3FileSystemTest {
                 ArgumentMatchers.eq(List.of("dir/a.txt", "dir/b.txt")));
         Mockito.verify(mockStorage, Mockito.never()).deleteObject(ArgumentMatchers.eq("s3://bucket/dir/a.txt"));
         Mockito.verify(mockStorage, Mockito.never()).deleteObject(ArgumentMatchers.eq("s3://bucket/dir/b.txt"));
-        // The exact-key delete still runs (no-op when missing).
-        Mockito.verify(mockStorage).deleteObject("s3://bucket/dir");
+        // #25: the recursive branch must NOT issue an extra deleteObject(location.uri()).
+        Mockito.verify(mockStorage, Mockito.never()).deleteObject(ArgumentMatchers.anyString());
     }
 
     // ------------------------------------------------------------------
@@ -803,5 +803,104 @@ class S3FileSystemTest {
         Assertions.assertFalse(in.exists());
 
         Mockito.verify(mockStorage, Mockito.times(1)).headObject("s3://bucket/missing");
+    }
+
+    // ------------------------------------------------------------------
+    // S3SeekableInputStream read-ahead (#24)
+    // ------------------------------------------------------------------
+
+    /**
+     * #24: a sequence of single-byte {@code read()} calls within the read-ahead window must
+     * trigger only ONE underlying {@code openInputStreamAt} call, because the
+     * {@code BufferedInputStream} wrapper serves subsequent reads from its in-memory buffer.
+     */
+    @Test
+    void s3SeekableInputStream_singleByteReadsServedFromBuffer() throws IOException {
+        byte[] payload = new byte[256];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) i;
+        }
+        Mockito.when(mockStorage.headObject("s3://bucket/file"))
+                .thenReturn(new RemoteObject("file", "file", null, (long) payload.length, 0L));
+        Mockito.when(mockStorage.openInputStreamAt(ArgumentMatchers.eq("s3://bucket/file"),
+                        ArgumentMatchers.eq(0L)))
+                .thenReturn(new java.io.ByteArrayInputStream(payload));
+
+        org.apache.doris.filesystem.DorisInputFile in = fs.newInputFile(Location.of("s3://bucket/file"));
+        try (org.apache.doris.filesystem.DorisInputStream is = in.newStream()) {
+            for (int i = 0; i < payload.length; i++) {
+                Assertions.assertEquals(payload[i] & 0xFF, is.read(),
+                        "byte " + i + " mismatch");
+            }
+        }
+
+        // Exactly one GET despite 256 single-byte reads.
+        Mockito.verify(mockStorage, Mockito.times(1))
+                .openInputStreamAt(ArgumentMatchers.eq("s3://bucket/file"),
+                        ArgumentMatchers.eq(0L));
+    }
+
+    /**
+     * #24: a {@code seek()} past the buffered window must invalidate the buffer and trigger
+     * a fresh {@code openInputStreamAt} call at the new offset.
+     */
+    @Test
+    void s3SeekableInputStream_seekTriggersNewGetObject() throws IOException {
+        byte[] payload = new byte[256];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) i;
+        }
+        Mockito.when(mockStorage.headObject("s3://bucket/file"))
+                .thenReturn(new RemoteObject("file", "file", null, (long) payload.length, 0L));
+        // Each invocation returns a fresh stream so seek/re-open works.
+        Mockito.when(mockStorage.openInputStreamAt(ArgumentMatchers.eq("s3://bucket/file"),
+                        ArgumentMatchers.anyLong()))
+                .thenAnswer(inv -> {
+                    long off = inv.getArgument(1);
+                    return new java.io.ByteArrayInputStream(payload, (int) off,
+                            payload.length - (int) off);
+                });
+
+        org.apache.doris.filesystem.DorisInputFile in = fs.newInputFile(Location.of("s3://bucket/file"));
+        try (org.apache.doris.filesystem.DorisInputStream is = in.newStream()) {
+            Assertions.assertEquals(0, is.read());
+            is.seek(128);
+            Assertions.assertEquals(128, is.read());
+        }
+
+        Mockito.verify(mockStorage, Mockito.times(1))
+                .openInputStreamAt(ArgumentMatchers.eq("s3://bucket/file"), ArgumentMatchers.eq(0L));
+        Mockito.verify(mockStorage, Mockito.times(1))
+                .openInputStreamAt(ArgumentMatchers.eq("s3://bucket/file"), ArgumentMatchers.eq(128L));
+    }
+
+    /**
+     * #24: {@code close()} must release the underlying buffered stream.
+     */
+    @Test
+    void s3SeekableInputStream_closeReleasesBuffer() throws IOException {
+        byte[] payload = new byte[]{1, 2, 3};
+        Mockito.when(mockStorage.headObject("s3://bucket/file"))
+                .thenReturn(new RemoteObject("file", "file", null, (long) payload.length, 0L));
+        java.util.concurrent.atomic.AtomicBoolean closed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        Mockito.when(mockStorage.openInputStreamAt(ArgumentMatchers.eq("s3://bucket/file"),
+                        ArgumentMatchers.eq(0L)))
+                .thenReturn(new java.io.ByteArrayInputStream(payload) {
+                    @Override
+                    public void close() throws IOException {
+                        closed.set(true);
+                        super.close();
+                    }
+                });
+
+        org.apache.doris.filesystem.DorisInputFile in = fs.newInputFile(Location.of("s3://bucket/file"));
+        org.apache.doris.filesystem.DorisInputStream is = in.newStream();
+        Assertions.assertEquals(1, is.read()); // forces open
+        is.close();
+
+        Assertions.assertTrue(closed.get(),
+                "Underlying input stream must be closed when seekable stream closes");
+        Assertions.assertThrows(IOException.class, is::read,
+                "read() after close() must throw");
     }
 }

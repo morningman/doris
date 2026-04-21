@@ -190,7 +190,22 @@ public class S3ObjStorage implements ObjStorage<S3Client> {
 
     protected S3Client buildClient() throws IOException {
         String endpointStr = properties.get(PROP_ENDPOINT);
-        String region = properties.getOrDefault(PROP_REGION, "us-east-1");
+        // #23: Region is required for SigV4 signing. Historically we silently fell back to
+        // "us-east-1" when none was configured, which can mis-route requests to the wrong AWS
+        // region for standard S3 (no endpoint override). Soft-deprecate by logging a WARN
+        // rather than throwing, to avoid breaking clusters that rely on the implicit default.
+        String region = properties.get(PROP_REGION);
+        if (region == null || region.isEmpty()) {
+            region = "us-east-1";
+            if (endpointStr == null || endpointStr.isEmpty()) {
+                LOG.warn("S3 region is not configured (set s3.region / region / AWS_REGION); "
+                        + "falling back to '{}'. This is deprecated and may mis-route requests "
+                        + "for non-us-east-1 buckets — configure the region explicitly.", region);
+            } else {
+                LOG.warn("S3 region is not configured but endpoint '{}' is set; using '{}' as a "
+                        + "placeholder solely for SigV4 signing.", endpointStr, region);
+            }
+        }
         AwsCredentialsProvider credentialsProvider = buildCredentialsProvider();
 
         S3ClientBuilder builder = S3Client.builder()

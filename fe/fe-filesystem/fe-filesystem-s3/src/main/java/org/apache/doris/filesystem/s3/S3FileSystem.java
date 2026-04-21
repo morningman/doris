@@ -136,20 +136,24 @@ public class S3FileSystem extends ObjFileSystem {
             String prefix = location.uri().endsWith(DIR_MARKER_SUFFIX)
                     ? location.uri() : location.uri() + DIR_MARKER_SUFFIX;
             deleteRecursive(prefix);
-        } else {
-            // Per FileSystem contract, recursive=false must fail on a non-empty directory.
-            // S3 has no real directories, so probe the prefix for any non-marker child.
-            String prefix = location.uri().endsWith(DIR_MARKER_SUFFIX)
-                    ? location.uri() : location.uri() + DIR_MARKER_SUFFIX;
-            String markerKey = parseUri(prefix).key();
-            RemoteObjects probe = ((S3ObjStorage) objStorage).listObjects(prefix, null, 2);
-            for (RemoteObject obj : probe.getObjectList()) {
-                if (!obj.getKey().equals(markerKey)) {
-                    throw new IOException("Directory not empty: " + location.uri());
-                }
+            // #25: do NOT issue an additional deleteObject(location.uri()) here.
+            // The recursive listing already swept the directory marker (key ending in '/')
+            // and every child key. For a non-existent bare key the extra call would just
+            // produce a swallowed 404; for a real key it is already covered by the listing.
+            return;
+        }
+        // Per FileSystem contract, recursive=false must fail on a non-empty directory.
+        // S3 has no real directories, so probe the prefix for any non-marker child.
+        String prefix = location.uri().endsWith(DIR_MARKER_SUFFIX)
+                ? location.uri() : location.uri() + DIR_MARKER_SUFFIX;
+        String markerKey = parseUri(prefix).key();
+        RemoteObjects probe = ((S3ObjStorage) objStorage).listObjects(prefix, null, 2);
+        for (RemoteObject obj : probe.getObjectList()) {
+            if (!obj.getKey().equals(markerKey)) {
+                throw new IOException("Directory not empty: " + location.uri());
             }
         }
-        // Always attempt to delete the exact object too
+        // Delete the exact object (or marker). 404 is benign and swallowed.
         try {
             objStorage.deleteObject(location.uri());
         } catch (IOException e) {
@@ -602,8 +606,19 @@ public class S3FileSystem extends ObjFileSystem {
     /**
      * Seekable input stream for S3 objects.
      * Uses HTTP Range requests to seek without downloading the entire object.
+     *
+     * <p>#24: each underlying {@code GetObject} stream is wrapped in a
+     * {@link java.io.BufferedInputStream} of {@link #READ_AHEAD_BYTES} bytes so that
+     * subsequent small reads after a seek are served from the in-memory buffer instead of
+     * issuing one socket read per byte. The read-ahead buffer is discarded on every
+     * {@link #seek(long)} (a fresh range request is opened on the next read) and on
+     * {@link #close()}, so semantics (EOF, partial reads, exceptions) are unchanged.
      */
     private static class S3SeekableInputStream extends DorisInputStream {
+        // Read-ahead buffer size. 64 KiB matches HDFS / S3A defaults and is small enough to
+        // amortise socket overhead without holding meaningful memory per open file.
+        private static final int READ_AHEAD_BYTES = 64 * 1024;
+
         private final String remotePath;
         private final S3ObjStorage objStorage;
         private final long fileLength;
@@ -629,7 +644,10 @@ public class S3FileSystem extends ObjFileSystem {
                 current.close();
                 current = null;
             }
-            current = objStorage.openInputStreamAt(remotePath, position);
+            // Wrap with BufferedInputStream so single-byte reads after seek are served from a
+            // 64 KiB in-memory window instead of one socket round-trip per byte.
+            current = new java.io.BufferedInputStream(
+                    objStorage.openInputStreamAt(remotePath, position), READ_AHEAD_BYTES);
         }
 
         @Override
