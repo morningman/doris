@@ -22,6 +22,7 @@ import org.apache.doris.filesystem.DorisInputStream;
 import org.apache.doris.filesystem.DorisOutputFile;
 import org.apache.doris.filesystem.FileEntry;
 import org.apache.doris.filesystem.FileIterator;
+import org.apache.doris.filesystem.GlobListing;
 import org.apache.doris.filesystem.Location;
 import org.apache.doris.filesystem.spi.ObjFileSystem;
 import org.apache.doris.filesystem.spi.RemoteObject;
@@ -38,6 +39,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Azure Blob Storage-backed {@link org.apache.doris.filesystem.FileSystem} implementation.
@@ -70,12 +72,31 @@ public class AzureFileSystem extends ObjFileSystem {
         objStorage.putObject(path, RequestBody.of(InputStream.nullInputStream(), 0));
     }
 
+    /**
+     * Deletes a blob or virtual directory.
+     *
+     * <p>When {@code recursive=true}, paginates the listing under {@code <uri>/} and deletes
+     * each entry — including the directory marker blob {@code <uri>/} itself when present.
+     * The literal key {@code <uri>} (without trailing slash) is intentionally NOT deleted by
+     * the recursive branch: in Azure's flat namespace, deleting a directory must not also
+     * remove a sibling blob whose name happens to equal the directory path.
+     *
+     * <p>When {@code recursive=false}, first checks whether any child blobs exist under
+     * {@code <uri>/}; if so, throws {@link IOException} ("Directory not empty"). Otherwise
+     * issues a best-effort {@code deleteObject(uri)} on the literal key. A 404 (target does
+     * not exist) is swallowed so that deleting a missing target is idempotent — matching
+     * the contract honored by {@code S3FileSystem}.
+     */
     @Override
     public void delete(Location location, boolean recursive) throws IOException {
+        String prefix = location.uri().endsWith(DIR_MARKER_SUFFIX)
+                ? location.uri() : location.uri() + DIR_MARKER_SUFFIX;
         if (recursive) {
-            String prefix = location.uri().endsWith(DIR_MARKER_SUFFIX)
-                    ? location.uri() : location.uri() + DIR_MARKER_SUFFIX;
             deleteRecursive(prefix);
+            return;
+        }
+        if (hasChildUnder(prefix)) {
+            throw new IOException("Directory not empty: " + location);
         }
         try {
             objStorage.deleteObject(location.uri());
@@ -84,6 +105,23 @@ public class AzureFileSystem extends ObjFileSystem {
                 throw e;
             }
         }
+    }
+
+    /**
+     * Returns true if {@code prefix} (a URI ending in {@code /}) has at least one
+     * blob whose name is strictly longer than the prefix's key portion (i.e. a child).
+     * The directory marker blob whose key equals the prefix's key portion is not
+     * considered a child.
+     */
+    private boolean hasChildUnder(String prefix) throws IOException {
+        String prefixKey = AzureUri.parse(prefix).key();
+        RemoteObjects firstPage = objStorage.listObjects(prefix, null);
+        for (RemoteObject obj : firstPage.getObjectList()) {
+            if (obj.getKey().length() > prefixKey.length()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void deleteRecursive(String prefix) throws IOException {
@@ -153,6 +191,186 @@ public class AzureFileSystem extends ObjFileSystem {
         }
         String authority = withoutScheme.substring(0, firstSlash);
         return scheme + "://" + authority + "/" + key;
+    }
+
+    @Override
+    public GlobListing globListWithLimit(Location path, String startAfter, long maxBytes,
+            long maxFiles) throws IOException {
+        String uri = path.uri();
+        AzureUri parsed = AzureUri.parse(uri);
+        String container = parsed.container();
+        String keyPattern = parsed.key();
+        // base = uri with the key portion stripped, preserving the original scheme/host syntax.
+        String base = uri.substring(0, uri.length() - keyPattern.length());
+
+        Pattern matcher = Pattern.compile(globToRegex(keyPattern));
+        String listKeyPrefix = longestNonGlobPrefix(keyPattern);
+        String listPrefixUri = base + listKeyPrefix;
+
+        List<FileEntry> files = new ArrayList<>();
+        long totalSize = 0L;
+        String maxFile = "";
+        String continuationToken = null;
+        boolean reachLimit = false;
+
+        outer:
+        do {
+            RemoteObjects page = objStorage.listObjects(listPrefixUri, continuationToken);
+            for (RemoteObject obj : page.getObjectList()) {
+                String key = obj.getKey();
+                if (key.endsWith(DIR_MARKER_SUFFIX)) {
+                    continue;
+                }
+                if (startAfter != null && !startAfter.isEmpty() && key.compareTo(startAfter) <= 0) {
+                    continue;
+                }
+                if (!matcher.matcher(key).matches()) {
+                    continue;
+                }
+                if ((maxFiles > 0 && files.size() >= maxFiles)
+                        || (maxBytes > 0 && totalSize >= maxBytes)) {
+                    maxFile = key;
+                    reachLimit = true;
+                    break outer;
+                }
+                files.add(new FileEntry(
+                        Location.of(base + key),
+                        obj.getSize(),
+                        false,
+                        obj.getModificationTime(),
+                        null));
+                totalSize += obj.getSize();
+                maxFile = key;
+            }
+            continuationToken = page.isTruncated() ? page.getContinuationToken() : null;
+        } while (continuationToken != null);
+
+        if (!reachLimit && files.isEmpty()) {
+            maxFile = "";
+        }
+        return new GlobListing(files, container, listKeyPrefix, maxFile);
+    }
+
+    /**
+     * Returns true iff {@code path} contains a glob metacharacter.  Only {@code *} and
+     * {@code ?} are recognised — literal {@code [} / {@code {} are valid characters in
+     * Azure blob keys and must not be auto-routed through {@link #globListWithLimit}.
+     */
+    static boolean containsGlob(String path) {
+        return path.indexOf('*') >= 0 || path.indexOf('?') >= 0;
+    }
+
+    /**
+     * Returns the longest key-prefix of {@code globPattern} that contains no glob
+     * metacharacters ({@code * ? [ { \}). Used as the {@code prefix} parameter for the
+     * Azure list-blobs call.
+     */
+    static String longestNonGlobPrefix(String globPattern) {
+        int earliest = globPattern.length();
+        for (char c : new char[]{'*', '?', '[', '{', '\\'}) {
+            int idx = globPattern.indexOf(c);
+            if (idx >= 0 && idx < earliest) {
+                earliest = idx;
+            }
+        }
+        return globPattern.substring(0, earliest);
+    }
+
+    /**
+     * Translates a Java NIO glob pattern to a regex matched against raw blob keys.
+     * Mirrors the JDK glob → regex conversion but operates on plain strings, so it
+     * tolerates characters that the host OS path syntax would refuse.  Supports:
+     * <ul>
+     *   <li>{@code *} → any run of non-{@code /} characters;</li>
+     *   <li>{@code **} → any run of characters including {@code /};</li>
+     *   <li>{@code ?} → any single non-{@code /} character;</li>
+     *   <li>{@code [...]} character class (with {@code !} for negation);</li>
+     *   <li>{@code {a,b,c}} alternation;</li>
+     *   <li>{@code \X} escapes the next character literally.</li>
+     * </ul>
+     */
+    static String globToRegex(String glob) {
+        StringBuilder sb = new StringBuilder("^");
+        boolean inClass = false;
+        boolean inGroup = false;
+        int i = 0;
+        while (i < glob.length()) {
+            char c = glob.charAt(i);
+            if (c == '\\') {
+                if (i + 1 < glob.length()) {
+                    sb.append(Pattern.quote(String.valueOf(glob.charAt(i + 1))));
+                    i += 2;
+                } else {
+                    sb.append("\\\\");
+                    i++;
+                }
+                continue;
+            }
+            if (inClass) {
+                if (c == ']') {
+                    inClass = false;
+                    sb.append(']');
+                } else if (c == '\\' || c == '[') {
+                    sb.append('\\').append(c);
+                } else {
+                    sb.append(c);
+                }
+                i++;
+                continue;
+            }
+            switch (c) {
+                case '*':
+                    if (i + 1 < glob.length() && glob.charAt(i + 1) == '*') {
+                        sb.append(".*");
+                        i += 2;
+                    } else {
+                        sb.append("[^/]*");
+                        i++;
+                    }
+                    break;
+                case '?':
+                    sb.append("[^/]");
+                    i++;
+                    break;
+                case '[':
+                    inClass = true;
+                    sb.append('[');
+                    i++;
+                    if (i < glob.length() && glob.charAt(i) == '!') {
+                        sb.append('^');
+                        i++;
+                    }
+                    break;
+                case '{':
+                    inGroup = true;
+                    sb.append("(?:");
+                    i++;
+                    break;
+                case '}':
+                    inGroup = false;
+                    sb.append(')');
+                    i++;
+                    break;
+                case ',':
+                    if (inGroup) {
+                        sb.append('|');
+                    } else {
+                        sb.append(',');
+                    }
+                    i++;
+                    break;
+                default:
+                    if ("\\.^$|+()".indexOf(c) >= 0) {
+                        sb.append('\\').append(c);
+                    } else {
+                        sb.append(c);
+                    }
+                    i++;
+                    break;
+            }
+        }
+        sb.append('$');
+        return sb.toString();
     }
 
     /** Lazy-paginating FileIterator over Azure list results. */
