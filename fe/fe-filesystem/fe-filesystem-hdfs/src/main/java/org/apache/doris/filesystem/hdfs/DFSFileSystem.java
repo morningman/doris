@@ -133,7 +133,22 @@ public class DFSFileSystem implements org.apache.doris.filesystem.FileSystem {
     public void mkdirs(Location location) throws IOException {
         Path path = new Path(location.toString());
         authenticator.doAs(() -> {
-            getHadoopFs(path).mkdirs(path);
+            org.apache.hadoop.fs.FileSystem hfs = getHadoopFs(path);
+            if (!hfs.mkdirs(path)) {
+                // Hadoop returns false (without throwing) when the path already exists
+                // as a regular file, or when some other non-exceptional failure occurs.
+                // Re-stat the path: if it's already a directory treat as idempotent
+                // success; otherwise surface the failure as IOException.
+                try {
+                    FileStatus st = hfs.getFileStatus(path);
+                    if (!st.isDirectory()) {
+                        throw new IOException(
+                                "HDFS mkdirs failed: path exists and is not a directory: " + path);
+                    }
+                } catch (FileNotFoundException e) {
+                    throw new IOException("HDFS mkdirs returned false for " + path, e);
+                }
+            }
             return null;
         });
     }
@@ -142,7 +157,14 @@ public class DFSFileSystem implements org.apache.doris.filesystem.FileSystem {
     public void delete(Location location, boolean recursive) throws IOException {
         Path path = new Path(location.toString());
         authenticator.doAs(() -> {
-            getHadoopFs(path).delete(path, recursive);
+            org.apache.hadoop.fs.FileSystem hfs = getHadoopFs(path);
+            boolean ok = hfs.delete(path, recursive);
+            if (!ok && hfs.exists(path)) {
+                // Preserve idempotent "target already missing" behaviour (common Hadoop
+                // convention) but surface real failures such as immutable snapshots or
+                // viewfs read-only mounts.
+                throw new IOException("HDFS delete returned false but path still exists: " + path);
+            }
             return null;
         });
     }

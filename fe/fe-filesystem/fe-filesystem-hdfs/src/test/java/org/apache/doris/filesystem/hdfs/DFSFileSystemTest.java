@@ -214,4 +214,72 @@ class DFSFileSystemTest {
         Assertions.assertEquals("", listing.getMaxFile());
         fs.close();
     }
+
+    // ------------------------------------------------------------------
+    // delete() — boolean return-value handling
+    // ------------------------------------------------------------------
+
+    @Test
+    void delete_throwsWhenHadoopReturnsFalseAndPathStillExists() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        Mockito.when(hadoopFs.delete(ArgumentMatchers.any(Path.class), ArgumentMatchers.anyBoolean()))
+                .thenReturn(false);
+        Mockito.when(hadoopFs.exists(ArgumentMatchers.any(Path.class))).thenReturn(true);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        IOException ex = Assertions.assertThrows(IOException.class,
+                () -> fs.delete(Location.of("hdfs://nn/path/file"), false));
+        Assertions.assertTrue(ex.getMessage().contains("delete returned false"),
+                "message should mention the false return: " + ex.getMessage());
+        fs.close();
+    }
+
+    @Test
+    void delete_returnsSilentlyWhenHadoopReturnsFalseAndPathAbsent() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        Mockito.when(hadoopFs.delete(ArgumentMatchers.any(Path.class), ArgumentMatchers.anyBoolean()))
+                .thenReturn(false);
+        Mockito.when(hadoopFs.exists(ArgumentMatchers.any(Path.class))).thenReturn(false);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        Assertions.assertDoesNotThrow(() -> fs.delete(Location.of("hdfs://nn/path/gone"), true));
+        fs.close();
+    }
+
+    // ------------------------------------------------------------------
+    // mkdirs() — boolean return-value handling
+    // ------------------------------------------------------------------
+
+    @Test
+    void mkdirs_throwsWhenPathExistsAsFile() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        Mockito.when(hadoopFs.mkdirs(ArgumentMatchers.any(Path.class))).thenReturn(false);
+        FileStatus fileStat = Mockito.mock(FileStatus.class);
+        Mockito.when(fileStat.isDirectory()).thenReturn(false);
+        Mockito.when(hadoopFs.getFileStatus(ArgumentMatchers.any(Path.class))).thenReturn(fileStat);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        IOException ex = Assertions.assertThrows(IOException.class,
+                () -> fs.mkdirs(Location.of("hdfs://nn/path/blocked")));
+        Assertions.assertTrue(ex.getMessage().contains("not a directory"),
+                "message should indicate file-blocks-dir case: " + ex.getMessage());
+        fs.close();
+    }
+
+    @Test
+    void mkdirs_idempotentWhenPathAlreadyDirectory() throws Exception {
+        DFSFileSystem fs = new DFSFileSystem(new HashMap<>());
+        org.apache.hadoop.fs.FileSystem hadoopFs = Mockito.mock(org.apache.hadoop.fs.FileSystem.class);
+        Mockito.when(hadoopFs.mkdirs(ArgumentMatchers.any(Path.class))).thenReturn(false);
+        FileStatus dirStat = Mockito.mock(FileStatus.class);
+        Mockito.when(dirStat.isDirectory()).thenReturn(true);
+        Mockito.when(hadoopFs.getFileStatus(ArgumentMatchers.any(Path.class))).thenReturn(dirStat);
+        injectHadoopFs(fs, "nn", hadoopFs);
+
+        Assertions.assertDoesNotThrow(() -> fs.mkdirs(Location.of("hdfs://nn/path/dir")));
+        fs.close();
+    }
 }
