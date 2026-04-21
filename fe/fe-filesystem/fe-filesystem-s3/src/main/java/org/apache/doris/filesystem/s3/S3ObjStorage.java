@@ -69,6 +69,7 @@ import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 import software.amazon.awssdk.services.sts.model.AssumeRoleResponse;
 import software.amazon.awssdk.services.sts.model.Credentials;
+import software.amazon.awssdk.utils.http.SdkHttpUtils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -370,7 +371,8 @@ public class S3ObjStorage implements ObjStorage<S3Client> {
         S3Uri dstUri = S3Uri.parse(dstPath, usePathStyle);
         try {
             getClient().copyObject(CopyObjectRequest.builder()
-                    .copySource(srcUri.bucket() + "/" + srcUri.key())
+                    .copySource(SdkHttpUtils.urlEncodeIgnoreSlashes(
+                            srcUri.bucket() + "/" + srcUri.key()))
                     .destinationBucket(dstUri.bucket())
                     .destinationKey(dstUri.key())
                     .build());

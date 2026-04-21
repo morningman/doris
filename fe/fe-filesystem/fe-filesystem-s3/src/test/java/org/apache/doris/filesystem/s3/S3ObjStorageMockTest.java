@@ -251,6 +251,34 @@ class S3ObjStorageMockTest {
         Assertions.assertEquals("dst", captor.getValue().destinationKey());
     }
 
+    @Test
+    void copyObject_percentEncodesCopySourceWithSpecialChars() throws IOException {
+        Mockito.when(mockS3.copyObject(ArgumentMatchers.any(CopyObjectRequest.class)))
+                .thenReturn(CopyObjectResponse.builder().build());
+
+        storage.copyObject("s3://my-bucket/path/has space+plus.csv", "s3://my-bucket/dst");
+
+        ArgumentCaptor<CopyObjectRequest> captor = ArgumentCaptor.forClass(CopyObjectRequest.class);
+        Mockito.verify(mockS3).copyObject(captor.capture());
+        // Slashes preserved (path separators), space -> %20, '+' -> %2B
+        Assertions.assertEquals("my-bucket/path/has%20space%2Bplus.csv",
+                captor.getValue().copySource());
+    }
+
+    @Test
+    void copyObject_percentEncodesUnicodeCopySource() throws IOException {
+        Mockito.when(mockS3.copyObject(ArgumentMatchers.any(CopyObjectRequest.class)))
+                .thenReturn(CopyObjectResponse.builder().build());
+
+        storage.copyObject("s3://my-bucket/data/éclair.csv", "s3://my-bucket/dst");
+
+        ArgumentCaptor<CopyObjectRequest> captor = ArgumentCaptor.forClass(CopyObjectRequest.class);
+        Mockito.verify(mockS3).copyObject(captor.capture());
+        // 'é' is UTF-8 0xC3 0xA9
+        Assertions.assertEquals("my-bucket/data/%C3%A9clair.csv",
+                captor.getValue().copySource());
+    }
+
     // ------------------------------------------------------------------
     // initiateMultipartUpload()
     // ------------------------------------------------------------------

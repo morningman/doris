@@ -39,6 +39,7 @@ import software.amazon.awssdk.services.s3.model.S3Object;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystems;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
@@ -373,7 +374,18 @@ public class S3FileSystem extends ObjFileSystem {
 
         @Override
         public OutputStream create() throws IOException {
-            return createOrOverwrite();
+            // Per DorisOutputFile contract, create() must fail if the target object
+            // already exists. Probe with headObject and translate not-found into a
+            // signal that we may proceed with the PUT.
+            try {
+                objStorage.headObject(location.uri());
+            } catch (IOException e) {
+                if (isNotFoundError(e)) {
+                    return createOrOverwrite();
+                }
+                throw e;
+            }
+            throw new FileAlreadyExistsException(location.uri());
         }
 
         @Override

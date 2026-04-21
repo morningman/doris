@@ -17,6 +17,7 @@
 
 package org.apache.doris.filesystem.s3;
 
+import org.apache.doris.filesystem.DorisOutputFile;
 import org.apache.doris.filesystem.Location;
 import org.apache.doris.filesystem.spi.RemoteObject;
 import org.apache.doris.filesystem.spi.RemoteObjects;
@@ -31,6 +32,7 @@ import org.mockito.Mockito;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.util.List;
 
 /**
@@ -235,6 +237,46 @@ class S3FileSystemTest {
     @Test
     void longestNonGlobPrefix_emptyForLeadingStar() {
         Assertions.assertEquals("", S3FileSystem.longestNonGlobPrefix("*.csv"));
+    }
+
+    // ------------------------------------------------------------------
+    // newOutputFile().create() / createOrOverwrite()
+    // ------------------------------------------------------------------
+
+    @Test
+    void create_throwsFileAlreadyExistsWhenObjectExists() throws IOException {
+        Mockito.when(mockStorage.headObject("s3://bucket/existing"))
+                .thenReturn(new RemoteObject("existing", "existing", null, 100L, 0L));
+
+        DorisOutputFile out = fs.newOutputFile(Location.of("s3://bucket/existing"));
+        Assertions.assertThrows(FileAlreadyExistsException.class, out::create);
+    }
+
+    @Test
+    void create_succeedsWhenObjectDoesNotExist() throws IOException {
+        Mockito.when(mockStorage.headObject("s3://bucket/new"))
+                .thenThrow(new FileNotFoundException("missing"));
+
+        DorisOutputFile out = fs.newOutputFile(Location.of("s3://bucket/new"));
+        // Should not throw; underlying stream constructor does no I/O.
+        Assertions.assertNotNull(out.create());
+    }
+
+    @Test
+    void create_propagatesNonNotFoundIOException() throws IOException {
+        IOException io500 = new IOException("server error");
+        Mockito.when(mockStorage.headObject("s3://bucket/err")).thenThrow(io500);
+
+        DorisOutputFile out = fs.newOutputFile(Location.of("s3://bucket/err"));
+        IOException thrown = Assertions.assertThrows(IOException.class, out::create);
+        Assertions.assertEquals(io500, thrown);
+    }
+
+    @Test
+    void createOrOverwrite_doesNotProbeForExistence() throws IOException {
+        DorisOutputFile out = fs.newOutputFile(Location.of("s3://bucket/anything"));
+        Assertions.assertNotNull(out.createOrOverwrite());
+        Mockito.verify(mockStorage, Mockito.never()).headObject(ArgumentMatchers.anyString());
     }
 
     // ------------------------------------------------------------------
