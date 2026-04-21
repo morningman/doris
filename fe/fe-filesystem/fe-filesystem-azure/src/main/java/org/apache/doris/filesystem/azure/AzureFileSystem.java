@@ -69,7 +69,39 @@ public class AzureFileSystem extends ObjFileSystem {
         String path = location.uri().endsWith(DIR_MARKER_SUFFIX)
                 ? location.uri()
                 : location.uri() + DIR_MARKER_SUFFIX;
+        // Idempotent: if a marker blob already exists at <path>/, don't re-upload it
+        // (putObject uses overwrite=true and would truncate any pre-existing blob with
+        // exactly the same key). Only proceed when the marker is genuinely missing.
+        try {
+            objStorage.headObject(path);
+            return;
+        } catch (IOException e) {
+            if (!isNotFoundError(e)) {
+                throw e;
+            }
+        }
         objStorage.putObject(path, RequestBody.of(InputStream.nullInputStream(), 0));
+    }
+
+    /**
+     * Returns true iff the location resolves to either an exact blob or a virtual
+     * directory (any blob exists whose key starts with {@code <uri>/}).  The default
+     * {@link ObjFileSystem#exists(Location)} only HEADs the literal key, so it would
+     * report false for prefix-style directories that have no marker blob.
+     */
+    @Override
+    public boolean exists(Location location) throws IOException {
+        try {
+            objStorage.headObject(location.uri());
+            return true;
+        } catch (IOException e) {
+            if (!isNotFoundError(e)) {
+                throw e;
+            }
+        }
+        String prefix = location.uri().endsWith(DIR_MARKER_SUFFIX)
+                ? location.uri() : location.uri() + DIR_MARKER_SUFFIX;
+        return hasChildUnder(prefix);
     }
 
     /**
@@ -145,10 +177,141 @@ public class AzureFileSystem extends ObjFileSystem {
     public void rename(Location src, Location dst) throws IOException {
         if (src.uri().endsWith(DIR_MARKER_SUFFIX)) {
             throw new IOException(
-                    "Renaming directories is not supported in Azure Blob Storage.");
+                    "Renaming directories is not supported in Azure Blob Storage: " + src);
+        }
+        // Refuse rename when src is a virtual directory (children exist under <src>/);
+        // a copy-then-delete on the literal blob name would silently leave children behind.
+        if (hasChildUnder(src.uri() + DIR_MARKER_SUFFIX)) {
+            throw new IOException(
+                    "Renaming directories is not supported in Azure Blob Storage: " + src);
         }
         objStorage.copyObject(src.uri(), dst.uri());
-        objStorage.deleteObject(src.uri());
+        try {
+            objStorage.deleteObject(src.uri());
+        } catch (IOException e) {
+            IOException composed = new IOException(
+                    "rename failed during source delete; attempted to remove dst for compensation: "
+                            + src + " -> " + dst, e);
+            try {
+                objStorage.deleteObject(dst.uri());
+            } catch (IOException de) {
+                composed.addSuppressed(de);
+            }
+            throw composed;
+        }
+    }
+
+    /**
+     * Azure Blob Storage has no atomic multi-blob rename. Iterating copy+delete across
+     * an entire prefix would lose atomicity and leak partially-renamed state on failure,
+     * so this implementation refuses the operation when the source directory exists and
+     * lets the caller branch.  When the source has neither a marker blob nor any
+     * children, the {@code whenSrcNotExists} callback is run and the call returns
+     * normally — matching the {@code FileSystem#renameDirectory} contract.
+     */
+    @Override
+    public void renameDirectory(Location src, Location dst, Runnable whenSrcNotExists)
+            throws IOException {
+        String prefix = src.uri().endsWith(DIR_MARKER_SUFFIX)
+                ? src.uri() : src.uri() + DIR_MARKER_SUFFIX;
+        if (hasChildUnder(prefix)) {
+            throw new UnsupportedOperationException(
+                    "renameDirectory is not supported by AzureFileSystem; "
+                            + "Azure Blob Storage has no atomic directory rename");
+        }
+        try {
+            objStorage.headObject(prefix);
+        } catch (IOException e) {
+            if (isNotFoundError(e)) {
+                whenSrcNotExists.run();
+                return;
+            }
+            throw e;
+        }
+        throw new UnsupportedOperationException(
+                "renameDirectory is not supported by AzureFileSystem; "
+                        + "Azure Blob Storage has no atomic directory rename");
+    }
+
+    /**
+     * Glob-aware {@code listFiles}: a path containing glob metacharacters ({@code *} or
+     * {@code ?}) is dispatched to the appropriate scan rather than being passed verbatim
+     * to the prefix-based listing (which would silently return no matches because Azure
+     * list-blobs treats {@code *} as a literal character).
+     *
+     * <ul>
+     *   <li>No glob → fall through to the default {@link FileSystem#listFiles}, which
+     *       iterates the directory listing produced by {@link #list(Location)}.</li>
+     *   <li>Single-segment glob (wildcards confined to the basename) → list the parent
+     *       prefix and filter immediate children by the basename glob.</li>
+     *   <li>Cross-segment glob (wildcards in any non-last segment) → defer to
+     *       {@link #globListWithLimit(Location, String, long, long)}, which performs a
+     *       recursive prefix scan with regex filtering.</li>
+     * </ul>
+     */
+    @Override
+    public List<FileEntry> listFiles(Location location) throws IOException {
+        String uriStr = location.uri();
+        if (!containsGlob(uriStr)) {
+            List<FileEntry> result = new ArrayList<>();
+            try (FileIterator it = list(location)) {
+                while (it.hasNext()) {
+                    FileEntry e = it.next();
+                    if (!e.isDirectory()) {
+                        result.add(e);
+                    }
+                }
+            }
+            return result;
+        }
+        if (isSingleLevelGlob(uriStr)) {
+            return listFilesSingleLevelGlob(location);
+        }
+        return globListWithLimit(location, "", 0L, 0L).getFiles();
+    }
+
+    /**
+     * Single-level glob branch of {@link #listFiles(Location)}: lists the parent prefix
+     * and filters the immediate children by the last-segment glob, mirroring HDFS
+     * {@code globStatus} semantics for last-segment wildcards.  Directory marker blobs
+     * (keys ending in {@code /}) and any keys whose path lies in a sub-directory of the
+     * parent are skipped — Azure has no native delimiter listing exposed through the
+     * current SPI, so the depth filter is enforced here.
+     */
+    private List<FileEntry> listFilesSingleLevelGlob(Location location) throws IOException {
+        String uri = location.uri();
+        int lastSlash = uri.lastIndexOf('/');
+        String parentPrefix = uri.substring(0, lastSlash + 1);
+        String basenameGlob = uri.substring(lastSlash + 1);
+        Pattern matcher = Pattern.compile(globToRegex(basenameGlob));
+        String parentKey = AzureUri.parse(parentPrefix).key();
+
+        List<FileEntry> result = new ArrayList<>();
+        String continuation = null;
+        do {
+            RemoteObjects page = objStorage.listObjects(parentPrefix, continuation);
+            for (RemoteObject obj : page.getObjectList()) {
+                String key = obj.getKey();
+                if (key.endsWith(DIR_MARKER_SUFFIX)) {
+                    continue;
+                }
+                if (!key.startsWith(parentKey)) {
+                    continue;
+                }
+                String relative = key.substring(parentKey.length());
+                if (relative.indexOf('/') >= 0) {
+                    continue;
+                }
+                if (!matcher.matcher(relative).matches()) {
+                    continue;
+                }
+                result.add(new FileEntry(
+                        Location.of(parentPrefix + relative),
+                        obj.getSize(), false, obj.getModificationTime(), List.of()));
+            }
+            continuation = page.isTruncated() ? page.getContinuationToken() : null;
+        } while (continuation != null);
+        return result;
     }
 
     @Override
@@ -258,6 +421,23 @@ public class AzureFileSystem extends ObjFileSystem {
      */
     static boolean containsGlob(String path) {
         return path.indexOf('*') >= 0 || path.indexOf('?') >= 0;
+    }
+
+    /**
+     * Returns true iff {@code pathStr} contains a glob (only {@code *} and {@code ?}
+     * are recognised, matching {@link #containsGlob}) confined entirely to the last
+     * path segment — i.e. the basename has at least one wildcard and the parent prefix
+     * has none.  Cross-segment globs (wildcards in any non-last segment) return false
+     * and the recursive {@link #globListWithLimit} branch is used instead.
+     */
+    static boolean isSingleLevelGlob(String pathStr) {
+        int lastSlash = pathStr.lastIndexOf('/');
+        String basename = lastSlash >= 0 ? pathStr.substring(lastSlash + 1) : pathStr;
+        if (basename.indexOf('*') < 0 && basename.indexOf('?') < 0) {
+            return false;
+        }
+        String parent = lastSlash >= 0 ? pathStr.substring(0, lastSlash) : "";
+        return parent.indexOf('*') < 0 && parent.indexOf('?') < 0;
     }
 
     /**
@@ -571,6 +751,23 @@ public class AzureFileSystem extends ObjFileSystem {
 
         @Override
         public OutputStream create() throws IOException {
+            // Distinct from createOrOverwrite(): refuse if the destination already exists.
+            // Race with a concurrent writer is still possible (the put happens on stream
+            // close), but the head check turns the common case of a stale path collision
+            // into a clear IOException instead of a silent overwrite.
+            boolean exists;
+            try {
+                objStorage.headObject(location.uri());
+                exists = true;
+            } catch (IOException e) {
+                if (!isNotFoundError(e)) {
+                    throw e;
+                }
+                exists = false;
+            }
+            if (exists) {
+                throw new IOException("File already exists: " + location);
+            }
             return createOrOverwrite();
         }
 
