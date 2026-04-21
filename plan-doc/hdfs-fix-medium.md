@@ -9,7 +9,7 @@
 | 7 | MEDIUM | `DFSFileSystem.renameDirectory` | Javadoc 误称"原子"；先 `exists` 再 `mkdirs` 的 TOCTOU；父目录与 rename 跨权威使用了不同 FS 句柄 | 移除"atomically"措辞；删除 `exists` 防御性预检，无条件 `mkdirs(parent)` 后 `rename`；统一使用 `getHadoopFs(srcPath)`；srcPath 与 dstPath authority 不一致时直接抛 `IOException` |
 | 8 | MEDIUM | `DFSFileSystem.rename` | `false` 返回被泛化为 "HDFS rename failed" | 同一 `doAs` 内追加 `srcExists`/`dstExists` 探测，写入异常 message |
 | 9 | MEDIUM | `HdfsFileIterator.close` | 空实现，部分消费时泄漏 NN RPC 流 | `delegate instanceof Closeable` 时尽力 close；新增 `volatile boolean closed` 保证幂等；声明 `IOException` |
-| 10 | MEDIUM | `DFSFileSystem.listFiles(glob)` | 仅返回非目录匹配项，glob 命中分区目录被静默丢弃 | 命中目录时单层 `listStatus` 展开为直接子文件；与 glob 命中的文件合并后按字典序排序 |
+| 10 | MEDIUM | `DFSFileSystem.listFiles(glob)` | 仅返回非目录匹配项，glob 命中分区目录被静默丢弃 | **见后续修订**：保持过滤目录的契约语义（"non-directory entries directly under dir"）；当 glob 仅命中目录时返回空列表，并在 Javadoc 中提示分区发现请使用 `listFilesRecursive` / `list`。最初尝试过单层展开，经评审回滚（见 commit `a834f50f09b`）。
 | 11 | MEDIUM | `DFSFileSystem.globListWithLimit` | 入参无 glob 元字符时 `globStatus` 返回单元素数组，被目录过滤为空 | 入口判断 `containsGlob`：无则走 `listStatus(p)`，有则走 `globStatus(p)` |
 | 12 | MEDIUM | 同上 | `startAfter` 过滤位于 `>= maxFiles` break 之后，导致页内全是 `<= startAfter` 时返回空 | 重排顺序：先 `isDirectory` 跳过 → 再 `startAfter` 过滤 → 最后才走分页/`maxFile` 游标逻辑 |
 | 13 | MEDIUM | `HdfsOutputFile.create / createOrOverwrite` | 未文档化对 FS 默认 `permission/replication/blockSize` 的依赖 | Javadoc 显式声明使用 FS 默认值（受 `fs.permissions.umask-mode` 影响），缺失父目录由 HDFS 隐式以默认 umask 创建；需精确控制者使用更底层 API |
@@ -32,7 +32,8 @@
 - `renameDirectory_failsFastOnCrossAuthority`
 - `renameDirectory_callsCallbackWhenSrcAbsent`
 - `renameDirectory_unconditionalParentMkdirs`
-- `listFiles_globExpandsDirectoryMatchesIntoChildren`
+- `listFiles_globFiltersDirectoryMatches`（修订后）
+- `listFiles_globReturnsEmptyWhenAllMatchesAreDirectories`（修订后）
 - `globListWithLimit_nonGlobPathListsDirectly`
 - `globListWithLimit_startAfterAppliedBeforeLimit`
 - `newInputFile_withLengthHintSkipsGetFileStatus`
