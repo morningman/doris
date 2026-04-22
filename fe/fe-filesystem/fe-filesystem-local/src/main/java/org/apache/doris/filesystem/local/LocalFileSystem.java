@@ -60,10 +60,17 @@ public class LocalFileSystem implements FileSystem {
     }
 
     /**
-     * Resolves a {@link Location} to a local {@link Path}. Only {@code file://} (hierarchical)
-     * and {@code local://} URIs are accepted; any other scheme is rejected with
-     * {@link IOException} so callers do not silently fall through to a relative-path
-     * interpretation.
+     * Resolves a {@link Location} to a local {@link Path}. Accepts:
+     * <ul>
+     *   <li>hierarchical {@code file:} URIs (e.g. {@code file:///tmp/x}),</li>
+     *   <li>{@code local://} URIs (the body is treated as an absolute path), and</li>
+     *   <li>bare absolute paths starting with {@code /} (used by callers that pass raw
+     *       filesystem paths through {@link Location#of(String)} — notably the FE Hive
+     *       transaction code).</li>
+     * </ul>
+     * Anything else (e.g. {@code s3://}, {@code hdfs://}, opaque {@code file:foo}, or a
+     * relative path) is rejected with {@link IOException} so URIs intended for a different
+     * filesystem do not silently fall through to a local-path interpretation.
      */
     private Path toPath(Location location) throws IOException {
         String uri = location.uri();
@@ -82,6 +89,9 @@ public class LocalFileSystem implements FileSystem {
             String body = uri.substring("local://".length());
             // Normalize to a single absolute path; strip any leading slashes then prepend one.
             return Paths.get("/" + body.replaceFirst("^/+", ""));
+        }
+        if (uri.startsWith("/")) {
+            return Paths.get(uri);
         }
         throw new IOException("Unsupported URI for LocalFileSystem: " + uri);
     }
