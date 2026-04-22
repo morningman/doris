@@ -115,6 +115,18 @@ public class BrokerSpiFileSystem implements FileSystem {
 
     @Override
     public void delete(Location location, boolean recursive) throws IOException {
+        if (!recursive) {
+            // Broker's deletePath is unconditionally recursive server-side; emulate POSIX rmdir
+            // by probing the path first and refusing to descend into non-empty directories.
+            // listPath of a directory returns its child entries; of a file returns the file itself
+            // (path equals location.uri()); of a missing path returns an empty list.
+            List<TBrokerFileStatus> children = listPath(location.uri(), false);
+            for (TBrokerFileStatus child : children) {
+                if (!location.uri().equals(child.getPath())) {
+                    throw new IOException("Directory not empty: " + location);
+                }
+            }
+        }
         TPaloBrokerService.Client client = clientPool.borrow(endpoint);
         boolean returnToPool = true;
         try {
@@ -205,7 +217,7 @@ public class BrokerSpiFileSystem implements FileSystem {
 
     @Override
     public DorisOutputFile newOutputFile(Location location) throws IOException {
-        return new BrokerOutputFile(location, endpoint, clientId, brokerParams, clientPool);
+        return new BrokerOutputFile(this, location, endpoint, clientId, brokerParams, clientPool);
     }
 
     @Override

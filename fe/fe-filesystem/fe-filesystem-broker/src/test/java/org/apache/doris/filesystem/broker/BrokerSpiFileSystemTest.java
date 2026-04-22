@@ -137,8 +137,8 @@ class BrokerSpiFileSystemTest {
     void delete_delegatesToBrokerDeletePath() throws Exception {
         TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
         Mockito.when(mockClient.deletePath(ArgumentMatchers.any(TBrokerDeletePathRequest.class))).thenReturn(status);
-
-        fs.delete(Location.of("hdfs:///test/file.txt"), false);
+        // recursive=true skips the listPath probe
+        fs.delete(Location.of("hdfs:///test/file.txt"), true);
 
         ArgumentCaptor<TBrokerDeletePathRequest> captor =
                 ArgumentCaptor.forClass(TBrokerDeletePathRequest.class);
@@ -151,6 +151,10 @@ class BrokerSpiFileSystemTest {
     void delete_swallowsFileNotFoundError() throws Exception {
         TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.FILE_NOT_FOUND);
         Mockito.when(mockClient.deletePath(ArgumentMatchers.any(TBrokerDeletePathRequest.class))).thenReturn(status);
+        // listPath of a missing path returns empty → probe passes; deletePath then sees FILE_NOT_FOUND
+        TBrokerOperationStatus listStatus = new TBrokerOperationStatus(TBrokerOperationStatusCode.FILE_NOT_FOUND);
+        TBrokerListResponse listResp = new TBrokerListResponse(listStatus);
+        Mockito.when(mockClient.listPath(ArgumentMatchers.any(TBrokerListPathRequest.class))).thenReturn(listResp);
 
         // Should not throw
         fs.delete(Location.of("hdfs:///test/gone"), false);
@@ -161,8 +165,62 @@ class BrokerSpiFileSystemTest {
         TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.INVALID_INPUT_FILE_PATH);
         status.setMessage("error");
         Mockito.when(mockClient.deletePath(ArgumentMatchers.any(TBrokerDeletePathRequest.class))).thenReturn(status);
+        // recursive=true skips listPath probe so deletePath is reached
+        Assertions.assertThrows(IOException.class, () -> fs.delete(Location.of("hdfs:///bad"), true));
+    }
 
-        Assertions.assertThrows(IOException.class, () -> fs.delete(Location.of("hdfs:///bad"), false));
+    @Test
+    void delete_nonRecursive_throwsWhenDirectoryNotEmpty() throws Exception {
+        TBrokerOperationStatus listStatus = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        TBrokerListResponse listResp = new TBrokerListResponse(listStatus);
+        List<TBrokerFileStatus> children = new ArrayList<>();
+        children.add(new TBrokerFileStatus("hdfs:///test/dir/child.txt", false, 10L, false));
+        listResp.setFiles(children);
+        Mockito.when(mockClient.listPath(ArgumentMatchers.any(TBrokerListPathRequest.class))).thenReturn(listResp);
+
+        Assertions.assertThrows(IOException.class,
+                () -> fs.delete(Location.of("hdfs:///test/dir"), false));
+        Mockito.verify(mockClient, Mockito.never()).deletePath(ArgumentMatchers.any());
+    }
+
+    @Test
+    void delete_nonRecursive_succeedsWhenDirectoryEmpty() throws Exception {
+        TBrokerOperationStatus listStatus = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        TBrokerListResponse listResp = new TBrokerListResponse(listStatus);
+        listResp.setFiles(new ArrayList<>());
+        Mockito.when(mockClient.listPath(ArgumentMatchers.any(TBrokerListPathRequest.class))).thenReturn(listResp);
+        TBrokerOperationStatus delStatus = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        Mockito.when(mockClient.deletePath(ArgumentMatchers.any(TBrokerDeletePathRequest.class))).thenReturn(delStatus);
+
+        fs.delete(Location.of("hdfs:///test/empty-dir"), false);
+        Mockito.verify(mockClient).deletePath(ArgumentMatchers.any());
+    }
+
+    @Test
+    void delete_nonRecursive_succeedsWhenLocationIsFile() throws Exception {
+        TBrokerOperationStatus listStatus = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        TBrokerListResponse listResp = new TBrokerListResponse(listStatus);
+        List<TBrokerFileStatus> entries = new ArrayList<>();
+        // For a file path, listPath returns a single entry whose path equals the location.
+        entries.add(new TBrokerFileStatus("hdfs:///test/file.txt", false, 42L, false));
+        listResp.setFiles(entries);
+        Mockito.when(mockClient.listPath(ArgumentMatchers.any(TBrokerListPathRequest.class))).thenReturn(listResp);
+        TBrokerOperationStatus delStatus = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        Mockito.when(mockClient.deletePath(ArgumentMatchers.any(TBrokerDeletePathRequest.class))).thenReturn(delStatus);
+
+        fs.delete(Location.of("hdfs:///test/file.txt"), false);
+        Mockito.verify(mockClient).deletePath(ArgumentMatchers.any());
+    }
+
+    @Test
+    void delete_recursive_alwaysCallsDeletePath() throws Exception {
+        TBrokerOperationStatus delStatus = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        Mockito.when(mockClient.deletePath(ArgumentMatchers.any(TBrokerDeletePathRequest.class))).thenReturn(delStatus);
+
+        fs.delete(Location.of("hdfs:///test/non-empty-dir"), true);
+
+        Mockito.verify(mockClient).deletePath(ArgumentMatchers.any());
+        Mockito.verify(mockClient, Mockito.never()).listPath(ArgumentMatchers.any());
     }
 
     // ------------------------------------------------------------------
