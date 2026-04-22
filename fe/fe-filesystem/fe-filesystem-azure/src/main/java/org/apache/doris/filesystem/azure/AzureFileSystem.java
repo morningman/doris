@@ -182,7 +182,14 @@ public class AzureFileSystem extends ObjFileSystem {
      * Azure Blob Storage does not support atomic directory renames.
      * Single-blob renames are supported via copy-then-delete.
      *
-     * @throws IOException if the source appears to be a directory prefix
+     * <p>Overwrite policy: this method REFUSES to silently overwrite an existing
+     * destination blob. If a blob already exists at {@code dst}, an
+     * {@link IOException} is thrown before any copy is attempted. This is stronger
+     * than the underlying Azure SDK behaviour (which would clobber {@code dst})
+     * and matches the safer "no clobber" contract used by other Doris file systems.
+     *
+     * @throws IOException if the source appears to be a directory prefix,
+     *                     or if the destination already exists
      */
     @Override
     public void rename(Location src, Location dst) throws IOException {
@@ -195,6 +202,19 @@ public class AzureFileSystem extends ObjFileSystem {
         if (hasChildUnder(src.uri() + DIR_MARKER_SUFFIX)) {
             throw new IOException(
                     "Renaming directories is not supported in Azure Blob Storage: " + src);
+        }
+        boolean dstExists;
+        try {
+            objStorage.headObject(dst.uri());
+            dstExists = true;
+        } catch (IOException e) {
+            if (!isNotFoundError(e)) {
+                throw e;
+            }
+            dstExists = false;
+        }
+        if (dstExists) {
+            throw new IOException("Rename destination already exists: " + dst);
         }
         objStorage.copyObject(src.uri(), dst.uri());
         try {
@@ -625,7 +645,9 @@ public class AzureFileSystem extends ObjFileSystem {
 
         @Override
         public void close() throws IOException {
-            // no-op
+            // No-op: a listing page is fully drained into the in-memory `buffer` list and
+            // the Azure SDK iterator is not retained between fetches, so there are no
+            // network connections, file handles, or async resources to release here.
         }
     }
 

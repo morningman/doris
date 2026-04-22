@@ -343,6 +343,9 @@ class AzureFileSystemTest {
         Mockito.when(mockStorage.listObjects(
                 ArgumentMatchers.eq("wasbs://c@a.host/src.csv/"),
                 ArgumentMatchers.any())).thenReturn(empty);
+        // Destination must not exist for rename to proceed (F17).
+        Mockito.when(mockStorage.headObject("wasbs://c@a.host/dst.csv"))
+                .thenThrow(new FileNotFoundException("404"));
         // Copy succeeds, source delete fails.
         Mockito.doThrow(new IOException("source delete blew up"))
                 .when(mockStorage).deleteObject("wasbs://c@a.host/src.csv");
@@ -671,5 +674,32 @@ class AzureFileSystemTest {
     @Test
     void isNotFoundError_returnsFalseForGenericIOExceptionWith404Message() {
         Assertions.assertFalse(fs.isNotFoundError(new IOException("server returned 404")));
+    }
+
+    // ---------------------------------------------------------------------
+    // F17 — rename refuses silent overwrite of an existing destination
+    // ---------------------------------------------------------------------
+
+    @Test
+    void rename_throwsIfDestinationExists() throws IOException {
+        // Source has no children → not a virtual directory; would otherwise be a valid rename.
+        RemoteObjects empty = new RemoteObjects(List.of(), false, null);
+        Mockito.when(mockStorage.listObjects(
+                ArgumentMatchers.eq("wasbs://c@a.host/src.csv/"),
+                ArgumentMatchers.any())).thenReturn(empty);
+        // Destination already exists (HEAD returns successfully).
+        Mockito.when(mockStorage.headObject("wasbs://c@a.host/dst.csv"))
+                .thenReturn(new RemoteObject("dst.csv", "", null, 10L, 0L));
+
+        IOException ex = Assertions.assertThrows(IOException.class,
+                () -> fs.rename(Location.of("wasbs://c@a.host/src.csv"),
+                        Location.of("wasbs://c@a.host/dst.csv")));
+        Assertions.assertTrue(ex.getMessage().contains("already exists"),
+                "expected 'already exists' message, got: " + ex.getMessage());
+        // No copy or delete should be attempted when the destination exists.
+        Mockito.verify(mockStorage, Mockito.never())
+                .copyObject(ArgumentMatchers.anyString(), ArgumentMatchers.anyString());
+        Mockito.verify(mockStorage, Mockito.never())
+                .deleteObject(ArgumentMatchers.anyString());
     }
 }
