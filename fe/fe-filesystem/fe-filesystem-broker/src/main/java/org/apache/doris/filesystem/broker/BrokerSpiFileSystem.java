@@ -22,6 +22,7 @@ import org.apache.doris.filesystem.DorisOutputFile;
 import org.apache.doris.filesystem.FileEntry;
 import org.apache.doris.filesystem.FileIterator;
 import org.apache.doris.filesystem.FileSystem;
+import org.apache.doris.filesystem.GlobListing;
 import org.apache.doris.filesystem.Location;
 import org.apache.doris.thrift.TBrokerCheckPathExistRequest;
 import org.apache.doris.thrift.TBrokerCheckPathExistResponse;
@@ -36,8 +37,6 @@ import org.apache.doris.thrift.TBrokerVersion;
 import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TPaloBrokerService;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TException;
 
 import java.io.FileNotFoundException;
@@ -57,8 +56,6 @@ import java.util.Map;
  * after fe-core calls {@code FileSystemFactory.getBrokerFileSystem(host, port, params)}.
  */
 public class BrokerSpiFileSystem implements FileSystem {
-
-    private static final Logger LOG = LogManager.getLogger(BrokerSpiFileSystem.class);
 
     private final TNetworkAddress endpoint;
     /** FE identifier sent to broker for logging (e.g. "host:editLogPort"). */
@@ -232,6 +229,81 @@ public class BrokerSpiFileSystem implements FileSystem {
                 // no-op: list result is already fully materialized
             }
         };
+    }
+
+    /**
+     * Override that issues a single recursive {@code listPath} RPC instead of the default
+     * implementation's depth-first traversal (one RPC per directory). The broker's
+     * {@code TBrokerListPathRequest.recursive=true} flag returns every descendant in one
+     * round trip, so this avoids O(depth) latency on deep trees.
+     */
+    @Override
+    public List<FileEntry> listFilesRecursive(Location dir) throws IOException {
+        List<TBrokerFileStatus> statuses = listPath(dir.uri(), true);
+        List<FileEntry> result = new ArrayList<>(statuses.size());
+        for (TBrokerFileStatus s : statuses) {
+            if (s.isIsDir()) {
+                continue;
+            }
+            result.add(new FileEntry(
+                    Location.of(s.getPath()),
+                    s.getSize(),
+                    false,
+                    s.getModificationTime(),
+                    null));
+        }
+        return result;
+    }
+
+    /**
+     * Glob listing backed by the broker's native glob support: {@code listPath} delegates to
+     * Hadoop {@code FileSystem.globStatus} on the broker side, so a single non-recursive RPC
+     * returns all matching entries. Pagination cursor semantics mirror the S3/Azure
+     * implementations: when a page limit is hit and another match exists past it, that match
+     * becomes {@link GlobListing#getMaxFile()}; otherwise it is the last matched key (or
+     * empty when no entries matched).
+     */
+    @Override
+    public GlobListing globListWithLimit(Location path, String startAfter, long maxBytes,
+            long maxFiles) throws IOException {
+        List<TBrokerFileStatus> statuses = listPath(path.uri(), false);
+        List<FileEntry> files = new ArrayList<>();
+        long totalSize = 0L;
+        boolean reachLimit = false;
+        String nextMatchAfterLimit = "";
+        String lastMatchedKey = "";
+        for (TBrokerFileStatus s : statuses) {
+            if (s.isIsDir()) {
+                continue;
+            }
+            String key = s.getPath();
+            if (startAfter != null && !startAfter.isEmpty() && key.compareTo(startAfter) <= 0) {
+                continue;
+            }
+            if (reachLimit) {
+                if (nextMatchAfterLimit.isEmpty()) {
+                    nextMatchAfterLimit = key;
+                }
+                continue;
+            }
+            files.add(new FileEntry(
+                    Location.of(key),
+                    s.getSize(),
+                    false,
+                    s.getModificationTime(),
+                    null));
+            totalSize += s.getSize();
+            lastMatchedKey = key;
+            if ((maxFiles > 0 && files.size() >= maxFiles)
+                    || (maxBytes > 0 && totalSize >= maxBytes)) {
+                reachLimit = true;
+            }
+        }
+        String maxFile = reachLimit && !nextMatchAfterLimit.isEmpty()
+                ? nextMatchAfterLimit
+                : lastMatchedKey;
+        // Broker has no bucket concept; surface the original glob URI as the prefix for diagnostics.
+        return new GlobListing(files, "", path.uri(), maxFile);
     }
 
     @Override

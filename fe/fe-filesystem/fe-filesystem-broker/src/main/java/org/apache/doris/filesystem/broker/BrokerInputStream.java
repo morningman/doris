@@ -171,8 +171,13 @@ class BrokerInputStream extends DorisInputStream {
             TBrokerOperationStatus opst = client.closeReader(req);
             if (opst.getStatusCode() != TBrokerOperationStatusCode.OK) {
                 LOG.warn("Failed to close broker reader for fd {}: {}", fd, opst.getMessage());
+                // Broker session state is unclear after a failed closeReader (the server-side
+                // FD may or may not have been released). Returning the client to the pool would
+                // hand a possibly-corrupt session to the next borrower; invalidate instead.
+                clientPool.invalidate(endpoint, client);
+            } else {
+                clientPool.returnGood(endpoint, client);
             }
-            clientPool.returnGood(endpoint, client);
         } catch (TException e) {
             clientPool.invalidate(endpoint, client);
             throw new IOException("Broker closeReader RPC failed: " + e.getMessage(), e);

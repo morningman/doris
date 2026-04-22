@@ -19,6 +19,7 @@ package org.apache.doris.filesystem.broker;
 
 import org.apache.doris.filesystem.FileEntry;
 import org.apache.doris.filesystem.FileIterator;
+import org.apache.doris.filesystem.GlobListing;
 import org.apache.doris.filesystem.Location;
 import org.apache.doris.thrift.TBrokerCheckPathExistRequest;
 import org.apache.doris.thrift.TBrokerCheckPathExistResponse;
@@ -372,5 +373,149 @@ class BrokerSpiFileSystemTest {
     void brokerParams_areImmutable() {
         Assertions.assertThrows(UnsupportedOperationException.class,
                 () -> fs.brokerParams().put("new", "val"));
+    }
+
+    // ------------------------------------------------------------------
+    // listFilesRecursive() — single recursive listPath RPC
+    // ------------------------------------------------------------------
+
+    @Test
+    void listFilesRecursive_returnsAllFilesInOneRpc() throws Exception {
+        TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        TBrokerListResponse listResp = new TBrokerListResponse(status);
+        List<TBrokerFileStatus> files = new ArrayList<>();
+        TBrokerFileStatus a = new TBrokerFileStatus("hdfs:///root/a.txt", false, 10L, false);
+        a.setModificationTime(1L);
+        TBrokerFileStatus subdir = new TBrokerFileStatus("hdfs:///root/sub", true, 0L, false);
+        TBrokerFileStatus b = new TBrokerFileStatus("hdfs:///root/sub/b.txt", false, 20L, false);
+        b.setModificationTime(2L);
+        TBrokerFileStatus c = new TBrokerFileStatus("hdfs:///root/sub/deep/c.txt", false, 30L, false);
+        c.setModificationTime(3L);
+        files.add(a);
+        files.add(subdir);
+        files.add(b);
+        files.add(c);
+        listResp.setFiles(files);
+        Mockito.when(mockClient.listPath(ArgumentMatchers.any(TBrokerListPathRequest.class)))
+                .thenReturn(listResp);
+
+        List<FileEntry> result = fs.listFilesRecursive(Location.of("hdfs:///root"));
+
+        ArgumentCaptor<TBrokerListPathRequest> captor =
+                ArgumentCaptor.forClass(TBrokerListPathRequest.class);
+        Mockito.verify(mockClient, Mockito.times(1)).listPath(captor.capture());
+        Assertions.assertTrue(captor.getValue().isIsRecursive(), "must use recursive=true");
+        Assertions.assertEquals("hdfs:///root", captor.getValue().getPath());
+
+        Assertions.assertEquals(3, result.size());
+        Assertions.assertEquals("hdfs:///root/a.txt", result.get(0).location().uri());
+        Assertions.assertEquals("hdfs:///root/sub/b.txt", result.get(1).location().uri());
+        Assertions.assertEquals("hdfs:///root/sub/deep/c.txt", result.get(2).location().uri());
+    }
+
+    @Test
+    void listFilesRecursive_filtersDirectories() throws Exception {
+        TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        TBrokerListResponse listResp = new TBrokerListResponse(status);
+        List<TBrokerFileStatus> files = new ArrayList<>();
+        files.add(new TBrokerFileStatus("hdfs:///root/dirA", true, 0L, false));
+        files.add(new TBrokerFileStatus("hdfs:///root/dirB", true, 0L, false));
+        listResp.setFiles(files);
+        Mockito.when(mockClient.listPath(ArgumentMatchers.any(TBrokerListPathRequest.class)))
+                .thenReturn(listResp);
+
+        List<FileEntry> result = fs.listFilesRecursive(Location.of("hdfs:///root"));
+        Assertions.assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void listFilesRecursive_emptyResultWhenPathMissing() throws Exception {
+        TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.FILE_NOT_FOUND);
+        TBrokerListResponse listResp = new TBrokerListResponse(status);
+        Mockito.when(mockClient.listPath(ArgumentMatchers.any(TBrokerListPathRequest.class)))
+                .thenReturn(listResp);
+
+        List<FileEntry> result = fs.listFilesRecursive(Location.of("hdfs:///gone"));
+        Assertions.assertTrue(result.isEmpty());
+    }
+
+    // ------------------------------------------------------------------
+    // globListWithLimit()
+    // ------------------------------------------------------------------
+
+    @Test
+    void globListWithLimit_returnsAllWhenUnderLimit() throws Exception {
+        TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        TBrokerListResponse listResp = new TBrokerListResponse(status);
+        List<TBrokerFileStatus> files = new ArrayList<>();
+        TBrokerFileStatus f1 = new TBrokerFileStatus("hdfs:///dir/a.csv", false, 10L, false);
+        f1.setModificationTime(1L);
+        TBrokerFileStatus f2 = new TBrokerFileStatus("hdfs:///dir/b.csv", false, 20L, false);
+        f2.setModificationTime(2L);
+        files.add(f1);
+        files.add(f2);
+        listResp.setFiles(files);
+        Mockito.when(mockClient.listPath(ArgumentMatchers.any(TBrokerListPathRequest.class)))
+                .thenReturn(listResp);
+
+        GlobListing result = fs.globListWithLimit(Location.of("hdfs:///dir/*.csv"), null, 0L, 0L);
+
+        ArgumentCaptor<TBrokerListPathRequest> captor =
+                ArgumentCaptor.forClass(TBrokerListPathRequest.class);
+        Mockito.verify(mockClient).listPath(captor.capture());
+        Assertions.assertFalse(captor.getValue().isIsRecursive(), "glob is single-level");
+        Assertions.assertEquals(2, result.getFiles().size());
+        // Listing was exhaustive → maxFile == last matched key.
+        Assertions.assertEquals("hdfs:///dir/b.csv", result.getMaxFile());
+    }
+
+    @Test
+    void globListWithLimit_truncatesAtLimitAndSetsMaxFile() throws Exception {
+        TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        TBrokerListResponse listResp = new TBrokerListResponse(status);
+        List<TBrokerFileStatus> files = new ArrayList<>();
+        files.add(new TBrokerFileStatus("hdfs:///dir/a.csv", false, 10L, false));
+        files.add(new TBrokerFileStatus("hdfs:///dir/b.csv", false, 20L, false));
+        files.add(new TBrokerFileStatus("hdfs:///dir/c.csv", false, 30L, false));
+        listResp.setFiles(files);
+        Mockito.when(mockClient.listPath(ArgumentMatchers.any(TBrokerListPathRequest.class)))
+                .thenReturn(listResp);
+
+        GlobListing result = fs.globListWithLimit(Location.of("hdfs:///dir/*.csv"), null, 0L, 2L);
+
+        Assertions.assertEquals(2, result.getFiles().size());
+        Assertions.assertEquals("hdfs:///dir/a.csv", result.getFiles().get(0).location().uri());
+        Assertions.assertEquals("hdfs:///dir/b.csv", result.getFiles().get(1).location().uri());
+        // Limit hit and another match exists → maxFile == next match past the page.
+        Assertions.assertEquals("hdfs:///dir/c.csv", result.getMaxFile());
+    }
+
+    @Test
+    void globListWithLimit_filtersDirectories() throws Exception {
+        TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        TBrokerListResponse listResp = new TBrokerListResponse(status);
+        List<TBrokerFileStatus> files = new ArrayList<>();
+        files.add(new TBrokerFileStatus("hdfs:///dir/sub", true, 0L, false));
+        files.add(new TBrokerFileStatus("hdfs:///dir/x.csv", false, 5L, false));
+        listResp.setFiles(files);
+        Mockito.when(mockClient.listPath(ArgumentMatchers.any(TBrokerListPathRequest.class)))
+                .thenReturn(listResp);
+
+        GlobListing result = fs.globListWithLimit(Location.of("hdfs:///dir/*"), null, 0L, 0L);
+        Assertions.assertEquals(1, result.getFiles().size());
+        Assertions.assertEquals("hdfs:///dir/x.csv", result.getFiles().get(0).location().uri());
+    }
+
+    @Test
+    void globListWithLimit_returnsEmptyMaxFileWhenNoMatches() throws Exception {
+        TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        TBrokerListResponse listResp = new TBrokerListResponse(status);
+        listResp.setFiles(new ArrayList<>());
+        Mockito.when(mockClient.listPath(ArgumentMatchers.any(TBrokerListPathRequest.class)))
+                .thenReturn(listResp);
+
+        GlobListing result = fs.globListWithLimit(Location.of("hdfs:///empty/*"), null, 0L, 0L);
+        Assertions.assertTrue(result.getFiles().isEmpty());
+        Assertions.assertEquals("", result.getMaxFile());
     }
 }

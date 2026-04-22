@@ -105,6 +105,26 @@ class BrokerInputStreamTest {
     }
 
     @Test
+    void close_invalidatesClientOnCloseReaderNonOk() throws Exception {
+        TBrokerOperationStatus bad = new TBrokerOperationStatus(TBrokerOperationStatusCode.TARGET_STORAGE_SERVICE_ERROR);
+        bad.setMessage("broker FD lost");
+        Mockito.when(mockClient.closeReader(ArgumentMatchers.any(TBrokerCloseReaderRequest.class)))
+                .thenReturn(bad);
+
+        // Non-OK closeReader must NOT throw — close() remains idempotent and best-effort.
+        stream.close();
+        // Client is invalidated rather than returned to the pool.
+        Mockito.verify(mockPool).invalidate(endpoint, mockClient);
+        Mockito.verify(mockPool, Mockito.never()).returnGood(endpoint, mockClient);
+
+        // Second close is a no-op (closed flag set on first call).
+        stream.close();
+        Mockito.verify(mockClient, Mockito.times(1))
+                .closeReader(ArgumentMatchers.any(TBrokerCloseReaderRequest.class));
+        Mockito.verify(mockPool, Mockito.times(1)).invalidate(endpoint, mockClient);
+    }
+
+    @Test
     void read_throwsNpeWhenBufferNull() {
         Assertions.assertThrows(NullPointerException.class, () -> stream.read(null, 0, 1));
     }

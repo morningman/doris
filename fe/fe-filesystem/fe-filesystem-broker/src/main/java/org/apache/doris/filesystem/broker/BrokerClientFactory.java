@@ -55,12 +55,18 @@ class BrokerClientFactory extends BaseKeyedPooledObjectFactory<TNetworkAddress, 
 
     @Override
     public TPaloBrokerService.Client create(TNetworkAddress address) throws Exception {
+        // The base class signature ({@link BaseKeyedPooledObjectFactory#create}) requires
+        // {@code throws Exception}, so we keep that here and log the underlying cause
+        // verbosely — commons-pool2 wraps factory failures in NoSuchElementException, which
+        // by itself loses the connect-failure context.
         TSocket socket = new TSocket(address.getHostname(), address.getPort(), SOCKET_TIMEOUT_MS);
         TTransport transport = socket;
         try {
             transport.open();
         } catch (TTransportException e) {
-            throw new Exception("Failed to connect to broker at " + address + ": " + e.getMessage(), e);
+            LOG.warn("Failed to open broker transport for {}: {}", address, e.getMessage(), e);
+            throw new TTransportException(e.getType(),
+                    "Failed to connect to broker at " + address + ": " + e.getMessage(), e);
         }
         return new TPaloBrokerService.Client(new TBinaryProtocol(transport));
     }
