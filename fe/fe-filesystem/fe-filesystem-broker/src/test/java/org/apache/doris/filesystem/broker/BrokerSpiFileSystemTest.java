@@ -39,6 +39,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -120,13 +121,13 @@ class BrokerSpiFileSystemTest {
     }
 
     // ------------------------------------------------------------------
-    // mkdirs() — no-op for broker
+    // mkdirs() — unsupported for broker
     // ------------------------------------------------------------------
 
     @Test
-    void mkdirs_isNoOp() throws IOException {
-        // Should not throw, does not call any broker RPC
-        fs.mkdirs(Location.of("hdfs:///new/dir"));
+    void mkdirs_throwsUnsupportedOperation() {
+        Assertions.assertThrows(UnsupportedOperationException.class,
+                () -> fs.mkdirs(Location.of("hdfs:///new/dir")));
     }
 
     // ------------------------------------------------------------------
@@ -249,6 +250,55 @@ class BrokerSpiFileSystemTest {
 
         Assertions.assertThrows(IOException.class, () ->
                 fs.rename(Location.of("hdfs:///src"), Location.of("hdfs:///dst")));
+    }
+
+    @Test
+    void rename_throwsFileNotFoundOnFileNotFoundStatus() throws Exception {
+        TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.FILE_NOT_FOUND);
+        status.setMessage("source missing");
+        Mockito.when(mockClient.renamePath(ArgumentMatchers.any(TBrokerRenamePathRequest.class))).thenReturn(status);
+
+        Assertions.assertThrows(FileNotFoundException.class, () ->
+                fs.rename(Location.of("hdfs:///src"), Location.of("hdfs:///dst")));
+    }
+
+    @Test
+    void renameDirectory_runsCallbackWhenSourceMissing() throws Exception {
+        TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.FILE_NOT_FOUND);
+        Mockito.when(mockClient.renamePath(ArgumentMatchers.any(TBrokerRenamePathRequest.class))).thenReturn(status);
+
+        boolean[] called = {false};
+        fs.renameDirectory(Location.of("hdfs:///missing/src"), Location.of("hdfs:///dst"),
+                () -> called[0] = true);
+
+        Assertions.assertTrue(called[0]);
+        Mockito.verify(mockClient).renamePath(ArgumentMatchers.any());
+    }
+
+    @Test
+    void renameDirectory_propagatesOtherIOException() throws Exception {
+        TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.INVALID_ARGUMENT);
+        status.setMessage("conflict");
+        Mockito.when(mockClient.renamePath(ArgumentMatchers.any(TBrokerRenamePathRequest.class))).thenReturn(status);
+
+        boolean[] called = {false};
+        Assertions.assertThrows(IOException.class, () -> fs.renameDirectory(
+                Location.of("hdfs:///src"), Location.of("hdfs:///dst"),
+                () -> called[0] = true));
+        Assertions.assertFalse(called[0]);
+    }
+
+    @Test
+    void renameDirectory_callsRenameWhenSourceExists() throws Exception {
+        TBrokerOperationStatus status = new TBrokerOperationStatus(TBrokerOperationStatusCode.OK);
+        Mockito.when(mockClient.renamePath(ArgumentMatchers.any(TBrokerRenamePathRequest.class))).thenReturn(status);
+
+        boolean[] called = {false};
+        fs.renameDirectory(Location.of("hdfs:///src"), Location.of("hdfs:///dst"),
+                () -> called[0] = true);
+
+        Assertions.assertFalse(called[0]);
+        Mockito.verify(mockClient).renamePath(ArgumentMatchers.any());
     }
 
     // ------------------------------------------------------------------

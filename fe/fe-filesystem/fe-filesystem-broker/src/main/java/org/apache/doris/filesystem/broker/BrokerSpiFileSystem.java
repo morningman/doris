@@ -40,6 +40,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.thrift.TException;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -107,10 +108,20 @@ public class BrokerSpiFileSystem implements FileSystem {
         }
     }
 
+    /**
+     * Empty-directory creation is not supported by the broker filesystem. The broker
+     * Thrift IDL exposes no {@code mkdir}/{@code mkdirs} RPC, and the typical object-store
+     * backends (e.g. S3) do not have first-class directories. Parent directories are created
+     * implicitly by the broker on {@code openWriter}, so callers that produce files do not
+     * need to call this method; callers that depend on the existence of an empty directory
+     * (e.g. as a synchronization barrier) cannot be supported and must surface the error.
+     *
+     * @throws UnsupportedOperationException always
+     */
     @Override
     public void mkdirs(Location location) throws IOException {
-        // Broker does not provide a mkdirs RPC; the broker process creates parent directories
-        // automatically on openWriter. This is a no-op for broker-backed paths.
+        throw new UnsupportedOperationException(
+                "Broker filesystem does not support empty directory creation: " + location);
     }
 
     @Override
@@ -159,6 +170,9 @@ public class BrokerSpiFileSystem implements FileSystem {
             TBrokerRenamePathRequest req = new TBrokerRenamePathRequest(
                     TBrokerVersion.VERSION_ONE, src.uri(), dst.uri(), brokerParams);
             TBrokerOperationStatus opst = client.renamePath(req);
+            if (opst.getStatusCode() == TBrokerOperationStatusCode.FILE_NOT_FOUND) {
+                throw new FileNotFoundException("Source path does not exist: " + src);
+            }
             if (opst.getStatusCode() != TBrokerOperationStatusCode.OK) {
                 throw new IOException("Failed to rename [" + src + "] -> [" + dst + "]: " + opst.getMessage());
             }
@@ -171,6 +185,21 @@ public class BrokerSpiFileSystem implements FileSystem {
             } else {
                 clientPool.invalidate(endpoint, client);
             }
+        }
+    }
+
+    /**
+     * Atomic broker-side rename overload. Avoids the default {@code exists} + {@code rename}
+     * sequence (TOCTOU race window) by interpreting a {@code FILE_NOT_FOUND} from the broker
+     * as the missing-source signal and routing it to {@code whenSrcNotExists}.
+     */
+    @Override
+    public void renameDirectory(Location src, Location dst, Runnable whenSrcNotExists)
+            throws IOException {
+        try {
+            rename(src, dst);
+        } catch (FileNotFoundException e) {
+            whenSrcNotExists.run();
         }
     }
 
