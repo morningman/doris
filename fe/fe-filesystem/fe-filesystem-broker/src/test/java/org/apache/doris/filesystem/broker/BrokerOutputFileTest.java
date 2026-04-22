@@ -33,6 +33,7 @@ import org.apache.doris.thrift.TBrokerOperationStatusCode;
 import org.apache.doris.thrift.TNetworkAddress;
 import org.apache.doris.thrift.TPaloBrokerService;
 
+import org.apache.thrift.TException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -152,5 +153,19 @@ class BrokerOutputFileTest {
                 ArgumentCaptor.forClass(TBrokerOpenWriterRequest.class);
         Mockito.verify(mockClient).openWriter(captor.capture());
         Assertions.assertEquals(TBrokerOpenMode.APPEND, captor.getValue().getOpenMode());
+    }
+
+    @Test
+    void openWriter_invalidatesClientOnTException() throws Exception {
+        stubExists(false);
+        Mockito.when(mockClient.openWriter(ArgumentMatchers.any(TBrokerOpenWriterRequest.class)))
+                .thenThrow(new TException("transport closed"));
+
+        BrokerOutputFile out = (BrokerOutputFile) fs.newOutputFile(location);
+        Assertions.assertThrows(IOException.class, out::create);
+        // exists() above borrows + returnGoods the same mock client, so we can only assert that
+        // the openWriter path invalidated the client (and did not double-return it via returnGood).
+        Mockito.verify(mockPool, Mockito.times(1)).invalidate(endpoint, mockClient);
+        Mockito.verify(mockPool, Mockito.times(1)).returnGood(endpoint, mockClient);
     }
 }

@@ -101,12 +101,17 @@ class BrokerOutputFile implements DorisOutputFile {
             TBrokerOpenWriterResponse rep = client.openWriter(req);
             TBrokerOperationStatus opst = rep.getOpStatus();
             if (opst.getStatusCode() != TBrokerOperationStatusCode.OK) {
+                // Application-level failure: the Thrift client itself is healthy, so it
+                // remains eligible to be returned to the pool by the finally block.
                 throw new IOException("Failed to open broker writer for [" + location + "]: " + opst.getMessage());
             }
             TBrokerFD fd = new TBrokerFD(rep.getFd().getHigh(), rep.getFd().getLow());
             returnToPool = false; // BrokerOutputStream takes ownership of the client
             return new BrokerOutputStream(endpoint, clientPool, client, fd);
         } catch (TException e) {
+            // Transport-level failure: the client is broken and must not be returned to the pool.
+            returnToPool = false;
+            clientPool.invalidate(endpoint, client);
             throw new IOException("Broker openWriter RPC failed for [" + location + "]: " + e.getMessage(), e);
         } finally {
             if (returnToPool) {

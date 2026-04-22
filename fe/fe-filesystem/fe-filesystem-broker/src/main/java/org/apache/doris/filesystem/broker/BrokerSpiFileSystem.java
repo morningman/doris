@@ -207,12 +207,12 @@ public class BrokerSpiFileSystem implements FileSystem {
 
     @Override
     public DorisInputFile newInputFile(Location location) throws IOException {
-        return new BrokerInputFile(location, -1L, endpoint, clientId, brokerParams, clientPool);
+        return new BrokerInputFile(this, location, -1L, endpoint, clientId, brokerParams, clientPool);
     }
 
     @Override
     public DorisInputFile newInputFile(Location location, long length) throws IOException {
-        return new BrokerInputFile(location, length, endpoint, clientId, brokerParams, clientPool);
+        return new BrokerInputFile(this, location, length, endpoint, clientId, brokerParams, clientPool);
     }
 
     @Override
