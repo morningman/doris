@@ -450,13 +450,10 @@ struct TTableFormatFileDesc {
     10: optional TRemoteDorisFileDesc remote_doris_params
     // JDBC connection parameters (used when table_format_type == "jdbc")
     11: optional map<string, string> jdbc_params
-<<<<<<< HEAD
     12: optional TLanceFileDesc lance_params
-=======
     // ES per-shard parameters (used when table_format_type == "es")
     // Contains: index, type, shard_id, host_port, es_hosts
-    12: optional map<string, string> es_params
->>>>>>> 3bee45d20ab ([feature](thrift) Add ES HTTP scan format type and params for unified scan path)
+    13: optional map<string, string> es_params
 }
 
 // Deprecated, hive text talbe is a special format, not a serde type
