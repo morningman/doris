@@ -18,6 +18,9 @@
 package org.apache.doris.connector.spi;
 
 import org.apache.doris.connector.api.ConnectorHttpSecurityHook;
+import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
+import org.apache.doris.connector.api.cache.InvalidateRequest;
+import org.apache.doris.connector.api.cache.MetaCacheHandle;
 
 import java.util.Collections;
 import java.util.Map;
@@ -91,5 +94,22 @@ public interface ConnectorContext {
      */
     default <T> T executeAuthenticated(Callable<T> task) throws Exception {
         return task.call();
+    }
+
+    /**
+     * Returns (or creates) the cache instance backing the given binding. The
+     * default implementation refuses; the fe-core registry overrides this to
+     * return a real {@link MetaCacheHandle}.
+     */
+    default <K, V> MetaCacheHandle<K, V> getOrCreateCache(ConnectorMetaCacheBinding<K, V> binding) {
+        throw new UnsupportedOperationException("ConnectorContext does not provide cache binding registry");
+    }
+
+    /** Forward an invalidate request to the cache registry. Default no-op. */
+    default void invalidate(InvalidateRequest req) {
+    }
+
+    /** Invalidate every binding owned by this catalog. Default no-op. */
+    default void invalidateAll() {
     }
 }

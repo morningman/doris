@@ -17,6 +17,9 @@
 
 package org.apache.doris.connector.api;
 
+import org.apache.doris.connector.api.cache.CacheSnapshot;
+import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
+import org.apache.doris.connector.api.cache.InvalidateRequest;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 
 import java.io.Closeable;
@@ -154,5 +157,19 @@ public interface Connector extends Closeable {
      */
     default String executeRestRequest(String path, String body) {
         throw new UnsupportedOperationException("REST passthrough not supported by this connector");
+    }
+
+    /** Return cache bindings managed by fe-core on behalf of this connector. Default empty. */
+    default List<ConnectorMetaCacheBinding<?, ?>> getMetaCacheBindings() {
+        return Collections.emptyList();
+    }
+
+    /** Receive invalidate requests for self-managed caches (escape hatch). Default no-op. */
+    default void invalidateCache(InvalidateRequest req) {
+    }
+
+    /** Stats for caches the connector manages itself (not fe-core bindings). Default empty. */
+    default List<CacheSnapshot> listSelfManagedCacheStats() {
+        return Collections.emptyList();
     }
 }
