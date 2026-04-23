@@ -17,10 +17,13 @@
 
 package org.apache.doris.connector.api;
 
+import org.apache.doris.connector.api.timetravel.RefOps;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Central metadata interface that a connector must implement.
@@ -42,6 +45,15 @@ public interface ConnectorMetadata extends
     /** Returns connector-level properties. */
     default Map<String, String> getProperties() {
         return Collections.emptyMap();
+    }
+
+    /**
+     * Returns the connector's ref (branch/tag) operations, if any.
+     * Defaults to {@link Optional#empty()}; only connectors that declare
+     * {@code ConnectorCapability.SUPPORTS_BRANCH_TAG} are expected to override.
+     */
+    default Optional<RefOps> refOps() {
+        return Optional.empty();
     }
 
     @Override
