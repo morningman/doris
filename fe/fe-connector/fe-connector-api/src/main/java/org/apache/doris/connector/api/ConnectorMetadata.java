@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.api;
 
+import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.timetravel.RefOps;
 
 import java.io.Closeable;
@@ -54,6 +55,16 @@ public interface ConnectorMetadata extends
      */
     default Optional<RefOps> refOps() {
         return Optional.empty();
+    }
+
+    /**
+     * Returns the event source for this connector. Defaults to
+     * {@link EventSourceOps#NONE}; only connectors that declare
+     * {@code SUPPORTS_PULL_EVENTS}/{@code SUPPORTS_PUSH_EVENTS} are
+     * expected to override.
+     */
+    default EventSourceOps getEventSourceOps() {
+        return EventSourceOps.NONE;
     }
 
     @Override

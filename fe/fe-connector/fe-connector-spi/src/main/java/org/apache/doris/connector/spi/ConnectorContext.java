@@ -23,6 +23,8 @@ import org.apache.doris.connector.api.cache.InvalidateRequest;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.credential.CredentialBroker;
 import org.apache.doris.connector.api.credential.CredentialResolver;
+import org.apache.doris.connector.api.event.ConnectorMetaChangeEvent;
+import org.apache.doris.connector.api.event.MasterOnlyScheduler;
 
 import java.util.Collections;
 import java.util.Map;
@@ -133,5 +135,23 @@ public interface ConnectorContext {
      */
     default void registerResolver(CredentialResolver resolver) {
         // no-op by default
+    }
+
+    /**
+     * Returns a master-only scheduler for self-managed event loops.
+     * Default throws UnsupportedOperationException; the engine wires
+     * the real scheduler in M2.
+     */
+    default MasterOnlyScheduler getMasterOnlyScheduler() {
+        throw new UnsupportedOperationException("master-only scheduler not yet wired");
+    }
+
+    /**
+     * Publishes an externally-produced metadata change event into the
+     * engine dispatcher. Used by self-managed plugins. Default no-op so
+     * older engine builds don't fail; engine wires dispatcher in M2.
+     */
+    default void publishExternalEvent(ConnectorMetaChangeEvent event) {
+        // no-op default
     }
 }
