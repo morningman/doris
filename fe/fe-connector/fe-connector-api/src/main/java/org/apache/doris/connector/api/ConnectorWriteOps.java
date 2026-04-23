@@ -21,10 +21,14 @@ import org.apache.doris.connector.api.handle.ConnectorDeleteHandle;
 import org.apache.doris.connector.api.handle.ConnectorInsertHandle;
 import org.apache.doris.connector.api.handle.ConnectorMergeHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
+import org.apache.doris.connector.api.write.ConnectorTxnCapability;
 import org.apache.doris.connector.api.write.ConnectorWriteConfig;
+import org.apache.doris.connector.api.write.WriteIntent;
 
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Write (DML) operations that a connector may support.
@@ -92,6 +96,39 @@ public interface ConnectorWriteOps {
             ConnectorTableHandle handle,
             List<ConnectorColumn> columns) {
         throw new DorisConnectorException("INSERT not supported");
+    }
+
+    /**
+     * Begins an insert operation with an explicit {@link WriteIntent},
+     * allowing the connector to honor OverwriteMode / UPSERT / branch /
+     * staticPartitions / DeleteMode / writeAtVersion.
+     *
+     * <p>Default delegates to the 3-arg {@link #beginInsert} and ignores
+     * the intent, preserving v1 semantics. Connectors that declare any
+     * of {@code SUPPORTS_INSERT_OVERWRITE / SUPPORTS_UPSERT / ...}
+     * MUST override this overload.</p>
+     *
+     * @param session current session
+     * @param handle the target table handle
+     * @param columns the columns being inserted (ordered to match INSERT column list)
+     * @param intent the high-level write intent (must not be null)
+     * @return an opaque insert handle carrying connector-internal state
+     */
+    default ConnectorInsertHandle beginInsert(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            List<ConnectorColumn> columns,
+            WriteIntent intent) {
+        Objects.requireNonNull(intent, "intent");
+        return beginInsert(session, handle, columns);
+    }
+
+    /**
+     * Returns the set of transaction capabilities this connector supports.
+     * Default is the empty set, meaning only single-statement transactions.
+     */
+    default EnumSet<ConnectorTxnCapability> txnCapabilities() {
+        return EnumSet.noneOf(ConnectorTxnCapability.class);
     }
 
     /**
