@@ -21,7 +21,10 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.extension.spi.Plugin;
 import org.apache.doris.extension.spi.PluginFactory;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * SPI interface for connector provider discovery via Java ServiceLoader.
@@ -36,6 +39,11 @@ import java.util.Map;
  *   <li>Register in META-INF/services/org.apache.doris.connector.spi.ConnectorProvider.</li>
  *   <li>Have NO dependency on fe-core, fe-common, or fe-catalog.</li>
  * </ol>
+ *
+ * <p>Backend dispatch (selecting between e.g. Iceberg HMS / REST / Glue
+ * variants under a single connector type) is opt-in via
+ * {@link #getCatalogTypeProperty()} and {@link #getSupportedBackends()};
+ * single-backend connectors can ignore both methods and inherit the defaults.
  */
 public interface ConnectorProvider extends PluginFactory {
 
@@ -44,6 +52,45 @@ public interface ConnectorProvider extends PluginFactory {
      * Corresponds to the {@code type} property in CREATE CATALOG.
      */
     String getType();
+
+    /**
+     * Returns the user-facing property key whose value selects the backend
+     * variant within this connector type, e.g. {@code "iceberg.catalog.type"}
+     * for Iceberg or {@code "paimon.catalog.type"} for Paimon.
+     *
+     * <p>For single-backend connectors (jdbc, es, mc, trino, hms, hive, hudi)
+     * this returns {@link Optional#empty()}.
+     *
+     * <p>The fe-core resolver uses this key to look up the backend value in
+     * the raw property map and route the {@link #create(Map, ConnectorContext)}
+     * call to the appropriate backend implementation. The key must be a
+     * property declared by {@link Connector#getCatalogProperties()}.
+     */
+    default Optional<String> getCatalogTypeProperty() {
+        return Optional.empty();
+    }
+
+    /**
+     * Returns the set of backend variant identifiers this provider supports.
+     * Used by the engine to:
+     * <ul>
+     *   <li>List the legal values for the property returned by
+     *       {@link #getCatalogTypeProperty()} in error messages.</li>
+     *   <li>Reject CREATE CATALOG with an unsupported backend at validation
+     *       time (before plugin instantiation).</li>
+     * </ul>
+     *
+     * <p>For single-backend connectors, the default returns a single-element
+     * set containing {@link #getType()} so the contract holds uniformly.
+     *
+     * <p>Backend identifiers are case-insensitive but should be lowercase
+     * canonical names (e.g., {@code "hms"}, {@code "rest"}, {@code "glue"},
+     * {@code "dlf"}, {@code "filesystem"} for Iceberg). Aliases are out of
+     * scope for M0-05 and will be added in a later PR (D2 §6 references D11).
+     */
+    default Set<String> getSupportedBackends() {
+        return Collections.singleton(getType());
+    }
 
     /**
      * Returns true if this provider can handle the given catalog type and properties.
