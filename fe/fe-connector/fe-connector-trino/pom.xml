@@ -61,7 +61,12 @@ under the License.
             <scope>provided</scope>
         </dependency>
 
-        <!-- fe-common for shared types (TrinoColumnMetadata) -->
+        <!--
+            fe-common is required for the legacy shared type org.apache.doris.trinoconnector.TrinoColumnMetadata,
+            which is Jackson-serialized between FE and the BE-side trino-connector-scanner. Migrating that type
+            into a connector-local package (or into fe-connector-api) is tracked as a follow-up to M0-16; until
+            then the enforcer block below is narrowed to ban only fe-core for this module.
+        -->
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>fe-common</artifactId>
@@ -108,6 +113,38 @@ under the License.
     <build>
         <finalName>doris-fe-connector-trino</finalName>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>enforce-no-fe-core-or-common</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <phase>validate</phase>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>org.apache.doris:fe-core</exclude>
+                                        <!--
+                                            org.apache.doris:fe-common is intentionally NOT listed here for
+                                            fe-connector-trino: the legacy TrinoColumnMetadata type still lives
+                                            in fe-common and is shared with the BE trino-connector-scanner.
+                                            All other fe-connector-* modules ban fe-common as well; this module
+                                            will be aligned once TrinoColumnMetadata is relocated.
+                                        -->
+                                    </excludes>
+                                    <searchTransitive>true</searchTransitive>
+                                    <message>fe-connector-* modules MUST NOT depend on fe-core (banned by M0-16). The connector layer is the boundary between the engine and external data sources.</message>
+                                </bannedDependencies>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
