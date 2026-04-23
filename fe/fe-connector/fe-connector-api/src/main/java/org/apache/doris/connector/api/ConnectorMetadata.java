@@ -19,6 +19,7 @@ package org.apache.doris.connector.api;
 
 import org.apache.doris.connector.api.action.ConnectorActionOps;
 import org.apache.doris.connector.api.event.EventSourceOps;
+import org.apache.doris.connector.api.systable.SystemTableOps;
 import org.apache.doris.connector.api.timetravel.RefOps;
 
 import java.io.Closeable;
@@ -42,6 +43,7 @@ public interface ConnectorMetadata extends
         ConnectorStatisticsOps,
         ConnectorWriteOps,
         ConnectorIdentifierOps,
+        SystemTableOps,
         Closeable {
 
     /** Returns connector-level properties. */
