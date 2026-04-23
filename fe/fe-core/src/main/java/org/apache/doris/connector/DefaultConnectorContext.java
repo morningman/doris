@@ -25,7 +25,10 @@ import org.apache.doris.connector.api.ConnectorHttpSecurityHook;
 import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
 import org.apache.doris.connector.api.cache.InvalidateRequest;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
+import org.apache.doris.connector.api.credential.CredentialBroker;
 import org.apache.doris.connector.cache.ConnectorMetaCacheRegistry;
+import org.apache.doris.connector.credential.DefaultCredentialBroker;
+import org.apache.doris.connector.credential.DefaultCredentialBrokerFactory;
 import org.apache.doris.connector.spi.ConnectorContext;
 
 import java.util.Collections;
@@ -50,6 +53,7 @@ public class DefaultConnectorContext implements ConnectorContext {
     private final Map<String, String> environment;
     private final Supplier<ExecutionAuthenticator> authSupplier;
     private final ConnectorMetaCacheRegistry cacheRegistry;
+    private final DefaultCredentialBroker credentialBroker;
 
     private final ConnectorHttpSecurityHook httpSecurityHook = new ConnectorHttpSecurityHook() {
         @Override
@@ -74,6 +78,7 @@ public class DefaultConnectorContext implements ConnectorContext {
         this.authSupplier = Objects.requireNonNull(authSupplier, "authSupplier");
         this.environment = buildEnvironment();
         this.cacheRegistry = new ConnectorMetaCacheRegistry(catalogName);
+        this.credentialBroker = DefaultCredentialBrokerFactory.forCatalog(catalogName);
     }
 
     @Override
@@ -123,6 +128,11 @@ public class DefaultConnectorContext implements ConnectorContext {
     @Override
     public void invalidateAll() {
         cacheRegistry.invalidateAll();
+    }
+
+    @Override
+    public CredentialBroker getCredentialBroker() {
+        return credentialBroker;
     }
 
     /**

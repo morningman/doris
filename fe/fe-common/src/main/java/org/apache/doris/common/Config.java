@@ -3661,4 +3661,33 @@ public class Config extends ConfigBase {
                     + "obtaining partition version information when calculating the delete bitmap. Enabled "
                     + "by default."})
     public static boolean calc_delete_bitmap_get_versions_waiting_for_pending_txns = true;
+
+    @ConfField(description = {
+            "Ordered comma-separated list of credential resolver schemes used by the fe-core "
+                    + "DefaultCredentialBroker. Supported schemes: env, file, kms, vault. Resolvers "
+                    + "not listed here will not be available; an empty value falls back to the default "
+                    + "'env,file,kms,vault'."})
+    public static String connector_credential_resolver_chain = "env,file,kms,vault";
+
+    @ConfField(description = {
+            "Fallback TTL (seconds) applied to a resolved connector credential when the underlying "
+                    + "resolver does not return its own expiresAt. Cached entries are reloaded after "
+                    + "this many seconds. Must be >= 1."})
+    public static long connector_credential_cache_ttl_sec = 300L;
+
+    @ConfField(description = {
+            "Fully-qualified class name of an org.apache.doris.connector.credential.KmsProvider "
+                    + "implementation used by the kms:// credential resolver. Empty disables KMS "
+                    + "resolution (the resolver fails with a 'not configured' error)."})
+    public static String connector_kms_provider_class = "";
+
+    @ConfField(description = {
+            "Endpoint URL of the HashiCorp Vault server used by the vault:// credential resolver. "
+                    + "Empty disables Vault resolution (the resolver fails with a 'not configured' error)."})
+    public static String connector_vault_endpoint = "";
+
+    @ConfField(description = {
+            "Vault token used to authenticate against connector_vault_endpoint. SECURITY: this value "
+                    + "is treated as a secret and MUST NOT be logged. Empty disables Vault resolution."})
+    public static String connector_vault_token = "";
 }
