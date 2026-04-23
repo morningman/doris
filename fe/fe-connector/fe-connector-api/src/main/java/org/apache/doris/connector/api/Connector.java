@@ -23,6 +23,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -46,9 +47,45 @@ public interface Connector extends Closeable {
         return Collections.emptySet();
     }
 
-    /** Returns the table-level property descriptors. */
+    /** Catalog-level property descriptors. Defaults to empty. */
+    default List<ConnectorPropertyMetadata<?>> getCatalogProperties() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Catalog-level property descriptors that may depend on raw user input
+     * (e.g., conditional properties revealed only when {@code type=hudi}).
+     *
+     * <p>Default delegates to {@link #getCatalogProperties()} ignoring
+     * {@code rawProps}.</p>
+     *
+     * @param rawProps the raw user-supplied properties (never {@code null})
+     */
+    default List<ConnectorPropertyMetadata<?>> getCatalogProperties(Map<String, String> rawProps) {
+        return getCatalogProperties();
+    }
+
+    /**
+     * Returns the table-level property descriptors.
+     *
+     * <p>Back-compat shorthand for {@link #getTableProperties(TableScope)}
+     * called with {@link TableScope#CREATE}. Existing v1 connectors may keep
+     * overriding only this no-arg form.</p>
+     */
     default List<ConnectorPropertyMetadata<?>> getTableProperties() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Table-level property descriptors for a given lifecycle scope.
+     *
+     * <p>Default delegates to {@link #getTableProperties()} for any scope
+     * (back-compat).</p>
+     *
+     * @param scope the DDL/DML context requesting the descriptors
+     */
+    default List<ConnectorPropertyMetadata<?>> getTableProperties(TableScope scope) {
+        return getTableProperties();
     }
 
     /** Returns the session-level property descriptors. */
