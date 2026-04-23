@@ -22,6 +22,10 @@ import org.apache.doris.common.Config;
 import org.apache.doris.common.EnvUtils;
 import org.apache.doris.common.security.authentication.ExecutionAuthenticator;
 import org.apache.doris.connector.api.ConnectorHttpSecurityHook;
+import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
+import org.apache.doris.connector.api.cache.InvalidateRequest;
+import org.apache.doris.connector.api.cache.MetaCacheHandle;
+import org.apache.doris.connector.cache.ConnectorMetaCacheRegistry;
 import org.apache.doris.connector.spi.ConnectorContext;
 
 import java.util.Collections;
@@ -45,6 +49,7 @@ public class DefaultConnectorContext implements ConnectorContext {
     private final long catalogId;
     private final Map<String, String> environment;
     private final Supplier<ExecutionAuthenticator> authSupplier;
+    private final ConnectorMetaCacheRegistry cacheRegistry;
 
     private final ConnectorHttpSecurityHook httpSecurityHook = new ConnectorHttpSecurityHook() {
         @Override
@@ -68,6 +73,7 @@ public class DefaultConnectorContext implements ConnectorContext {
         this.catalogId = catalogId;
         this.authSupplier = Objects.requireNonNull(authSupplier, "authSupplier");
         this.environment = buildEnvironment();
+        this.cacheRegistry = new ConnectorMetaCacheRegistry(catalogName);
     }
 
     @Override
@@ -102,6 +108,31 @@ public class DefaultConnectorContext implements ConnectorContext {
     @Override
     public <T> T executeAuthenticated(Callable<T> task) throws Exception {
         return authSupplier.get().execute(task);
+    }
+
+    @Override
+    public <K, V> MetaCacheHandle<K, V> getOrCreateCache(ConnectorMetaCacheBinding<K, V> binding) {
+        return cacheRegistry.getOrCreateCache(binding);
+    }
+
+    @Override
+    public void invalidate(InvalidateRequest req) {
+        cacheRegistry.invalidate(req);
+    }
+
+    @Override
+    public void invalidateAll() {
+        cacheRegistry.invalidateAll();
+    }
+
+    /**
+     * Engine-side accessor for the cache registry. Intended for future
+     * integration points (D7 event dispatch, D10 delegate fan-out) that need
+     * to call {@link ConnectorMetaCacheRegistry#invalidate(InvalidateRequest)}
+     * directly without going through the SPI surface.
+     */
+    public ConnectorMetaCacheRegistry getCacheRegistry() {
+        return cacheRegistry;
     }
 
     private static Map<String, String> buildEnvironment() {
