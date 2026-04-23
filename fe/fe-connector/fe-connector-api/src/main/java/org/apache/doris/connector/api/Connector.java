@@ -20,6 +20,7 @@ package org.apache.doris.connector.api;
 import org.apache.doris.connector.api.cache.CacheSnapshot;
 import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
 import org.apache.doris.connector.api.cache.InvalidateRequest;
+import org.apache.doris.connector.api.dispatch.ConnectorDispatchOps;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 
 import java.io.Closeable;
@@ -170,6 +171,28 @@ public interface Connector extends Closeable {
 
     /** Stats for caches the connector manages itself (not fe-core bindings). Default empty. */
     default List<CacheSnapshot> listSelfManagedCacheStats() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns the dispatch operations for this connector, or {@code null}
+     * if dispatch is not declared. Only "host" connectors that can route
+     * certain tables to a different connector type (e.g., hive →
+     * iceberg-on-hms) override this.
+     *
+     * <p>Default returns {@code null}, meaning the engine treats every
+     * table as host-owned.</p>
+     */
+    default ConnectorDispatchOps getDispatchOps() {
+        return null;
+    }
+
+    /**
+     * Returns the list of connector type names this host may delegate to.
+     * Used at startup for capability negotiation: the engine warns if a
+     * declared delegate type is not loaded. Default empty.
+     */
+    default List<String> declaredDelegateTypes() {
         return Collections.emptyList();
     }
 }

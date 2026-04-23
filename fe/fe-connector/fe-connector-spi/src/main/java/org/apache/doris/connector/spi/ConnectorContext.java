@@ -154,4 +154,14 @@ public interface ConnectorContext {
     default void publishExternalEvent(ConnectorMetaChangeEvent event) {
         // no-op default
     }
+
+    /**
+     * Returns the engine-side connector registry, used by host connectors
+     * to look up delegate connectors during dispatch. Default throws
+     * {@link UnsupportedOperationException}; the engine wires the real
+     * registry in M4 alongside {@code DelegatingConnectorMetadata}.
+     */
+    default ConnectorRegistry getConnectorRegistry() {
+        throw new UnsupportedOperationException("connector registry not yet wired");
+    }
 }
