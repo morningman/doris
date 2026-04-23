@@ -18,7 +18,10 @@
 package org.apache.doris.connector.api;
 
 import org.apache.doris.connector.api.action.ConnectorActionOps;
+import org.apache.doris.connector.api.audit.ConnectorAuditOps;
 import org.apache.doris.connector.api.event.EventSourceOps;
+import org.apache.doris.connector.api.mtmv.MtmvOps;
+import org.apache.doris.connector.api.policy.PolicyOps;
 import org.apache.doris.connector.api.systable.SystemTableOps;
 import org.apache.doris.connector.api.timetravel.RefOps;
 
@@ -76,6 +79,36 @@ public interface ConnectorMetadata extends
      * {@code ConnectorCapability.SUPPORTS_PROCEDURES} are expected to override.
      */
     default Optional<ConnectorActionOps> actionOps() {
+        return Optional.empty();
+    }
+
+    /**
+     * Returns the connector's MTMV (materialized-view-on-external-table)
+     * operations, if any. Defaults to {@link Optional#empty()}; only
+     * connectors that declare {@code ConnectorCapability.SUPPORTS_MTMV}
+     * are expected to override.
+     */
+    default Optional<MtmvOps> mtmvOps() {
+        return Optional.empty();
+    }
+
+    /**
+     * Returns the connector's governance-policy hint operations, if any.
+     * Defaults to {@link Optional#empty()}; only connectors that declare
+     * {@code ConnectorCapability.SUPPORTS_RLS_HINT} or
+     * {@code SUPPORTS_MASK_HINT} are expected to override.
+     */
+    default Optional<PolicyOps> policyOps() {
+        return Optional.empty();
+    }
+
+    /**
+     * Returns the connector's audit emission declaration, if any. Defaults
+     * to {@link Optional#empty()}; only connectors that declare
+     * {@code ConnectorCapability.EMITS_AUDIT_EVENTS} are expected to
+     * override.
+     */
+    default Optional<ConnectorAuditOps> auditOps() {
         return Optional.empty();
     }
 
