@@ -18,6 +18,7 @@
 package org.apache.doris.connector.spi;
 
 import org.apache.doris.connector.api.ConnectorHttpSecurityHook;
+import org.apache.doris.connector.api.audit.ConnectorAuditEvent;
 import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
 import org.apache.doris.connector.api.cache.InvalidateRequest;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
@@ -152,6 +153,18 @@ public interface ConnectorContext {
      * older engine builds don't fail; engine wires dispatcher in M2.
      */
     default void publishExternalEvent(ConnectorMetaChangeEvent event) {
+        // no-op default
+    }
+
+    /**
+     * Publishes an audit event produced by a connector into the engine
+     * audit chain. The engine forwards events through its existing
+     * {@code AuditEventChainListener} into the standard
+     * {@code AuditEventProcessor}; plugins must NOT open a parallel audit
+     * sink. Default no-op so older engine builds don't fail; engine wires
+     * the publisher in a follow-up milestone (D8 §11.1).
+     */
+    default void publishAuditEvent(ConnectorAuditEvent event) {
         // no-op default
     }
 

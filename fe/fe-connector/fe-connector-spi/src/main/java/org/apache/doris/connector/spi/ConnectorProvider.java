@@ -127,6 +127,21 @@ public interface ConnectorProvider extends PluginFactory {
         return 1;
     }
 
+    /**
+     * Returns the engine-side {@code AccessControllerFactory} name that should
+     * be used by default for catalogs of this connector type when the user
+     * does not explicitly configure one (e.g. {@code "ranger-hive"} for
+     * iceberg / paimon / hudi).
+     *
+     * <p>Default is {@link Optional#empty()}, which means the engine falls
+     * back to its built-in access controller — this preserves jdbc / es
+     * behaviour and never silently changes authorization semantics for
+     * existing connectors. (D8 §11.1, §11.4)
+     */
+    default Optional<String> defaultAccessControllerFactoryName() {
+        return Optional.empty();
+    }
+
     @Override
     default String name() {
         return getType();
