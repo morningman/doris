@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.api;
 
+import org.apache.doris.connector.api.action.ConnectorActionOps;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.timetravel.RefOps;
 
@@ -65,6 +66,15 @@ public interface ConnectorMetadata extends
      */
     default EventSourceOps getEventSourceOps() {
         return EventSourceOps.NONE;
+    }
+
+    /**
+     * Returns the connector's named action / procedure operations, if any.
+     * Defaults to {@link Optional#empty()}; only connectors that declare
+     * {@code ConnectorCapability.SUPPORTS_PROCEDURES} are expected to override.
+     */
+    default Optional<ConnectorActionOps> actionOps() {
+        return Optional.empty();
     }
 
     @Override
