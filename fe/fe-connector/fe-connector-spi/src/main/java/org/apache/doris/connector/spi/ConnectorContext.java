@@ -21,6 +21,8 @@ import org.apache.doris.connector.api.ConnectorHttpSecurityHook;
 import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
 import org.apache.doris.connector.api.cache.InvalidateRequest;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
+import org.apache.doris.connector.api.credential.CredentialBroker;
+import org.apache.doris.connector.api.credential.CredentialResolver;
 
 import java.util.Collections;
 import java.util.Map;
@@ -91,7 +93,10 @@ public interface ConnectorContext {
      * @param <T>  the return type of the task
      * @return the result of the task
      * @throws Exception if the task execution or authentication fails
+     * @deprecated Replaced by {@link CredentialBroker#impersonation()}.runAs(...). Will be removed
+     *     in M5; do not add new callers.
      */
+    @Deprecated
     default <T> T executeAuthenticated(Callable<T> task) throws Exception {
         return task.call();
     }
@@ -111,5 +116,22 @@ public interface ConnectorContext {
 
     /** Invalidate every binding owned by this catalog. Default no-op. */
     default void invalidateAll() {
+    }
+
+    /**
+     * Returns the {@link CredentialBroker} wired by fe-core. Default refuses;
+     * fe-core overrides this in M3 to expose the unified credential resolution
+     * surface.
+     */
+    default CredentialBroker getCredentialBroker() {
+        throw new UnsupportedOperationException("credential broker not wired");
+    }
+
+    /**
+     * Registers a {@link CredentialResolver} chain entry. Default no-op until
+     * fe-core wiring lands in M3.
+     */
+    default void registerResolver(CredentialResolver resolver) {
+        // no-op by default
     }
 }
