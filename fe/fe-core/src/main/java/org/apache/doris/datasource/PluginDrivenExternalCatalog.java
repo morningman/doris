@@ -25,6 +25,7 @@ import org.apache.doris.connector.DefaultConnectorValidationContext;
 import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTestResult;
+import org.apache.doris.connector.cache.ConnectorMetaCacheBootstrap;
 import org.apache.doris.datasource.property.metastore.MetastoreProperties;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.transaction.PluginDrivenTransactionManager;
@@ -56,6 +57,11 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
     // via makeSureInitialized() → initLocalObjectsImpl(), or resetToUninitialized() → onClose().
     private transient volatile Connector connector;
 
+    // The DefaultConnectorContext currently owned by this catalog. Tracked so we
+    // can (a) feed plugin getMetaCacheBindings() into its ConnectorMetaCacheRegistry
+    // at init, and (b) detach the registry on close to avoid leaks.
+    private transient volatile DefaultConnectorContext connectorContext;
+
     /** No-arg constructor for GSON deserialization. */
     public PluginDrivenExternalCatalog() {
     }
@@ -84,9 +90,22 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
         // The connector created by CatalogFactory used a lightweight context
         // without auth (the catalog didn't exist yet); we replace it now.
         Connector oldConnector = connector;
+        DefaultConnectorContext oldContext = connectorContext;
         Connector newConnector = createConnectorFromProperties();
         if (newConnector != null) {
             connector = newConnector;
+            // Detach the old context's cache registry first so that any cache handles
+            // it owns are dropped and not leaked across re-initialization (drop+recreate,
+            // ALTER CATALOG SET PROPERTIES, image replay rebuild).
+            if (oldContext != null && oldContext != connectorContext) {
+                ConnectorMetaCacheBootstrap.detachAll(oldContext);
+            }
+            // Wire the plugin's declared bindings into the registry of the
+            // freshly-created context. Idempotent for matching bindings — repeated
+            // re-init with the same plugin version returns the same handles.
+            if (connectorContext != null) {
+                ConnectorMetaCacheBootstrap.bindAll(connectorContext, connector);
+            }
             // Close the old connector (e.g., the one injected by CatalogFactory during
             // checkWhenCreating) to release its connection pool and classloader reference.
             if (oldConnector != null && oldConnector != newConnector) {
@@ -133,9 +152,16 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
         // This handles image deserialization of old resource-backed catalogs whose
         // properties never contained "type" (it was derived from the Resource object).
         String catalogType = getType();
-        return ConnectorFactory.createConnector(catalogType,
+        DefaultConnectorContext ctx = new DefaultConnectorContext(name, id, this::getExecutionAuthenticator);
+        Connector created = ConnectorFactory.createConnector(catalogType,
                 catalogProperty.getProperties(),
-                new DefaultConnectorContext(name, id, this::getExecutionAuthenticator));
+                ctx);
+        if (created != null) {
+            // Only publish the new context if the connector was actually built; a
+            // null return path (no factory) leaves the previous context in place.
+            this.connectorContext = ctx;
+        }
+        return created;
     }
 
     @Override
@@ -299,6 +325,10 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
     @Override
     public void onClose() {
         super.onClose();
+        if (connectorContext != null) {
+            ConnectorMetaCacheBootstrap.detachAll(connectorContext);
+            connectorContext = null;
+        }
         if (connector != null) {
             try {
                 connector.close();

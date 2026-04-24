@@ -17,11 +17,16 @@
 
 package org.apache.doris.connector.cache;
 
+import org.apache.doris.connector.api.cache.CacheSnapshot;
 import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
 import org.apache.doris.connector.api.cache.InvalidateRequest;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -98,6 +103,77 @@ public final class ConnectorMetaCacheRegistry {
 
     public boolean contains(String entryName) {
         return registrations.containsKey(entryName);
+    }
+
+    /**
+     * Explicit binding entry point used by the engine when wiring a plugin
+     * connector's {@code getMetaCacheBindings()} declarations into this
+     * context. Equivalent to {@link #getOrCreateCache(ConnectorMetaCacheBinding)}
+     * but documents intent: the caller is performing one-time registration at
+     * catalog initialization time, not opportunistic on-demand creation.
+     *
+     * @return the {@link MetaCacheHandle} owned by this registry for the
+     *         given binding.
+     */
+    public <K, V> MetaCacheHandle<K, V> bind(ConnectorMetaCacheBinding<K, V> binding) {
+        return getOrCreateCache(binding);
+    }
+
+    /**
+     * Bind every binding in {@code bindings}. Null entries are rejected.
+     * Equivalent to calling {@link #bind(ConnectorMetaCacheBinding)} for each
+     * element. Returns the number of NEWLY-registered bindings (existing
+     * bindings with the same {@code entryName} that already match are not
+     * counted).
+     */
+    public int bindAll(Iterable<? extends ConnectorMetaCacheBinding<?, ?>> bindings) {
+        Objects.requireNonNull(bindings, "bindings");
+        int created = 0;
+        for (ConnectorMetaCacheBinding<?, ?> b : bindings) {
+            if (b == null) {
+                throw new IllegalArgumentException("bindings must not contain null entries");
+            }
+            int before = registrations.size();
+            bindWildcard(b);
+            if (registrations.size() > before) {
+                created++;
+            }
+        }
+        return created;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private void bindWildcard(ConnectorMetaCacheBinding<?, ?> b) {
+        getOrCreateCache((ConnectorMetaCacheBinding) b);
+    }
+
+    /** Snapshot of every binding's stats; safe to call concurrently with bind/invalidate. */
+    public List<CacheSnapshot> snapshot() {
+        List<CacheSnapshot> out = new ArrayList<>(registrations.size());
+        for (Registration<?, ?> reg : registrations.values()) {
+            out.add(new CacheSnapshot(reg.binding.getEntryName(), reg.handle.stats()));
+        }
+        return out;
+    }
+
+    /** Immutable snapshot of currently registered entry names. */
+    public Set<String> entryNames() {
+        return Collections.unmodifiableSet(registrations.keySet());
+    }
+
+    /**
+     * Tear down every binding owned by this registry: invalidates each cache
+     * and removes it from the registration map. Subsequent {@link #size()}
+     * returns zero. Intended to be called from the catalog's {@code onClose()}
+     * lifecycle hook so that a stale registry does not outlive its connector.
+     *
+     * <p>This method is idempotent — calling it twice is a no-op.</p>
+     */
+    public void detach() {
+        for (Registration<?, ?> reg : registrations.values()) {
+            reg.handle.invalidateAll();
+        }
+        registrations.clear();
     }
 
     private <K, V> Registration<K, V> createRegistration(ConnectorMetaCacheBinding<K, V> binding) {
