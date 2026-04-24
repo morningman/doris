@@ -21,10 +21,12 @@ import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
+import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.timetravel.RefOps;
 import org.apache.doris.connector.iceberg.api.IcebergBackend;
 import org.apache.doris.connector.iceberg.api.IcebergBackendContext;
+import org.apache.doris.connector.iceberg.cache.IcebergTableCacheKey;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -65,19 +67,22 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
     private final Map<String, String> properties;
     private final IcebergBackend backend;
     private final IcebergBackendContext backendContext;
+    private final MetaCacheHandle<IcebergTableCacheKey, Table> tableHandle;
 
     public IcebergConnectorMetadata(Catalog catalog, Map<String, String> properties) {
-        this(catalog, properties, null, null);
+        this(catalog, properties, null, null, null);
     }
 
     public IcebergConnectorMetadata(Catalog catalog,
                                     Map<String, String> properties,
                                     IcebergBackend backend,
-                                    IcebergBackendContext backendContext) {
+                                    IcebergBackendContext backendContext,
+                                    MetaCacheHandle<IcebergTableCacheKey, Table> tableHandle) {
         this.catalog = catalog;
         this.properties = properties;
         this.backend = backend;
         this.backendContext = backendContext;
+        this.tableHandle = tableHandle;
     }
 
     @Override
@@ -137,7 +142,9 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
         String dbName = iceHandle.getDbName();
         String tableName = iceHandle.getTableName();
 
-        Table table = catalog.loadTable(TableIdentifier.of(dbName, tableName));
+        Table table = tableHandle != null
+                ? tableHandle.get(new IcebergTableCacheKey(dbName, tableName))
+                : catalog.loadTable(TableIdentifier.of(dbName, tableName));
         Schema icebergSchema = table.schema();
         List<ConnectorColumn> columns = parseSchema(icebergSchema);
 
