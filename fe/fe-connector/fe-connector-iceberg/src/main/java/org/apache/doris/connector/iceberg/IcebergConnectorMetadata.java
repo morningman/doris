@@ -23,10 +23,13 @@ import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
+import org.apache.doris.connector.api.systable.SysTableSpec;
+import org.apache.doris.connector.api.systable.SystemTableOps;
 import org.apache.doris.connector.api.timetravel.RefOps;
 import org.apache.doris.connector.iceberg.api.IcebergBackend;
 import org.apache.doris.connector.iceberg.api.IcebergBackendContext;
 import org.apache.doris.connector.iceberg.cache.IcebergTableCacheKey;
+import org.apache.doris.connector.iceberg.systable.IcebergSystemTableOps;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -68,6 +71,7 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
     private final IcebergBackend backend;
     private final IcebergBackendContext backendContext;
     private final MetaCacheHandle<IcebergTableCacheKey, Table> tableHandle;
+    private volatile SystemTableOps sysTableOps;
 
     public IcebergConnectorMetadata(Catalog catalog, Map<String, String> properties) {
         this(catalog, properties, null, null, null);
@@ -91,6 +95,47 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
             return Optional.empty();
         }
         return Optional.of(new IcebergRefOps(backend, backendContext));
+    }
+
+    // ========== SystemTableOps (M1-13) ==========
+
+    /**
+     * Returns the seven Iceberg metadata-table specs published by the plugin
+     * (snapshots / history / files / entries / manifests / refs / partitions).
+     * Backed by an {@link IcebergSystemTableOps} that wires each spec's
+     * {@code NativeSysTableScanFactory} to the {@code iceberg.table}
+     * {@link MetaCacheHandle} so D3 invalidation propagates automatically.
+     */
+    @Override
+    public List<SysTableSpec> listSysTables(String database, String table) {
+        return systemTableOps().listSysTables(database, table);
+    }
+
+    @Override
+    public Optional<SysTableSpec> getSysTable(String database, String table, String sysTableName) {
+        return systemTableOps().getSysTable(database, table, sysTableName);
+    }
+
+    private SystemTableOps systemTableOps() {
+        // Lazily construct to keep ctor cheap and to avoid allocating when sys
+        // tables are never queried. The instance is stateless beyond the loader.
+        SystemTableOps cached = sysTableOps;
+        if (cached == null) {
+            synchronized (this) {
+                cached = sysTableOps;
+                if (cached == null) {
+                    cached = new IcebergSystemTableOps(this::loadIcebergTable);
+                    sysTableOps = cached;
+                }
+            }
+        }
+        return cached;
+    }
+
+    private Table loadIcebergTable(String dbName, String tableName) {
+        return tableHandle != null
+                ? tableHandle.get(new IcebergTableCacheKey(dbName, tableName))
+                : catalog.loadTable(TableIdentifier.of(dbName, tableName));
     }
 
     // ========== ConnectorSchemaOps ==========
