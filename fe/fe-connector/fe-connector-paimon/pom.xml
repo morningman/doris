@@ -54,6 +54,43 @@ under the License.
             <version>${project.version}</version>
         </dependency>
 
+        <!-- Paimon backend SPI shared with all backend jars. -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-paimon-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Backend implementations: runtime scope only. The orchestrator
+             never references these classes directly; ServiceLoader discovers
+             their factories from META-INF/services on the plugin classloader.
+             Keeping them at runtime scope guarantees no compile-time coupling
+             leaks from a vendor-specific backend back into the orchestrator. -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-paimon-backend-filesystem</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-paimon-backend-hms</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-paimon-backend-rest</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-paimon-backend-aliyun-dlf</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Thrift types for constructing TTableFormatFileDesc in populateRangeParams -->
         <dependency>
             <groupId>${project.groupId}</groupId>

@@ -37,6 +37,13 @@ public final class PaimonConnectorProperties {
     /** Default catalog type when not specified. */
     public static final String DEFAULT_CATALOG_TYPE = "filesystem";
 
+    // -- Supported catalog backend type values (matched against
+    // PaimonBackendRegistry / advertised by getSupportedBackends) --
+    public static final String TYPE_FILESYSTEM = "filesystem";
+    public static final String TYPE_HMS = "hms";
+    public static final String TYPE_REST = "rest";
+    public static final String TYPE_ALIYUN_DLF = "aliyun-dlf";
+
     private PaimonConnectorProperties() {
     }
 }

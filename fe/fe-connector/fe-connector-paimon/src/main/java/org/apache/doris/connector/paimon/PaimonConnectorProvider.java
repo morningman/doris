@@ -22,12 +22,17 @@ import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorProvider;
 
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * SPI entry point for the Paimon connector.
  *
  * <p>Registered via {@code META-INF/services/org.apache.doris.connector.spi.ConnectorProvider}.
  * Returns type {@code "paimon"} matching the CatalogFactory dispatch key.
+ * Internally dispatches to all Paimon catalog backends (filesystem, hms,
+ * rest, aliyun-dlf) via the ServiceLoader-driven
+ * {@link PaimonBackendRegistry}.
  */
 public class PaimonConnectorProvider implements ConnectorProvider {
 
@@ -37,7 +42,21 @@ public class PaimonConnectorProvider implements ConnectorProvider {
     }
 
     @Override
+    public Optional<String> getCatalogTypeProperty() {
+        return Optional.of(PaimonConnectorProperties.PAIMON_CATALOG_TYPE);
+    }
+
+    @Override
+    public Set<String> getSupportedBackends() {
+        return Set.of(
+                PaimonConnectorProperties.TYPE_FILESYSTEM,
+                PaimonConnectorProperties.TYPE_HMS,
+                PaimonConnectorProperties.TYPE_REST,
+                PaimonConnectorProperties.TYPE_ALIYUN_DLF);
+    }
+
+    @Override
     public Connector create(Map<String, String> properties, ConnectorContext context) {
-        return new PaimonConnector(properties);
+        return new PaimonConnector(properties, context);
     }
 }
