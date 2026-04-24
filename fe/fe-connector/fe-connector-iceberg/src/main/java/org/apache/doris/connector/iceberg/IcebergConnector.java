@@ -21,32 +21,35 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.DorisConnectorException;
+import org.apache.doris.connector.iceberg.api.IcebergBackend;
+import org.apache.doris.connector.iceberg.api.IcebergBackendContext;
+import org.apache.doris.connector.iceberg.api.IcebergBackendFactory;
 import org.apache.doris.connector.spi.ConnectorContext;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.iceberg.CatalogProperties;
-import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Iceberg connector implementation. Manages the lifecycle of an Iceberg SDK
+ * Iceberg connector orchestrator. Manages the lifecycle of an Iceberg SDK
  * {@link Catalog} instance for all metadata operations.
  *
- * <p>Supports all Iceberg catalog backends: REST, HMS, Glue, DLF, JDBC,
- * Hadoop, and S3Tables. The backend is determined by the {@code iceberg.catalog.type}
- * property, which maps to the appropriate {@code catalog-impl} class for the
- * Iceberg SDK's {@link CatalogUtil#buildIcebergCatalog}.</p>
+ * <p>Backend selection is delegated to the {@link IcebergBackendRegistry}:
+ * the {@code iceberg.catalog.type} property names a backend (hms / rest /
+ * glue / dlf / s3tables / hadoop) and the matching factory is loaded via
+ * Java ServiceLoader from the {@code fe-connector-iceberg-backend-*} jars
+ * shipped in the plugin's {@code lib/}. There is no static type-to-impl
+ * cascade in this class.
  *
- * <p>Phase 1 provides read-only metadata operations (list databases, list tables,
- * get schema). Write operations, scan planning, actions (compaction, snapshot
- * management), and transaction support remain in fe-core temporarily.</p>
+ * <p>Phase 1 provides read-only metadata operations (list databases, list
+ * tables, get schema). Write operations, scan planning, actions
+ * (compaction, snapshot management), and transaction support remain in
+ * fe-core temporarily.
  */
 public class IcebergConnector implements Connector {
 
@@ -84,45 +87,20 @@ public class IcebergConnector implements Connector {
                     "Missing '" + IcebergConnectorProperties.ICEBERG_CATALOG_TYPE + "' property");
         }
 
-        Map<String, String> catalogProps = new HashMap<>(properties);
-        String catalogImpl = resolveCatalogImpl(catalogType);
-        catalogProps.put(CatalogProperties.CATALOG_IMPL, catalogImpl);
-        // Iceberg SDK does not allow both "type" and "catalog-impl"
-        catalogProps.remove(CatalogUtil.ICEBERG_CATALOG_TYPE);
+        IcebergBackendFactory factory = IcebergBackendRegistry.get(catalogType)
+                .orElseThrow(() -> new DorisConnectorException(
+                        "Unknown iceberg.catalog.type: '" + catalogType
+                                + "'. Available backends on the plugin classpath: "
+                                + IcebergBackendRegistry.availableTypes()));
 
-        Configuration conf = buildHadoopConf(catalogProps);
+        IcebergBackend backend = factory.create();
+        Configuration conf = buildHadoopConf(properties);
         String catalogName = context.getCatalogName();
 
-        LOG.info("Creating Iceberg catalog '{}' with type='{}', impl='{}'",
-                catalogName, catalogType, catalogImpl);
+        LOG.info("Creating Iceberg catalog '{}' via backend '{}'",
+                catalogName, backend.name());
 
-        return CatalogUtil.buildIcebergCatalog(catalogName, catalogProps, conf);
-    }
-
-    /**
-     * Resolve the Iceberg catalog implementation class from the catalog type string.
-     */
-    private static String resolveCatalogImpl(String catalogType) {
-        switch (catalogType.toLowerCase()) {
-            case "rest":
-                return "org.apache.iceberg.rest.RESTCatalog";
-            case "hms":
-                return "org.apache.iceberg.hive.HiveCatalog";
-            case "glue":
-                return "org.apache.iceberg.aws.glue.GlueCatalog";
-            case "hadoop":
-                return "org.apache.iceberg.hadoop.HadoopCatalog";
-            case "jdbc":
-                return "org.apache.iceberg.jdbc.JdbcCatalog";
-            case "s3tables":
-                return "software.amazon.s3tables.iceberg.S3TablesCatalog";
-            case "dlf":
-                return "org.apache.doris.connector.iceberg.dlf.DLFCatalog";
-            default:
-                throw new DorisConnectorException(
-                        "Unknown iceberg.catalog.type: " + catalogType
-                                + ". Supported types: rest, hms, glue, hadoop, jdbc, s3tables, dlf");
-        }
+        return backend.buildCatalog(new IcebergBackendContext(catalogName, properties, conf));
     }
 
     private static Configuration buildHadoopConf(Map<String, String> props) {

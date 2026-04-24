@@ -618,7 +618,11 @@ if [[ "${BUILD_FE}" -eq 1 ]]; then
     # Connector API, SPI, and plugin modules (loaded at runtime as plugins)
     modules+=("fe-connector/fe-connector-api")
     modules+=("fe-connector/fe-connector-spi")
-    for _conn_mod in es jdbc maxcompute trino hms hive paimon hudi iceberg; do
+    for _conn_mod in es jdbc maxcompute trino hms hive paimon hudi \
+        iceberg-api \
+        iceberg-backend-hms iceberg-backend-rest iceberg-backend-glue \
+        iceberg-backend-dlf iceberg-backend-s3tables iceberg-backend-hadoop \
+        iceberg; do
         if [[ -d "${DORIS_HOME}/fe/fe-connector/fe-connector-${_conn_mod}" ]]; then
             modules+=("fe-connector/fe-connector-${_conn_mod}")
         fi

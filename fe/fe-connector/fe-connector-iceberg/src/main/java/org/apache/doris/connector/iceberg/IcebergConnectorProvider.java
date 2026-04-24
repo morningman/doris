@@ -22,6 +22,8 @@ import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorProvider;
 
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 /**
  * SPI entry point for the Iceberg connector plugin.
@@ -36,6 +38,22 @@ public class IcebergConnectorProvider implements ConnectorProvider {
     @Override
     public String getType() {
         return "iceberg";
+    }
+
+    @Override
+    public Optional<String> getCatalogTypeProperty() {
+        return Optional.of(IcebergConnectorProperties.ICEBERG_CATALOG_TYPE);
+    }
+
+    @Override
+    public Set<String> getSupportedBackends() {
+        return Set.of(
+                IcebergConnectorProperties.TYPE_HMS,
+                IcebergConnectorProperties.TYPE_REST,
+                IcebergConnectorProperties.TYPE_GLUE,
+                IcebergConnectorProperties.TYPE_DLF,
+                IcebergConnectorProperties.TYPE_S3_TABLES,
+                IcebergConnectorProperties.TYPE_HADOOP);
     }
 
     @Override

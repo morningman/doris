@@ -47,21 +47,64 @@ under the License.
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Iceberg SDK: catalog API, types, schema -->
+        <!-- Iceberg backend SPI shared with all backend jars. -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-iceberg-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Backend implementations: runtime scope only. The orchestrator
+             never references these classes directly; ServiceLoader discovers
+             their factories from META-INF/services on the plugin classloader.
+             Keeping them at runtime scope guarantees no compile-time coupling
+             leaks from a vendor-specific backend back into the orchestrator. -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-iceberg-backend-hms</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-iceberg-backend-rest</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-iceberg-backend-glue</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-iceberg-backend-dlf</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-iceberg-backend-s3tables</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-connector-iceberg-backend-hadoop</artifactId>
+            <version>${project.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Iceberg SDK: catalog API, types, schema (used by orchestrator
+             for IcebergTypeMapping + ConnectorMetadata implementation). -->
         <dependency>
             <groupId>org.apache.iceberg</groupId>
             <artifactId>iceberg-core</artifactId>
             <version>${iceberg.version}</version>
         </dependency>
 
-        <!-- Iceberg AWS integration (Glue catalog, S3FileIO) -->
-        <dependency>
-            <groupId>org.apache.iceberg</groupId>
-            <artifactId>iceberg-aws</artifactId>
-            <version>${iceberg.version}</version>
-        </dependency>
-
-        <!-- Hadoop for HadoopCatalog and Configuration -->
+        <!-- Hadoop for Configuration construction in the orchestrator. -->
         <dependency>
             <groupId>org.apache.hadoop</groupId>
             <artifactId>hadoop-common</artifactId>

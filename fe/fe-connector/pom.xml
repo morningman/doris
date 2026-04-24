@@ -48,6 +48,13 @@ under the License.
         <module>fe-connector-hive</module>
         <module>fe-connector-paimon</module>
         <module>fe-connector-hudi</module>
+        <module>fe-connector-iceberg-api</module>
+        <module>fe-connector-iceberg-backend-hms</module>
+        <module>fe-connector-iceberg-backend-rest</module>
+        <module>fe-connector-iceberg-backend-glue</module>
+        <module>fe-connector-iceberg-backend-dlf</module>
+        <module>fe-connector-iceberg-backend-s3tables</module>
+        <module>fe-connector-iceberg-backend-hadoop</module>
         <module>fe-connector-iceberg</module>
     </modules>
 
