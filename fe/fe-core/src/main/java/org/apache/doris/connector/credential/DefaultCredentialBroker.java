@@ -35,6 +35,7 @@ import org.apache.doris.connector.api.credential.ThrowingSupplier;
 import org.apache.doris.connector.api.credential.UserContext;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -253,7 +254,7 @@ public final class DefaultCredentialBroker implements CredentialBroker {
 
     @Override
     public JdbcCredentialOps jdbc() {
-        return JDBC_NOT_WIRED;
+        return new JdbcOps();
     }
 
     @Override
@@ -305,17 +306,114 @@ public final class DefaultCredentialBroker implements CredentialBroker {
         }
     };
 
-    private static final JdbcCredentialOps JDBC_NOT_WIRED = new JdbcCredentialOps() {
+    /**
+     * Real {@link JdbcCredentialOps} backed by this broker's resolver chain.
+     *
+     * <p>Convention: callers stuff the raw catalog property values for
+     * {@code user} and {@code password} into {@link JdbcRequest#attrs()}.
+     * Each value may be either a plain literal (passed through as-is) or a
+     * URI whose scheme matches a registered resolver
+     * ({@code env://}, {@code file://}, {@code kms://}, {@code vault://});
+     * URI values are resolved via {@link DefaultCredentialBroker#resolve(URI)}.
+     * </p>
+     */
+    private final class JdbcOps implements JdbcCredentialOps {
+
         @Override
         public Properties getConnectionProperties(JdbcRequest req) {
-            throw new UnsupportedOperationException("jdbc credential ops not wired (M1-03)");
+            CredentialEnvelope env = resolve(req);
+            Properties p = new Properties();
+            for (Map.Entry<String, String> e : env.payload().entrySet()) {
+                p.setProperty(e.getKey(), e.getValue());
+            }
+            return p;
+        }
+
+        @Override
+        public CredentialEnvelope resolve(JdbcRequest req) {
+            if (req == null) {
+                throw new IllegalArgumentException("req is required");
+            }
+            Map<String, String> attrs = req.attrs();
+            Map<String, String> payload = new LinkedHashMap<>();
+            Instant earliestExpiry = null;
+            String refreshHint = null;
+            for (Map.Entry<String, String> e : attrs.entrySet()) {
+                String key = e.getKey();
+                String raw = e.getValue();
+                URI ref = tryParseResolvableUri(raw);
+                if (ref == null) {
+                    payload.put(key, raw == null ? "" : raw);
+                    continue;
+                }
+                Credential c = DefaultCredentialBroker.this.resolve(ref);
+                payload.put(key, c.secretAsString());
+                if (c.expiresAt().isPresent()) {
+                    Instant exp = c.expiresAt().get();
+                    if (earliestExpiry == null || exp.isBefore(earliestExpiry)) {
+                        earliestExpiry = exp;
+                    }
+                }
+                if (refreshHint == null && c.refreshHint().isPresent()) {
+                    refreshHint = c.refreshHint().get().toString();
+                }
+            }
+            CredentialEnvelope.Builder b = CredentialEnvelope.builder()
+                    .type("jdbc")
+                    .scope(CredentialScope.CATALOG)
+                    .payload(payload);
+            if (earliestExpiry != null) {
+                b.expiresAt(earliestExpiry);
+            }
+            if (refreshHint != null) {
+                b.refreshHint(refreshHint);
+            }
+            return b.build();
         }
 
         @Override
         public boolean rotateIfNeeded(JdbcRequest req) {
-            throw new UnsupportedOperationException("jdbc credential ops not wired (M1-03)");
+            if (req == null) {
+                throw new IllegalArgumentException("req is required");
+            }
+            boolean rotated = false;
+            for (String raw : req.attrs().values()) {
+                URI ref = tryParseResolvableUri(raw);
+                if (ref == null) {
+                    continue;
+                }
+                if (cache.remove(ref) != null) {
+                    rotated = true;
+                }
+            }
+            return rotated;
         }
-    };
+    }
+
+    /**
+     * Parse {@code raw} as a URI iff it has a scheme registered with this
+     * broker; otherwise return {@code null}. Plain literals (no scheme) and
+     * malformed URIs both fall through to literal handling.
+     */
+    private URI tryParseResolvableUri(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+        int colon = raw.indexOf(':');
+        if (colon <= 0 || colon + 2 >= raw.length()
+                || raw.charAt(colon + 1) != '/' || raw.charAt(colon + 2) != '/') {
+            return null;
+        }
+        String scheme = raw.substring(0, colon).toLowerCase(Locale.ROOT);
+        if (!resolversByScheme.containsKey(scheme)) {
+            return null;
+        }
+        try {
+            return new URI(raw);
+        } catch (URISyntaxException e) {
+            return null;
+        }
+    }
 
     private static final HttpCredentialOps HTTP_NOT_WIRED = new HttpCredentialOps() {
         @Override

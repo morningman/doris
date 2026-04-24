@@ -223,7 +223,8 @@ public class DefaultCredentialBrokerTest {
         Assertions.assertThrows(UnsupportedOperationException.class,
                 () -> b.storage().invalidate(
                         org.apache.doris.connector.api.credential.CredentialScope.CATALOG));
-        Assertions.assertThrows(UnsupportedOperationException.class,
+        // jdbc() is wired in M1-03; null req triggers IAE not UOE.
+        Assertions.assertThrows(IllegalArgumentException.class,
                 () -> b.jdbc().getConnectionProperties(null));
     }
 
