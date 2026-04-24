@@ -1891,6 +1891,31 @@ struct TSyncCloudTabletStatsRequest {
     1: optional binary tablet_stats_pb
 }
 
+// --- Connector credential refresh (M1-02) ---------------------------------
+// Field IDs are append-only. Never reuse, never renumber.
+struct TConnectorCredential {
+    1: optional string scheme         // env|file|kms|vault
+    2: optional string ref            // original URI ref, e.g. env://AWS_KEY
+    3: optional binary secret         // raw secret bytes
+    4: optional i64 expires_at_ms     // 0 / unset = no expiry
+    5: optional string refresh_hint   // FE callback URI hint
+    6: optional string scope          // CATALOG|TABLE|SESSION
+    7: optional map<string, string> extra
+}
+
+struct TRefreshCredentialRequest {
+    1: required string scheme
+    2: required string ref
+    3: optional string scope
+    4: optional string requestor_id   // BE node id, audit-only
+    5: optional string catalog        // optional catalog hint
+}
+
+struct TRefreshCredentialResult {
+    1: required Status.TStatus status
+    2: optional TConnectorCredential credential
+}
+
 service FrontendService {
     TGetDbsResult getDbNames(1: TGetDbsParams params)
     TGetTablesResult getTableNames(1: TGetTablesParams params)
@@ -2016,4 +2041,7 @@ service FrontendService {
     TRecordFinishedLoadJobResult recordFinishedLoadJobRequest(1: TRecordFinishedLoadJobRequest request)
 
     Status.TStatus syncCloudTabletStats(1: TSyncCloudTabletStatsRequest request)
+
+    // M1-02: BE -> FE credential refresh.
+    TRefreshCredentialResult refreshCredential(1: TRefreshCredentialRequest request)
 }

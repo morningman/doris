@@ -17,7 +17,11 @@
 
 package org.apache.doris.connector.credential;
 
+import org.apache.doris.thrift.TConnectorCredential;
+
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -42,9 +46,9 @@ import java.util.Optional;
  *
  * <p>{@link #toString()} MUST never reveal the secret content.</p>
  *
- * <p>The {@code TConnectorCredential} thrift type does not yet exist (M1-02
- * deliverable); a {@code toThrift()} method is intentionally omitted until
- * the thrift surface lands.</p>
+ * <p>The {@code TConnectorCredential} thrift type lands in M1-02; this class
+ * exposes {@link #toThrift(URI)} / {@link #fromThrift(TConnectorCredential)}
+ * for BE&lt;-&gt;FE dispatch and round-trip.</p>
  */
 public final class BeDispatchableCredential
         implements org.apache.doris.connector.api.credential.BeDispatchableCredential {
@@ -111,6 +115,67 @@ public final class BeDispatchableCredential
         credential.expiresAt().ifPresent(t -> m.put("expires_at_ms", String.valueOf(t.toEpochMilli())));
         credential.refreshHint().ifPresent(r -> m.put("refresh_hint", r.toString()));
         return Collections.unmodifiableMap(m);
+    }
+
+    /**
+     * Convert to thrift {@link TConnectorCredential} for BE dispatch.
+     *
+     * @param ref original URI ref the credential was resolved from. May be null;
+     *            used only to populate {@code scheme} and {@code ref} fields.
+     */
+    public TConnectorCredential toThrift(URI ref) {
+        TConnectorCredential t = new TConnectorCredential();
+        if (ref != null) {
+            String scheme = ref.getScheme();
+            if (scheme != null) {
+                t.setScheme(scheme);
+            }
+            t.setRef(ref.toString());
+        }
+        t.setSecret(ByteBuffer.wrap(credential.secretBytes()));
+        credential.expiresAt().ifPresent(i -> t.setExpiresAtMs(i.toEpochMilli()));
+        credential.refreshHint().ifPresent(r -> t.setRefreshHint(r.toString()));
+        t.setScope(scope.name());
+        LinkedHashMap<String, String> extra = new LinkedHashMap<>();
+        extra.put("be_type", beType);
+        t.setExtra(extra);
+        return t;
+    }
+
+    /**
+     * Reconstruct a {@link BeDispatchableCredential} from thrift. Inverse of
+     * {@link #toThrift(URI)}; primarily for round-trip tests and FE-side
+     * consumers that already have a thrift envelope.
+     */
+    public static BeDispatchableCredential fromThrift(TConnectorCredential t) {
+        if (t == null) {
+            throw new IllegalArgumentException("thrift TConnectorCredential is null");
+        }
+        if (!t.isSetSecret()) {
+            throw new IllegalArgumentException("TConnectorCredential.secret is required");
+        }
+        if (!t.isSetScope()) {
+            throw new IllegalArgumentException("TConnectorCredential.scope is required");
+        }
+        Map<String, String> extra = t.isSetExtra() ? t.getExtra() : Collections.emptyMap();
+        String beType = extra.getOrDefault("be_type", "");
+        if (beType.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "TConnectorCredential.extra.be_type is required for fromThrift()");
+        }
+        Instant expiresAt = (t.isSetExpiresAtMs() && t.getExpiresAtMs() > 0L)
+                ? Instant.ofEpochMilli(t.getExpiresAtMs()) : null;
+        URI refreshHint = null;
+        if (t.isSetRefreshHint() && !t.getRefreshHint().isEmpty()) {
+            try {
+                refreshHint = new URI(t.getRefreshHint());
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException("malformed refresh_hint URI", e);
+            }
+        }
+        Credential c = Credential.ofBytes(t.getSecret(), expiresAt, refreshHint);
+        Scope sc = Scope.valueOf(t.getScope());
+        return new BeDispatchableCredential(beType, c, sc);
     }
 
     @Override

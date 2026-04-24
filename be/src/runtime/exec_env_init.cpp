@@ -74,6 +74,7 @@
 #include "runtime/broker_mgr.h"
 #include "runtime/cache/result_cache.h"
 #include "runtime/cdc_client_mgr.h"
+#include "runtime/connector_credential_cache.h"
 #include "runtime/exec_env.h"
 #include "runtime/external_scan_context_mgr.h"
 #include "runtime/fragment_mgr.h"
@@ -650,6 +651,9 @@ Status ExecEnv::init_mem_env() {
 
     _file_meta_cache = new FileMetaCache(config::max_external_file_meta_cache_num);
 
+    _connector_credential_cache =
+            ConnectorCredentialCache::create_default(BackendOptions::get_localhost()).release();
+
     _lookup_connection_cache =
             LookupConnectionCache::create_global_instance(config::lookup_connection_cache_capacity);
 
@@ -901,6 +905,7 @@ void ExecEnv::destroy() {
     SAFE_DELETE(_load_path_mgr);
     SAFE_DELETE(_result_mgr);
     SAFE_DELETE(_file_meta_cache);
+    SAFE_DELETE(_connector_credential_cache);
     SAFE_DELETE(_group_commit_mgr);
     SAFE_DELETE(_cdc_client_mgr);
     SAFE_DELETE(_routine_load_task_executor);

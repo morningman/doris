@@ -114,6 +114,7 @@ class ClientCache;
 class HeartbeatFlags;
 class FrontendServiceClient;
 class FileMetaCache;
+class ConnectorCredentialCache;
 class GroupCommitMgr;
 class CdcClientMgr;
 class TabletSchemaCache;
@@ -297,6 +298,7 @@ public:
     RoutineLoadTaskExecutor* routine_load_task_executor() { return _routine_load_task_executor; }
     HeartbeatFlags* heartbeat_flags() { return _heartbeat_flags; }
     FileMetaCache* file_meta_cache() { return _file_meta_cache; }
+    ConnectorCredentialCache* connector_credential_cache() { return _connector_credential_cache; }
     MemTableMemoryLimiter* memtable_memory_limiter() { return _memtable_memory_limiter.get(); }
     WalManager* wal_mgr() { return _wal_manager.get(); }
     DNSCache* dns_cache() { return _dns_cache; }
@@ -517,6 +519,7 @@ private:
 
     // To save meta info of external file, such as parquet footer.
     FileMetaCache* _file_meta_cache = nullptr;
+    ConnectorCredentialCache* _connector_credential_cache = nullptr;
     std::unique_ptr<MemTableMemoryLimiter> _memtable_memory_limiter;
     std::unique_ptr<LoadStreamMapPool> _load_stream_map_pool;
     std::unique_ptr<DeltaWriterV2Pool> _delta_writer_v2_pool;

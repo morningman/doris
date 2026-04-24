@@ -184,6 +184,25 @@ public final class DefaultCredentialBroker implements CredentialBroker {
         return new BeDispatchableCredential(beType, resolve(ref), scope);
     }
 
+    /**
+     * Force a re-resolution bypassing the cache, then update the cache with
+     * the freshly resolved value. Used by the BE-&gt;FE refresh RPC handler
+     * (M1-02): when a BE reports a credential as expired or about to expire,
+     * the FE bypasses its own cache so the BE never re-receives the same
+     * stale secret.
+     *
+     * <p>Concurrent calls for the same {@code ref} are coalesced via the same
+     * single-flight path used by {@link #resolve(URI)}: only one resolver
+     * invocation runs and all callers see the new value.</p>
+     */
+    public Credential refresh(URI ref) {
+        if (ref == null) {
+            throw new CredentialResolutionException("credential reference is null");
+        }
+        cache.remove(ref);
+        return resolve(ref);
+    }
+
     /** Drop a cached credential for {@code ref}. */
     public void invalidate(URI ref) {
         if (ref != null) {

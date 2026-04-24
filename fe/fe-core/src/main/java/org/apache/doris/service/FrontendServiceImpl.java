@@ -260,6 +260,8 @@ import org.apache.doris.thrift.TQueryStatsResult;
 import org.apache.doris.thrift.TQueryType;
 import org.apache.doris.thrift.TRecordFinishedLoadJobRequest;
 import org.apache.doris.thrift.TRecordFinishedLoadJobResult;
+import org.apache.doris.thrift.TRefreshCredentialRequest;
+import org.apache.doris.thrift.TRefreshCredentialResult;
 import org.apache.doris.thrift.TReplacePartitionRequest;
 import org.apache.doris.thrift.TReplacePartitionResult;
 import org.apache.doris.thrift.TReplacePartitionsRequest;
@@ -5568,5 +5570,10 @@ public class FrontendServiceImpl implements FrontendService.Iface {
             status.addToErrorMsgs(NOT_MASTER_ERR_MSG);
         }
         return status;
+    }
+
+    @Override
+    public TRefreshCredentialResult refreshCredential(TRefreshCredentialRequest request) {
+        return RefreshCredentialService.getInstance().refresh(request);
     }
 }
