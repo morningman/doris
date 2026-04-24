@@ -21,22 +21,39 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.DorisConnectorException;
+import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
+import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.paimon.api.PaimonBackend;
 import org.apache.doris.connector.paimon.api.PaimonBackendContext;
 import org.apache.doris.connector.paimon.api.PaimonBackendFactory;
+import org.apache.doris.connector.paimon.cache.PaimonCacheBindings;
+import org.apache.doris.connector.paimon.cache.PaimonTableCacheKey;
 import org.apache.doris.connector.spi.ConnectorContext;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.paimon.Snapshot;
 import org.apache.paimon.catalog.Catalog;
+import org.apache.paimon.catalog.Identifier;
+import org.apache.paimon.table.DataTable;
+import org.apache.paimon.table.Table;
+import org.apache.paimon.utils.SnapshotManager;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
- * Paimon connector orchestrator. Manages the lifecycle of a Paimon SDK
- * {@link Catalog} instance for all metadata operations.
+ * Paimon connector orchestrator. All metadata caching (catalog SDK
+ * instances, loaded {@link Table}s, snapshot lists) is delegated to the
+ * fe-core {@code ConnectorMetaCacheRegistry} via the bindings declared in
+ * {@link PaimonCacheBindings}; this class no longer maintains private
+ * caches of its own.
  *
  * <p>Backend selection is delegated to the {@link PaimonBackendRegistry}:
  * the {@code paimon.catalog.type} property names a backend (filesystem /
@@ -51,41 +68,23 @@ public class PaimonConnector implements Connector {
 
     private final Map<String, String> properties;
     private final ConnectorContext context;
-    private volatile Catalog catalog;
-    private volatile PaimonBackend backend;
-    private volatile PaimonBackendContext backendContext;
+    private final PaimonBackend backend;
+    private final PaimonBackendContext backendContext;
+
+    private final ConnectorMetaCacheBinding<String, Catalog> catalogBinding;
+    private final ConnectorMetaCacheBinding<PaimonTableCacheKey, Table> tableBinding;
+    private final ConnectorMetaCacheBinding<PaimonTableCacheKey, List<Snapshot>> snapshotsBinding;
+    private final List<ConnectorMetaCacheBinding<?, ?>> bindings;
+
+    private volatile MetaCacheHandle<String, Catalog> catalogHandle;
+    private volatile MetaCacheHandle<PaimonTableCacheKey, Table> tableHandle;
+    private volatile MetaCacheHandle<PaimonTableCacheKey, List<Snapshot>> snapshotsHandle;
 
     public PaimonConnector(Map<String, String> properties, ConnectorContext context) {
-        this.properties = properties;
-        this.context = context;
-    }
+        this.properties = Collections.unmodifiableMap(properties);
+        this.context = Objects.requireNonNull(context, "context");
 
-    @Override
-    public ConnectorMetadata getMetadata(ConnectorSession session) {
-        // Ensure backend+context are populated before handing off to metadata
-        // so that PaimonConnectorMetadata.refOps() can build a PaimonRefOps.
-        ensureCatalog();
-        return new PaimonConnectorMetadata(catalog, properties, backend, backendContext);
-    }
-
-    @Override
-    public ConnectorScanPlanProvider getScanPlanProvider() {
-        return new PaimonScanPlanProvider(properties);
-    }
-
-    private Catalog ensureCatalog() {
-        if (catalog == null) {
-            synchronized (this) {
-                if (catalog == null) {
-                    catalog = createCatalog();
-                }
-            }
-        }
-        return catalog;
-    }
-
-    private Catalog createCatalog() {
-        String catalogType = properties.getOrDefault(
+        String catalogType = this.properties.getOrDefault(
                 PaimonConnectorProperties.PAIMON_CATALOG_TYPE,
                 PaimonConnectorProperties.DEFAULT_CATALOG_TYPE);
 
@@ -94,29 +93,100 @@ public class PaimonConnector implements Connector {
                         "Unknown paimon.catalog.type: '" + catalogType
                                 + "'. Available backends on the plugin classpath: "
                                 + PaimonBackendRegistry.availableTypes()));
+        this.backend = factory.create();
+        this.backendContext = new PaimonBackendContext(context.getCatalogName(), this.properties);
 
-        PaimonBackend resolvedBackend = factory.create();
-        String catalogName = context.getCatalogName();
-        PaimonBackendContext ctx = new PaimonBackendContext(catalogName, properties);
+        this.catalogBinding = PaimonCacheBindings.catalogBinding(this::loadCatalog);
+        this.tableBinding = PaimonCacheBindings.tableBinding(this::loadTable);
+        this.snapshotsBinding = PaimonCacheBindings.snapshotsBinding(this::loadSnapshots);
+        this.bindings = Collections.unmodifiableList(
+                new ArrayList<>(Arrays.asList(catalogBinding, tableBinding, snapshotsBinding)));
+    }
 
-        LOG.info("Creating Paimon catalog '{}' via backend '{}'",
-                catalogName, resolvedBackend.name());
+    @Override
+    public List<ConnectorMetaCacheBinding<?, ?>> getMetaCacheBindings() {
+        return bindings;
+    }
 
-        this.backend = resolvedBackend;
-        this.backendContext = ctx;
-        return resolvedBackend.buildCatalog(ctx);
+    @Override
+    public ConnectorMetadata getMetadata(ConnectorSession session) {
+        ensureHandles();
+        return new PaimonConnectorMetadata(
+                catalogHandle.get(context.getCatalogName()),
+                properties, backend, backendContext, tableHandle);
+    }
+
+    @Override
+    public ConnectorScanPlanProvider getScanPlanProvider() {
+        return new PaimonScanPlanProvider(properties);
+    }
+
+    /** Visible for tests: returns the catalog instance via the binding handle. */
+    public Catalog getOrCreateCatalog() {
+        ensureHandles();
+        return catalogHandle.get(context.getCatalogName());
+    }
+
+    /** Visible for tests: returns the resolved backend (set during construction). */
+    public PaimonBackend getBackend() {
+        return backend;
+    }
+
+    private void ensureHandles() {
+        if (catalogHandle == null) {
+            synchronized (this) {
+                if (catalogHandle == null) {
+                    MetaCacheHandle<PaimonTableCacheKey, Table> th =
+                            context.getOrCreateCache(tableBinding);
+                    MetaCacheHandle<PaimonTableCacheKey, List<Snapshot>> sh =
+                            context.getOrCreateCache(snapshotsBinding);
+                    MetaCacheHandle<String, Catalog> ch =
+                            context.getOrCreateCache(catalogBinding);
+                    this.tableHandle = th;
+                    this.snapshotsHandle = sh;
+                    this.catalogHandle = ch;
+                }
+            }
+        }
+    }
+
+    private Catalog loadCatalog(String catalogName) {
+        LOG.info("Creating Paimon catalog '{}' via backend '{}'", catalogName, backend.name());
+        return backend.buildCatalog(backendContext);
+    }
+
+    private Table loadTable(PaimonTableCacheKey key) {
+        Catalog c = catalogHandle != null
+                ? catalogHandle.get(context.getCatalogName())
+                : getOrCreateCatalog();
+        Identifier id = Identifier.create(key.getDatabase(), key.getTable());
+        try {
+            return c.getTable(id);
+        } catch (Catalog.TableNotExistException e) {
+            throw new DorisConnectorException(
+                    "paimon table not found: " + id, e);
+        }
+    }
+
+    private List<Snapshot> loadSnapshots(PaimonTableCacheKey key) {
+        Table t = tableHandle != null ? tableHandle.get(key) : loadTable(key);
+        if (!(t instanceof DataTable)) {
+            return Collections.emptyList();
+        }
+        SnapshotManager sm = ((DataTable) t).snapshotManager();
+        try {
+            return sm.safelyGetAllSnapshots();
+        } catch (IOException e) {
+            throw new DorisConnectorException(
+                    "failed to list paimon snapshots for " + key, e);
+        }
     }
 
     @Override
     public void close() throws IOException {
-        Catalog cat = catalog;
-        if (cat != null) {
-            try {
-                cat.close();
-            } catch (Exception e) {
-                LOG.warn("Failed to close Paimon catalog", e);
-            }
-            catalog = null;
+        // Triggers the catalog binding's RemovalListener which closes the SDK Catalog.
+        if (catalogHandle != null) {
+            catalogHandle.invalidateAll();
         }
     }
 }

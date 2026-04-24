@@ -22,11 +22,13 @@ import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorType;
+import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.timetravel.RefOps;
 import org.apache.doris.connector.paimon.api.PaimonBackend;
 import org.apache.doris.connector.paimon.api.PaimonBackendContext;
+import org.apache.doris.connector.paimon.cache.PaimonTableCacheKey;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,6 +52,11 @@ import java.util.Optional;
  * <p>Phase 1 (metadata-only): supports listing databases and tables,
  * getting table handles, and reading table schema. Scan planning,
  * predicate pushdown, and DML operations remain in fe-core.
+ *
+ * <p>Per-table loads ({@link Catalog#getTable(Identifier)}) are routed
+ * through the {@code paimon.table} cache binding when present, so repeated
+ * schema reads on the same {@code (db, t)} pair hit the binding-level
+ * cache instead of re-issuing a metadata RPC.
  */
 public class PaimonConnectorMetadata implements ConnectorMetadata {
 
@@ -59,19 +66,29 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
     private final PaimonTypeMapping.Options typeMappingOptions;
     private final PaimonBackend backend;
     private final PaimonBackendContext backendContext;
+    private final MetaCacheHandle<PaimonTableCacheKey, Table> tableHandle;
 
     public PaimonConnectorMetadata(Catalog catalog, Map<String, String> properties) {
-        this(catalog, properties, null, null);
+        this(catalog, properties, null, null, null);
     }
 
     public PaimonConnectorMetadata(Catalog catalog,
                                    Map<String, String> properties,
                                    PaimonBackend backend,
                                    PaimonBackendContext backendContext) {
+        this(catalog, properties, backend, backendContext, null);
+    }
+
+    public PaimonConnectorMetadata(Catalog catalog,
+                                   Map<String, String> properties,
+                                   PaimonBackend backend,
+                                   PaimonBackendContext backendContext,
+                                   MetaCacheHandle<PaimonTableCacheKey, Table> tableHandle) {
         this.catalog = catalog;
         this.typeMappingOptions = buildTypeMappingOptions(properties);
         this.backend = backend;
         this.backendContext = backendContext;
+        this.tableHandle = tableHandle;
     }
 
     @Override
@@ -118,9 +135,8 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
     @Override
     public Optional<ConnectorTableHandle> getTableHandle(
             ConnectorSession session, String dbName, String tableName) {
-        Identifier identifier = Identifier.create(dbName, tableName);
         try {
-            Table table = catalog.getTable(identifier);
+            Table table = loadTable(dbName, tableName);
             List<String> partitionKeys = table.partitionKeys();
             List<String> primaryKeys = table.primaryKeys();
             PaimonTableHandle handle = new PaimonTableHandle(
@@ -141,34 +157,36 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
     public ConnectorTableSchema getTableSchema(
             ConnectorSession session, ConnectorTableHandle handle) {
         PaimonTableHandle paimonHandle = (PaimonTableHandle) handle;
-        Identifier identifier = Identifier.create(
-                paimonHandle.getDatabaseName(), paimonHandle.getTableName());
+        String dbName = paimonHandle.getDatabaseName();
+        String tableName = paimonHandle.getTableName();
+        Table table;
         try {
-            Table table = catalog.getTable(identifier);
-            RowType rowType = table.rowType();
-            List<String> primaryKeys = table.primaryKeys();
-            List<ConnectorColumn> columns = mapFields(rowType, primaryKeys);
-
-            Map<String, String> schemaProps = new HashMap<>();
-            if (paimonHandle.getPartitionKeys() != null
-                    && !paimonHandle.getPartitionKeys().isEmpty()) {
-                schemaProps.put("partition_keys",
-                        String.join(",", paimonHandle.getPartitionKeys()));
-            }
-            if (primaryKeys != null && !primaryKeys.isEmpty()) {
-                schemaProps.put("primary_keys", String.join(",", primaryKeys));
-            }
-
-            return new ConnectorTableSchema(
-                    paimonHandle.getTableName(),
-                    columns,
-                    "PAIMON",
-                    schemaProps);
+            table = loadTable(dbName, tableName);
         } catch (Catalog.TableNotExistException e) {
-            throw new RuntimeException("Paimon table not found: " + identifier, e);
+            throw new RuntimeException("Paimon table not found: " + dbName + "." + tableName, e);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to get Paimon table schema: " + identifier, e);
+            throw new RuntimeException(
+                    "Failed to get Paimon table schema: " + dbName + "." + tableName, e);
         }
+        RowType rowType = table.rowType();
+        List<String> primaryKeys = table.primaryKeys();
+        List<ConnectorColumn> columns = mapFields(rowType, primaryKeys);
+
+        Map<String, String> schemaProps = new HashMap<>();
+        if (paimonHandle.getPartitionKeys() != null
+                && !paimonHandle.getPartitionKeys().isEmpty()) {
+            schemaProps.put("partition_keys",
+                    String.join(",", paimonHandle.getPartitionKeys()));
+        }
+        if (primaryKeys != null && !primaryKeys.isEmpty()) {
+            schemaProps.put("primary_keys", String.join(",", primaryKeys));
+        }
+
+        return new ConnectorTableSchema(
+                paimonHandle.getTableName(),
+                columns,
+                "PAIMON",
+                schemaProps);
     }
 
     @Override
@@ -182,13 +200,13 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
         PaimonTableHandle paimonHandle = (PaimonTableHandle) handle;
         Table table = paimonHandle.getPaimonTable();
         if (table == null) {
-            // Fallback: re-load from catalog
-            Identifier id = Identifier.create(
-                    paimonHandle.getDatabaseName(), paimonHandle.getTableName());
             try {
-                table = catalog.getTable(id);
+                table = loadTable(paimonHandle.getDatabaseName(), paimonHandle.getTableName());
             } catch (Exception e) {
-                throw new RuntimeException("Failed to load Paimon table: " + id, e);
+                throw new RuntimeException(
+                        "Failed to load Paimon table: "
+                                + paimonHandle.getDatabaseName() + "."
+                                + paimonHandle.getTableName(), e);
             }
         }
         RowType rowType = table.rowType();
@@ -199,6 +217,22 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
             handles.put(name, new PaimonColumnHandle(name, i));
         }
         return handles;
+    }
+
+    /** Load the paimon {@link Table}, routing through the table cache binding when present. */
+    private Table loadTable(String dbName, String tableName) throws Catalog.TableNotExistException {
+        if (tableHandle != null) {
+            try {
+                return tableHandle.get(new PaimonTableCacheKey(dbName, tableName));
+            } catch (RuntimeException e) {
+                Throwable cause = e.getCause();
+                if (cause instanceof Catalog.TableNotExistException) {
+                    throw (Catalog.TableNotExistException) cause;
+                }
+                throw e;
+            }
+        }
+        return catalog.getTable(Identifier.create(dbName, tableName));
     }
 
     private List<ConnectorColumn> mapFields(RowType rowType, List<String> primaryKeys) {
