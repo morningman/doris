@@ -27,7 +27,7 @@ import org.apache.iceberg.catalog.Catalog;
  * Iceberg backend that builds {@code org.apache.iceberg.aws.glue.GlueCatalog}
  * via the standard {@code catalog-impl} dispatch.
  */
-public final class GlueIcebergBackend implements IcebergBackend {
+public class GlueIcebergBackend implements IcebergBackend {
 
     public static final String NAME = "glue";
     public static final String CATALOG_IMPL = "org.apache.iceberg.aws.glue.GlueCatalog";

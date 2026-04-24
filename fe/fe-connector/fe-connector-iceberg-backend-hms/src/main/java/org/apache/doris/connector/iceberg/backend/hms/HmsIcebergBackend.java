@@ -27,7 +27,7 @@ import org.apache.iceberg.catalog.Catalog;
  * Iceberg backend that builds {@code org.apache.iceberg.hive.HiveCatalog}
  * via the standard {@code catalog-impl} dispatch.
  */
-public final class HmsIcebergBackend implements IcebergBackend {
+public class HmsIcebergBackend implements IcebergBackend {
 
     public static final String NAME = "hms";
     public static final String CATALOG_IMPL = "org.apache.iceberg.hive.HiveCatalog";

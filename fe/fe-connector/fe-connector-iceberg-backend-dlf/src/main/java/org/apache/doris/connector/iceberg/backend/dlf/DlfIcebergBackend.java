@@ -39,7 +39,7 @@ import org.apache.iceberg.catalog.Catalog;
  *
  * <p>TODO(M1-04 split): backend stub — real impl in M3.
  */
-public final class DlfIcebergBackend implements IcebergBackend {
+public class DlfIcebergBackend implements IcebergBackend {
 
     public static final String NAME = "dlf";
 

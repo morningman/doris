@@ -27,7 +27,7 @@ import org.apache.iceberg.catalog.Catalog;
  * Iceberg backend that builds {@code org.apache.iceberg.rest.RESTCatalog}
  * via the standard {@code catalog-impl} dispatch.
  */
-public final class RestIcebergBackend implements IcebergBackend {
+public class RestIcebergBackend implements IcebergBackend {
 
     public static final String NAME = "rest";
     public static final String CATALOG_IMPL = "org.apache.iceberg.rest.RESTCatalog";

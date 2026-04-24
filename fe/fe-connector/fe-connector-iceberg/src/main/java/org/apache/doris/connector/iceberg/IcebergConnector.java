@@ -58,6 +58,8 @@ public class IcebergConnector implements Connector {
     private final Map<String, String> properties;
     private final ConnectorContext context;
     private volatile Catalog icebergCatalog;
+    private volatile IcebergBackend backend;
+    private volatile IcebergBackendContext backendContext;
 
     public IcebergConnector(Map<String, String> properties, ConnectorContext context) {
         this.properties = Collections.unmodifiableMap(properties);
@@ -66,7 +68,9 @@ public class IcebergConnector implements Connector {
 
     @Override
     public ConnectorMetadata getMetadata(ConnectorSession session) {
-        return new IcebergConnectorMetadata(getOrCreateCatalog(), properties);
+        // Ensure backend+context are populated before handing off to metadata.
+        getOrCreateCatalog();
+        return new IcebergConnectorMetadata(icebergCatalog, properties, backend, backendContext);
     }
 
     private Catalog getOrCreateCatalog() {
@@ -93,14 +97,17 @@ public class IcebergConnector implements Connector {
                                 + "'. Available backends on the plugin classpath: "
                                 + IcebergBackendRegistry.availableTypes()));
 
-        IcebergBackend backend = factory.create();
+        IcebergBackend resolvedBackend = factory.create();
         Configuration conf = buildHadoopConf(properties);
         String catalogName = context.getCatalogName();
+        IcebergBackendContext ctx = new IcebergBackendContext(catalogName, properties, conf);
 
         LOG.info("Creating Iceberg catalog '{}' via backend '{}'",
-                catalogName, backend.name());
+                catalogName, resolvedBackend.name());
 
-        return backend.buildCatalog(new IcebergBackendContext(catalogName, properties, conf));
+        this.backend = resolvedBackend;
+        this.backendContext = ctx;
+        return resolvedBackend.buildCatalog(ctx);
     }
 
     private static Configuration buildHadoopConf(Map<String, String> props) {

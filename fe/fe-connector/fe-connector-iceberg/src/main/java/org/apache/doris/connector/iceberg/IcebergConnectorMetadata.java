@@ -22,6 +22,9 @@ import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
+import org.apache.doris.connector.api.timetravel.RefOps;
+import org.apache.doris.connector.iceberg.api.IcebergBackend;
+import org.apache.doris.connector.iceberg.api.IcebergBackendContext;
 
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -60,10 +63,29 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
 
     private final Catalog catalog;
     private final Map<String, String> properties;
+    private final IcebergBackend backend;
+    private final IcebergBackendContext backendContext;
 
     public IcebergConnectorMetadata(Catalog catalog, Map<String, String> properties) {
+        this(catalog, properties, null, null);
+    }
+
+    public IcebergConnectorMetadata(Catalog catalog,
+                                    Map<String, String> properties,
+                                    IcebergBackend backend,
+                                    IcebergBackendContext backendContext) {
         this.catalog = catalog;
         this.properties = properties;
+        this.backend = backend;
+        this.backendContext = backendContext;
+    }
+
+    @Override
+    public Optional<RefOps> refOps() {
+        if (backend == null || backendContext == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new IcebergRefOps(backend, backendContext));
     }
 
     // ========== ConnectorSchemaOps ==========

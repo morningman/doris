@@ -27,7 +27,7 @@ import org.apache.iceberg.catalog.Catalog;
  * Iceberg backend that builds {@code software.amazon.s3tables.iceberg.S3TablesCatalog}
  * via the standard {@code catalog-impl} dispatch.
  */
-public final class S3TablesIcebergBackend implements IcebergBackend {
+public class S3TablesIcebergBackend implements IcebergBackend {
 
     public static final String NAME = "s3tables";
     public static final String CATALOG_IMPL = "software.amazon.s3tables.iceberg.S3TablesCatalog";
