@@ -20,12 +20,16 @@ package org.apache.doris.connector.jdbc;
 import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorCapability;
 import org.apache.doris.connector.api.ConnectorMetadata;
+import org.apache.doris.connector.api.ConnectorPropertyMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTestResult;
 import org.apache.doris.connector.api.ConnectorValidationContext;
 import org.apache.doris.connector.api.DorisConnectorException;
+import org.apache.doris.connector.api.PropertyValueType;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.jdbc.client.JdbcConnectorClient;
+import org.apache.doris.connector.jdbc.credential.JdbcConnectionCredential;
+import org.apache.doris.connector.jdbc.credential.JdbcCredentialContext;
 import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.thrift.TJdbcTable;
 import org.apache.doris.thrift.TOdbcTableType;
@@ -38,6 +42,7 @@ import org.apache.thrift.TSerializer;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -57,6 +62,7 @@ public class JdbcDorisConnector implements Connector {
     private final ConnectorContext context;
     private volatile JdbcConnectorClient client;
     private volatile JdbcScanPlanProvider scanPlanProvider;
+    private volatile JdbcCredentialContext credentialContext;
     private volatile boolean closed;
 
     static final String JDBC_PROPERTIES_PREFIX = "jdbc.";
@@ -190,14 +196,35 @@ public class JdbcDorisConnector implements Connector {
         return client;
     }
 
+    private JdbcCredentialContext getCredentialContext() {
+        if (closed) {
+            throw new DorisConnectorException("JdbcDorisConnector has been closed");
+        }
+        if (credentialContext == null) {
+            synchronized (this) {
+                if (closed) {
+                    throw new DorisConnectorException("JdbcDorisConnector has been closed");
+                }
+                if (credentialContext == null) {
+                    String url = properties.getOrDefault(JdbcConnectorProperties.JDBC_URL, "");
+                    credentialContext = new JdbcCredentialContext(
+                            context.getCatalogName(), url, properties,
+                            context.getCredentialBroker());
+                }
+            }
+        }
+        return credentialContext;
+    }
+
     private JdbcConnectorClient createClient() {
         String jdbcUrl = properties.get(JdbcConnectorProperties.JDBC_URL);
         if (jdbcUrl == null || jdbcUrl.isEmpty()) {
             throw new DorisConnectorException("JDBC URL ('" + JdbcConnectorProperties.JDBC_URL + "') is required");
         }
         JdbcDbType dbType = JdbcDbType.parseFromUrl(jdbcUrl);
-        String user = properties.getOrDefault(JdbcConnectorProperties.USER, "");
-        String password = properties.getOrDefault(JdbcConnectorProperties.PASSWORD, "");
+        JdbcConnectionCredential cred = getCredentialContext().getDriverCredential();
+        String user = cred.user();
+        String password = cred.password();
         String driverUrl = resolveDriverUrl(properties.get(JdbcConnectorProperties.DRIVER_URL));
         String driverClass = properties.get(JdbcConnectorProperties.DRIVER_CLASS);
         int poolMinSize = JdbcConnectorProperties.getInt(
@@ -236,10 +263,41 @@ public class JdbcDorisConnector implements Connector {
             JdbcConnectorClient c = client;
             client = null;
             scanPlanProvider = null;
+            credentialContext = null;
             if (c != null) {
                 c.close();
             }
         }
+    }
+
+    @Override
+    public List<ConnectorPropertyMetadata<?>> getCatalogProperties() {
+        // Declares the credential-bearing properties so SHOW CREATE CATALOG /
+        // audit redaction recognises `password` (and any URI-resolved value
+        // returned by it) as sensitive. Plain literals stay accepted for
+        // backward compatibility; URI references with the env://, file://,
+        // kms://, vault:// schemes are resolved through the credential broker.
+        return Arrays.asList(
+                ConnectorPropertyMetadata.<String>builder(
+                                JdbcConnectorProperties.JDBC_URL, PropertyValueType.STRING)
+                        .description("JDBC URL of the upstream database (required).")
+                        .required(true)
+                        .build(),
+                ConnectorPropertyMetadata.<String>builder(
+                                JdbcConnectorProperties.USER, PropertyValueType.STRING)
+                        .description("JDBC username. Plain literal, or one of "
+                                + "env://VAR, file:///abs/path, kms://key, vault://path "
+                                + "to delegate resolution to the credential broker.")
+                        .build(),
+                ConnectorPropertyMetadata.<String>builder(
+                                JdbcConnectorProperties.PASSWORD, PropertyValueType.STRING)
+                        .description("JDBC password. Plain literal, or one of "
+                                + "env://VAR, file:///abs/path, kms://key, vault://path "
+                                + "to delegate resolution to the credential broker. "
+                                + "Always redacted in SHOW CREATE CATALOG and audit logs.")
+                        .sensitive(true)
+                        .build()
+        );
     }
 
     /**
@@ -288,8 +346,9 @@ public class JdbcDorisConnector implements Connector {
         TJdbcTable tJdbcTable = new TJdbcTable();
         tJdbcTable.setCatalogId(context.getCatalogId());
         tJdbcTable.setJdbcUrl(properties.getOrDefault(JdbcConnectorProperties.JDBC_URL, ""));
-        tJdbcTable.setJdbcUser(properties.getOrDefault(JdbcConnectorProperties.USER, ""));
-        tJdbcTable.setJdbcPassword(properties.getOrDefault(JdbcConnectorProperties.PASSWORD, ""));
+        JdbcConnectionCredential cred = getCredentialContext().getDriverCredential();
+        tJdbcTable.setJdbcUser(cred.user());
+        tJdbcTable.setJdbcPassword(cred.password());
         tJdbcTable.setJdbcTableName("test_jdbc_connection");
         tJdbcTable.setJdbcDriverClass(
                 properties.getOrDefault(JdbcConnectorProperties.DRIVER_CLASS, ""));
