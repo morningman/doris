@@ -142,8 +142,8 @@ Status ConnectorCredentialCache::_do_refresh(const Key& key, CachedCredential* o
         return rpc_st;
     }
     if (resp.status.status_code != TStatusCode::OK) {
-        std::string msg = !resp.status.error_msgs.empty() ? resp.status.error_msgs[0]
-                                                          : "unknown FE error";
+        std::string msg =
+                !resp.status.error_msgs.empty() ? resp.status.error_msgs[0] : "unknown FE error";
         LOG(WARNING) << "refreshCredential FE returned error: scheme=" << key.scheme
                      << ", scope=" << key.scope << ", msg=" << msg;
         return Status::InternalError("refreshCredential failed: {}", msg);
