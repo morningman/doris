@@ -18,12 +18,21 @@
 package org.apache.doris.datasource.systable;
 
 import org.apache.doris.catalog.TableIf;
+import org.apache.doris.common.Pair;
+import org.apache.doris.connector.api.Connector;
+import org.apache.doris.connector.api.ConnectorMetadata;
+import org.apache.doris.connector.api.ConnectorSession;
+import org.apache.doris.connector.api.systable.SysTableExecutionMode;
+import org.apache.doris.connector.api.systable.SysTableSpec;
+import org.apache.doris.datasource.ExternalCatalog;
 import org.apache.doris.datasource.ExternalTable;
+import org.apache.doris.datasource.PluginDrivenExternalCatalog;
 import org.apache.doris.info.TableValuedFunctionRefInfo;
 import org.apache.doris.nereids.trees.expressions.functions.table.TableValuedFunction;
 
 import com.google.common.base.Preconditions;
 
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -46,6 +55,10 @@ public final class SysTableResolver {
      */
     public static Optional<SysTablePlan> resolveForPlan(TableIf table, String ctlName, String dbName,
             String tableNameWithSysTableName) {
+        Optional<SysTablePlan> pluginPlan = resolvePluginForPlan(table, tableNameWithSysTableName);
+        if (pluginPlan.isPresent()) {
+            return pluginPlan;
+        }
         Optional<SysTable> typeOpt = resolveType(table, tableNameWithSysTableName);
         if (!typeOpt.isPresent()) {
             return Optional.empty();
@@ -68,6 +81,10 @@ public final class SysTableResolver {
      */
     public static Optional<SysTableDescribe> resolveForDescribe(TableIf table, String ctlName, String dbName,
             String tableNameWithSysTableName) {
+        Optional<SysTableDescribe> pluginDescribe = resolvePluginForDescribe(table, tableNameWithSysTableName);
+        if (pluginDescribe.isPresent()) {
+            return pluginDescribe;
+        }
         Optional<SysTable> typeOpt = resolveType(table, tableNameWithSysTableName);
         if (!typeOpt.isPresent()) {
             return Optional.empty();
@@ -90,6 +107,9 @@ public final class SysTableResolver {
      */
     public static boolean validateForQuery(TableIf table, String ctlName, String dbName,
             String tableNameWithSysTableName) {
+        if (lookupPluginSpec(table, tableNameWithSysTableName).isPresent()) {
+            return true;
+        }
         Optional<SysTable> typeOpt = resolveType(table, tableNameWithSysTableName);
         if (!typeOpt.isPresent()) {
             return false;
@@ -104,33 +124,120 @@ public final class SysTableResolver {
         return true;
     }
 
+    // -----------------------------------------------------------------
+    //  Plugin route (D6 / M1-12)
+    // -----------------------------------------------------------------
+
+    /**
+     * Looks up a {@link SysTableSpec} from the plugin attached to {@code table}.
+     * Returns empty when {@code table} is not a plugin-driven external table or
+     * when the plugin does not publish a sys table for the requested name.
+     */
+    public static Optional<SysTableSpec> lookupPluginSpec(TableIf table, String tableNameWithSysTableName) {
+        Objects.requireNonNull(tableNameWithSysTableName, "tableNameWithSysTableName");
+        if (!(table instanceof ExternalTable)) {
+            return Optional.empty();
+        }
+        ExternalTable extTable = (ExternalTable) table;
+        ExternalCatalog catalog = extTable.getCatalog();
+        if (!(catalog instanceof PluginDrivenExternalCatalog)) {
+            return Optional.empty();
+        }
+        Pair<String, String> parsed = SysTable.getTableNameWithSysTableName(tableNameWithSysTableName);
+        if (parsed.second.isEmpty()) {
+            return Optional.empty();
+        }
+        PluginDrivenExternalCatalog pluginCatalog = (PluginDrivenExternalCatalog) catalog;
+        Connector connector = pluginCatalog.getConnector();
+        if (connector == null) {
+            return Optional.empty();
+        }
+        ConnectorSession session = pluginCatalog.buildConnectorSession();
+        ConnectorMetadata metadata = connector.getMetadata(session);
+        if (metadata == null) {
+            return Optional.empty();
+        }
+        String dbRemote = extTable.getDb() != null ? extTable.getDb().getRemoteName() : "";
+        return metadata.getSysTable(dbRemote, parsed.first, parsed.second);
+    }
+
+    private static Optional<SysTablePlan> resolvePluginForPlan(TableIf table, String tableNameWithSysTableName) {
+        Optional<SysTableSpec> specOpt = lookupPluginSpec(table, tableNameWithSysTableName);
+        if (!specOpt.isPresent()) {
+            return Optional.empty();
+        }
+        return Optional.of(SysTablePlan.forPlugin(buildPluginWrapper((ExternalTable) table, specOpt.get())));
+    }
+
+    private static Optional<SysTableDescribe> resolvePluginForDescribe(TableIf table,
+            String tableNameWithSysTableName) {
+        Optional<SysTableSpec> specOpt = lookupPluginSpec(table, tableNameWithSysTableName);
+        if (!specOpt.isPresent()) {
+            return Optional.empty();
+        }
+        return Optional.of(SysTableDescribe.forPlugin(buildPluginWrapper((ExternalTable) table, specOpt.get())));
+    }
+
+    private static ExternalTable buildPluginWrapper(ExternalTable sourceTable, SysTableSpec spec) {
+        if (spec.mode() == SysTableExecutionMode.NATIVE) {
+            return new NativeSysExternalTable(sourceTable, spec);
+        }
+        return new ConnectorManagedSysExternalTable(sourceTable, spec);
+    }
+
     public static final class SysTablePlan {
         private final SysTable type;
         private final ExternalTable sysExternalTable;
         private final TableValuedFunction tvf;
+        private final SysTableSpec spec;
 
-        private SysTablePlan(SysTable type, ExternalTable sysExternalTable, TableValuedFunction tvf) {
+        private SysTablePlan(SysTable type, ExternalTable sysExternalTable, TableValuedFunction tvf,
+                SysTableSpec spec) {
             this.type = type;
             this.sysExternalTable = sysExternalTable;
             this.tvf = tvf;
+            this.spec = spec;
         }
 
         public static SysTablePlan forNative(SysTable type, ExternalTable sysExternalTable) {
             Preconditions.checkNotNull(sysExternalTable, "sysExternalTable is null");
-            return new SysTablePlan(type, sysExternalTable, null);
+            return new SysTablePlan(type, sysExternalTable, null, null);
         }
 
         public static SysTablePlan forTvf(SysTable type, TableValuedFunction tvf) {
             Preconditions.checkNotNull(tvf, "tvf is null");
-            return new SysTablePlan(type, null, tvf);
+            return new SysTablePlan(type, null, tvf, null);
+        }
+
+        public static SysTablePlan forPlugin(ExternalTable wrapper) {
+            Preconditions.checkNotNull(wrapper, "wrapper is null");
+            SysTableSpec spec;
+            if (wrapper instanceof NativeSysExternalTable) {
+                spec = ((NativeSysExternalTable) wrapper).getSpec();
+            } else if (wrapper instanceof ConnectorManagedSysExternalTable) {
+                spec = ((ConnectorManagedSysExternalTable) wrapper).getSpec();
+            } else {
+                throw new IllegalArgumentException(
+                        "forPlugin requires NativeSysExternalTable or ConnectorManagedSysExternalTable, got "
+                                + wrapper.getClass().getSimpleName());
+            }
+            return new SysTablePlan(null, wrapper, null, spec);
         }
 
         public boolean isNative() {
             return sysExternalTable != null;
         }
 
+        public boolean isPluginManaged() {
+            return spec != null;
+        }
+
         public SysTable getSysTable() {
             return type;
+        }
+
+        public Optional<SysTableSpec> getSysTableSpec() {
+            return Optional.ofNullable(spec);
         }
 
         public ExternalTable getSysExternalTable() {
@@ -148,29 +255,55 @@ public final class SysTableResolver {
         private final SysTable type;
         private final ExternalTable sysExternalTable;
         private final TableValuedFunctionRefInfo tvfRef;
+        private final SysTableSpec spec;
 
-        private SysTableDescribe(SysTable type, ExternalTable sysExternalTable, TableValuedFunctionRefInfo tvfRef) {
+        private SysTableDescribe(SysTable type, ExternalTable sysExternalTable,
+                TableValuedFunctionRefInfo tvfRef, SysTableSpec spec) {
             this.type = type;
             this.sysExternalTable = sysExternalTable;
             this.tvfRef = tvfRef;
+            this.spec = spec;
         }
 
         public static SysTableDescribe forNative(SysTable type, ExternalTable sysExternalTable) {
             Preconditions.checkNotNull(sysExternalTable, "sysExternalTable is null");
-            return new SysTableDescribe(type, sysExternalTable, null);
+            return new SysTableDescribe(type, sysExternalTable, null, null);
         }
 
         public static SysTableDescribe forTvf(SysTable type, TableValuedFunctionRefInfo tvfRef) {
             Preconditions.checkNotNull(tvfRef, "tvfRef is null");
-            return new SysTableDescribe(type, null, tvfRef);
+            return new SysTableDescribe(type, null, tvfRef, null);
+        }
+
+        public static SysTableDescribe forPlugin(ExternalTable wrapper) {
+            Preconditions.checkNotNull(wrapper, "wrapper is null");
+            SysTableSpec spec;
+            if (wrapper instanceof NativeSysExternalTable) {
+                spec = ((NativeSysExternalTable) wrapper).getSpec();
+            } else if (wrapper instanceof ConnectorManagedSysExternalTable) {
+                spec = ((ConnectorManagedSysExternalTable) wrapper).getSpec();
+            } else {
+                throw new IllegalArgumentException(
+                        "forPlugin requires NativeSysExternalTable or ConnectorManagedSysExternalTable, got "
+                                + wrapper.getClass().getSimpleName());
+            }
+            return new SysTableDescribe(null, wrapper, null, spec);
         }
 
         public boolean isNative() {
             return sysExternalTable != null;
         }
 
+        public boolean isPluginManaged() {
+            return spec != null;
+        }
+
         public SysTable getSysTable() {
             return type;
+        }
+
+        public Optional<SysTableSpec> getSysTableSpec() {
+            return Optional.ofNullable(spec);
         }
 
         public ExternalTable getSysExternalTable() {
