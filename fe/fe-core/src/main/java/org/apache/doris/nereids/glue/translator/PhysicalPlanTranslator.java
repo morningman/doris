@@ -49,6 +49,7 @@ import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.write.ConnectorWriteConfig;
+import org.apache.doris.connector.timetravel.ConnectorTableVersionResolver;
 import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.FileQueryScanNode;
 import org.apache.doris.datasource.PluginDrivenExternalCatalog;
@@ -805,6 +806,11 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
             FileQueryScanNode fileQueryScanNode = (FileQueryScanNode) scanNode;
             fileScan.getTableSnapshot().ifPresent(fileQueryScanNode::setQueryTableSnapshot);
             fileScan.getScanParams().ifPresent(fileQueryScanNode::setScanParams);
+            // Additive: also expose the SPI-typed counterpart for connector plugins (M1-07/M1-08).
+            // Legacy code paths still consume getQueryTableSnapshot() unchanged.
+            fileScan.getTableSnapshot()
+                    .flatMap(ConnectorTableVersionResolver::resolve)
+                    .ifPresent(fileQueryScanNode::setConnectorTableVersion);
         }
         return getPlanFragmentForPhysicalFileScan(fileScan, context, scanNode);
     }
@@ -848,6 +854,8 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
                 directoryLister, context.getScanContext());
         if (hudiScan.getTableSnapshot().isPresent()) {
             hudiScanNode.setQueryTableSnapshot(hudiScan.getTableSnapshot().get());
+            ConnectorTableVersionResolver.resolve(hudiScan.getTableSnapshot().get())
+                    .ifPresent(hudiScanNode::setConnectorTableVersion);
         }
         hudiScanNode.setSelectedPartitions(hudiScan.getSelectedPartitions());
         return getPlanFragmentForPhysicalFileScan(hudiScan, context, hudiScanNode);

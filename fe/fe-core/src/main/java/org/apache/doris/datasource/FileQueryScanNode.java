@@ -35,6 +35,7 @@ import org.apache.doris.common.Config;
 import org.apache.doris.common.NotImplementedException;
 import org.apache.doris.common.UserException;
 import org.apache.doris.common.util.Util;
+import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
 import org.apache.doris.datasource.hive.source.HiveSplit;
 import org.apache.doris.planner.PlanNodeId;
 import org.apache.doris.planner.ScanContext;
@@ -102,6 +103,11 @@ public abstract class FileQueryScanNode extends FileScanNode {
     protected SessionVariable sessionVariable;
 
     protected TableScanParams scanParams;
+
+    // D5 SPI counterpart of {@link #tableSnapshot}, populated additively by
+    // {@code PhysicalPlanTranslator} via {@code ConnectorTableVersionResolver} and consumed by
+    // connector plugins (M1-07 / M1-08).  Legacy code paths continue to read {@link #tableSnapshot}.
+    protected ConnectorTableVersion connectorTableVersion;
 
     protected FileSplitter fileSplitter;
 
@@ -683,6 +689,14 @@ public abstract class FileQueryScanNode extends FileScanNode {
 
     public TableSnapshot getQueryTableSnapshot() {
         return this.tableSnapshot;
+    }
+
+    public void setConnectorTableVersion(ConnectorTableVersion connectorTableVersion) {
+        this.connectorTableVersion = connectorTableVersion;
+    }
+
+    public ConnectorTableVersion getConnectorTableVersion() {
+        return this.connectorTableVersion;
     }
 
     public void setScanParams(TableScanParams scanParams) {
