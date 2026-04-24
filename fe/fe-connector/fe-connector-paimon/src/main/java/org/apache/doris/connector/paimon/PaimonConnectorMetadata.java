@@ -24,6 +24,9 @@ import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
+import org.apache.doris.connector.api.timetravel.RefOps;
+import org.apache.doris.connector.paimon.api.PaimonBackend;
+import org.apache.doris.connector.paimon.api.PaimonBackendContext;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -54,10 +57,29 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
 
     private final Catalog catalog;
     private final PaimonTypeMapping.Options typeMappingOptions;
+    private final PaimonBackend backend;
+    private final PaimonBackendContext backendContext;
 
     public PaimonConnectorMetadata(Catalog catalog, Map<String, String> properties) {
+        this(catalog, properties, null, null);
+    }
+
+    public PaimonConnectorMetadata(Catalog catalog,
+                                   Map<String, String> properties,
+                                   PaimonBackend backend,
+                                   PaimonBackendContext backendContext) {
         this.catalog = catalog;
         this.typeMappingOptions = buildTypeMappingOptions(properties);
+        this.backend = backend;
+        this.backendContext = backendContext;
+    }
+
+    @Override
+    public Optional<RefOps> refOps() {
+        if (backend != null && backendContext != null) {
+            return Optional.of(new PaimonRefOps(backend, backendContext));
+        }
+        return Optional.empty();
     }
 
     @Override

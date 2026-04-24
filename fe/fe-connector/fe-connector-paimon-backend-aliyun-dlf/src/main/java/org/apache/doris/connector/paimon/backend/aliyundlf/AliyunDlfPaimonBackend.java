@@ -39,7 +39,7 @@ import org.apache.paimon.catalog.Catalog;
  * <p>TODO(M1-05 split): backend stub — real impl in M3, mirroring the
  * iceberg DLF stub introduced by M1-04.
  */
-public final class AliyunDlfPaimonBackend implements PaimonBackend {
+public class AliyunDlfPaimonBackend implements PaimonBackend {
 
     public static final String NAME = "aliyun-dlf";
 

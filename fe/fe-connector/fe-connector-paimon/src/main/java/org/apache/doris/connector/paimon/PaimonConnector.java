@@ -52,6 +52,8 @@ public class PaimonConnector implements Connector {
     private final Map<String, String> properties;
     private final ConnectorContext context;
     private volatile Catalog catalog;
+    private volatile PaimonBackend backend;
+    private volatile PaimonBackendContext backendContext;
 
     public PaimonConnector(Map<String, String> properties, ConnectorContext context) {
         this.properties = properties;
@@ -60,7 +62,10 @@ public class PaimonConnector implements Connector {
 
     @Override
     public ConnectorMetadata getMetadata(ConnectorSession session) {
-        return new PaimonConnectorMetadata(ensureCatalog(), properties);
+        // Ensure backend+context are populated before handing off to metadata
+        // so that PaimonConnectorMetadata.refOps() can build a PaimonRefOps.
+        ensureCatalog();
+        return new PaimonConnectorMetadata(catalog, properties, backend, backendContext);
     }
 
     @Override
@@ -90,13 +95,16 @@ public class PaimonConnector implements Connector {
                                 + "'. Available backends on the plugin classpath: "
                                 + PaimonBackendRegistry.availableTypes()));
 
-        PaimonBackend backend = factory.create();
+        PaimonBackend resolvedBackend = factory.create();
         String catalogName = context.getCatalogName();
+        PaimonBackendContext ctx = new PaimonBackendContext(catalogName, properties);
 
         LOG.info("Creating Paimon catalog '{}' via backend '{}'",
-                catalogName, backend.name());
+                catalogName, resolvedBackend.name());
 
-        return backend.buildCatalog(new PaimonBackendContext(catalogName, properties));
+        this.backend = resolvedBackend;
+        this.backendContext = ctx;
+        return resolvedBackend.buildCatalog(ctx);
     }
 
     @Override

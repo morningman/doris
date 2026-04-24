@@ -27,7 +27,7 @@ import org.apache.paimon.catalog.Catalog;
  * Paimon backend that builds a {@code FileSystemCatalog} via the Paimon
  * {@code metastore=filesystem} dispatch.
  */
-public final class FilesystemPaimonBackend implements PaimonBackend {
+public class FilesystemPaimonBackend implements PaimonBackend {
 
     public static final String NAME = "filesystem";
     public static final String METASTORE_ID = "filesystem";

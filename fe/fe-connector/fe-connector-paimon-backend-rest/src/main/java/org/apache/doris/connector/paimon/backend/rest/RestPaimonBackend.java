@@ -28,7 +28,7 @@ import org.apache.paimon.catalog.Catalog;
  * {@code metastore=rest} dispatch. The REST catalog implementation ships
  * inside paimon-core, so no extra runtime dependency is required.
  */
-public final class RestPaimonBackend implements PaimonBackend {
+public class RestPaimonBackend implements PaimonBackend {
 
     public static final String NAME = "rest";
     public static final String METASTORE_ID = "rest";

@@ -28,7 +28,7 @@ import org.apache.paimon.catalog.Catalog;
  * {@code metastore=hive} dispatch. Requires {@code paimon-hive-connector-3.1}
  * on the classpath (declared as a runtime dependency in this module).
  */
-public final class HmsPaimonBackend implements PaimonBackend {
+public class HmsPaimonBackend implements PaimonBackend {
 
     public static final String NAME = "hms";
     public static final String METASTORE_ID = "hive";
