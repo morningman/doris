@@ -25,10 +25,13 @@ import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
+import org.apache.doris.connector.api.systable.SysTableSpec;
+import org.apache.doris.connector.api.systable.SystemTableOps;
 import org.apache.doris.connector.api.timetravel.RefOps;
 import org.apache.doris.connector.paimon.api.PaimonBackend;
 import org.apache.doris.connector.paimon.api.PaimonBackendContext;
 import org.apache.doris.connector.paimon.cache.PaimonTableCacheKey;
+import org.apache.doris.connector.paimon.systable.PaimonSystemTableOps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -67,6 +70,7 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
     private final PaimonBackend backend;
     private final PaimonBackendContext backendContext;
     private final MetaCacheHandle<PaimonTableCacheKey, Table> tableHandle;
+    private volatile SystemTableOps sysTableOps;
 
     public PaimonConnectorMetadata(Catalog catalog, Map<String, String> properties) {
         this(catalog, properties, null, null, null);
@@ -97,6 +101,58 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
             return Optional.of(new PaimonRefOps(backend, backendContext));
         }
         return Optional.empty();
+    }
+
+    // ========== SystemTableOps (M1-14) ==========
+
+    /**
+     * Returns the paimon metadata-table specs published by the plugin
+     * ({@code snapshots / schemas / options / tags / branches / consumers /
+     * aggregation_fields / files / manifests / partitions / statistics /
+     * buckets / table_indexes}). Backed by a {@link PaimonSystemTableOps}
+     * that wires each spec's {@code NativeSysTableScanFactory} to the
+     * {@code paimon.table} {@link MetaCacheHandle} so D3 invalidation
+     * propagates automatically.
+     */
+    @Override
+    public List<SysTableSpec> listSysTables(String database, String table) {
+        return systemTableOps().listSysTables(database, table);
+    }
+
+    @Override
+    public Optional<SysTableSpec> getSysTable(String database, String table, String sysTableName) {
+        return systemTableOps().getSysTable(database, table, sysTableName);
+    }
+
+    private SystemTableOps systemTableOps() {
+        // Lazily construct to keep ctor cheap and to avoid allocating when sys
+        // tables are never queried. The instance is stateless beyond the loader.
+        SystemTableOps cached = sysTableOps;
+        if (cached == null) {
+            synchronized (this) {
+                cached = sysTableOps;
+                if (cached == null) {
+                    cached = new PaimonSystemTableOps(this::loadPaimonTableForSysTable);
+                    sysTableOps = cached;
+                }
+            }
+        }
+        return cached;
+    }
+
+    /**
+     * Loader bridge for {@link PaimonSystemTableOps} — unwraps the
+     * checked {@link Catalog.TableNotExistException} into a runtime so it
+     * can flow through the {@code BiFunction} surface, and routes through
+     * the {@code paimon.table} cache binding when present.
+     */
+    private Table loadPaimonTableForSysTable(String dbName, String tableName) {
+        try {
+            return loadTable(dbName, tableName);
+        } catch (Catalog.TableNotExistException e) {
+            throw new RuntimeException(
+                    "Paimon table not found for sys-table base: " + dbName + "." + tableName, e);
+        }
     }
 
     @Override
