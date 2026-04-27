@@ -202,7 +202,7 @@ public class ShowCreateTableCommand extends ShowCommand {
             throw new AnalysisException("sys table not found: " + tableNameWithSysTableName.second);
         }
         SysTableResolver.SysTableDescribe sysTableDescribe = sysTableDescribeOpt.get();
-        if (sysTableDescribe.isNative()) {
+        if (sysTableDescribe.isNative() || sysTableDescribe.isPluginTvf()) {
             return sysTableDescribe.getSysExternalTable();
         }
         return sourceTable;

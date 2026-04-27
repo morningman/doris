@@ -225,11 +225,24 @@ public final class SysTableResolver {
         }
 
         public boolean isNative() {
+            if (spec != null) {
+                return spec.mode() == SysTableExecutionMode.NATIVE;
+            }
             return sysExternalTable != null;
         }
 
         public boolean isPluginManaged() {
             return spec != null;
+        }
+
+        /**
+         * True iff this plan is plugin-managed and the plugin spec declares
+         * {@link SysTableExecutionMode#TVF TVF} execution mode. M1-15 hive
+         * {@code $partitions} hits this branch; the BindRelation TVF path
+         * handles it via {@link PluginTvfDispatcher}.
+         */
+        public boolean isPluginTvf() {
+            return spec != null && spec.mode() == SysTableExecutionMode.TVF;
         }
 
         public SysTable getSysTable() {
@@ -241,12 +254,12 @@ public final class SysTableResolver {
         }
 
         public ExternalTable getSysExternalTable() {
-            Preconditions.checkState(isNative(), "Not a native system table");
+            Preconditions.checkState(sysExternalTable != null, "Not a sys-external-table plan");
             return sysExternalTable;
         }
 
         public TableValuedFunction getTvf() {
-            Preconditions.checkState(!isNative(), "Not a TVF system table");
+            Preconditions.checkState(tvf != null, "Not a TVF system table");
             return tvf;
         }
     }
@@ -291,11 +304,21 @@ public final class SysTableResolver {
         }
 
         public boolean isNative() {
+            if (spec != null) {
+                return spec.mode() == SysTableExecutionMode.NATIVE;
+            }
             return sysExternalTable != null;
         }
 
         public boolean isPluginManaged() {
             return spec != null;
+        }
+
+        /**
+         * Mirrors {@link SysTablePlan#isPluginTvf()} for the describe path.
+         */
+        public boolean isPluginTvf() {
+            return spec != null && spec.mode() == SysTableExecutionMode.TVF;
         }
 
         public SysTable getSysTable() {
@@ -307,12 +330,12 @@ public final class SysTableResolver {
         }
 
         public ExternalTable getSysExternalTable() {
-            Preconditions.checkState(isNative(), "Not a native system table");
+            Preconditions.checkState(sysExternalTable != null, "Not a sys-external-table describe");
             return sysExternalTable;
         }
 
         public TableValuedFunctionRefInfo getTvfRef() {
-            Preconditions.checkState(!isNative(), "Not a TVF system table");
+            Preconditions.checkState(tvfRef != null, "Not a TVF system table");
             return tvfRef;
         }
     }

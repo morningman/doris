@@ -211,7 +211,7 @@ public class DescribeCommand extends ShowCommand {
                         throw new AnalysisException("sys table not found: " + tableNameWithSysTableName.second);
                     }
                     SysTableResolver.SysTableDescribe sysTableDescribe = sysTableDescribeOpt.get();
-                    if (sysTableDescribe.isNative()) {
+                    if (sysTableDescribe.isNative() || sysTableDescribe.isPluginTvf()) {
                         ExternalTable sysTable = sysTableDescribe.getSysExternalTable();
                         List<Column> columns = sysTable.getFullSchema();
                         for (Column column : columns) {

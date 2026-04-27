@@ -36,12 +36,15 @@ import org.apache.doris.common.Config;
 import org.apache.doris.common.IdGenerator;
 import org.apache.doris.common.Pair;
 import org.apache.doris.common.util.Util;
+import org.apache.doris.connector.api.systable.TvfInvocation;
 import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.ExternalView;
 import org.apache.doris.datasource.doris.RemoteDorisExternalTable;
 import org.apache.doris.datasource.hive.HMSExternalTable;
 import org.apache.doris.datasource.hive.HMSExternalTable.DLAType;
 import org.apache.doris.datasource.iceberg.IcebergExternalTable;
+import org.apache.doris.datasource.systable.ConnectorManagedSysExternalTable;
+import org.apache.doris.datasource.systable.PluginTvfDispatcher;
 import org.apache.doris.datasource.systable.SysTableResolver;
 import org.apache.doris.nereids.CTEContext;
 import org.apache.doris.nereids.CascadesContext;
@@ -415,6 +418,20 @@ public class BindRelation extends OneAnalysisRuleFactory {
                     unboundRelation.getTableSnapshot(),
                     Optional.ofNullable(unboundRelation.getScanParams()),
                     Optional.empty()));
+        }
+
+        // Plugin TVF path (M1-15): resolve the plugin's TvfInvocation through
+        // the dispatcher and emit a LogicalTVFRelation, exactly like the legacy
+        // TVF path but sourced from the plugin SystemTableOps spec.
+        if (sysTablePlan.isPluginTvf()) {
+            ConnectorManagedSysExternalTable wrapper =
+                    (ConnectorManagedSysExternalTable) sysTablePlan.getSysExternalTable();
+            TvfInvocation invocation = wrapper.resolveTvfInvocation(Optional.empty());
+            TableValuedFunction pluginTvf = PluginTvfDispatcher.toTableValuedFunction(
+                    qualifiedTableName.get(0), qualifiedTableName.get(1), wrapper.getSourceTable().getName(),
+                    invocation);
+            return Optional.of(new LogicalTVFRelation(
+                    unboundRelation.getRelationId(), pluginTvf, ImmutableList.of()));
         }
 
         // TVF path: create table-valued function and return LogicalTVFRelation

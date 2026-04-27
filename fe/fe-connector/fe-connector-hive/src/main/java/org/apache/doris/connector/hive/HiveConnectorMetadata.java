@@ -30,6 +30,9 @@ import org.apache.doris.connector.api.pushdown.ConnectorFilterConstraint;
 import org.apache.doris.connector.api.pushdown.ConnectorIn;
 import org.apache.doris.connector.api.pushdown.ConnectorLiteral;
 import org.apache.doris.connector.api.pushdown.FilterApplicationResult;
+import org.apache.doris.connector.api.systable.SysTableSpec;
+import org.apache.doris.connector.api.systable.SystemTableOps;
+import org.apache.doris.connector.hive.systable.HiveSystemTableOps;
 import org.apache.doris.connector.hms.HmsClient;
 import org.apache.doris.connector.hms.HmsClientException;
 import org.apache.doris.connector.hms.HmsPartitionInfo;
@@ -69,11 +72,38 @@ public class HiveConnectorMetadata implements ConnectorMetadata {
     private final HmsClient hmsClient;
     private final Map<String, String> properties;
     private final HmsTypeMapping.Options typeMappingOptions;
+    private volatile SystemTableOps sysTableOps;
 
     public HiveConnectorMetadata(HmsClient hmsClient, Map<String, String> properties) {
         this.hmsClient = hmsClient;
         this.properties = properties;
         this.typeMappingOptions = buildTypeMappingOptions(properties);
+    }
+
+    // ========== SystemTableOps (D6 / M1-15) ==========
+
+    @Override
+    public List<SysTableSpec> listSysTables(String database, String table) {
+        return getOrInitSysTableOps().listSysTables(database, table);
+    }
+
+    @Override
+    public Optional<SysTableSpec> getSysTable(String database, String table, String sysTableName) {
+        return getOrInitSysTableOps().getSysTable(database, table, sysTableName);
+    }
+
+    private SystemTableOps getOrInitSysTableOps() {
+        SystemTableOps ops = sysTableOps;
+        if (ops == null) {
+            synchronized (this) {
+                ops = sysTableOps;
+                if (ops == null) {
+                    ops = new HiveSystemTableOps();
+                    sysTableOps = ops;
+                }
+            }
+        }
+        return ops;
     }
 
     // ========== ConnectorSchemaOps ==========
