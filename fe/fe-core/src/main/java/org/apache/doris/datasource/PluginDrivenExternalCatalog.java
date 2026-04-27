@@ -258,6 +258,18 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
         return connector;
     }
 
+    /**
+     * Returns the {@link DefaultConnectorContext} owned by this catalog.
+     * Exposed so engine-side dispatchers (e.g. ConnectorEventDispatcher) can
+     * reach the catalog's {@code ConnectorMetaCacheRegistry} without
+     * re-creating context state. May be {@code null} if the catalog has not
+     * yet been initialized or no provider was registered for its type.
+     */
+    public DefaultConnectorContext getConnectorContext() {
+        makeSureInitialized();
+        return connectorContext;
+    }
+
     @Override
     public String fromRemoteDatabaseName(String remoteDatabaseName) {
         ConnectorSession session = buildConnectorSession();

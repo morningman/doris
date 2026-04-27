@@ -92,6 +92,7 @@ import org.apache.doris.common.util.TimeUtils;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.connector.ConnectorFactory;
 import org.apache.doris.connector.ConnectorPluginManager;
+import org.apache.doris.connector.event.ConnectorEventDispatcher;
 import org.apache.doris.consistency.ConsistencyChecker;
 import org.apache.doris.cooldown.CooldownConfHandler;
 import org.apache.doris.datasource.CatalogIf;
@@ -406,6 +407,7 @@ public class Env {
     private CooldownConfHandler cooldownConfHandler;
     private ExternalMetaIdMgr externalMetaIdMgr;
     private MetastoreEventsProcessor metastoreEventsProcessor;
+    private ConnectorEventDispatcher connectorEventDispatcher;
 
     private JobManager<? extends AbstractJob<?, ?>, ?> jobManager;
     private LabelProcessor labelProcessor;
@@ -756,7 +758,8 @@ public class Env {
             this.cooldownConfHandler = new CooldownConfHandler();
         }
         this.externalMetaIdMgr = new ExternalMetaIdMgr();
-        this.metastoreEventsProcessor = new MetastoreEventsProcessor();
+        this.connectorEventDispatcher = new ConnectorEventDispatcher();
+        this.metastoreEventsProcessor = this.connectorEventDispatcher.getLegacyHmsProcessor();
         this.jobManager = new JobManager<>();
         this.labelProcessor = new LabelProcessor();
         this.transientTaskManager = new TransientTaskManager();
@@ -1035,6 +1038,10 @@ public class Env {
 
     public MetastoreEventsProcessor getMetastoreEventsProcessor() {
         return metastoreEventsProcessor;
+    }
+
+    public ConnectorEventDispatcher getConnectorEventDispatcher() {
+        return connectorEventDispatcher;
     }
 
     public KeyManagerStore getKeyManagerStore() {
@@ -2052,7 +2059,9 @@ public class Env {
         // fe disk updater
         feDiskUpdater.start();
 
-        metastoreEventsProcessor.start();
+        // The dispatcher internally starts the legacy MetastoreEventsProcessor
+        // (transitional) and the master-only plugin event poll loop.
+        connectorEventDispatcher.start();
 
         dnsCache.start();
 

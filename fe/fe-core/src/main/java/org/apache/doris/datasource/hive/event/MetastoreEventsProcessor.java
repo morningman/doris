@@ -64,6 +64,15 @@ import java.util.Map;
  * iteration so the next batch can be requested appropriately. The current batch size is
  * constant and set to {@link org.apache.doris.common.Config#hms_events_batch_size_per_rpc}.
  */
+/**
+ * @deprecated Use {@link org.apache.doris.connector.event.ConnectorEventDispatcher}.
+ *     This class is preserved as a transitional shell so that the existing
+ *     HMS NotificationEvent flow keeps working until M2-02 migrates hive
+ *     onto the plugin {@code EventSourceOps} path. New code should not
+ *     reference this class directly; obtain the dispatcher via
+ *     {@code Env.getCurrentEnv().getConnectorEventDispatcher()}.
+ */
+@Deprecated
 public class MetastoreEventsProcessor extends MasterDaemon {
     private static final Logger LOG = LogManager.getLogger(MetastoreEventsProcessor.class);
     public static final String HMS_ADD_THRIFT_OBJECTS_IN_EVENTS_CONFIG_KEY =

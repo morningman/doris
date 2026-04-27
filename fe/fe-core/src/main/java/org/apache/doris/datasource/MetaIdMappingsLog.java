@@ -55,6 +55,13 @@ public class MetaIdMappingsLog implements Writable {
     @SerializedName(value = "lastEventId")
     private long lastSyncedEventId = -1L;
 
+    // Connector type that produced this log (e.g. "hive", "iceberg", "paimon").
+    // Defaults to "hive" so old images that lack this field deserialize to the
+    // pre-existing semantic. Plugin-driven catalogs (M2-01+) populate this with
+    // their actual catalog type (e.g. "iceberg", "paimon", "es").
+    @SerializedName(value = "connectorType")
+    private String connectorType = "hive";
+
     @SerializedName(value = "metaIdMappings")
     private List<MetaIdMapping> metaIdMappings = Lists.newLinkedList();
 
@@ -63,7 +70,7 @@ public class MetaIdMappingsLog implements Writable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(catalogId, lastSyncedEventId,
+        return Objects.hash(catalogId, lastSyncedEventId, connectorType,
                     metaIdMappings == null ? 0 : Arrays.hashCode(metaIdMappings.toArray()));
     }
 
@@ -75,6 +82,7 @@ public class MetaIdMappingsLog implements Writable {
         return Objects.equals(this.catalogId, ((MetaIdMappingsLog) obj).catalogId)
                     && Objects.equals(this.fromHmsEvent, ((MetaIdMappingsLog) obj).fromHmsEvent)
                     && Objects.equals(this.lastSyncedEventId, ((MetaIdMappingsLog) obj).lastSyncedEventId)
+                    && Objects.equals(this.connectorType, ((MetaIdMappingsLog) obj).connectorType)
                     && Objects.equals(this.metaIdMappings, ((MetaIdMappingsLog) obj).metaIdMappings);
     }
 
@@ -85,7 +93,15 @@ public class MetaIdMappingsLog implements Writable {
 
     public static MetaIdMappingsLog read(DataInput in) throws IOException {
         String json = Text.readString(in);
-        return GsonUtils.GSON.fromJson(json, MetaIdMappingsLog.class);
+        MetaIdMappingsLog log = GsonUtils.GSON.fromJson(json, MetaIdMappingsLog.class);
+        // Backfill the connectorType default for pre-M2 images that did not
+        // carry the field. Gson leaves the field at whatever value the no-arg
+        // constructor set ("hive"); but if a manually-crafted JSON sets it
+        // explicitly to null we still normalize to "hive" here.
+        if (log != null && log.connectorType == null) {
+            log.connectorType = "hive";
+        }
+        return log;
     }
 
     public void addMetaIdMapping(MetaIdMapping metaIdMapping) {
