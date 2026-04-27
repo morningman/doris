@@ -30,9 +30,12 @@ import org.apache.hadoop.hive.metastore.HiveMetaHookLoader;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
 import org.apache.hadoop.hive.metastore.RetryingMetaStoreClient;
+import org.apache.hadoop.hive.metastore.api.CurrentNotificationEventId;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
 import org.apache.hadoop.hive.metastore.api.MetaException;
+import org.apache.hadoop.hive.metastore.api.NotificationEvent;
+import org.apache.hadoop.hive.metastore.api.NotificationEventResponse;
 import org.apache.hadoop.hive.metastore.api.Partition;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
@@ -209,6 +212,41 @@ public class ThriftHmsClient implements HmsClient {
             Partition partition =
                     client.getPartition(dbName, tableName, values);
             return convertPartition(partition);
+        });
+    }
+
+    @Override
+    public long getCurrentNotificationEventId() {
+        return execute(client -> {
+            CurrentNotificationEventId current = client.getCurrentNotificationEventId();
+            return current == null ? -1L : current.getEventId();
+        });
+    }
+
+    @Override
+    public List<HmsNotificationEvent> getNextNotification(long lastEventId, int maxEvents) {
+        if (maxEvents <= 0) {
+            return Collections.emptyList();
+        }
+        return execute(client -> {
+            NotificationEventResponse response =
+                    client.getNextNotification(lastEventId, maxEvents, null);
+            if (response == null || response.getEventsSize() == 0) {
+                return Collections.emptyList();
+            }
+            List<NotificationEvent> events = response.getEvents();
+            List<HmsNotificationEvent> out = new ArrayList<>(events.size());
+            for (NotificationEvent e : events) {
+                out.add(new HmsNotificationEvent(
+                        e.getEventId(),
+                        e.getEventTime(),
+                        e.getEventType(),
+                        e.getDbName(),
+                        e.getTableName(),
+                        e.getMessage(),
+                        e.getMessageFormat()));
+            }
+            return out;
         });
     }
 

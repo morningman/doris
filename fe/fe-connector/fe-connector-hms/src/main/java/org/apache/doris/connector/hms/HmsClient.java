@@ -135,4 +135,26 @@ public interface HmsClient extends Closeable {
      */
     HmsPartitionInfo getPartition(String dbName, String tableName,
             List<String> values);
+
+    // ========== Phase 4: Notification events ==========
+
+    /**
+     * Get the most recent HMS notification event id.
+     *
+     * @return the current event id, or {@code -1} if HMS does not expose one
+     * @throws HmsClientException if the operation fails
+     */
+    long getCurrentNotificationEventId();
+
+    /**
+     * Pull the next batch of HMS notification events strictly after
+     * {@code lastEventId}.
+     *
+     * @param lastEventId the highest event id already consumed; HMS returns
+     *                    events with id strictly greater than this value
+     * @param maxEvents   soft cap on returned event count
+     * @return ordered list (ascending eventId); empty when nothing is available
+     * @throws HmsClientException if the operation fails
+     */
+    List<HmsNotificationEvent> getNextNotification(long lastEventId, int maxEvents);
 }

@@ -21,6 +21,7 @@ import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
+import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.pushdown.ConnectorAnd;
@@ -32,6 +33,7 @@ import org.apache.doris.connector.api.pushdown.ConnectorLiteral;
 import org.apache.doris.connector.api.pushdown.FilterApplicationResult;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.SystemTableOps;
+import org.apache.doris.connector.hive.event.HiveEventSourceOps;
 import org.apache.doris.connector.hive.systable.HiveSystemTableOps;
 import org.apache.doris.connector.hms.HmsClient;
 import org.apache.doris.connector.hms.HmsClientException;
@@ -72,12 +74,40 @@ public class HiveConnectorMetadata implements ConnectorMetadata {
     private final HmsClient hmsClient;
     private final Map<String, String> properties;
     private final HmsTypeMapping.Options typeMappingOptions;
+    private final String catalogName;
     private volatile SystemTableOps sysTableOps;
+    private volatile EventSourceOps eventSourceOps;
 
     public HiveConnectorMetadata(HmsClient hmsClient, Map<String, String> properties) {
+        this(hmsClient, properties, "");
+    }
+
+    public HiveConnectorMetadata(HmsClient hmsClient, Map<String, String> properties, String catalogName) {
         this.hmsClient = hmsClient;
         this.properties = properties;
         this.typeMappingOptions = buildTypeMappingOptions(properties);
+        this.catalogName = catalogName == null ? "" : catalogName;
+    }
+
+    // ========== EventSourceOps (D7 / M2-02) ==========
+
+    @Override
+    public EventSourceOps getEventSourceOps() {
+        EventSourceOps ops = eventSourceOps;
+        if (ops == null) {
+            synchronized (this) {
+                ops = eventSourceOps;
+                if (ops == null) {
+                    if (catalogName.isEmpty()) {
+                        ops = EventSourceOps.NONE;
+                    } else {
+                        ops = new HiveEventSourceOps(hmsClient, catalogName);
+                    }
+                    eventSourceOps = ops;
+                }
+            }
+        }
+        return ops;
     }
 
     // ========== SystemTableOps (D6 / M1-15) ==========

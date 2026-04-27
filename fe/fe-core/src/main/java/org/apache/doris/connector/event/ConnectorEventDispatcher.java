@@ -63,8 +63,13 @@ import java.util.function.Consumer;
  *
  * <p>The legacy {@link MetastoreEventsProcessor} (still serving the
  * {@code HMSExternalCatalog} HMS-NotificationEvent flow) is owned and
- * started by this dispatcher as a transitional measure; M2-02 will replace
- * it with a hive {@link EventSourceOps} implementation.</p>
+ * started by this dispatcher. The two paths are partitioned by catalog
+ * class — legacy only iterates {@code HMSExternalCatalog}, this
+ * dispatcher only iterates {@link PluginDrivenExternalCatalog} — so
+ * once a hive catalog adopts the plugin SPI (M3-Hive) it stops being
+ * picked up by legacy automatically. M2-02 ships the hive
+ * {@code EventSourceOps} implementation; the legacy processor remains
+ * as fallback for catalogs not yet migrated.</p>
  */
 public final class ConnectorEventDispatcher {
 
