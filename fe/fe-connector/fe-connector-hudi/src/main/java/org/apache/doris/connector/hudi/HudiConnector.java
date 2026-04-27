@@ -58,7 +58,8 @@ public class HudiConnector implements Connector {
 
     @Override
     public ConnectorMetadata getMetadata(ConnectorSession session) {
-        return new HudiConnectorMetadata(getOrCreateClient(), properties);
+        return new HudiConnectorMetadata(getOrCreateClient(), properties,
+                context.getCatalogName(), context);
     }
 
     @Override

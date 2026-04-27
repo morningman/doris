@@ -22,6 +22,8 @@ import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorType;
+import org.apache.doris.connector.api.event.ConnectorMetaChangeEvent;
+import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.pushdown.ConnectorFilterConstraint;
@@ -29,6 +31,10 @@ import org.apache.doris.connector.api.pushdown.FilterApplicationResult;
 import org.apache.doris.connector.hms.HmsClient;
 import org.apache.doris.connector.hms.HmsClientException;
 import org.apache.doris.connector.hms.HmsTableInfo;
+import org.apache.doris.connector.hudi.event.FsHudiTimelineLister;
+import org.apache.doris.connector.hudi.event.HmsHudiTableLister;
+import org.apache.doris.connector.hudi.event.HudiEventSourceOps;
+import org.apache.doris.connector.spi.ConnectorContext;
 
 import org.apache.avro.Schema;
 import org.apache.hadoop.conf.Configuration;
@@ -43,6 +49,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -65,10 +72,53 @@ public class HudiConnectorMetadata implements ConnectorMetadata {
 
     private final HmsClient hmsClient;
     private final Map<String, String> properties;
+    private final String catalogName;
+    private final ConnectorContext context;
+    private volatile EventSourceOps eventSourceOps;
 
     public HudiConnectorMetadata(HmsClient hmsClient, Map<String, String> properties) {
+        this(hmsClient, properties, "", null);
+    }
+
+    public HudiConnectorMetadata(HmsClient hmsClient, Map<String, String> properties,
+                                 String catalogName, ConnectorContext context) {
         this.hmsClient = hmsClient;
         this.properties = properties;
+        this.catalogName = catalogName == null ? "" : catalogName;
+        this.context = context;
+    }
+
+    // ========== EventSourceOps (D7 / M2-05) ==========
+
+    /**
+     * Returns the self-managed Hudi {@link EventSourceOps} for this
+     * catalog. The watcher Runnable is exposed via
+     * {@link HudiEventSourceOps#getSelfManagedTask()}; M2-12 wires it
+     * to the engine's {@code MasterOnlyScheduler}. Until then no
+     * background activity is started.
+     */
+    @Override
+    public EventSourceOps getEventSourceOps() {
+        EventSourceOps ops = eventSourceOps;
+        if (ops == null) {
+            synchronized (this) {
+                ops = eventSourceOps;
+                if (ops == null) {
+                    if (hmsClient == null || catalogName.isEmpty() || context == null) {
+                        ops = EventSourceOps.NONE;
+                    } else {
+                        Configuration conf = buildHadoopConf();
+                        Consumer<ConnectorMetaChangeEvent> publisher = context::publishExternalEvent;
+                        ops = new HudiEventSourceOps(catalogName,
+                                new HmsHudiTableLister(hmsClient, catalogName),
+                                new FsHudiTimelineLister(conf),
+                                publisher);
+                    }
+                    eventSourceOps = ops;
+                }
+            }
+        }
+        return ops;
     }
 
     // ========== ConnectorSchemaOps ==========
