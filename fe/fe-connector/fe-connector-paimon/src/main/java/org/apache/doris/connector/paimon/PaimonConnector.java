@@ -113,7 +113,7 @@ public class PaimonConnector implements Connector {
         ensureHandles();
         return new PaimonConnectorMetadata(
                 catalogHandle.get(context.getCatalogName()),
-                properties, backend, backendContext, tableHandle);
+                properties, backend, backendContext, tableHandle, context.getCatalogName());
     }
 
     @Override

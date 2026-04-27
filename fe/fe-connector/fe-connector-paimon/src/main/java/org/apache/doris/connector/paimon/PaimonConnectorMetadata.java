@@ -23,6 +23,7 @@ import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
+import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.systable.SysTableSpec;
@@ -31,6 +32,7 @@ import org.apache.doris.connector.api.timetravel.RefOps;
 import org.apache.doris.connector.paimon.api.PaimonBackend;
 import org.apache.doris.connector.paimon.api.PaimonBackendContext;
 import org.apache.doris.connector.paimon.cache.PaimonTableCacheKey;
+import org.apache.doris.connector.paimon.event.PaimonEventSourceOps;
 import org.apache.doris.connector.paimon.systable.PaimonSystemTableOps;
 
 import org.apache.logging.log4j.LogManager;
@@ -70,17 +72,19 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
     private final PaimonBackend backend;
     private final PaimonBackendContext backendContext;
     private final MetaCacheHandle<PaimonTableCacheKey, Table> tableHandle;
+    private final String catalogName;
     private volatile SystemTableOps sysTableOps;
+    private volatile EventSourceOps eventSourceOps;
 
     public PaimonConnectorMetadata(Catalog catalog, Map<String, String> properties) {
-        this(catalog, properties, null, null, null);
+        this(catalog, properties, null, null, null, "");
     }
 
     public PaimonConnectorMetadata(Catalog catalog,
                                    Map<String, String> properties,
                                    PaimonBackend backend,
                                    PaimonBackendContext backendContext) {
-        this(catalog, properties, backend, backendContext, null);
+        this(catalog, properties, backend, backendContext, null, "");
     }
 
     public PaimonConnectorMetadata(Catalog catalog,
@@ -88,11 +92,42 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
                                    PaimonBackend backend,
                                    PaimonBackendContext backendContext,
                                    MetaCacheHandle<PaimonTableCacheKey, Table> tableHandle) {
+        this(catalog, properties, backend, backendContext, tableHandle, "");
+    }
+
+    public PaimonConnectorMetadata(Catalog catalog,
+                                   Map<String, String> properties,
+                                   PaimonBackend backend,
+                                   PaimonBackendContext backendContext,
+                                   MetaCacheHandle<PaimonTableCacheKey, Table> tableHandle,
+                                   String catalogName) {
         this.catalog = catalog;
         this.typeMappingOptions = buildTypeMappingOptions(properties);
         this.backend = backend;
         this.backendContext = backendContext;
         this.tableHandle = tableHandle;
+        this.catalogName = catalogName == null ? "" : catalogName;
+    }
+
+    // ========== EventSourceOps (D7 / M2-04) ==========
+
+    @Override
+    public EventSourceOps getEventSourceOps() {
+        EventSourceOps ops = eventSourceOps;
+        if (ops == null) {
+            synchronized (this) {
+                ops = eventSourceOps;
+                if (ops == null) {
+                    if (catalog == null || catalogName.isEmpty()) {
+                        ops = EventSourceOps.NONE;
+                    } else {
+                        ops = new PaimonEventSourceOps(catalog, catalogName);
+                    }
+                    eventSourceOps = ops;
+                }
+            }
+        }
+        return ops;
     }
 
     @Override
