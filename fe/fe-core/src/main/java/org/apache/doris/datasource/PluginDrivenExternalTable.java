@@ -19,7 +19,11 @@ package org.apache.doris.datasource;
 
 import org.apache.doris.catalog.Column;
 import org.apache.doris.catalog.Env;
+import org.apache.doris.catalog.PartitionItem;
+import org.apache.doris.catalog.PartitionType;
 import org.apache.doris.catalog.TableIf.TableType;
+import org.apache.doris.common.AnalysisException;
+import org.apache.doris.common.DdlException;
 import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorCapability;
 import org.apache.doris.connector.api.ConnectorColumn;
@@ -28,6 +32,11 @@ import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorTableStatistics;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
+import org.apache.doris.datasource.mtmv.PluginDrivenMtmvBridge;
+import org.apache.doris.datasource.mvcc.MvccSnapshot;
+import org.apache.doris.mtmv.MTMVRefreshContext;
+import org.apache.doris.mtmv.MTMVRelatedTableIf;
+import org.apache.doris.mtmv.MTMVSnapshotIf;
 import org.apache.doris.statistics.AnalysisInfo;
 import org.apache.doris.statistics.BaseAnalysisTask;
 import org.apache.doris.statistics.ExternalAnalysisTask;
@@ -40,7 +49,9 @@ import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Generic {@link ExternalTable} for plugin-driven catalogs.
@@ -49,7 +60,7 @@ import java.util.Optional;
  * Connector-specific behavior is accessed through the parent catalog's
  * {@link org.apache.doris.connector.api.Connector} using opaque handles.</p>
  */
-public class PluginDrivenExternalTable extends ExternalTable {
+public class PluginDrivenExternalTable extends ExternalTable implements MTMVRelatedTableIf {
 
     private static final Logger LOG = LogManager.getLogger(PluginDrivenExternalTable.class);
 
@@ -244,5 +255,73 @@ public class PluginDrivenExternalTable extends ExternalTable {
                 + "using generic fallback", dbName, getName());
         return new TTableDescriptor(getId(), TTableType.SCHEMA_TABLE,
                 schema.size(), 0, getName(), dbName);
+    }
+
+    // ---------------------------------------------------------------------
+    // MTMVRelatedTableIf — thin delegate to PluginDrivenMtmvBridge so that
+    // plugin-driven catalogs can serve as materialized-view base tables.
+    // Capability and MtmvOps presence checks live entirely in the bridge.
+    // ---------------------------------------------------------------------
+
+    private PluginDrivenMtmvBridge mtmvBridge() {
+        return new PluginDrivenMtmvBridge(this);
+    }
+
+    @Override
+    public Map<String, PartitionItem> getAndCopyPartitionItems(Optional<MvccSnapshot> snapshot)
+            throws AnalysisException {
+        return mtmvBridge().getAndCopyPartitionItems(snapshot);
+    }
+
+    @Override
+    public PartitionType getPartitionType(Optional<MvccSnapshot> snapshot) {
+        return mtmvBridge().getPartitionType(snapshot);
+    }
+
+    @Override
+    public Set<String> getPartitionColumnNames(Optional<MvccSnapshot> snapshot) throws DdlException {
+        return mtmvBridge().getPartitionColumnNames(snapshot);
+    }
+
+    @Override
+    public List<Column> getPartitionColumns(Optional<MvccSnapshot> snapshot) {
+        return mtmvBridge().getPartitionColumns(snapshot);
+    }
+
+    @Override
+    public MTMVSnapshotIf getPartitionSnapshot(String partitionName, MTMVRefreshContext context,
+            Optional<MvccSnapshot> snapshot) throws AnalysisException {
+        return mtmvBridge().getPartitionSnapshot(partitionName, context, snapshot);
+    }
+
+    @Override
+    public MTMVSnapshotIf getTableSnapshot(MTMVRefreshContext context, Optional<MvccSnapshot> snapshot)
+            throws AnalysisException {
+        return mtmvBridge().getTableSnapshot(context, snapshot);
+    }
+
+    @Override
+    public MTMVSnapshotIf getTableSnapshot(Optional<MvccSnapshot> snapshot) throws AnalysisException {
+        return mtmvBridge().getTableSnapshot(snapshot);
+    }
+
+    @Override
+    public long getNewestUpdateVersionOrTime() {
+        return mtmvBridge().getNewestUpdateVersionOrTime();
+    }
+
+    @Override
+    public boolean isPartitionColumnAllowNull() {
+        return mtmvBridge().isPartitionColumnAllowNull();
+    }
+
+    @Override
+    public boolean isValidRelatedTable() {
+        return mtmvBridge().isValidRelatedTable();
+    }
+
+    @Override
+    public boolean needAutoRefresh() {
+        return mtmvBridge().needAutoRefresh();
     }
 }
