@@ -22,6 +22,7 @@ import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
+import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.SystemTableOps;
@@ -29,6 +30,7 @@ import org.apache.doris.connector.api.timetravel.RefOps;
 import org.apache.doris.connector.iceberg.api.IcebergBackend;
 import org.apache.doris.connector.iceberg.api.IcebergBackendContext;
 import org.apache.doris.connector.iceberg.cache.IcebergTableCacheKey;
+import org.apache.doris.connector.iceberg.event.IcebergEventSourceOps;
 import org.apache.doris.connector.iceberg.systable.IcebergSystemTableOps;
 
 import org.apache.iceberg.Schema;
@@ -71,10 +73,12 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
     private final IcebergBackend backend;
     private final IcebergBackendContext backendContext;
     private final MetaCacheHandle<IcebergTableCacheKey, Table> tableHandle;
+    private final String catalogName;
     private volatile SystemTableOps sysTableOps;
+    private volatile EventSourceOps eventSourceOps;
 
     public IcebergConnectorMetadata(Catalog catalog, Map<String, String> properties) {
-        this(catalog, properties, null, null, null);
+        this(catalog, properties, null, null, null, "");
     }
 
     public IcebergConnectorMetadata(Catalog catalog,
@@ -82,11 +86,42 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
                                     IcebergBackend backend,
                                     IcebergBackendContext backendContext,
                                     MetaCacheHandle<IcebergTableCacheKey, Table> tableHandle) {
+        this(catalog, properties, backend, backendContext, tableHandle, "");
+    }
+
+    public IcebergConnectorMetadata(Catalog catalog,
+                                    Map<String, String> properties,
+                                    IcebergBackend backend,
+                                    IcebergBackendContext backendContext,
+                                    MetaCacheHandle<IcebergTableCacheKey, Table> tableHandle,
+                                    String catalogName) {
         this.catalog = catalog;
         this.properties = properties;
         this.backend = backend;
         this.backendContext = backendContext;
         this.tableHandle = tableHandle;
+        this.catalogName = catalogName == null ? "" : catalogName;
+    }
+
+    // ========== EventSourceOps (D7 / M2-03) ==========
+
+    @Override
+    public EventSourceOps getEventSourceOps() {
+        EventSourceOps ops = eventSourceOps;
+        if (ops == null) {
+            synchronized (this) {
+                ops = eventSourceOps;
+                if (ops == null) {
+                    if (catalog == null || catalogName.isEmpty()) {
+                        ops = EventSourceOps.NONE;
+                    } else {
+                        ops = new IcebergEventSourceOps(catalog, catalogName);
+                    }
+                    eventSourceOps = ops;
+                }
+            }
+        }
+        return ops;
     }
 
     @Override

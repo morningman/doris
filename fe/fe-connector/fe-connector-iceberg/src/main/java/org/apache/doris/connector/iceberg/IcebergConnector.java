@@ -115,7 +115,8 @@ public class IcebergConnector implements Connector {
         ensureHandles();
         return new IcebergConnectorMetadata(
                 catalogHandle.get(context.getCatalogName()),
-                properties, backend, backendContext, tableHandle);
+                properties, backend, backendContext, tableHandle,
+                context.getCatalogName());
     }
 
     /** Visible for tests: returns the catalog instance via the binding handle. */
