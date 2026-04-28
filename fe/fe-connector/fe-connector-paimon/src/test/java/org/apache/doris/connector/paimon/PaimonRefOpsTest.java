@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.paimon;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.timetravel.ConnectorRef;
 import org.apache.doris.connector.api.timetravel.ConnectorRefMutation;
 import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
@@ -92,7 +93,7 @@ class PaimonRefOpsTest {
         RecordingBackend backend = new RecordingBackend(List.of(expected), null);
         PaimonRefOps ops = new PaimonRefOps(backend, newCtx());
 
-        List<ConnectorRef> got = ops.listRefs("db", "t");
+        List<ConnectorRef> got = ops.listRefs(ConnectorTableId.of("db", "t"));
 
         Assertions.assertEquals(List.of(expected), got);
         Assertions.assertEquals("listRefs:db.t", backend.lastCall.get());
@@ -105,8 +106,7 @@ class PaimonRefOpsTest {
         RecordingBackend backend = new RecordingBackend(Collections.emptyList(), snap);
         PaimonRefOps ops = new PaimonRefOps(backend, newCtx());
 
-        ConnectorTableVersion.BySnapshotId out = ops.resolveVersion(
-                "db", "t", new ConnectorTableVersion.ByRef("main", RefKind.BRANCH));
+        ConnectorTableVersion.BySnapshotId out = ops.resolveVersion("db", "t", new ConnectorTableVersion.ByRef("main", RefKind.BRANCH));
 
         Assertions.assertEquals(9001L, out.snapshotId());
         Assertions.assertEquals("resolveVersion:db.t:ByRef", backend.lastCall.get());
@@ -119,9 +119,9 @@ class PaimonRefOpsTest {
         ConnectorRefMutation mut = ConnectorRefMutation.builder()
                 .name("b").kind(RefKind.BRANCH).build();
         Assertions.assertThrows(UnsupportedOperationException.class,
-                () -> ops.createOrReplaceRef("db", "t", mut));
+                () -> ops.createOrReplaceRef(ConnectorTableId.of("db", "t"), mut));
         Assertions.assertThrows(UnsupportedOperationException.class,
-                () -> ops.dropRef("db", "t", "b", RefKind.BRANCH));
+                () -> ops.dropRef(ConnectorTableId.of("db", "t"), "b", RefKind.BRANCH));
     }
 
     @Test

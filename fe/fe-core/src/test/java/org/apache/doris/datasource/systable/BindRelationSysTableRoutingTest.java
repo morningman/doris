@@ -21,6 +21,7 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
@@ -113,10 +114,9 @@ public class BindRelationSysTableRoutingTest {
         Connector connector = Mockito.mock(Connector.class);
         ConnectorMetadata metadata = Mockito.mock(ConnectorMetadata.class);
         Mockito.when(connector.getMetadata(Mockito.any())).thenReturn(metadata);
-        Mockito.when(metadata.getSysTable(Mockito.anyString(), Mockito.eq("tbl"), Mockito.eq(spec.name())))
+        Mockito.when(metadata.getSysTable(Mockito.any(ConnectorTableId.class), Mockito.eq(spec.name())))
                 .thenReturn(Optional.of(spec));
-        Mockito.when(metadata.getSysTable(Mockito.anyString(), Mockito.eq("tbl"),
-                Mockito.argThat(arg -> arg != null && !arg.equals(spec.name()))))
+        Mockito.when(metadata.getSysTable(Mockito.any(ConnectorTableId.class), Mockito.argThat(arg -> arg != null && !arg.equals(spec.name()))))
                 .thenReturn(Optional.empty());
 
         PluginDrivenExternalCatalog catalog = new TestablePluginCatalog(connector);

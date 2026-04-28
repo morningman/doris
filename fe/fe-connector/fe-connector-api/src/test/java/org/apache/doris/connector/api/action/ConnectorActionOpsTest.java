@@ -17,6 +17,8 @@
 
 package org.apache.doris.connector.api.action;
 
+import org.apache.doris.connector.api.ConnectorTableId;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -67,7 +69,7 @@ public class ConnectorActionOpsTest {
 
         List<ActionDescriptor> tableDescs = ops.listActions(
                 ConnectorActionOps.Scope.TABLE,
-                Optional.of(ActionTarget.ofTable("db", "t")));
+                Optional.of(ActionTarget.ofTable(ConnectorTableId.of("db", "t"))));
         Assertions.assertEquals(1, tableDescs.size());
         Assertions.assertEquals("rewrite_data_files", tableDescs.get(0).name());
 
@@ -78,7 +80,7 @@ public class ConnectorActionOpsTest {
         ActionResult r = ops.executeAction(ActionInvocation.builder()
                 .name("rewrite_data_files")
                 .scope(ConnectorActionOps.Scope.TABLE)
-                .target(ActionTarget.ofTable("db", "t"))
+                .target(ActionTarget.ofTable(ConnectorTableId.of("db", "t")))
                 .build());
         Assertions.assertEquals(ActionResult.Lifecycle.COMPLETED, r.lifecycle());
         Assertions.assertEquals(Arrays.asList(7L),

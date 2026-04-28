@@ -18,6 +18,7 @@
 package org.apache.doris.connector.hive.systable;
 
 import org.apache.doris.connector.api.ConnectorColumn;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.systable.SysTableExecutionMode;
@@ -102,16 +103,14 @@ public final class HiveSystemTableOps implements SystemTableOps {
     }
 
     @Override
-    public List<SysTableSpec> listSysTables(String database, String table) {
-        Objects.requireNonNull(database, "database");
-        Objects.requireNonNull(table, "table");
+    public List<SysTableSpec> listSysTables(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
         return Collections.unmodifiableList(new ArrayList<>(specs.values()));
     }
 
     @Override
-    public Optional<SysTableSpec> getSysTable(String database, String table, String sysTableName) {
-        Objects.requireNonNull(database, "database");
-        Objects.requireNonNull(table, "table");
+    public Optional<SysTableSpec> getSysTable(ConnectorTableId id, String sysTableName) {
+        Objects.requireNonNull(id, "id");
         Objects.requireNonNull(sysTableName, "sysTableName");
         SysTableSpec spec = specs.get(sysTableName.toLowerCase(Locale.ROOT));
         return spec == null ? Optional.empty() : Optional.of(spec);
@@ -121,9 +120,8 @@ public final class HiveSystemTableOps implements SystemTableOps {
      * Set of sys-table suffixes (without the leading {@code '$'}) published by
      * this ops instance — currently always {@code {"partitions"}}.
      */
-    public Set<String> listSysTableSuffixes(String database, String table) {
-        Objects.requireNonNull(database, "database");
-        Objects.requireNonNull(table, "table");
+    public Set<String> listSysTableSuffixes(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
         return suffixes;
     }
 }

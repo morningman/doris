@@ -18,6 +18,7 @@
 package org.apache.doris.connector.api.systable;
 
 import org.apache.doris.connector.api.ConnectorMetadata;
+import org.apache.doris.connector.api.ConnectorTableId;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -29,9 +30,9 @@ public class ConnectorMetadataSystemTableDefaultsTest {
     public void anonymousMetadataReturnsEmpty() {
         ConnectorMetadata md = new ConnectorMetadata() {
         };
-        Assertions.assertTrue(md.listSysTables("db", "t").isEmpty());
-        Assertions.assertTrue(md.getSysTable("db", "t", "snapshots").isEmpty());
-        Assertions.assertFalse(md.supportsSysTable("db", "t", "snapshots"));
+        Assertions.assertTrue(md.listSysTables(ConnectorTableId.of("db", "t")).isEmpty());
+        Assertions.assertTrue(md.getSysTable(ConnectorTableId.of("db", "t"), "snapshots").isEmpty());
+        Assertions.assertFalse(md.supportsSysTable(ConnectorTableId.of("db", "t"), "snapshots"));
     }
 
     @Test

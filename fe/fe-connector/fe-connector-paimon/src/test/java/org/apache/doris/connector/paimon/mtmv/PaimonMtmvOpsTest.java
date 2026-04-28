@@ -18,6 +18,7 @@
 package org.apache.doris.connector.paimon.mtmv;
 
 import org.apache.doris.connector.api.ConnectorColumn;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.mtmv.ConnectorMtmvSnapshot;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionItem;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionType;
@@ -109,7 +110,7 @@ class PaimonMtmvOpsTest {
         PaimonMtmvOps ops = new PaimonMtmvOps(c);
 
         Map<String, ConnectorPartitionItem> result =
-                ops.listPartitions(DB, TBL, Optional.empty());
+                ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(1, result.size());
         Assertions.assertTrue(result.get("") instanceof ConnectorPartitionItem.UnpartitionedItem);
@@ -127,7 +128,7 @@ class PaimonMtmvOpsTest {
         PaimonMtmvOps ops = new PaimonMtmvOps(c);
 
         Map<String, ConnectorPartitionItem> result =
-                ops.listPartitions(DB, TBL, Optional.empty());
+                ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(2, result.size());
         ConnectorPartitionItem first = result.get("dt=2024-01-01");
@@ -151,7 +152,7 @@ class PaimonMtmvOpsTest {
         PaimonMtmvOps ops = new PaimonMtmvOps(c);
 
         Map<String, ConnectorPartitionItem> result =
-                ops.listPartitions(DB, TBL, Optional.empty());
+                ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(2, result.size());
         ConnectorPartitionItem first = result.get("dt=2024-01-01/region=us");
@@ -176,7 +177,7 @@ class PaimonMtmvOpsTest {
         PaimonMtmvOps ops = new PaimonMtmvOps(c);
 
         Map<String, ConnectorPartitionItem> result =
-                ops.listPartitions(DB, TBL, Optional.empty());
+                ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertTrue(result.containsKey("dt=2024-01-01/region=us"));
         ConnectorPartitionItem item = result.get("dt=2024-01-01/region=us");
@@ -192,7 +193,7 @@ class PaimonMtmvOpsTest {
         PaimonMtmvOps ops = new PaimonMtmvOps(c);
 
         Map<String, ConnectorPartitionItem> result =
-                ops.listPartitions(DB, TBL, Optional.empty());
+                ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertTrue(result.isEmpty());
     }
@@ -207,7 +208,7 @@ class PaimonMtmvOpsTest {
         PaimonMtmvOps ops = new PaimonMtmvOps(c);
 
         Map<String, ConnectorPartitionItem> result =
-                ops.listPartitions(DB, TBL, Optional.empty());
+                ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(1, result.size());
     }
@@ -222,7 +223,7 @@ class PaimonMtmvOpsTest {
         PaimonMtmvOps ops = new PaimonMtmvOps(c);
 
         Map<String, ConnectorPartitionItem> result =
-                ops.listPartitions(DB, TBL, Optional.empty());
+                ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(1, result.size());
         Assertions.assertTrue(result.containsKey("dt=null"));
@@ -236,7 +237,7 @@ class PaimonMtmvOpsTest {
                 rowType(new DataField(0, "id", DataTypes.BIGINT())), 1L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
         Assertions.assertEquals(ConnectorPartitionType.UNPARTITIONED,
-                ops.getPartitionType(DB, TBL, Optional.empty()));
+                ops.getPartitionType(ConnectorTableId.of(DB, TBL), Optional.empty()));
     }
 
     @Test
@@ -245,7 +246,7 @@ class PaimonMtmvOpsTest {
                 rowType(new DataField(0, "dt", DataTypes.STRING())), 1L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
         Assertions.assertEquals(ConnectorPartitionType.LIST,
-                ops.getPartitionType(DB, TBL, Optional.empty()));
+                ops.getPartitionType(ConnectorTableId.of(DB, TBL), Optional.empty()));
     }
 
     // -------- partition columns -----------------------------------------
@@ -257,7 +258,7 @@ class PaimonMtmvOpsTest {
                         new DataField(1, "Region", DataTypes.STRING())),
                 1L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
-        Set<String> names = ops.getPartitionColumnNames(DB, TBL, Optional.empty());
+        Set<String> names = ops.getPartitionColumnNames(ConnectorTableId.of(DB, TBL), Optional.empty());
         Assertions.assertEquals(Set.of("dt", "region"), names);
     }
 
@@ -267,7 +268,7 @@ class PaimonMtmvOpsTest {
                 rowType(new DataField(0, "id", DataTypes.BIGINT())), 1L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
         Assertions.assertTrue(
-                ops.getPartitionColumnNames(DB, TBL, Optional.empty()).isEmpty());
+                ops.getPartitionColumnNames(ConnectorTableId.of(DB, TBL), Optional.empty()).isEmpty());
     }
 
     @Test
@@ -278,7 +279,7 @@ class PaimonMtmvOpsTest {
                         new DataField(2, "region", DataTypes.STRING())),
                 1L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
-        List<ConnectorColumn> columns = ops.getPartitionColumns(DB, TBL, Optional.empty());
+        List<ConnectorColumn> columns = ops.getPartitionColumns(ConnectorTableId.of(DB, TBL), Optional.empty());
         Assertions.assertEquals(2, columns.size());
         Assertions.assertEquals("dt", columns.get(0).getName());
         Assertions.assertEquals("STRING", columns.get(0).getType().getTypeName());
@@ -291,7 +292,7 @@ class PaimonMtmvOpsTest {
                 rowType(new DataField(0, "id", DataTypes.BIGINT())), 1L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
         Assertions.assertTrue(
-                ops.getPartitionColumns(DB, TBL, Optional.empty()).isEmpty());
+                ops.getPartitionColumns(ConnectorTableId.of(DB, TBL), Optional.empty()).isEmpty());
     }
 
     @Test
@@ -300,7 +301,7 @@ class PaimonMtmvOpsTest {
                 rowType(new DataField(0, "id", DataTypes.BIGINT())), 1L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
         Assertions.assertThrows(IllegalStateException.class,
-                () -> ops.getPartitionColumns(DB, TBL, Optional.empty()));
+                () -> ops.getPartitionColumns(ConnectorTableId.of(DB, TBL), Optional.empty()));
     }
 
     // -------- snapshots --------------------------------------------------
@@ -310,8 +311,7 @@ class PaimonMtmvOpsTest {
         Table t = mockTable(Collections.singletonList("dt"),
                 rowType(new DataField(0, "dt", DataTypes.STRING())), 42L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
-        ConnectorMtmvSnapshot snap = ops.getPartitionSnapshot(
-                DB, TBL, "dt=2024-01-01", HINT, Optional.empty());
+        ConnectorMtmvSnapshot snap = ops.getPartitionSnapshot(ConnectorTableId.of(DB, TBL), "dt=2024-01-01", HINT, Optional.empty());
         Assertions.assertTrue(snap instanceof ConnectorMtmvSnapshot.SnapshotIdMtmvSnapshot);
         Assertions.assertEquals(42L, snap.marker());
     }
@@ -321,8 +321,7 @@ class PaimonMtmvOpsTest {
         Table t = mockTable(Collections.singletonList("dt"),
                 rowType(new DataField(0, "dt", DataTypes.STRING())), null);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
-        ConnectorMtmvSnapshot snap = ops.getPartitionSnapshot(
-                DB, TBL, "dt=2024-01-01", HINT, Optional.empty());
+        ConnectorMtmvSnapshot snap = ops.getPartitionSnapshot(ConnectorTableId.of(DB, TBL), "dt=2024-01-01", HINT, Optional.empty());
         Assertions.assertEquals(-1L, snap.marker());
     }
 
@@ -332,7 +331,7 @@ class PaimonMtmvOpsTest {
                 rowType(new DataField(0, "dt", DataTypes.STRING())), 1L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
         Assertions.assertThrows(NullPointerException.class,
-                () -> ops.getPartitionSnapshot(DB, TBL, null, HINT, Optional.empty()));
+                () -> ops.getPartitionSnapshot(ConnectorTableId.of(DB, TBL), null, HINT, Optional.empty()));
     }
 
     @Test
@@ -340,7 +339,7 @@ class PaimonMtmvOpsTest {
         Table t = mockTable(Collections.emptyList(),
                 rowType(new DataField(0, "id", DataTypes.BIGINT())), 99L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
-        ConnectorMtmvSnapshot snap = ops.getTableSnapshot(DB, TBL, HINT, Optional.empty());
+        ConnectorMtmvSnapshot snap = ops.getTableSnapshot(ConnectorTableId.of(DB, TBL), HINT, Optional.empty());
         Assertions.assertEquals(99L, snap.marker());
     }
 
@@ -349,7 +348,7 @@ class PaimonMtmvOpsTest {
         Table t = mockTable(Collections.emptyList(),
                 rowType(new DataField(0, "id", DataTypes.BIGINT())), null);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
-        ConnectorMtmvSnapshot snap = ops.getTableSnapshot(DB, TBL, HINT, Optional.empty());
+        ConnectorMtmvSnapshot snap = ops.getTableSnapshot(ConnectorTableId.of(DB, TBL), HINT, Optional.empty());
         Assertions.assertEquals(-1L, snap.marker());
     }
 
@@ -358,7 +357,7 @@ class PaimonMtmvOpsTest {
         Table t = mockTable(Collections.emptyList(),
                 rowType(new DataField(0, "id", DataTypes.BIGINT())), 17L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
-        Assertions.assertEquals(17L, ops.getNewestUpdateVersionOrTime(DB, TBL));
+        Assertions.assertEquals(17L, ops.getNewestUpdateVersionOrTime(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -366,7 +365,7 @@ class PaimonMtmvOpsTest {
         Table t = mockTable(Collections.emptyList(),
                 rowType(new DataField(0, "id", DataTypes.BIGINT())), null);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
-        Assertions.assertEquals(-1L, ops.getNewestUpdateVersionOrTime(DB, TBL));
+        Assertions.assertEquals(-1L, ops.getNewestUpdateVersionOrTime(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -375,7 +374,7 @@ class PaimonMtmvOpsTest {
         Mockito.when(c.getTable(Mockito.any()))
                 .thenThrow(new Catalog.TableNotExistException(Identifier.create(DB, TBL)));
         PaimonMtmvOps ops = new PaimonMtmvOps(c);
-        Assertions.assertEquals(-1L, ops.getNewestUpdateVersionOrTime(DB, TBL));
+        Assertions.assertEquals(-1L, ops.getNewestUpdateVersionOrTime(ConnectorTableId.of(DB, TBL)));
     }
 
     // -------- misc -------------------------------------------------------
@@ -385,7 +384,7 @@ class PaimonMtmvOpsTest {
         Table t = mockTable(Collections.emptyList(),
                 rowType(new DataField(0, "id", DataTypes.BIGINT())), 1L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
-        Assertions.assertTrue(ops.isPartitionColumnAllowNull(DB, TBL));
+        Assertions.assertTrue(ops.isPartitionColumnAllowNull(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -393,7 +392,7 @@ class PaimonMtmvOpsTest {
         Table t = mockTable(Collections.emptyList(),
                 rowType(new DataField(0, "id", DataTypes.BIGINT())), 1L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
-        Assertions.assertTrue(ops.isValidRelatedTable(DB, TBL));
+        Assertions.assertTrue(ops.isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -402,7 +401,7 @@ class PaimonMtmvOpsTest {
         Mockito.when(c.getTable(Mockito.any()))
                 .thenThrow(new Catalog.TableNotExistException(Identifier.create(DB, TBL)));
         PaimonMtmvOps ops = new PaimonMtmvOps(c);
-        Assertions.assertFalse(ops.isValidRelatedTable(DB, TBL));
+        Assertions.assertFalse(ops.isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -410,7 +409,7 @@ class PaimonMtmvOpsTest {
         Table t = mockTable(Collections.emptyList(),
                 rowType(new DataField(0, "id", DataTypes.BIGINT())), 1L);
         PaimonMtmvOps ops = new PaimonMtmvOps(mockCatalog(t));
-        Assertions.assertTrue(ops.needAutoRefresh(DB, TBL));
+        Assertions.assertTrue(ops.needAutoRefresh(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test

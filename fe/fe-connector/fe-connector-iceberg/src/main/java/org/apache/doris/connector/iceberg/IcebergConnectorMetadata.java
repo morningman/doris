@@ -20,6 +20,7 @@ package org.apache.doris.connector.iceberg;
 import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.DorisConnectorException;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
@@ -175,13 +176,13 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
      * {@link MetaCacheHandle} so D3 invalidation propagates automatically.
      */
     @Override
-    public List<SysTableSpec> listSysTables(String database, String table) {
-        return systemTableOps().listSysTables(database, table);
+    public List<SysTableSpec> listSysTables(ConnectorTableId id) {
+        return systemTableOps().listSysTables(id);
     }
 
     @Override
-    public Optional<SysTableSpec> getSysTable(String database, String table, String sysTableName) {
-        return systemTableOps().getSysTable(database, table, sysTableName);
+    public Optional<SysTableSpec> getSysTable(ConnectorTableId id, String sysTableName) {
+        return systemTableOps().getSysTable(id, sysTableName);
     }
 
     private SystemTableOps systemTableOps() {

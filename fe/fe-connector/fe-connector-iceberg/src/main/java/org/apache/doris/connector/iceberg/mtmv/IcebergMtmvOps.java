@@ -18,6 +18,7 @@
 package org.apache.doris.connector.iceberg.mtmv;
 
 import org.apache.doris.connector.api.ConnectorColumn;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.mtmv.ConnectorMtmvSnapshot;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionItem;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionType;
@@ -107,7 +108,10 @@ public final class IcebergMtmvOps implements MtmvOps {
 
     @Override
     public Map<String, ConnectorPartitionItem> listPartitions(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Table icebergTable = loadTable(database, table);
         PartitionSpec spec = icebergTable.spec();
         if (spec.isUnpartitioned()) {
@@ -138,7 +142,10 @@ public final class IcebergMtmvOps implements MtmvOps {
 
     @Override
     public ConnectorPartitionType getPartitionType(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Table icebergTable = loadTable(database, table);
         if (icebergTable.spec().isUnpartitioned()) {
             return ConnectorPartitionType.UNPARTITIONED;
@@ -148,7 +155,10 @@ public final class IcebergMtmvOps implements MtmvOps {
 
     @Override
     public Set<String> getPartitionColumnNames(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Table icebergTable = loadTable(database, table);
         PartitionSpec spec = icebergTable.spec();
         if (spec.isUnpartitioned()) {
@@ -166,7 +176,10 @@ public final class IcebergMtmvOps implements MtmvOps {
 
     @Override
     public List<ConnectorColumn> getPartitionColumns(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Table icebergTable = loadTable(database, table);
         PartitionSpec spec = icebergTable.spec();
         if (spec.isUnpartitioned()) {
@@ -192,8 +205,11 @@ public final class IcebergMtmvOps implements MtmvOps {
 
     @Override
     public ConnectorMtmvSnapshot getPartitionSnapshot(
-            String database, String table, String partitionName,
+            ConnectorTableId id, String partitionName,
             MtmvRefreshHint hint, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Objects.requireNonNull(partitionName, "partitionName");
         Table icebergTable = loadTable(database, table);
         long snapshotId = currentSnapshotId(icebergTable, snapshot);
@@ -202,15 +218,21 @@ public final class IcebergMtmvOps implements MtmvOps {
 
     @Override
     public ConnectorMtmvSnapshot getTableSnapshot(
-            String database, String table,
+            ConnectorTableId id,
             MtmvRefreshHint hint, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Table icebergTable = loadTable(database, table);
         long snapshotId = currentSnapshotId(icebergTable, snapshot);
         return new ConnectorMtmvSnapshot.SnapshotIdMtmvSnapshot(snapshotId);
     }
 
     @Override
-    public long getNewestUpdateVersionOrTime(String database, String table) {
+    public long getNewestUpdateVersionOrTime(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         try {
             Table icebergTable = loadTable(database, table);
             Snapshot snap = icebergTable.currentSnapshot();
@@ -223,14 +245,18 @@ public final class IcebergMtmvOps implements MtmvOps {
     }
 
     @Override
-    public boolean isPartitionColumnAllowNull(String database, String table) {
+    public boolean isPartitionColumnAllowNull(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
         // Iceberg partition specs admit nulls; null values are routed to a
         // dedicated bucket rather than being rejected.
         return true;
     }
 
     @Override
-    public boolean isValidRelatedTable(String database, String table) {
+    public boolean isValidRelatedTable(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         try {
             Table icebergTable = loadTable(database, table);
             Set<String> sourceColumns = new LinkedHashSet<>();
@@ -271,7 +297,8 @@ public final class IcebergMtmvOps implements MtmvOps {
     }
 
     @Override
-    public boolean needAutoRefresh(String database, String table) {
+    public boolean needAutoRefresh(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
         return true;
     }
 

@@ -17,6 +17,8 @@
 
 package org.apache.doris.connector.api.timetravel;
 
+import org.apache.doris.connector.api.ConnectorTableId;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -36,12 +38,12 @@ public class RefOpsTest {
             }
 
             @Override
-            public List<ConnectorRef> listRefs(String database, String table) {
+            public List<ConnectorRef> listRefs(ConnectorTableId id) {
                 return new ArrayList<>(store);
             }
 
             @Override
-            public void createOrReplaceRef(String database, String table, ConnectorRefMutation mutation) {
+            public void createOrReplaceRef(ConnectorTableId id, ConnectorRefMutation mutation) {
                 Iterator<ConnectorRef> it = store.iterator();
                 while (it.hasNext()) {
                     ConnectorRef r = it.next();
@@ -61,7 +63,7 @@ public class RefOpsTest {
             }
 
             @Override
-            public void dropRef(String database, String table, String name, RefKind kind) {
+            public void dropRef(ConnectorTableId id, String name, RefKind kind) {
                 store.removeIf(r -> r.name().equals(name) && r.kind() == kind);
             }
         };
@@ -76,23 +78,23 @@ public class RefOpsTest {
         Assertions.assertTrue(ops.supportedRefKinds().contains(RefKind.TAG));
         Assertions.assertFalse(ops.supportedRefKinds().contains(RefKind.UNKNOWN));
 
-        Assertions.assertTrue(ops.listRefs("db", "t").isEmpty());
+        Assertions.assertTrue(ops.listRefs(ConnectorTableId.of("db", "t")).isEmpty());
 
-        ops.createOrReplaceRef("db", "t",
+        ops.createOrReplaceRef(ConnectorTableId.of("db", "t"),
                 ConnectorRefMutation.builder().name("main").kind(RefKind.BRANCH).fromSnapshot(1L).build());
-        ops.createOrReplaceRef("db", "t",
+        ops.createOrReplaceRef(ConnectorTableId.of("db", "t"),
                 ConnectorRefMutation.builder().name("v1").kind(RefKind.TAG).fromSnapshot(1L).build());
 
-        List<ConnectorRef> refs = ops.listRefs("db", "t");
+        List<ConnectorRef> refs = ops.listRefs(ConnectorTableId.of("db", "t"));
         Assertions.assertEquals(2, refs.size());
 
-        ops.createOrReplaceRef("db", "t",
+        ops.createOrReplaceRef(ConnectorTableId.of("db", "t"),
                 ConnectorRefMutation.builder().name("main").kind(RefKind.BRANCH)
                         .fromSnapshot(2L).replaceIfExists(true).build());
-        Assertions.assertEquals(2L, ops.listRefs("db", "t").stream()
+        Assertions.assertEquals(2L, ops.listRefs(ConnectorTableId.of("db", "t")).stream()
                 .filter(r -> r.name().equals("main")).findFirst().orElseThrow().snapshotId());
 
-        ops.dropRef("db", "t", "v1", RefKind.TAG);
-        Assertions.assertEquals(1, ops.listRefs("db", "t").size());
+        ops.dropRef(ConnectorTableId.of("db", "t"), "v1", RefKind.TAG);
+        Assertions.assertEquals(1, ops.listRefs(ConnectorTableId.of("db", "t")).size());
     }
 }

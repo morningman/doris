@@ -20,6 +20,7 @@ package org.apache.doris.connector.hive;
 import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.audit.ConnectorAuditOps;
 import org.apache.doris.connector.api.event.EventSourceOps;
@@ -142,13 +143,13 @@ public class HiveConnectorMetadata implements ConnectorMetadata {
     // ========== SystemTableOps (D6 / M1-15) ==========
 
     @Override
-    public List<SysTableSpec> listSysTables(String database, String table) {
-        return getOrInitSysTableOps().listSysTables(database, table);
+    public List<SysTableSpec> listSysTables(ConnectorTableId id) {
+        return getOrInitSysTableOps().listSysTables(id);
     }
 
     @Override
-    public Optional<SysTableSpec> getSysTable(String database, String table, String sysTableName) {
-        return getOrInitSysTableOps().getSysTable(database, table, sysTableName);
+    public Optional<SysTableSpec> getSysTable(ConnectorTableId id, String sysTableName) {
+        return getOrInitSysTableOps().getSysTable(id, sysTableName);
     }
 
     private SystemTableOps getOrInitSysTableOps() {

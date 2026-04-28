@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.paimon;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.timetravel.ConnectorRef;
 import org.apache.doris.connector.api.timetravel.ConnectorRefMutation;
 import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
@@ -33,7 +34,7 @@ import java.util.Set;
 
 /**
  * Paimon-specific {@link RefOps} wiring. Delegates read-side operations
- * ({@link #supportedRefKinds()}, {@link #listRefs(String, String)}) to the
+ * ({@link #supportedRefKinds()}, {@link #listRefs(ConnectorTableId)}) to the
  * selected {@link PaimonBackend} (routed via {@link PaimonBackendRegistry}).
  * Mutation-side methods ({@link #createOrReplaceRef}, {@link #dropRef}) are
  * intentionally left as {@link UnsupportedOperationException} in M1-08:
@@ -72,12 +73,13 @@ public final class PaimonRefOps implements RefOps {
     }
 
     @Override
-    public List<ConnectorRef> listRefs(String database, String table) {
-        return backend.listRefs(context, database, table);
+    public List<ConnectorRef> listRefs(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
+        return backend.listRefs(context, id.database(), id.table());
     }
 
     @Override
-    public void createOrReplaceRef(String database, String table, ConnectorRefMutation mutation) {
+    public void createOrReplaceRef(ConnectorTableId id, ConnectorRefMutation mutation) {
         throw new UnsupportedOperationException(
                 "paimon RefOps.createOrReplaceRef is intentionally read-only in M1-08;"
                         + " branch writes are subject to paimon's schema-level branch"
@@ -85,7 +87,7 @@ public final class PaimonRefOps implements RefOps {
     }
 
     @Override
-    public void dropRef(String database, String table, String name, RefKind kind) {
+    public void dropRef(ConnectorTableId id, String name, RefKind kind) {
         throw new UnsupportedOperationException(
                 "paimon RefOps.dropRef is intentionally read-only in M1-08;"
                         + " ref mutations are tracked for the M1-11 write-path migration");

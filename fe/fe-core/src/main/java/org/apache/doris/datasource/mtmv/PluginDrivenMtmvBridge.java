@@ -24,6 +24,7 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorCapability;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.mtmv.ConnectorMtmvSnapshot;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionItem;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionType;
@@ -113,12 +114,16 @@ public final class PluginDrivenMtmvBridge {
         this.tableName = Objects.requireNonNull(tableName, "tableName");
     }
 
+    private ConnectorTableId connectorTableId() {
+        return ConnectorTableId.of(dbName, tableName);
+    }
+
     // ---------------------------------------------------------------- API
 
     public Map<String, PartitionItem> getAndCopyPartitionItems(Optional<MvccSnapshot> snapshot) {
         MtmvOps ops = requireOps();
         Map<String, ConnectorPartitionItem> raw =
-                ops.listPartitions(dbName, tableName, toConnectorSnapshot(snapshot));
+                ops.listPartitions(connectorTableId(), toConnectorSnapshot(snapshot));
         Map<String, PartitionItem> out = new LinkedHashMap<>();
         for (Map.Entry<String, ConnectorPartitionItem> e : raw.entrySet()) {
             PartitionItem converted = convertPartitionItem(e.getValue());
@@ -130,27 +135,23 @@ public final class PluginDrivenMtmvBridge {
     }
 
     public PartitionType getPartitionType(Optional<MvccSnapshot> snapshot) {
-        ConnectorPartitionType t = requireOps().getPartitionType(
-                dbName, tableName, toConnectorSnapshot(snapshot));
+        ConnectorPartitionType t = requireOps().getPartitionType(connectorTableId(), toConnectorSnapshot(snapshot));
         return convertPartitionType(t);
     }
 
     public Set<String> getPartitionColumnNames(Optional<MvccSnapshot> snapshot) {
-        return requireOps().getPartitionColumnNames(
-                dbName, tableName, toConnectorSnapshot(snapshot));
+        return requireOps().getPartitionColumnNames(connectorTableId(), toConnectorSnapshot(snapshot));
     }
 
     public List<Column> getPartitionColumns(Optional<MvccSnapshot> snapshot) {
         return ConnectorColumnConverter.convertColumns(
-                requireOps().getPartitionColumns(
-                        dbName, tableName, toConnectorSnapshot(snapshot)));
+                requireOps().getPartitionColumns(connectorTableId(), toConnectorSnapshot(snapshot)));
     }
 
     public MTMVSnapshotIf getPartitionSnapshot(String partitionName, MTMVRefreshContext context,
             Optional<MvccSnapshot> snapshot) {
         Objects.requireNonNull(partitionName, "partitionName");
-        ConnectorMtmvSnapshot raw = requireOps().getPartitionSnapshot(
-                dbName, tableName, partitionName,
+        ConnectorMtmvSnapshot raw = requireOps().getPartitionSnapshot(connectorTableId(), partitionName,
                 hintFor(context, Optional.of(partitionName)),
                 toConnectorSnapshot(snapshot));
         return convertSnapshot(raw, partitionName);
@@ -161,29 +162,28 @@ public final class PluginDrivenMtmvBridge {
     }
 
     public MTMVSnapshotIf getTableSnapshot(Optional<MvccSnapshot> snapshot) {
-        ConnectorMtmvSnapshot raw = requireOps().getTableSnapshot(
-                dbName, tableName,
+        ConnectorMtmvSnapshot raw = requireOps().getTableSnapshot(connectorTableId(),
                 hintFor(null, Optional.empty()),
                 toConnectorSnapshot(snapshot));
         return convertSnapshot(raw, "");
     }
 
     public long getNewestUpdateVersionOrTime() {
-        return requireOps().getNewestUpdateVersionOrTime(dbName, tableName);
+        return requireOps().getNewestUpdateVersionOrTime(connectorTableId());
     }
 
     public boolean isPartitionColumnAllowNull() {
-        return requireOps().isPartitionColumnAllowNull(dbName, tableName);
+        return requireOps().isPartitionColumnAllowNull(connectorTableId());
     }
 
     public boolean isValidRelatedTable() {
         Optional<MtmvOps> ops = tryOps();
-        return ops.isPresent() && ops.get().isValidRelatedTable(dbName, tableName);
+        return ops.isPresent() && ops.get().isValidRelatedTable(connectorTableId());
     }
 
     public boolean needAutoRefresh() {
         Optional<MtmvOps> ops = tryOps();
-        return ops.isPresent() && ops.get().needAutoRefresh(dbName, tableName);
+        return ops.isPresent() && ops.get().needAutoRefresh(connectorTableId());
     }
 
     // ------------------------------------------------------------- Internals

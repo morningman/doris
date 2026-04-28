@@ -18,6 +18,7 @@
 package org.apache.doris.connector.hive.mtmv;
 
 import org.apache.doris.connector.api.ConnectorColumn;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.mtmv.ConnectorMtmvSnapshot;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionItem;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionType;
@@ -92,7 +93,10 @@ public final class HiveMtmvOps implements MtmvOps {
 
     @Override
     public Map<String, ConnectorPartitionItem> listPartitions(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         HmsTableInfo tableInfo = hmsClient.getTable(database, table);
         List<ConnectorColumn> partKeys = tableInfo.getPartitionKeys();
         if (partKeys == null || partKeys.isEmpty()) {
@@ -118,7 +122,10 @@ public final class HiveMtmvOps implements MtmvOps {
 
     @Override
     public ConnectorPartitionType getPartitionType(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         List<ConnectorColumn> partKeys = hmsClient.getTable(database, table).getPartitionKeys();
         if (partKeys == null || partKeys.isEmpty()) {
             return ConnectorPartitionType.UNPARTITIONED;
@@ -128,7 +135,10 @@ public final class HiveMtmvOps implements MtmvOps {
 
     @Override
     public Set<String> getPartitionColumnNames(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         List<ConnectorColumn> partKeys = hmsClient.getTable(database, table).getPartitionKeys();
         if (partKeys == null || partKeys.isEmpty()) {
             return Collections.emptySet();
@@ -140,7 +150,10 @@ public final class HiveMtmvOps implements MtmvOps {
 
     @Override
     public List<ConnectorColumn> getPartitionColumns(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         List<ConnectorColumn> partKeys = hmsClient.getTable(database, table).getPartitionKeys();
         if (partKeys == null) {
             return Collections.emptyList();
@@ -150,8 +163,11 @@ public final class HiveMtmvOps implements MtmvOps {
 
     @Override
     public ConnectorMtmvSnapshot getPartitionSnapshot(
-            String database, String table, String partitionName,
+            ConnectorTableId id, String partitionName,
             MtmvRefreshHint hint, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Objects.requireNonNull(partitionName, "partitionName");
         HmsTableInfo tableInfo = hmsClient.getTable(database, table);
         List<String> values = parsePartitionValues(partitionName, tableInfo.getPartitionKeys());
@@ -163,26 +179,36 @@ public final class HiveMtmvOps implements MtmvOps {
 
     @Override
     public ConnectorMtmvSnapshot getTableSnapshot(
-            String database, String table,
+            ConnectorTableId id,
             MtmvRefreshHint hint, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         long ddlMillis = readTableLastDdlMillis(database, table);
         return new ConnectorMtmvSnapshot.MaxTimestampMtmvSnapshot(ddlMillis);
     }
 
     @Override
-    public long getNewestUpdateVersionOrTime(String database, String table) {
+    public long getNewestUpdateVersionOrTime(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         return readTableLastDdlMillis(database, table);
     }
 
     @Override
-    public boolean isPartitionColumnAllowNull(String database, String table) {
+    public boolean isPartitionColumnAllowNull(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
         // Hive renders NULL partition values as the sentinel
         // "__HIVE_DEFAULT_PARTITION__"; partition columns always allow NULL.
         return true;
     }
 
     @Override
-    public boolean isValidRelatedTable(String database, String table) {
+    public boolean isValidRelatedTable(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         try {
             HmsTableInfo info = hmsClient.getTable(database, table);
             Map<String, String> params = info.getParameters();
@@ -201,7 +227,8 @@ public final class HiveMtmvOps implements MtmvOps {
     }
 
     @Override
-    public boolean needAutoRefresh(String database, String table) {
+    public boolean needAutoRefresh(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
         // Hive partition mutations are the common case; refresh is always desirable.
         return true;
     }

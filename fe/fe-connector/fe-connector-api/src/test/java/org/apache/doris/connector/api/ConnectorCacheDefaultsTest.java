@@ -39,7 +39,7 @@ public class ConnectorCacheDefaultsTest {
     @Test
     public void invalidateCacheIsNoOp() {
         CONNECTOR.invalidateCache(InvalidateRequest.ofCatalog());
-        CONNECTOR.invalidateCache(InvalidateRequest.ofTable("db", "t"));
+        CONNECTOR.invalidateCache(InvalidateRequest.ofTable(ConnectorTableId.of("db", "t")));
     }
 
     @Test

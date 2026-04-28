@@ -17,6 +17,8 @@
 
 package org.apache.doris.connector.api.cache;
 
+import org.apache.doris.connector.api.ConnectorTableId;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -47,49 +49,49 @@ public class InvalidateRequestTest {
 
     @Test
     public void ofTableRequiresBoth() {
-        InvalidateRequest r = InvalidateRequest.ofTable("db", "t");
+        InvalidateRequest r = InvalidateRequest.ofTable(ConnectorTableId.of("db", "t"));
         Assertions.assertEquals(InvalidateScope.TABLE, r.getScope());
         Assertions.assertEquals("db", r.getDatabase().orElse(null));
         Assertions.assertEquals("t", r.getTable().orElse(null));
         Assertions.assertTrue(r.getPartitionKeys().isEmpty());
-        Assertions.assertThrows(IllegalArgumentException.class, () -> InvalidateRequest.ofTable(null, "t"));
-        Assertions.assertThrows(IllegalArgumentException.class, () -> InvalidateRequest.ofTable("db", null));
-        Assertions.assertThrows(IllegalArgumentException.class, () -> InvalidateRequest.ofTable("db", ""));
+        Assertions.assertThrows(NullPointerException.class, () -> InvalidateRequest.ofTable(null));
+        Assertions.assertThrows(NullPointerException.class, () -> ConnectorTableId.of("db", null));
+
     }
 
     @Test
     public void ofPartitionsCopiesAndIsImmutable() {
         List<String> input = Arrays.asList("p1", "p2");
-        InvalidateRequest r = InvalidateRequest.ofPartitions("db", "t", input);
+        InvalidateRequest r = InvalidateRequest.ofPartitions(ConnectorTableId.of("db", "t"), input);
         Assertions.assertEquals(InvalidateScope.PARTITIONS, r.getScope());
         Assertions.assertEquals(Arrays.asList("p1", "p2"), r.getPartitionKeys());
         Assertions.assertThrows(UnsupportedOperationException.class,
                 () -> r.getPartitionKeys().add("p3"));
         Assertions.assertThrows(IllegalArgumentException.class,
-                () -> InvalidateRequest.ofPartitions("db", "t", null));
+                () -> InvalidateRequest.ofPartitions(ConnectorTableId.of("db", "t"), null));
         Assertions.assertThrows(IllegalArgumentException.class,
-                () -> InvalidateRequest.ofPartitions("db", "t", Collections.singletonList(null)));
+                () -> InvalidateRequest.ofPartitions(ConnectorTableId.of("db", "t"), Collections.singletonList(null)));
     }
 
     @Test
     public void ofSysTableRequiresSysName() {
-        InvalidateRequest r = InvalidateRequest.ofSysTable("db", "t", "snapshots");
+        InvalidateRequest r = InvalidateRequest.ofSysTable(ConnectorTableId.of("db", "t"), "snapshots");
         Assertions.assertEquals(InvalidateScope.SYS_TABLE, r.getScope());
         Assertions.assertEquals("snapshots", r.getSysName().orElse(null));
         Assertions.assertThrows(IllegalArgumentException.class,
-                () -> InvalidateRequest.ofSysTable("db", "t", null));
+                () -> InvalidateRequest.ofSysTable(ConnectorTableId.of("db", "t"), null));
         Assertions.assertThrows(IllegalArgumentException.class,
-                () -> InvalidateRequest.ofSysTable("db", "t", ""));
+                () -> InvalidateRequest.ofSysTable(ConnectorTableId.of("db", "t"), ""));
     }
 
     @Test
     public void equalsAndHashCode() {
-        Assertions.assertEquals(InvalidateRequest.ofTable("db", "t"),
-                InvalidateRequest.ofTable("db", "t"));
-        Assertions.assertEquals(InvalidateRequest.ofTable("db", "t").hashCode(),
-                InvalidateRequest.ofTable("db", "t").hashCode());
-        Assertions.assertNotEquals(InvalidateRequest.ofTable("db", "t"),
-                InvalidateRequest.ofTable("db", "u"));
+        Assertions.assertEquals(InvalidateRequest.ofTable(ConnectorTableId.of("db", "t")),
+                InvalidateRequest.ofTable(ConnectorTableId.of("db", "t")));
+        Assertions.assertEquals(InvalidateRequest.ofTable(ConnectorTableId.of("db", "t")).hashCode(),
+                InvalidateRequest.ofTable(ConnectorTableId.of("db", "t")).hashCode());
+        Assertions.assertNotEquals(InvalidateRequest.ofTable(ConnectorTableId.of("db", "t")),
+                InvalidateRequest.ofTable(ConnectorTableId.of("db", "u")));
         Assertions.assertTrue(InvalidateRequest.ofCatalog().toString().contains("CATALOG"));
     }
 }

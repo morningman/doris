@@ -23,6 +23,7 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorCapability;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.credential.UserContext;
 import org.apache.doris.connector.api.policy.ColumnMaskHint;
 import org.apache.doris.connector.api.policy.ConnectorPolicyContext;
@@ -169,7 +170,7 @@ public class PluginDrivenPolicyBridgeTest {
     @Test
     public void supportsRlsAt_returnsFalse_whenPluginRejects() {
         PolicyOps ops = Mockito.mock(PolicyOps.class);
-        Mockito.when(ops.supportsRlsAt(Mockito.eq(DATABASE), Mockito.eq(TABLE), Mockito.any()))
+        Mockito.when(ops.supportsRlsAt(Mockito.eq(ConnectorTableId.of(DATABASE, TABLE)), Mockito.any()))
                 .thenReturn(false);
         PluginDrivenExternalCatalog cat = buildPluginCatalogWith(
                 EnumSet.of(ConnectorCapability.SUPPORTS_RLS_HINT), Optional.of(ops));
@@ -183,7 +184,7 @@ public class PluginDrivenPolicyBridgeTest {
     @Test
     public void supportsRlsAt_returnsTrue_whenPluginAllows() {
         PolicyOps ops = Mockito.mock(PolicyOps.class);
-        Mockito.when(ops.supportsRlsAt(Mockito.eq(DATABASE), Mockito.eq(TABLE), Mockito.any()))
+        Mockito.when(ops.supportsRlsAt(Mockito.eq(ConnectorTableId.of(DATABASE, TABLE)), Mockito.any()))
                 .thenReturn(true);
         PluginDrivenExternalCatalog cat = buildPluginCatalogWith(
                 EnumSet.of(ConnectorCapability.SUPPORTS_RLS_HINT), Optional.of(ops));
@@ -196,7 +197,7 @@ public class PluginDrivenPolicyBridgeTest {
     @Test
     public void supportsRlsAt_swallowsPluginException() {
         PolicyOps ops = Mockito.mock(PolicyOps.class);
-        Mockito.when(ops.supportsRlsAt(Mockito.anyString(), Mockito.anyString(), Mockito.any()))
+        Mockito.when(ops.supportsRlsAt(Mockito.any(ConnectorTableId.class), Mockito.any()))
                 .thenThrow(new RuntimeException("plugin boom"));
         PluginDrivenExternalCatalog cat = buildPluginCatalogWith(
                 EnumSet.of(ConnectorCapability.SUPPORTS_RLS_HINT), Optional.of(ops));
@@ -223,7 +224,7 @@ public class PluginDrivenPolicyBridgeTest {
     @Test
     public void hintForColumn_returnsEmpty_whenPluginReturnsEmpty() {
         PolicyOps ops = Mockito.mock(PolicyOps.class);
-        Mockito.when(ops.hintForColumn(Mockito.eq(DATABASE), Mockito.eq(TABLE),
+        Mockito.when(ops.hintForColumn(Mockito.eq(ConnectorTableId.of(DATABASE, TABLE)),
                 Mockito.eq(COLUMN), Mockito.any())).thenReturn(Optional.empty());
         PluginDrivenExternalCatalog cat = buildPluginCatalogWith(
                 EnumSet.of(ConnectorCapability.SUPPORTS_MASK_HINT), Optional.of(ops));
@@ -237,7 +238,7 @@ public class PluginDrivenPolicyBridgeTest {
     public void hintForColumn_returnsHint_whenPluginVolunteers() {
         ColumnMaskHint hint = ColumnMaskHint.redact();
         PolicyOps ops = Mockito.mock(PolicyOps.class);
-        Mockito.when(ops.hintForColumn(Mockito.eq(DATABASE), Mockito.eq(TABLE),
+        Mockito.when(ops.hintForColumn(Mockito.eq(ConnectorTableId.of(DATABASE, TABLE)),
                 Mockito.eq(COLUMN), Mockito.any())).thenReturn(Optional.of(hint));
         PluginDrivenExternalCatalog cat = buildPluginCatalogWith(
                 EnumSet.of(ConnectorCapability.SUPPORTS_MASK_HINT), Optional.of(ops));
@@ -252,7 +253,7 @@ public class PluginDrivenPolicyBridgeTest {
     @Test
     public void hintForColumn_swallowsPluginException() {
         PolicyOps ops = Mockito.mock(PolicyOps.class);
-        Mockito.when(ops.hintForColumn(Mockito.anyString(), Mockito.anyString(),
+        Mockito.when(ops.hintForColumn(Mockito.any(ConnectorTableId.class),
                 Mockito.anyString(), Mockito.any()))
                 .thenThrow(new RuntimeException("plugin boom"));
         PluginDrivenExternalCatalog cat = buildPluginCatalogWith(

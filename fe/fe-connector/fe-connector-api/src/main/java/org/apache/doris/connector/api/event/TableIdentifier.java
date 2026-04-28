@@ -17,17 +17,19 @@
 
 package org.apache.doris.connector.api.event;
 
+import org.apache.doris.connector.api.ConnectorTableId;
+
 import java.util.Objects;
 
 /**
  * Lightweight {@code (database, table)} value pair used to scope event
  * filtering on {@link EventFilter}.
  *
- * <p>This is <strong>not</strong> the deferred {@code ConnectorTableId}
- * (the typed identifier coming with the read-path refactor); it is a
- * minimal pair purpose-built for event subscription. Connectors that
- * later adopt {@code ConnectorTableId} should add overloads rather than
- * removing this type.</p>
+ * <p>This is intentionally <strong>not</strong> the typed
+ * {@link ConnectorTableId} used across the rest of the SPI; it is a minimal
+ * pair purpose-built for event subscription and persisted as an event-payload
+ * key. Use {@link #fromConnectorTableId} / {@link #toConnectorTableId} to
+ * convert between the two surfaces.</p>
  */
 public final class TableIdentifier {
     private final String database;
@@ -38,12 +40,23 @@ public final class TableIdentifier {
         this.table = Objects.requireNonNull(table, "table");
     }
 
+    /** Builds an event-payload {@code TableIdentifier} from a typed {@link ConnectorTableId}. */
+    public static TableIdentifier fromConnectorTableId(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
+        return new TableIdentifier(id.database(), id.table());
+    }
+
     public String database() {
         return database;
     }
 
     public String table() {
         return table;
+    }
+
+    /** Returns the typed {@link ConnectorTableId} for this event-payload key. */
+    public ConnectorTableId toConnectorTableId() {
+        return ConnectorTableId.of(database, table);
     }
 
     @Override

@@ -17,6 +17,8 @@
 
 package org.apache.doris.connector.api.action;
 
+import org.apache.doris.connector.api.ConnectorTableId;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +26,7 @@ public class ActionTargetTest {
 
     @Test
     public void ofTableCarriesBothNames() {
-        ActionTarget t = ActionTarget.ofTable("db1", "t1");
+        ActionTarget t = ActionTarget.ofTable(ConnectorTableId.of("db1", "t1"));
         Assertions.assertEquals("db1", t.database());
         Assertions.assertTrue(t.table().isPresent());
         Assertions.assertEquals("t1", t.table().get());
@@ -42,13 +44,13 @@ public class ActionTargetTest {
         Assertions.assertThrows(IllegalArgumentException.class,
                 () -> ActionTarget.ofSchema(""));
         Assertions.assertThrows(IllegalArgumentException.class,
-                () -> ActionTarget.ofTable("  ", "t"));
+                () -> ActionTarget.ofTable(ConnectorTableId.of("  ", "t")));
     }
 
     @Test
     public void blankTableRejected() {
         Assertions.assertThrows(IllegalArgumentException.class,
-                () -> ActionTarget.ofTable("db", " "));
+                () -> ActionTarget.ofTable(ConnectorTableId.of("db", " ")));
     }
 
     @Test
@@ -56,14 +58,14 @@ public class ActionTargetTest {
         Assertions.assertThrows(NullPointerException.class,
                 () -> ActionTarget.ofSchema(null));
         Assertions.assertThrows(NullPointerException.class,
-                () -> ActionTarget.ofTable("db", null));
+                () -> ActionTarget.ofTable(ConnectorTableId.of("db", null)));
     }
 
     @Test
     public void equalityAndHash() {
-        Assertions.assertEquals(ActionTarget.ofTable("d", "t"), ActionTarget.ofTable("d", "t"));
-        Assertions.assertEquals(ActionTarget.ofTable("d", "t").hashCode(),
-                ActionTarget.ofTable("d", "t").hashCode());
-        Assertions.assertNotEquals(ActionTarget.ofTable("d", "t"), ActionTarget.ofSchema("d"));
+        Assertions.assertEquals(ActionTarget.ofTable(ConnectorTableId.of("d", "t")), ActionTarget.ofTable(ConnectorTableId.of("d", "t")));
+        Assertions.assertEquals(ActionTarget.ofTable(ConnectorTableId.of("d", "t")).hashCode(),
+                ActionTarget.ofTable(ConnectorTableId.of("d", "t")).hashCode());
+        Assertions.assertNotEquals(ActionTarget.ofTable(ConnectorTableId.of("d", "t")), ActionTarget.ofSchema("d"));
     }
 }

@@ -25,6 +25,7 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorCapability;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.credential.UserContext;
 import org.apache.doris.connector.api.policy.ColumnMaskHint;
 import org.apache.doris.connector.api.policy.ConnectorPolicyContext;
@@ -93,7 +94,8 @@ public final class PluginDrivenPolicyBridge {
             return Optional.empty();
         }
         try {
-            boolean result = handle.get().ops.supportsRlsAt(table.getDb(), table.getTbl(), ctx);
+            boolean result = handle.get().ops.supportsRlsAt(
+                    ConnectorTableId.of(table.getDb(), table.getTbl()), ctx);
             return Optional.of(result);
         } catch (Exception e) {
             LOG.warn("PolicyOps#supportsRlsAt threw for {}.{}.{}; treating as no-hint",
@@ -118,7 +120,8 @@ public final class PluginDrivenPolicyBridge {
             return Optional.empty();
         }
         try {
-            return handle.get().ops.hintForColumn(table.getDb(), table.getTbl(), column, user);
+            return handle.get().ops.hintForColumn(
+                    ConnectorTableId.of(table.getDb(), table.getTbl()), column, user);
         } catch (Exception e) {
             LOG.warn("PolicyOps#hintForColumn threw for {}.{}.{} column={}; treating as no-hint",
                     table.getCtl(), table.getDb(), table.getTbl(), column, e);

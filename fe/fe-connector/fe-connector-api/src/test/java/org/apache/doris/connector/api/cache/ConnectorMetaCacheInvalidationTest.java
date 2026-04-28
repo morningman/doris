@@ -17,6 +17,8 @@
 
 package org.apache.doris.connector.api.cache;
 
+import org.apache.doris.connector.api.ConnectorTableId;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -27,13 +29,13 @@ public class ConnectorMetaCacheInvalidationTest {
         ConnectorMetaCacheInvalidation a = ConnectorMetaCacheInvalidation.always();
         Assertions.assertTrue(a.appliesTo(InvalidateRequest.ofCatalog()));
         Assertions.assertTrue(a.appliesTo(InvalidateRequest.ofDatabase("db")));
-        Assertions.assertTrue(a.appliesTo(InvalidateRequest.ofTable("db", "t")));
+        Assertions.assertTrue(a.appliesTo(InvalidateRequest.ofTable(ConnectorTableId.of("db", "t"))));
     }
 
     @Test
     public void byScopeOnlyMatchingScope() {
         ConnectorMetaCacheInvalidation s = ConnectorMetaCacheInvalidation.byScope(InvalidateScope.TABLE);
-        Assertions.assertTrue(s.appliesTo(InvalidateRequest.ofTable("db", "t")));
+        Assertions.assertTrue(s.appliesTo(InvalidateRequest.ofTable(ConnectorTableId.of("db", "t"))));
         Assertions.assertFalse(s.appliesTo(InvalidateRequest.ofCatalog()));
         Assertions.assertFalse(s.appliesTo(InvalidateRequest.ofDatabase("db")));
     }

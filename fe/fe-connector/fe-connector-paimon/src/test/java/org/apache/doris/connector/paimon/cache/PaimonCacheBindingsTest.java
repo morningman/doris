@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.paimon.cache;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.cache.CacheLoader;
 import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
 import org.apache.doris.connector.api.cache.InvalidateRequest;
@@ -80,7 +81,7 @@ class PaimonCacheBindingsTest {
                 PaimonCacheBindings.catalogBinding(key -> null);
         Assertions.assertTrue(b.getInvalidationStrategy().appliesTo(InvalidateRequest.ofCatalog()));
         Assertions.assertFalse(b.getInvalidationStrategy().appliesTo(
-                InvalidateRequest.ofTable("db", "t")));
+                InvalidateRequest.ofTable(ConnectorTableId.of("db", "t"))));
         Assertions.assertFalse(b.getInvalidationStrategy().appliesTo(
                 InvalidateRequest.ofDatabase("db")));
     }
@@ -93,11 +94,11 @@ class PaimonCacheBindingsTest {
         Assertions.assertTrue(b.getInvalidationStrategy().appliesTo(
                 InvalidateRequest.ofDatabase("db")));
         Assertions.assertTrue(b.getInvalidationStrategy().appliesTo(
-                InvalidateRequest.ofTable("db", "t")));
+                InvalidateRequest.ofTable(ConnectorTableId.of("db", "t"))));
         Assertions.assertFalse(b.getInvalidationStrategy().appliesTo(
-                InvalidateRequest.ofPartitions("db", "t", Collections.singletonList("p=1"))));
+                InvalidateRequest.ofPartitions(ConnectorTableId.of("db", "t"), Collections.singletonList("p=1"))));
         Assertions.assertFalse(b.getInvalidationStrategy().appliesTo(
-                InvalidateRequest.ofSysTable("db", "t", "snapshots")));
+                InvalidateRequest.ofSysTable(ConnectorTableId.of("db", "t"), "snapshots")));
     }
 
     @Test
@@ -106,9 +107,9 @@ class PaimonCacheBindingsTest {
                 PaimonCacheBindings.snapshotsBinding(key -> Collections.emptyList());
         Assertions.assertTrue(b.getInvalidationStrategy().appliesTo(InvalidateRequest.ofCatalog()));
         Assertions.assertTrue(b.getInvalidationStrategy().appliesTo(
-                InvalidateRequest.ofTable("db", "t")));
+                InvalidateRequest.ofTable(ConnectorTableId.of("db", "t"))));
         Assertions.assertFalse(b.getInvalidationStrategy().appliesTo(
-                InvalidateRequest.ofPartitions("db", "t", Collections.emptyList())));
+                InvalidateRequest.ofPartitions(ConnectorTableId.of("db", "t"), Collections.emptyList())));
     }
 
     @Test

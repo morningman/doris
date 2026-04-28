@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.iceberg;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.timetravel.ConnectorRef;
 import org.apache.doris.connector.api.timetravel.ConnectorRefMutation;
 import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
@@ -131,7 +132,7 @@ class IcebergRefOpsTest {
         RecordingBackend backend = new RecordingBackend(List.of(expected), null);
         IcebergRefOps ops = new IcebergRefOps(backend, newCtx());
 
-        List<ConnectorRef> got = ops.listRefs("db", "t");
+        List<ConnectorRef> got = ops.listRefs(ConnectorTableId.of("db", "t"));
 
         Assertions.assertEquals(List.of(expected), got);
         Assertions.assertEquals("listRefs:db.t", backend.lastCall.get());
@@ -144,8 +145,7 @@ class IcebergRefOpsTest {
         RecordingBackend backend = new RecordingBackend(Collections.emptyList(), snap);
         IcebergRefOps ops = new IcebergRefOps(backend, newCtx());
 
-        ConnectorTableVersion.BySnapshotId out = ops.resolveVersion(
-                "db", "t", new ConnectorTableVersion.ByRef("main", RefKind.BRANCH));
+        ConnectorTableVersion.BySnapshotId out = ops.resolveVersion("db", "t", new ConnectorTableVersion.ByRef("main", RefKind.BRANCH));
 
         Assertions.assertEquals(9001L, out.snapshotId());
         Assertions.assertEquals("resolveVersion:db.t:ByRef", backend.lastCall.get());
@@ -158,9 +158,9 @@ class IcebergRefOpsTest {
         ConnectorRefMutation mut = ConnectorRefMutation.builder()
                 .name("b").kind(RefKind.BRANCH).build();
         Assertions.assertThrows(UnsupportedOperationException.class,
-                () -> ops.createOrReplaceRef("db", "t", mut));
+                () -> ops.createOrReplaceRef(ConnectorTableId.of("db", "t"), mut));
         Assertions.assertThrows(UnsupportedOperationException.class,
-                () -> ops.dropRef("db", "t", "b", RefKind.BRANCH));
+                () -> ops.dropRef(ConnectorTableId.of("db", "t"), "b", RefKind.BRANCH));
     }
 
     @Test
@@ -196,7 +196,7 @@ class IcebergRefOpsTest {
         RecordingBackend backend = new RecordingBackend(List.of(branch, tag), null);
         IcebergRefOps ops = new IcebergRefOps(backend, newCtx());
 
-        Optional<ConnectorRef> got = ops.getRef("db", "t", "main", RefKind.BRANCH);
+        Optional<ConnectorRef> got = ops.getRef(ConnectorTableId.of("db", "t"), "main", RefKind.BRANCH);
         Assertions.assertTrue(got.isPresent());
         Assertions.assertEquals(branch, got.get());
         Assertions.assertEquals("getRef:db.t:main:BRANCH", backend.lastCall.get());
@@ -207,16 +207,16 @@ class IcebergRefOpsTest {
         IcebergRefOps ops = new IcebergRefOps(
                 new RecordingBackend(Collections.emptyList(), null), newCtx());
         Assertions.assertThrows(NullPointerException.class,
-                () -> ops.getRef("db", "t", null, RefKind.BRANCH));
+                () -> ops.getRef(ConnectorTableId.of("db", "t"), null, RefKind.BRANCH));
         Assertions.assertThrows(NullPointerException.class,
-                () -> ops.getRef("db", "t", "main", null));
+                () -> ops.getRef(ConnectorTableId.of("db", "t"), "main", null));
     }
 
     @Test
     void cherrypickSnapshotDelegatesToBackend() {
         RecordingBackend backend = new RecordingBackend(Collections.emptyList(), null);
         IcebergRefOps ops = new IcebergRefOps(backend, newCtx());
-        ops.cherrypickSnapshot("db", "t", 99L);
+        ops.cherrypickSnapshot(ConnectorTableId.of("db", "t"), 99L);
         Assertions.assertEquals("cherrypickSnapshot:db.t:99", backend.lastCall.get());
     }
 
@@ -224,7 +224,7 @@ class IcebergRefOpsTest {
     void replaceBranchDelegatesToBackend() {
         RecordingBackend backend = new RecordingBackend(Collections.emptyList(), null);
         IcebergRefOps ops = new IcebergRefOps(backend, newCtx());
-        ops.replaceBranch("db", "t", "main", 42L);
+        ops.replaceBranch(ConnectorTableId.of("db", "t"), "main", 42L);
         Assertions.assertEquals("replaceBranch:db.t:main:42", backend.lastCall.get());
     }
 
@@ -233,7 +233,7 @@ class IcebergRefOpsTest {
         IcebergRefOps ops = new IcebergRefOps(
                 new RecordingBackend(Collections.emptyList(), null), newCtx());
         Assertions.assertThrows(NullPointerException.class,
-                () -> ops.replaceBranch("db", "t", null, 1L));
+                () -> ops.replaceBranch(ConnectorTableId.of("db", "t"), null, 1L));
     }
 
     // ---- Real-iceberg-table behaviour over InMemoryCatalog ----
@@ -287,7 +287,7 @@ class IcebergRefOpsTest {
             long s1 = appendDataFile(table, "a");
 
             IcebergRefOps ops = new IcebergRefOps(new CatalogBackedBackend(cat), newCtx());
-            Optional<ConnectorRef> got = ops.getRef("db", "t", "main", RefKind.BRANCH);
+            Optional<ConnectorRef> got = ops.getRef(ConnectorTableId.of("db", "t"), "main", RefKind.BRANCH);
 
             Assertions.assertTrue(got.isPresent());
             Assertions.assertEquals(RefKind.BRANCH, got.get().kind());
@@ -305,7 +305,7 @@ class IcebergRefOpsTest {
             table.refresh();
 
             IcebergRefOps ops = new IcebergRefOps(new CatalogBackedBackend(cat), newCtx());
-            Optional<ConnectorRef> got = ops.getRef("db", "t", "v1", RefKind.TAG);
+            Optional<ConnectorRef> got = ops.getRef(ConnectorTableId.of("db", "t"), "v1", RefKind.TAG);
 
             Assertions.assertTrue(got.isPresent());
             Assertions.assertEquals(RefKind.TAG, got.get().kind());
@@ -321,7 +321,7 @@ class IcebergRefOpsTest {
 
             IcebergRefOps ops = new IcebergRefOps(new CatalogBackedBackend(cat), newCtx());
             Assertions.assertTrue(
-                    ops.getRef("db", "t", "nope", RefKind.BRANCH).isEmpty());
+                    ops.getRef(ConnectorTableId.of("db", "t"), "nope", RefKind.BRANCH).isEmpty());
         }
     }
 
@@ -336,10 +336,10 @@ class IcebergRefOpsTest {
             IcebergRefOps ops = new IcebergRefOps(new CatalogBackedBackend(cat), newCtx());
             // 'v1' is a TAG; asking for BRANCH must come back empty.
             Assertions.assertTrue(
-                    ops.getRef("db", "t", "v1", RefKind.BRANCH).isEmpty());
+                    ops.getRef(ConnectorTableId.of("db", "t"), "v1", RefKind.BRANCH).isEmpty());
             // 'main' is a BRANCH; asking for TAG must come back empty.
             Assertions.assertTrue(
-                    ops.getRef("db", "t", "main", RefKind.TAG).isEmpty());
+                    ops.getRef(ConnectorTableId.of("db", "t"), "main", RefKind.TAG).isEmpty());
         }
     }
 
@@ -370,7 +370,7 @@ class IcebergRefOpsTest {
             Assertions.assertNotEquals(-1L, stagedId, "expected a staged snapshot to cherrypick");
 
             IcebergRefOps ops = new IcebergRefOps(new CatalogBackedBackend(cat), newCtx());
-            ops.cherrypickSnapshot("db", "t", stagedId);
+            ops.cherrypickSnapshot(ConnectorTableId.of("db", "t"), stagedId);
 
             Table reloaded = cat.loadTable(TableIdentifier.of("db", "t"));
             Assertions.assertNotEquals(s1, reloaded.currentSnapshot().snapshotId(),
@@ -386,7 +386,7 @@ class IcebergRefOpsTest {
 
             IcebergRefOps ops = new IcebergRefOps(new CatalogBackedBackend(cat), newCtx());
             Assertions.assertThrows(RuntimeException.class,
-                    () -> ops.cherrypickSnapshot("db", "t", 999_999L));
+                    () -> ops.cherrypickSnapshot(ConnectorTableId.of("db", "t"), 999_999L));
         }
     }
 
@@ -399,7 +399,7 @@ class IcebergRefOpsTest {
             Assertions.assertEquals(s2, table.currentSnapshot().snapshotId());
 
             IcebergRefOps ops = new IcebergRefOps(new CatalogBackedBackend(cat), newCtx());
-            ops.replaceBranch("db", "t", "main", s1);
+            ops.replaceBranch(ConnectorTableId.of("db", "t"), "main", s1);
 
             Table reloaded = cat.loadTable(TableIdentifier.of("db", "t"));
             Assertions.assertEquals(s1, reloaded.refs().get("main").snapshotId(),

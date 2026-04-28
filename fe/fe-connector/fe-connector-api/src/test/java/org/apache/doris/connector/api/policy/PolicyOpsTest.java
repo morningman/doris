@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.api.policy;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.credential.UserContext;
 
 import org.junit.jupiter.api.Assertions;
@@ -33,13 +34,13 @@ public class PolicyOpsTest {
         PolicyOps ops = new PolicyOps() {
             @Override
             public Optional<ColumnMaskHint> hintForColumn(
-                    String database, String table, String column, UserContext user) {
+                    ConnectorTableId id, String column, UserContext user) {
                 return Optional.empty();
             }
         };
         ConnectorPolicyContext ctx = new ConnectorPolicyContext(
                 "hive_cat", "db", "t", "alice", Optional.empty());
-        Assertions.assertTrue(ops.supportsRlsAt("db", "t", ctx));
+        Assertions.assertTrue(ops.supportsRlsAt(ConnectorTableId.of("db", "t"), ctx));
     }
 
     @Test
@@ -47,7 +48,7 @@ public class PolicyOpsTest {
         PolicyOps ops = new PolicyOps() {
             @Override
             public Optional<ColumnMaskHint> hintForColumn(
-                    String database, String table, String column, UserContext user) {
+                    ConnectorTableId id, String column, UserContext user) {
                 if ("ssn".equals(column)) {
                     return Optional.of(ColumnMaskHint.redact());
                 }
@@ -56,8 +57,8 @@ public class PolicyOpsTest {
         };
         UserContext u = UserContext.builder().username("u").build();
         Assertions.assertEquals(ColumnMaskHint.MaskKind.REDACT,
-                ops.hintForColumn("d", "t", "ssn", u).orElseThrow().maskKind());
-        Assertions.assertTrue(ops.hintForColumn("d", "t", "name", u).isEmpty());
+                ops.hintForColumn(ConnectorTableId.of("d", "t"), "ssn", u).orElseThrow().maskKind());
+        Assertions.assertTrue(ops.hintForColumn(ConnectorTableId.of("d", "t"), "name", u).isEmpty());
     }
 
     @Test
@@ -65,7 +66,7 @@ public class PolicyOpsTest {
         PolicyOps ops = new PolicyOps() {
             @Override
             public Optional<ColumnMaskHint> hintForColumn(
-                    String database, String table, String column, UserContext user) {
+                    ConnectorTableId id, String column, UserContext user) {
                 return Optional.empty();
             }
         };
@@ -80,7 +81,7 @@ public class PolicyOpsTest {
         PolicyOps ops = new PolicyOps() {
             @Override
             public Optional<ColumnMaskHint> hintForColumn(
-                    String database, String table, String column, UserContext user) {
+                    ConnectorTableId id, String column, UserContext user) {
                 return Optional.empty();
             }
 

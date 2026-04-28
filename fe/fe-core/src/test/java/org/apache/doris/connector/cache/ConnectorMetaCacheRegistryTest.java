@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.cache;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.cache.CacheLoader;
 import org.apache.doris.connector.api.cache.ConnectorCacheSpec;
 import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
@@ -124,7 +125,7 @@ public class ConnectorMetaCacheRegistryTest {
         MetaCacheHandle<String, String> h = reg.getOrCreateCache(always);
         h.put("k", "v1");
 
-        reg.invalidate(InvalidateRequest.ofTable("db1", "t1"));
+        reg.invalidate(InvalidateRequest.ofTable(ConnectorTableId.of("db1", "t1")));
         Assertions.assertFalse(h.getIfPresent("k").isPresent());
     }
 

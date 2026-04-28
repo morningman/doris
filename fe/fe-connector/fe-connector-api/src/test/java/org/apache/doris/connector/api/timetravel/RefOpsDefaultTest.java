@@ -17,6 +17,8 @@
 
 package org.apache.doris.connector.api.timetravel;
 
+import org.apache.doris.connector.api.ConnectorTableId;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -51,17 +53,17 @@ class RefOpsDefaultTest {
         }
 
         @Override
-        public List<ConnectorRef> listRefs(String database, String table) {
+        public List<ConnectorRef> listRefs(ConnectorTableId id) {
             return refs;
         }
 
         @Override
-        public void createOrReplaceRef(String database, String table, ConnectorRefMutation mutation) {
+        public void createOrReplaceRef(ConnectorTableId id, ConnectorRefMutation mutation) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public void dropRef(String database, String table, String name, RefKind kind) {
+        public void dropRef(ConnectorTableId id, String name, RefKind kind) {
             throw new UnsupportedOperationException();
         }
     }
@@ -69,7 +71,7 @@ class RefOpsDefaultTest {
     @Test
     void getRefDefaultFindsMatchingRef() {
         RefOps ops = new StubOps(List.of(MAIN, DEV, V1));
-        Optional<ConnectorRef> got = ops.getRef("db", "t", "dev", RefKind.BRANCH);
+        Optional<ConnectorRef> got = ops.getRef(ConnectorTableId.of("db", "t"), "dev", RefKind.BRANCH);
         Assertions.assertTrue(got.isPresent());
         Assertions.assertEquals(DEV, got.get());
     }
@@ -77,7 +79,7 @@ class RefOpsDefaultTest {
     @Test
     void getRefDefaultEmptyWhenNameMissing() {
         RefOps ops = new StubOps(List.of(MAIN, DEV, V1));
-        Optional<ConnectorRef> got = ops.getRef("db", "t", "nope", RefKind.BRANCH);
+        Optional<ConnectorRef> got = ops.getRef(ConnectorTableId.of("db", "t"), "nope", RefKind.BRANCH);
         Assertions.assertTrue(got.isEmpty());
     }
 
@@ -86,7 +88,7 @@ class RefOpsDefaultTest {
         RefOps ops = new StubOps(List.of(MAIN, DEV, V1));
         // 'main' exists as a BRANCH; asking as TAG must return empty rather
         // than the branch entry.
-        Optional<ConnectorRef> got = ops.getRef("db", "t", "main", RefKind.TAG);
+        Optional<ConnectorRef> got = ops.getRef(ConnectorTableId.of("db", "t"), "main", RefKind.TAG);
         Assertions.assertTrue(got.isEmpty());
     }
 
@@ -94,9 +96,9 @@ class RefOpsDefaultTest {
     void getRefDefaultRejectsNullArgs() {
         RefOps ops = new StubOps(List.of(MAIN));
         Assertions.assertThrows(NullPointerException.class,
-                () -> ops.getRef("db", "t", null, RefKind.BRANCH));
+                () -> ops.getRef(ConnectorTableId.of("db", "t"), null, RefKind.BRANCH));
         Assertions.assertThrows(NullPointerException.class,
-                () -> ops.getRef("db", "t", "main", null));
+                () -> ops.getRef(ConnectorTableId.of("db", "t"), "main", null));
     }
 
     @Test
@@ -104,7 +106,7 @@ class RefOpsDefaultTest {
         RefOps ops = new StubOps(List.of());
         UnsupportedOperationException ex = Assertions.assertThrows(
                 UnsupportedOperationException.class,
-                () -> ops.cherrypickSnapshot("db", "t", 42L));
+                () -> ops.cherrypickSnapshot(ConnectorTableId.of("db", "t"), 42L));
         Assertions.assertTrue(ex.getMessage().contains("cherrypickSnapshot"));
     }
 
@@ -113,7 +115,7 @@ class RefOpsDefaultTest {
         RefOps ops = new StubOps(List.of());
         UnsupportedOperationException ex = Assertions.assertThrows(
                 UnsupportedOperationException.class,
-                () -> ops.replaceBranch("db", "t", "main", 42L));
+                () -> ops.replaceBranch(ConnectorTableId.of("db", "t"), "main", 42L));
         Assertions.assertTrue(ex.getMessage().contains("replaceBranch"));
     }
 }

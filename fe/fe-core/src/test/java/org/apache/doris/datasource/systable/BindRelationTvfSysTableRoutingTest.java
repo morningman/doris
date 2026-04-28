@@ -21,6 +21,7 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.systable.SysTableExecutionMode;
@@ -171,11 +172,9 @@ public class BindRelationTvfSysTableRoutingTest {
         // SysTableResolver.lookupPluginSpec passes (db.remoteName, parsed table from
         // the "tbl$suffix" string, suffix). The parsed table is always the engine-side
         // table identifier ("tbl"), not the plugin's remote table name.
-        Mockito.when(metadata.getSysTable(Mockito.anyString(), Mockito.eq("tbl"),
-                        Mockito.eq(spec.name())))
+        Mockito.when(metadata.getSysTable(Mockito.any(ConnectorTableId.class), Mockito.eq(spec.name())))
                 .thenReturn(Optional.of(spec));
-        Mockito.when(metadata.getSysTable(Mockito.anyString(), Mockito.eq("tbl"),
-                        Mockito.argThat(arg -> arg != null && !arg.equals(spec.name()))))
+        Mockito.when(metadata.getSysTable(Mockito.any(ConnectorTableId.class), Mockito.argThat(arg -> arg != null && !arg.equals(spec.name()))))
                 .thenReturn(Optional.empty());
 
         PluginDrivenExternalCatalog catalog = new TestablePluginCatalog(connector);

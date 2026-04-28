@@ -17,6 +17,8 @@
 
 package org.apache.doris.connector.api.action;
 
+import org.apache.doris.connector.api.ConnectorTableId;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +32,7 @@ public class ActionInvocationTest {
         ActionInvocation inv = ActionInvocation.builder()
                 .name("rewrite_data_files")
                 .scope(ConnectorActionOps.Scope.TABLE)
-                .target(ActionTarget.ofTable("db", "t"))
+                .target(ActionTarget.ofTable(ConnectorTableId.of("db", "t")))
                 .putArgument("target_file_size_bytes", 134217728L)
                 .invocationId("inv-1")
                 .build();

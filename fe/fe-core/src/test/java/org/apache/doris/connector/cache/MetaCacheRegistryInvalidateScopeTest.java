@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.cache;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
 import org.apache.doris.connector.api.cache.ConnectorMetaCacheInvalidation;
 import org.apache.doris.connector.api.cache.InvalidateRequest;
@@ -86,20 +87,20 @@ public class MetaCacheRegistryInvalidateScopeTest {
 
     @Test
     public void tableScopeAppliesToAlwaysButNotNever() {
-        assertScopeBehaviour(InvalidateRequest.ofTable("db1", "t1"), InvalidateScope.TABLE);
+        assertScopeBehaviour(InvalidateRequest.ofTable(ConnectorTableId.of("db1", "t1")), InvalidateScope.TABLE);
     }
 
     @Test
     public void partitionsScopeAppliesToAlwaysButNotNever() {
         assertScopeBehaviour(
-                InvalidateRequest.ofPartitions("db1", "t1", java.util.List.of("p=1")),
+                InvalidateRequest.ofPartitions(ConnectorTableId.of("db1", "t1"), java.util.List.of("p=1")),
                 InvalidateScope.PARTITIONS);
     }
 
     @Test
     public void sysTableScopeAppliesToAlwaysButNotNever() {
         assertScopeBehaviour(
-                InvalidateRequest.ofSysTable("db1", "t1", "$snapshots"),
+                InvalidateRequest.ofSysTable(ConnectorTableId.of("db1", "t1"), "$snapshots"),
                 InvalidateScope.SYS_TABLE);
     }
 
@@ -118,11 +119,11 @@ public class MetaCacheRegistryInvalidateScopeTest {
         Assertions.assertTrue(h.getIfPresent("k").isPresent());
 
         // partitions-scope: should NOT clear (different scope)
-        r.invalidate(InvalidateRequest.ofPartitions("db1", "t1", java.util.List.of()));
+        r.invalidate(InvalidateRequest.ofPartitions(ConnectorTableId.of("db1", "t1"), java.util.List.of()));
         Assertions.assertTrue(h.getIfPresent("k").isPresent());
 
         // table-scope: SHOULD clear
-        r.invalidate(InvalidateRequest.ofTable("db1", "t1"));
+        r.invalidate(InvalidateRequest.ofTable(ConnectorTableId.of("db1", "t1")));
         Assertions.assertFalse(h.getIfPresent("k").isPresent());
     }
 

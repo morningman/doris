@@ -18,6 +18,7 @@
 package org.apache.doris.connector.api.mtmv;
 
 import org.apache.doris.connector.api.ConnectorColumn;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.timetravel.ConnectorMvccSnapshot;
 
 import java.util.List;
@@ -38,8 +39,7 @@ import java.util.Set;
  * distinct from the refresh-time {@link ConnectorMtmvSnapshot}: the former
  * pins reads, the latter records freshness for change detection.</p>
  *
- * <p>Identity is carried as {@code (database, table)} string pair —
- * {@code ConnectorTableId} has not yet been introduced (deferred per M0-15).</p>
+ * <p>Table identity is carried as a typed {@link ConnectorTableId}.</p>
  */
 public interface MtmvOps {
 
@@ -49,38 +49,38 @@ public interface MtmvOps {
      * entry for unpartitioned tables.
      */
     Map<String, ConnectorPartitionItem> listPartitions(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot);
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot);
 
     /** Returns the partition layout kind. */
     ConnectorPartitionType getPartitionType(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot);
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot);
 
     /** Returns the names of the partitioning columns. Empty when unpartitioned. */
     Set<String> getPartitionColumnNames(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot);
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot);
 
     /** Returns the partitioning columns with full type metadata. */
     List<ConnectorColumn> getPartitionColumns(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot);
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot);
 
     /** Returns the snapshot marker for a single partition at refresh time. */
     ConnectorMtmvSnapshot getPartitionSnapshot(
-            String database, String table, String partitionName,
+            ConnectorTableId id, String partitionName,
             MtmvRefreshHint hint, Optional<ConnectorMvccSnapshot> snapshot);
 
     /** Returns the table-level snapshot marker (used for unpartitioned tables). */
     ConnectorMtmvSnapshot getTableSnapshot(
-            String database, String table,
+            ConnectorTableId id,
             MtmvRefreshHint hint, Optional<ConnectorMvccSnapshot> snapshot);
 
     /**
      * Returns the newest plugin-side update version-or-time of the table, used
      * by the MTMV scheduler to fast-path "no change" decisions.
      */
-    long getNewestUpdateVersionOrTime(String database, String table);
+    long getNewestUpdateVersionOrTime(ConnectorTableId id);
 
     /** Whether the partitioning columns admit NULL values. */
-    boolean isPartitionColumnAllowNull(String database, String table);
+    boolean isPartitionColumnAllowNull(ConnectorTableId id);
 
     /**
      * Whether the table is currently a valid MV base table. Connectors should
@@ -88,13 +88,13 @@ public interface MtmvOps {
      * engine cannot reason about (e.g. Iceberg partition evolution), forcing
      * the planner to disable the materialization.
      */
-    boolean isValidRelatedTable(String database, String table);
+    boolean isValidRelatedTable(ConnectorTableId id);
 
     /**
      * Whether the engine should auto-trigger refresh on detected upstream
      * changes for this table. Defaults to {@code true}.
      */
-    default boolean needAutoRefresh(String database, String table) {
+    default boolean needAutoRefresh(ConnectorTableId id) {
         return true;
     }
 }

@@ -18,6 +18,7 @@
 package org.apache.doris.connector.hive.mtmv;
 
 import org.apache.doris.connector.api.ConnectorColumn;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.mtmv.ConnectorMtmvSnapshot;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionItem;
@@ -86,7 +87,7 @@ class HiveMtmvOpsTest {
         Mockito.when(client.getTable(DB, TBL)).thenReturn(unpartitionedTable());
 
         Map<String, ConnectorPartitionItem> result =
-                new HiveMtmvOps(client).listPartitions(DB, TBL, Optional.empty());
+                new HiveMtmvOps(client).listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(1, result.size());
         Assertions.assertTrue(result.values().iterator().next() instanceof ConnectorPartitionItem.UnpartitionedItem);
@@ -105,7 +106,7 @@ class HiveMtmvOpsTest {
                         part(Collections.singletonList("2024-01-02"), Collections.emptyMap(), 200)));
 
         Map<String, ConnectorPartitionItem> result =
-                new HiveMtmvOps(client).listPartitions(DB, TBL, Optional.empty());
+                new HiveMtmvOps(client).listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(2, result.size());
         ConnectorPartitionItem item = result.get("dt=2024-01-01");
@@ -126,7 +127,7 @@ class HiveMtmvOpsTest {
                         part(Arrays.asList("2024-01-01", "us"), Collections.emptyMap(), 0)));
 
         Map<String, ConnectorPartitionItem> result =
-                new HiveMtmvOps(client).listPartitions(DB, TBL, Optional.empty());
+                new HiveMtmvOps(client).listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         ConnectorPartitionItem.ListPartitionItem lp =
                 (ConnectorPartitionItem.ListPartitionItem) result.get("dt=2024-01-01/region=us");
@@ -144,7 +145,7 @@ class HiveMtmvOpsTest {
                         part(Collections.singletonList("2024-01-01"), Collections.emptyMap(), 0)));
 
         for (ConnectorPartitionItem item : new HiveMtmvOps(client)
-                .listPartitions(DB, TBL, Optional.empty()).values()) {
+                .listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty()).values()) {
             Assertions.assertFalse(item instanceof ConnectorPartitionItem.RangePartitionItem,
                     "Hive must never emit RangePartitionItem");
         }
@@ -158,7 +159,7 @@ class HiveMtmvOpsTest {
                 .thenReturn(Collections.emptyList());
 
         Map<String, ConnectorPartitionItem> result =
-                new HiveMtmvOps(client).listPartitions(DB, TBL, Optional.empty());
+                new HiveMtmvOps(client).listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertTrue(result.isEmpty());
     }
@@ -170,7 +171,7 @@ class HiveMtmvOpsTest {
         HmsClient client = Mockito.mock(HmsClient.class);
         Mockito.when(client.getTable(DB, TBL)).thenReturn(unpartitionedTable());
         Assertions.assertEquals(ConnectorPartitionType.UNPARTITIONED,
-                new HiveMtmvOps(client).getPartitionType(DB, TBL, Optional.empty()));
+                new HiveMtmvOps(client).getPartitionType(ConnectorTableId.of(DB, TBL), Optional.empty()));
     }
 
     @Test
@@ -178,7 +179,7 @@ class HiveMtmvOpsTest {
         HmsClient client = Mockito.mock(HmsClient.class);
         Mockito.when(client.getTable(DB, TBL)).thenReturn(singleColPartTable(Collections.emptyMap()));
         Assertions.assertEquals(ConnectorPartitionType.LIST,
-                new HiveMtmvOps(client).getPartitionType(DB, TBL, Optional.empty()));
+                new HiveMtmvOps(client).getPartitionType(ConnectorTableId.of(DB, TBL), Optional.empty()));
     }
 
     @Test
@@ -186,7 +187,7 @@ class HiveMtmvOpsTest {
         HmsClient client = Mockito.mock(HmsClient.class);
         Mockito.when(client.getTable(DB, TBL)).thenReturn(multiColPartTable());
         Assertions.assertEquals(ConnectorPartitionType.LIST,
-                new HiveMtmvOps(client).getPartitionType(DB, TBL, Optional.empty()));
+                new HiveMtmvOps(client).getPartitionType(ConnectorTableId.of(DB, TBL), Optional.empty()));
     }
 
     // ---------------------------------------------- partition columns / names
@@ -198,7 +199,7 @@ class HiveMtmvOpsTest {
                 .dbName(DB).tableName(TBL).tableType("MANAGED_TABLE")
                 .partitionKeys(Arrays.asList(col("DT", "string"), col("Region", "string")))
                 .build());
-        Set<String> names = new HiveMtmvOps(client).getPartitionColumnNames(DB, TBL, Optional.empty());
+        Set<String> names = new HiveMtmvOps(client).getPartitionColumnNames(ConnectorTableId.of(DB, TBL), Optional.empty());
         Assertions.assertEquals(2, names.size());
         Assertions.assertTrue(names.contains("dt"));
         Assertions.assertTrue(names.contains("region"));
@@ -209,7 +210,7 @@ class HiveMtmvOpsTest {
         HmsClient client = Mockito.mock(HmsClient.class);
         Mockito.when(client.getTable(DB, TBL)).thenReturn(unpartitionedTable());
         Assertions.assertTrue(new HiveMtmvOps(client)
-                .getPartitionColumnNames(DB, TBL, Optional.empty()).isEmpty());
+                .getPartitionColumnNames(ConnectorTableId.of(DB, TBL), Optional.empty()).isEmpty());
     }
 
     @Test
@@ -217,7 +218,7 @@ class HiveMtmvOpsTest {
         HmsClient client = Mockito.mock(HmsClient.class);
         Mockito.when(client.getTable(DB, TBL)).thenReturn(multiColPartTable());
         List<ConnectorColumn> cols = new HiveMtmvOps(client)
-                .getPartitionColumns(DB, TBL, Optional.empty());
+                .getPartitionColumns(ConnectorTableId.of(DB, TBL), Optional.empty());
         Assertions.assertEquals(2, cols.size());
         Assertions.assertEquals("dt", cols.get(0).getName());
         Assertions.assertEquals("string", cols.get(0).getType().getTypeName());
@@ -229,7 +230,7 @@ class HiveMtmvOpsTest {
         HmsClient client = Mockito.mock(HmsClient.class);
         Mockito.when(client.getTable(DB, TBL)).thenReturn(unpartitionedTable());
         Assertions.assertTrue(new HiveMtmvOps(client)
-                .getPartitionColumns(DB, TBL, Optional.empty()).isEmpty());
+                .getPartitionColumns(ConnectorTableId.of(DB, TBL), Optional.empty()).isEmpty());
     }
 
     // ----------------------------------------------------- partition snapshot
@@ -243,8 +244,7 @@ class HiveMtmvOpsTest {
         Mockito.when(client.getPartition(DB, TBL, Collections.singletonList("2024-01-01")))
                 .thenReturn(part(Collections.singletonList("2024-01-01"), params, 1234));
 
-        ConnectorMtmvSnapshot snap = new HiveMtmvOps(client).getPartitionSnapshot(
-                DB, TBL, "dt=2024-01-01",
+        ConnectorMtmvSnapshot snap = new HiveMtmvOps(client).getPartitionSnapshot(ConnectorTableId.of(DB, TBL), "dt=2024-01-01",
                 MtmvRefreshHint.of(MtmvRefreshHint.RefreshMode.INCREMENTAL_AUTO),
                 Optional.empty());
 
@@ -259,8 +259,7 @@ class HiveMtmvOpsTest {
         Mockito.when(client.getPartition(DB, TBL, Collections.singletonList("2024-01-01")))
                 .thenReturn(part(Collections.singletonList("2024-01-01"), Collections.emptyMap(), 555));
 
-        ConnectorMtmvSnapshot snap = new HiveMtmvOps(client).getPartitionSnapshot(
-                DB, TBL, "dt=2024-01-01",
+        ConnectorMtmvSnapshot snap = new HiveMtmvOps(client).getPartitionSnapshot(ConnectorTableId.of(DB, TBL), "dt=2024-01-01",
                 MtmvRefreshHint.of(MtmvRefreshHint.RefreshMode.INCREMENTAL_AUTO),
                 Optional.empty());
 
@@ -276,8 +275,7 @@ class HiveMtmvOpsTest {
         Mockito.when(client.getPartition(DB, TBL, Arrays.asList("2024-01-01", "us")))
                 .thenReturn(part(Arrays.asList("2024-01-01", "us"), params, 0));
 
-        ConnectorMtmvSnapshot snap = new HiveMtmvOps(client).getPartitionSnapshot(
-                DB, TBL, "dt=2024-01-01/region=us",
+        ConnectorMtmvSnapshot snap = new HiveMtmvOps(client).getPartitionSnapshot(ConnectorTableId.of(DB, TBL), "dt=2024-01-01/region=us",
                 MtmvRefreshHint.of(MtmvRefreshHint.RefreshMode.INCREMENTAL_AUTO),
                 Optional.empty());
 
@@ -294,8 +292,7 @@ class HiveMtmvOpsTest {
         params.put("transient_lastDdlTime", "1700000050");
         Mockito.when(client.getTable(DB, TBL)).thenReturn(singleColPartTable(params));
 
-        ConnectorMtmvSnapshot snap = new HiveMtmvOps(client).getTableSnapshot(
-                DB, TBL, MtmvRefreshHint.of(MtmvRefreshHint.RefreshMode.INCREMENTAL_AUTO),
+        ConnectorMtmvSnapshot snap = new HiveMtmvOps(client).getTableSnapshot(ConnectorTableId.of(DB, TBL), MtmvRefreshHint.of(MtmvRefreshHint.RefreshMode.INCREMENTAL_AUTO),
                 Optional.empty());
 
         Assertions.assertTrue(snap instanceof ConnectorMtmvSnapshot.MaxTimestampMtmvSnapshot);
@@ -306,8 +303,7 @@ class HiveMtmvOpsTest {
     void getTableSnapshotMissingParameterReturnsZero() {
         HmsClient client = Mockito.mock(HmsClient.class);
         Mockito.when(client.getTable(DB, TBL)).thenReturn(unpartitionedTable());
-        ConnectorMtmvSnapshot snap = new HiveMtmvOps(client).getTableSnapshot(
-                DB, TBL, MtmvRefreshHint.of(MtmvRefreshHint.RefreshMode.INCREMENTAL_AUTO),
+        ConnectorMtmvSnapshot snap = new HiveMtmvOps(client).getTableSnapshot(ConnectorTableId.of(DB, TBL), MtmvRefreshHint.of(MtmvRefreshHint.RefreshMode.INCREMENTAL_AUTO),
                 Optional.empty());
         Assertions.assertEquals(0L, snap.marker());
     }
@@ -319,7 +315,7 @@ class HiveMtmvOpsTest {
         params.put("transient_lastDdlTime", "42");
         Mockito.when(client.getTable(DB, TBL)).thenReturn(singleColPartTable(params));
 
-        long v = new HiveMtmvOps(client).getNewestUpdateVersionOrTime(DB, TBL);
+        long v = new HiveMtmvOps(client).getNewestUpdateVersionOrTime(ConnectorTableId.of(DB, TBL));
         Assertions.assertEquals(42L * 1000L, v);
     }
 
@@ -330,7 +326,7 @@ class HiveMtmvOpsTest {
         params.put("transient_lastDdlTime", "not-a-number");
         Mockito.when(client.getTable(DB, TBL)).thenReturn(singleColPartTable(params));
 
-        Assertions.assertEquals(0L, new HiveMtmvOps(client).getNewestUpdateVersionOrTime(DB, TBL));
+        Assertions.assertEquals(0L, new HiveMtmvOps(client).getNewestUpdateVersionOrTime(ConnectorTableId.of(DB, TBL)));
     }
 
     // ------------------------------------------------------------- predicates
@@ -338,7 +334,7 @@ class HiveMtmvOpsTest {
     @Test
     void isPartitionColumnAllowNullAlwaysTrue() {
         HmsClient client = Mockito.mock(HmsClient.class);
-        Assertions.assertTrue(new HiveMtmvOps(client).isPartitionColumnAllowNull(DB, TBL));
+        Assertions.assertTrue(new HiveMtmvOps(client).isPartitionColumnAllowNull(ConnectorTableId.of(DB, TBL)));
         Mockito.verifyNoInteractions(client);
     }
 
@@ -346,7 +342,7 @@ class HiveMtmvOpsTest {
     void isValidRelatedTableTrueForRegularTable() {
         HmsClient client = Mockito.mock(HmsClient.class);
         Mockito.when(client.getTable(DB, TBL)).thenReturn(singleColPartTable(Collections.emptyMap()));
-        Assertions.assertTrue(new HiveMtmvOps(client).isValidRelatedTable(DB, TBL));
+        Assertions.assertTrue(new HiveMtmvOps(client).isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -355,7 +351,7 @@ class HiveMtmvOpsTest {
         Map<String, String> params = new HashMap<>();
         params.put("transactional", "true");
         Mockito.when(client.getTable(DB, TBL)).thenReturn(singleColPartTable(params));
-        Assertions.assertFalse(new HiveMtmvOps(client).isValidRelatedTable(DB, TBL));
+        Assertions.assertFalse(new HiveMtmvOps(client).isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -364,7 +360,7 @@ class HiveMtmvOpsTest {
         Map<String, String> params = new HashMap<>();
         params.put("transactional", "TRUE");
         Mockito.when(client.getTable(DB, TBL)).thenReturn(singleColPartTable(params));
-        Assertions.assertFalse(new HiveMtmvOps(client).isValidRelatedTable(DB, TBL));
+        Assertions.assertFalse(new HiveMtmvOps(client).isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -372,13 +368,13 @@ class HiveMtmvOpsTest {
         HmsClient client = Mockito.mock(HmsClient.class);
         Mockito.when(client.getTable(DB, TBL)).thenThrow(new HmsClientException("boom"));
         // Must not throw — bridge contract.
-        Assertions.assertFalse(new HiveMtmvOps(client).isValidRelatedTable(DB, TBL));
+        Assertions.assertFalse(new HiveMtmvOps(client).isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
     void needAutoRefreshAlwaysTrue() {
         HmsClient client = Mockito.mock(HmsClient.class);
-        Assertions.assertTrue(new HiveMtmvOps(client).needAutoRefresh(DB, TBL));
+        Assertions.assertTrue(new HiveMtmvOps(client).needAutoRefresh(ConnectorTableId.of(DB, TBL)));
         Mockito.verifyNoInteractions(client);
     }
 

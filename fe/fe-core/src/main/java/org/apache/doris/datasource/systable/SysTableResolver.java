@@ -22,6 +22,7 @@ import org.apache.doris.common.Pair;
 import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.systable.SysTableExecutionMode;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.datasource.ExternalCatalog;
@@ -158,7 +159,7 @@ public final class SysTableResolver {
             return Optional.empty();
         }
         String dbRemote = extTable.getDb() != null ? extTable.getDb().getRemoteName() : "";
-        return metadata.getSysTable(dbRemote, parsed.first, parsed.second);
+        return metadata.getSysTable(ConnectorTableId.of(dbRemote, parsed.first), parsed.second);
     }
 
     private static Optional<SysTablePlan> resolvePluginForPlan(TableIf table, String tableNameWithSysTableName) {

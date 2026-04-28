@@ -17,6 +17,8 @@
 
 package org.apache.doris.connector.api.timetravel;
 
+import org.apache.doris.connector.api.ConnectorTableId;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -29,9 +31,7 @@ import java.util.Set;
  * {@link #supportedRefKinds()}; engine is expected to reject mutations of
  * unsupported kinds upstream of the SPI call.</p>
  *
- * <p>NOTE: identifiers are passed as {@code (database, table)} string pairs
- * pending introduction of a typed {@code ConnectorTableId}; overloads taking
- * the typed id will be added when that lands.</p>
+ * <p>Table identity is carried as a typed {@link ConnectorTableId}.</p>
  */
 public interface RefOps {
 
@@ -39,13 +39,13 @@ public interface RefOps {
     Set<RefKind> supportedRefKinds();
 
     /** Lists the refs currently known for the given table. */
-    List<ConnectorRef> listRefs(String database, String table);
+    List<ConnectorRef> listRefs(ConnectorTableId id);
 
     /** Creates or replaces a ref on the given table per the supplied mutation. */
-    void createOrReplaceRef(String database, String table, ConnectorRefMutation mutation);
+    void createOrReplaceRef(ConnectorTableId id, ConnectorRefMutation mutation);
 
     /** Drops the named ref of the given kind on the given table. */
-    void dropRef(String database, String table, String name, RefKind kind);
+    void dropRef(ConnectorTableId id, String name, RefKind kind);
 
     /**
      * Returns the named ref of the given kind, or empty if absent.
@@ -55,10 +55,11 @@ public interface RefOps {
      * at all SHOULD leave this default and rely on {@link #supportedRefKinds()}
      * returning empty.</p>
      */
-    default Optional<ConnectorRef> getRef(String database, String table, String name, RefKind kind) {
+    default Optional<ConnectorRef> getRef(ConnectorTableId id, String name, RefKind kind) {
+        Objects.requireNonNull(id, "id");
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(kind, "kind");
-        return listRefs(database, table).stream()
+        return listRefs(id).stream()
                 .filter(r -> r.kind() == kind && name.equals(r.name()))
                 .findFirst();
     }
@@ -71,7 +72,7 @@ public interface RefOps {
      * default implementation always throws to surface attempted mutations
      * loudly rather than silently dropping them.</p>
      */
-    default void cherrypickSnapshot(String database, String table, long snapshotId) {
+    default void cherrypickSnapshot(ConnectorTableId id, long snapshotId) {
         throw new UnsupportedOperationException(
                 "RefOps.cherrypickSnapshot not supported by this connector");
     }
@@ -84,7 +85,7 @@ public interface RefOps {
      * implementation always throws to surface attempted mutations loudly
      * rather than silently dropping them.</p>
      */
-    default void replaceBranch(String database, String table, String branch, long snapshotId) {
+    default void replaceBranch(ConnectorTableId id, String branch, long snapshotId) {
         throw new UnsupportedOperationException(
                 "RefOps.replaceBranch not supported by this connector");
     }

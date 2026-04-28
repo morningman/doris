@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.paimon;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.timetravel.ConnectorRef;
 import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
 import org.apache.doris.connector.api.timetravel.RefKind;
@@ -90,7 +91,7 @@ class PaimonConnectorMetadataRefOpsTest {
         RefOps ops = md.refOps().orElseThrow();
         Assertions.assertTrue(ops.supportedRefKinds().contains(RefKind.BRANCH));
         Assertions.assertTrue(ops.supportedRefKinds().contains(RefKind.TAG));
-        List<ConnectorRef> refs = ops.listRefs("db", "t");
+        List<ConnectorRef> refs = ops.listRefs(ConnectorTableId.of("db", "t"));
         Assertions.assertEquals(1, refs.size());
         Assertions.assertEquals("main", refs.get(0).name());
     }
@@ -102,8 +103,7 @@ class PaimonConnectorMetadataRefOpsTest {
                 new StubBackend(),
                 new PaimonBackendContext("c", new HashMap<>()));
         PaimonRefOps ops = (PaimonRefOps) md.refOps().orElseThrow();
-        ConnectorTableVersion.BySnapshotId out = ops.resolveVersion(
-                "db", "t", new ConnectorTableVersion.BySnapshotId(123L));
+        ConnectorTableVersion.BySnapshotId out = ops.resolveVersion("db", "t", new ConnectorTableVersion.BySnapshotId(123L));
         Assertions.assertEquals(123L, out.snapshotId());
     }
 

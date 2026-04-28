@@ -18,6 +18,7 @@
 package org.apache.doris.connector.api.mtmv;
 
 import org.apache.doris.connector.api.ConnectorColumn;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.timetravel.ConnectorMvccSnapshot;
 
@@ -37,7 +38,7 @@ public class MtmvOpsTest {
     private static final class StubMtmvOps implements MtmvOps {
         @Override
         public Map<String, ConnectorPartitionItem> listPartitions(
-                String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+                ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
             Map<String, ConnectorPartitionItem> m = new HashMap<>();
             m.put("p", new ConnectorPartitionItem.UnpartitionedItem());
             return m;
@@ -45,48 +46,48 @@ public class MtmvOpsTest {
 
         @Override
         public ConnectorPartitionType getPartitionType(
-                String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+                ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
             return ConnectorPartitionType.UNPARTITIONED;
         }
 
         @Override
         public Set<String> getPartitionColumnNames(
-                String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+                ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
             return Collections.emptySet();
         }
 
         @Override
         public List<ConnectorColumn> getPartitionColumns(
-                String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+                ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
             return Collections.emptyList();
         }
 
         @Override
         public ConnectorMtmvSnapshot getPartitionSnapshot(
-                String database, String table, String partitionName,
+                ConnectorTableId id, String partitionName,
                 MtmvRefreshHint hint, Optional<ConnectorMvccSnapshot> snapshot) {
             return new ConnectorMtmvSnapshot.VersionMtmvSnapshot(1L);
         }
 
         @Override
         public ConnectorMtmvSnapshot getTableSnapshot(
-                String database, String table,
+                ConnectorTableId id,
                 MtmvRefreshHint hint, Optional<ConnectorMvccSnapshot> snapshot) {
             return new ConnectorMtmvSnapshot.SnapshotIdMtmvSnapshot(7L);
         }
 
         @Override
-        public long getNewestUpdateVersionOrTime(String database, String table) {
+        public long getNewestUpdateVersionOrTime(ConnectorTableId id) {
             return 100L;
         }
 
         @Override
-        public boolean isPartitionColumnAllowNull(String database, String table) {
+        public boolean isPartitionColumnAllowNull(ConnectorTableId id) {
             return false;
         }
 
         @Override
-        public boolean isValidRelatedTable(String database, String table) {
+        public boolean isValidRelatedTable(ConnectorTableId id) {
             return true;
         }
     }
@@ -96,24 +97,24 @@ public class MtmvOpsTest {
         MtmvOps ops = new StubMtmvOps();
         Optional<ConnectorMvccSnapshot> snap = Optional.empty();
 
-        Assertions.assertEquals(1, ops.listPartitions("d", "t", snap).size());
+        Assertions.assertEquals(1, ops.listPartitions(ConnectorTableId.of("d", "t"), snap).size());
         Assertions.assertEquals(ConnectorPartitionType.UNPARTITIONED,
-                ops.getPartitionType("d", "t", snap));
-        Assertions.assertTrue(ops.getPartitionColumnNames("d", "t", snap).isEmpty());
-        Assertions.assertTrue(ops.getPartitionColumns("d", "t", snap).isEmpty());
-        Assertions.assertEquals(1L, ops.getPartitionSnapshot("d", "t", "p",
+                ops.getPartitionType(ConnectorTableId.of("d", "t"), snap));
+        Assertions.assertTrue(ops.getPartitionColumnNames(ConnectorTableId.of("d", "t"), snap).isEmpty());
+        Assertions.assertTrue(ops.getPartitionColumns(ConnectorTableId.of("d", "t"), snap).isEmpty());
+        Assertions.assertEquals(1L, ops.getPartitionSnapshot(ConnectorTableId.of("d", "t"), "p",
                 MtmvRefreshHint.of(MtmvRefreshHint.RefreshMode.FORCE_FULL), snap).marker());
-        Assertions.assertEquals(7L, ops.getTableSnapshot("d", "t",
+        Assertions.assertEquals(7L, ops.getTableSnapshot(ConnectorTableId.of("d", "t"),
                 MtmvRefreshHint.of(MtmvRefreshHint.RefreshMode.FORCE_FULL), snap).marker());
-        Assertions.assertEquals(100L, ops.getNewestUpdateVersionOrTime("d", "t"));
-        Assertions.assertFalse(ops.isPartitionColumnAllowNull("d", "t"));
-        Assertions.assertTrue(ops.isValidRelatedTable("d", "t"));
+        Assertions.assertEquals(100L, ops.getNewestUpdateVersionOrTime(ConnectorTableId.of("d", "t")));
+        Assertions.assertFalse(ops.isPartitionColumnAllowNull(ConnectorTableId.of("d", "t")));
+        Assertions.assertTrue(ops.isValidRelatedTable(ConnectorTableId.of("d", "t")));
     }
 
     @Test
     public void needAutoRefreshDefaultsTrue() {
         MtmvOps ops = new StubMtmvOps();
-        Assertions.assertTrue(ops.needAutoRefresh("d", "t"));
+        Assertions.assertTrue(ops.needAutoRefresh(ConnectorTableId.of("d", "t")));
     }
 
     @Test

@@ -25,6 +25,7 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorCapability;
 import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorMetadata;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.mtmv.ConnectorMtmvSnapshot;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionItem;
@@ -99,19 +100,19 @@ public class PluginDrivenMtmvBridgeTest {
 
     @Test
     public void getAndCopyPartitionItemsForwardsAndConvertsEmptyMap() {
-        Mockito.when(ops.listPartitions(Mockito.eq(DB), Mockito.eq(TBL), Mockito.any()))
+        Mockito.when(ops.listPartitions(Mockito.eq(ConnectorTableId.of(DB, TBL)), Mockito.any()))
                 .thenReturn(Collections.emptyMap());
         Map<String, PartitionItem> out = bridge.getAndCopyPartitionItems(Optional.empty());
         Assertions.assertNotNull(out);
         Assertions.assertTrue(out.isEmpty());
-        Mockito.verify(ops).listPartitions(DB, TBL, Optional.empty());
+        Mockito.verify(ops).listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
     }
 
     @Test
     public void getAndCopyPartitionItemsSkipsUnpartitionedItems() {
         Map<String, ConnectorPartitionItem> raw = new LinkedHashMap<>();
         raw.put("__SINGLE__", new ConnectorPartitionItem.UnpartitionedItem());
-        Mockito.when(ops.listPartitions(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(raw);
+        Mockito.when(ops.listPartitions(Mockito.any(), Mockito.any())).thenReturn(raw);
         Map<String, PartitionItem> out = bridge.getAndCopyPartitionItems(Optional.empty());
         // Unpartitioned items have no fe-core counterpart → filtered out.
         Assertions.assertTrue(out.isEmpty());
@@ -121,7 +122,7 @@ public class PluginDrivenMtmvBridgeTest {
     public void getAndCopyPartitionItemsRejectsRangeUntilPartitionKeyWired() {
         Map<String, ConnectorPartitionItem> raw = new LinkedHashMap<>();
         raw.put("p1", new ConnectorPartitionItem.RangePartitionItem("0", "10"));
-        Mockito.when(ops.listPartitions(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(raw);
+        Mockito.when(ops.listPartitions(Mockito.any(), Mockito.any())).thenReturn(raw);
         Assertions.assertThrows(UnsupportedOperationException.class,
                 () -> bridge.getAndCopyPartitionItems(Optional.empty()));
     }
@@ -131,17 +132,17 @@ public class PluginDrivenMtmvBridgeTest {
         Map<String, ConnectorPartitionItem> raw = new LinkedHashMap<>();
         raw.put("p1", new ConnectorPartitionItem.ListPartitionItem(
                 Collections.singletonList(Collections.singletonList("us"))));
-        Mockito.when(ops.listPartitions(Mockito.any(), Mockito.any(), Mockito.any())).thenReturn(raw);
+        Mockito.when(ops.listPartitions(Mockito.any(), Mockito.any())).thenReturn(raw);
         Assertions.assertThrows(UnsupportedOperationException.class,
                 () -> bridge.getAndCopyPartitionItems(Optional.empty()));
     }
 
     @Test
     public void getPartitionTypeForwardsAndMapsRange() {
-        Mockito.when(ops.getPartitionType(Mockito.eq(DB), Mockito.eq(TBL), Mockito.any()))
+        Mockito.when(ops.getPartitionType(Mockito.eq(ConnectorTableId.of(DB, TBL)), Mockito.any()))
                 .thenReturn(ConnectorPartitionType.RANGE);
         Assertions.assertEquals(PartitionType.RANGE, bridge.getPartitionType(Optional.empty()));
-        Mockito.verify(ops).getPartitionType(DB, TBL, Optional.empty());
+        Mockito.verify(ops).getPartitionType(ConnectorTableId.of(DB, TBL), Optional.empty());
     }
 
     @Test
@@ -158,7 +159,7 @@ public class PluginDrivenMtmvBridgeTest {
     public void getPartitionColumnNamesForwards() {
         Set<String> cols = new java.util.HashSet<>();
         cols.add("dt");
-        Mockito.when(ops.getPartitionColumnNames(Mockito.eq(DB), Mockito.eq(TBL), Mockito.any()))
+        Mockito.when(ops.getPartitionColumnNames(Mockito.eq(ConnectorTableId.of(DB, TBL)), Mockito.any()))
                 .thenReturn(cols);
         Assertions.assertEquals(cols, bridge.getPartitionColumnNames(Optional.empty()));
     }
@@ -168,7 +169,7 @@ public class PluginDrivenMtmvBridgeTest {
         ConnectorColumn cc = new ConnectorColumn(
                 "dt", ConnectorType.of("INT"),
                 "", true, null, false);
-        Mockito.when(ops.getPartitionColumns(Mockito.eq(DB), Mockito.eq(TBL), Mockito.any()))
+        Mockito.when(ops.getPartitionColumns(Mockito.eq(ConnectorTableId.of(DB, TBL)), Mockito.any()))
                 .thenReturn(Collections.singletonList(cc));
         List<Column> cols = bridge.getPartitionColumns(Optional.empty());
         Assertions.assertEquals(1, cols.size());
@@ -178,21 +179,21 @@ public class PluginDrivenMtmvBridgeTest {
 
     @Test
     public void getPartitionSnapshotForwardsHintAndConvertsSnapshotId() {
-        Mockito.when(ops.getPartitionSnapshot(Mockito.eq(DB), Mockito.eq(TBL), Mockito.eq("p1"),
+        Mockito.when(ops.getPartitionSnapshot(Mockito.eq(ConnectorTableId.of(DB, TBL)), Mockito.eq("p1"),
                         Mockito.any(MtmvRefreshHint.class), Mockito.any()))
                 .thenReturn(new ConnectorMtmvSnapshot.SnapshotIdMtmvSnapshot(42L));
         MTMVSnapshotIf out = bridge.getPartitionSnapshot("p1", null, Optional.empty());
         Assertions.assertTrue(out instanceof MTMVSnapshotIdSnapshot);
         Assertions.assertEquals(42L, out.getSnapshotVersion());
         ArgumentCaptor<MtmvRefreshHint> hintCap = ArgumentCaptor.forClass(MtmvRefreshHint.class);
-        Mockito.verify(ops).getPartitionSnapshot(Mockito.eq(DB), Mockito.eq(TBL), Mockito.eq("p1"),
+        Mockito.verify(ops).getPartitionSnapshot(Mockito.eq(ConnectorTableId.of(DB, TBL)), Mockito.eq("p1"),
                 hintCap.capture(), Mockito.any());
         Assertions.assertEquals(Optional.of("p1"), hintCap.getValue().partitionScope());
     }
 
     @Test
     public void getTableSnapshotWithContextDelegatesAndConvertsTimestamp() {
-        Mockito.when(ops.getTableSnapshot(Mockito.eq(DB), Mockito.eq(TBL),
+        Mockito.when(ops.getTableSnapshot(Mockito.eq(ConnectorTableId.of(DB, TBL)),
                         Mockito.any(MtmvRefreshHint.class), Mockito.any()))
                 .thenReturn(new ConnectorMtmvSnapshot.TimestampMtmvSnapshot(123L));
         MTMVSnapshotIf out = bridge.getTableSnapshot(null, Optional.empty());
@@ -202,7 +203,7 @@ public class PluginDrivenMtmvBridgeTest {
 
     @Test
     public void getTableSnapshotConvertsVersionSnapshot() {
-        Mockito.when(ops.getTableSnapshot(Mockito.any(), Mockito.any(),
+        Mockito.when(ops.getTableSnapshot(Mockito.any(),
                         Mockito.any(MtmvRefreshHint.class), Mockito.any()))
                 .thenReturn(new ConnectorMtmvSnapshot.VersionMtmvSnapshot(7L));
         MTMVSnapshotIf out = bridge.getTableSnapshot(Optional.empty());
@@ -212,7 +213,7 @@ public class PluginDrivenMtmvBridgeTest {
 
     @Test
     public void getTableSnapshotConvertsMaxTimestampSnapshot() {
-        Mockito.when(ops.getTableSnapshot(Mockito.any(), Mockito.any(),
+        Mockito.when(ops.getTableSnapshot(Mockito.any(),
                         Mockito.any(MtmvRefreshHint.class), Mockito.any()))
                 .thenReturn(new ConnectorMtmvSnapshot.MaxTimestampMtmvSnapshot(99L));
         MTMVSnapshotIf out = bridge.getTableSnapshot(Optional.empty());
@@ -222,25 +223,25 @@ public class PluginDrivenMtmvBridgeTest {
 
     @Test
     public void getNewestUpdateVersionOrTimeForwards() {
-        Mockito.when(ops.getNewestUpdateVersionOrTime(DB, TBL)).thenReturn(555L);
+        Mockito.when(ops.getNewestUpdateVersionOrTime(ConnectorTableId.of(DB, TBL))).thenReturn(555L);
         Assertions.assertEquals(555L, bridge.getNewestUpdateVersionOrTime());
     }
 
     @Test
     public void isPartitionColumnAllowNullForwards() {
-        Mockito.when(ops.isPartitionColumnAllowNull(DB, TBL)).thenReturn(true);
+        Mockito.when(ops.isPartitionColumnAllowNull(ConnectorTableId.of(DB, TBL))).thenReturn(true);
         Assertions.assertTrue(bridge.isPartitionColumnAllowNull());
     }
 
     @Test
     public void isValidRelatedTableForwards() {
-        Mockito.when(ops.isValidRelatedTable(DB, TBL)).thenReturn(true);
+        Mockito.when(ops.isValidRelatedTable(ConnectorTableId.of(DB, TBL))).thenReturn(true);
         Assertions.assertTrue(bridge.isValidRelatedTable());
     }
 
     @Test
     public void needAutoRefreshForwards() {
-        Mockito.when(ops.needAutoRefresh(DB, TBL)).thenReturn(true);
+        Mockito.when(ops.needAutoRefresh(ConnectorTableId.of(DB, TBL))).thenReturn(true);
         Assertions.assertTrue(bridge.needAutoRefresh());
     }
 
@@ -320,8 +321,8 @@ public class PluginDrivenMtmvBridgeTest {
     @Test
     public void mvccSnapshotFlowsThroughForwardCall() {
         ConnectorMvccSnapshot inner = new TestSnapshot("tok");
-        Mockito.when(ops.getNewestUpdateVersionOrTime(DB, TBL)).thenReturn(1L);
-        Mockito.when(ops.getPartitionType(Mockito.eq(DB), Mockito.eq(TBL),
+        Mockito.when(ops.getNewestUpdateVersionOrTime(ConnectorTableId.of(DB, TBL))).thenReturn(1L);
+        Mockito.when(ops.getPartitionType(Mockito.eq(ConnectorTableId.of(DB, TBL)),
                         Mockito.eq(Optional.of(inner))))
                 .thenReturn(ConnectorPartitionType.LIST);
         Assertions.assertEquals(PartitionType.LIST,

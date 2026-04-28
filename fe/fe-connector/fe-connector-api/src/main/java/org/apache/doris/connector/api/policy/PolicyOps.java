@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.api.policy;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.credential.UserContext;
 
 import java.util.Optional;
@@ -31,10 +32,10 @@ import java.util.Optional;
  * (b) volunteer per-column masking suggestions that may be honoured by the
  * engine after its own access-control decision.</p>
  *
- * <p>Identity is carried as {@code (database, table)} string pair rather than
- * a {@code ConnectorTableId} (deferred per M0-15). Connectors must declare
- * {@code ConnectorCapability.SUPPORTS_RLS_HINT} and/or
- * {@code SUPPORTS_MASK_HINT} for the engine to honour the implementation.</p>
+ * <p>Table identity is carried as a typed {@link ConnectorTableId}.
+ * Connectors must declare {@code ConnectorCapability.SUPPORTS_RLS_HINT}
+ * and/or {@code SUPPORTS_MASK_HINT} for the engine to honour the
+ * implementation.</p>
  */
 public interface PolicyOps {
 
@@ -44,7 +45,7 @@ public interface PolicyOps {
      * {@code true}; plugins return {@code false} only when pushdown would
      * change semantics (e.g. plugin-side virtual columns).
      */
-    default boolean supportsRlsAt(String database, String table, ConnectorPolicyContext ctx) {
+    default boolean supportsRlsAt(ConnectorTableId id, ConnectorPolicyContext ctx) {
         return true;
     }
 
@@ -55,7 +56,7 @@ public interface PolicyOps {
      * apply.
      */
     Optional<ColumnMaskHint> hintForColumn(
-            String database, String table, String column, UserContext user);
+            ConnectorTableId id, String column, UserContext user);
 
     /**
      * Notification that an engine-managed policy attached to one of the

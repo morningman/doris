@@ -23,6 +23,7 @@ import org.apache.doris.connector.DefaultConnectorContext;
 import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.cache.InvalidateRequest;
 import org.apache.doris.connector.api.event.ConnectorMetaChangeEvent;
 import org.apache.doris.connector.api.event.EventBatch;
@@ -359,7 +360,7 @@ public final class ConnectorEventDispatcher {
                 List<String> keys = event.partitionSpec()
                         .map(p -> List.copyOf(p.values().values()))
                         .orElse(List.of());
-                return InvalidateRequest.ofPartitions(db.get(), tbl.get(), keys);
+                return InvalidateRequest.ofPartitions(ConnectorTableId.of(db.get(), tbl.get()), keys);
             }
         }
         if (event instanceof ConnectorMetaChangeEvent.TableCreated
@@ -369,7 +370,7 @@ public final class ConnectorEventDispatcher {
                 || event instanceof ConnectorMetaChangeEvent.DataChanged
                 || event instanceof ConnectorMetaChangeEvent.RefChanged) {
             if (db.isPresent() && tbl.isPresent()) {
-                return InvalidateRequest.ofTable(db.get(), tbl.get());
+                return InvalidateRequest.ofTable(ConnectorTableId.of(db.get(), tbl.get()));
             }
         }
         if (event instanceof ConnectorMetaChangeEvent.DatabaseCreated
@@ -381,7 +382,7 @@ public final class ConnectorEventDispatcher {
         }
         if (event instanceof ConnectorMetaChangeEvent.VendorEvent) {
             if (db.isPresent() && tbl.isPresent()) {
-                return InvalidateRequest.ofTable(db.get(), tbl.get());
+                return InvalidateRequest.ofTable(ConnectorTableId.of(db.get(), tbl.get()));
             }
             if (db.isPresent()) {
                 return InvalidateRequest.ofDatabase(db.get());

@@ -17,6 +17,8 @@
 
 package org.apache.doris.connector.api.systable;
 
+import org.apache.doris.connector.api.ConnectorTableId;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -31,9 +33,7 @@ import java.util.Optional;
  * §9.6, {@link #listSysTables} MUST return a static enumeration and MUST
  * NOT hit the metastore at call time.</p>
  *
- * <p>Table identity is passed as a {@code (database, table)} pair in line
- * with the rest of the SPI (the typed {@code ConnectorTableId} does not
- * yet exist in {@code fe-connector-api}).</p>
+ * <p>Table identity is carried as a typed {@link ConnectorTableId}.</p>
  */
 public interface SystemTableOps {
 
@@ -44,7 +44,7 @@ public interface SystemTableOps {
      * <p>Implementations MUST be cheap (no I/O) — the engine may call this
      * during query planning and metadata discovery.</p>
      */
-    default List<SysTableSpec> listSysTables(String database, String table) {
+    default List<SysTableSpec> listSysTables(ConnectorTableId id) {
         return Collections.emptyList();
     }
 
@@ -52,7 +52,7 @@ public interface SystemTableOps {
      * Looks up a specific sys table by name (without any leading {@code '$'}).
      * Default: empty.
      */
-    default Optional<SysTableSpec> getSysTable(String database, String table, String sysTableName) {
+    default Optional<SysTableSpec> getSysTable(ConnectorTableId id, String sysTableName) {
         return Optional.empty();
     }
 
@@ -60,7 +60,7 @@ public interface SystemTableOps {
      * Whether the given sys table exists on the given main table.
      * Default delegates to {@link #getSysTable}.
      */
-    default boolean supportsSysTable(String database, String table, String sysTableName) {
-        return getSysTable(database, table, sysTableName).isPresent();
+    default boolean supportsSysTable(ConnectorTableId id, String sysTableName) {
+        return getSysTable(id, sysTableName).isPresent();
     }
 }

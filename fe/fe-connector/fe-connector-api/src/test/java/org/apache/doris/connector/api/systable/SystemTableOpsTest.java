@@ -18,6 +18,7 @@
 package org.apache.doris.connector.api.systable;
 
 import org.apache.doris.connector.api.ConnectorColumn;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
@@ -45,9 +46,9 @@ public class SystemTableOpsTest {
     public void defaultsReturnEmpty() {
         SystemTableOps ops = new SystemTableOps() {
         };
-        Assertions.assertTrue(ops.listSysTables("db", "t").isEmpty());
-        Assertions.assertTrue(ops.getSysTable("db", "t", "snapshots").isEmpty());
-        Assertions.assertFalse(ops.supportsSysTable("db", "t", "snapshots"));
+        Assertions.assertTrue(ops.listSysTables(ConnectorTableId.of("db", "t")).isEmpty());
+        Assertions.assertTrue(ops.getSysTable(ConnectorTableId.of("db", "t"), "snapshots").isEmpty());
+        Assertions.assertFalse(ops.supportsSysTable(ConnectorTableId.of("db", "t"), "snapshots"));
     }
 
     @Test
@@ -62,19 +63,19 @@ public class SystemTableOpsTest {
 
         SystemTableOps ops = new SystemTableOps() {
             @Override
-            public List<SysTableSpec> listSysTables(String database, String table) {
+            public List<SysTableSpec> listSysTables(ConnectorTableId id) {
                 return List.copyOf(registry.values());
             }
 
             @Override
-            public Optional<SysTableSpec> getSysTable(String database, String table, String sysTableName) {
+            public Optional<SysTableSpec> getSysTable(ConnectorTableId id, String sysTableName) {
                 return Optional.ofNullable(registry.get(sysTableName));
             }
         };
 
-        Assertions.assertEquals(1, ops.listSysTables("db", "t").size());
-        Assertions.assertTrue(ops.getSysTable("db", "t", "snapshots").isPresent());
-        Assertions.assertTrue(ops.supportsSysTable("db", "t", "snapshots"));
-        Assertions.assertFalse(ops.supportsSysTable("db", "t", "no_such"));
+        Assertions.assertEquals(1, ops.listSysTables(ConnectorTableId.of("db", "t")).size());
+        Assertions.assertTrue(ops.getSysTable(ConnectorTableId.of("db", "t"), "snapshots").isPresent());
+        Assertions.assertTrue(ops.supportsSysTable(ConnectorTableId.of("db", "t"), "snapshots"));
+        Assertions.assertFalse(ops.supportsSysTable(ConnectorTableId.of("db", "t"), "no_such"));
     }
 }

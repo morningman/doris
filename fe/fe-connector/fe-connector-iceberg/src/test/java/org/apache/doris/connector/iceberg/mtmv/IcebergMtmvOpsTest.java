@@ -18,6 +18,7 @@
 package org.apache.doris.connector.iceberg.mtmv;
 
 import org.apache.doris.connector.api.ConnectorColumn;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.mtmv.ConnectorMtmvSnapshot;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionItem;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionType;
@@ -149,7 +150,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(PartitionSpec.unpartitioned(), 100L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Map<String, ConnectorPartitionItem> result = ops.listPartitions(DB, TBL, Optional.empty());
+        Map<String, ConnectorPartitionItem> result = ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(1, result.size());
         Assertions.assertTrue(result.get("") instanceof ConnectorPartitionItem.UnpartitionedItem);
@@ -162,7 +163,7 @@ class IcebergMtmvOpsTest {
         wireScan(t, fileTask(singleValueStruct("US")));
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Map<String, ConnectorPartitionItem> result = ops.listPartitions(DB, TBL, Optional.empty());
+        Map<String, ConnectorPartitionItem> result = ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(1, result.size());
         ConnectorPartitionItem item = result.get("region=US");
@@ -181,7 +182,7 @@ class IcebergMtmvOpsTest {
                 fileTask(singleValueStruct("US")));
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Map<String, ConnectorPartitionItem> result = ops.listPartitions(DB, TBL, Optional.empty());
+        Map<String, ConnectorPartitionItem> result = ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(2, result.size());
         Assertions.assertTrue(result.containsKey("region=US"));
@@ -196,7 +197,7 @@ class IcebergMtmvOpsTest {
         wireScan(t, fileTask(singleValueStruct(612)));
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Map<String, ConnectorPartitionItem> result = ops.listPartitions(DB, TBL, Optional.empty());
+        Map<String, ConnectorPartitionItem> result = ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(1, result.size());
         // partition path looks like "ts_month=2021-01"
@@ -219,7 +220,7 @@ class IcebergMtmvOpsTest {
         wireScan(t, fileTask(singleValueStruct(hours)));
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Map<String, ConnectorPartitionItem> result = ops.listPartitions(DB, TBL, Optional.empty());
+        Map<String, ConnectorPartitionItem> result = ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertEquals(1, result.size());
         String value = ((ConnectorPartitionItem.ListPartitionItem) result.values().iterator().next())
@@ -234,7 +235,7 @@ class IcebergMtmvOpsTest {
         wireScan(t, fileTask(singleValueStruct(18628))); // 2021-01-01 days since epoch
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Map<String, ConnectorPartitionItem> result = ops.listPartitions(DB, TBL, Optional.empty());
+        Map<String, ConnectorPartitionItem> result = ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Assertions.assertFalse(result.isEmpty());
         for (ConnectorPartitionItem v : result.values()) {
@@ -253,7 +254,7 @@ class IcebergMtmvOpsTest {
         Mockito.when(scan.planFiles()).thenReturn(CloseableIterable.empty());
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        ops.listPartitions(DB, TBL, Optional.of(mvccBySnapshotId(42L)));
+        ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.of(mvccBySnapshotId(42L)));
 
         Mockito.verify(scan).useSnapshot(42L);
     }
@@ -267,7 +268,7 @@ class IcebergMtmvOpsTest {
         Mockito.when(scan.planFiles()).thenReturn(CloseableIterable.empty());
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        ops.listPartitions(DB, TBL, Optional.empty());
+        ops.listPartitions(ConnectorTableId.of(DB, TBL), Optional.empty());
 
         Mockito.verify(scan, Mockito.never()).useSnapshot(Mockito.anyLong());
     }
@@ -280,7 +281,7 @@ class IcebergMtmvOpsTest {
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
         Assertions.assertEquals(ConnectorPartitionType.UNPARTITIONED,
-                ops.getPartitionType(DB, TBL, Optional.empty()));
+                ops.getPartitionType(ConnectorTableId.of(DB, TBL), Optional.empty()));
     }
 
     @Test
@@ -290,7 +291,7 @@ class IcebergMtmvOpsTest {
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
         Assertions.assertEquals(ConnectorPartitionType.LIST,
-                ops.getPartitionType(DB, TBL, Optional.empty()));
+                ops.getPartitionType(ConnectorTableId.of(DB, TBL), Optional.empty()));
     }
 
     // -------- getPartitionColumnNames -----------------------------------
@@ -300,7 +301,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(PartitionSpec.unpartitioned(), 1L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Assertions.assertTrue(ops.getPartitionColumnNames(DB, TBL, Optional.empty()).isEmpty());
+        Assertions.assertTrue(ops.getPartitionColumnNames(ConnectorTableId.of(DB, TBL), Optional.empty()).isEmpty());
     }
 
     @Test
@@ -309,7 +310,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(spec, 1L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Set<String> names = ops.getPartitionColumnNames(DB, TBL, Optional.empty());
+        Set<String> names = ops.getPartitionColumnNames(ConnectorTableId.of(DB, TBL), Optional.empty());
         Assertions.assertEquals(Collections.singleton("ts"), names);
     }
 
@@ -320,7 +321,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(PartitionSpec.unpartitioned(), 1L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Assertions.assertTrue(ops.getPartitionColumns(DB, TBL, Optional.empty()).isEmpty());
+        Assertions.assertTrue(ops.getPartitionColumns(ConnectorTableId.of(DB, TBL), Optional.empty()).isEmpty());
     }
 
     @Test
@@ -329,7 +330,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(spec, 1L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        List<ConnectorColumn> cols = ops.getPartitionColumns(DB, TBL, Optional.empty());
+        List<ConnectorColumn> cols = ops.getPartitionColumns(ConnectorTableId.of(DB, TBL), Optional.empty());
         Assertions.assertEquals(1, cols.size());
         Assertions.assertEquals("ts", cols.get(0).getName());
         // month transform returns an INT-shaped result type
@@ -343,7 +344,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(PartitionSpec.unpartitioned(), 999L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        ConnectorMtmvSnapshot snap = ops.getPartitionSnapshot(DB, TBL, "p1", HINT, Optional.empty());
+        ConnectorMtmvSnapshot snap = ops.getPartitionSnapshot(ConnectorTableId.of(DB, TBL), "p1", HINT, Optional.empty());
 
         Assertions.assertTrue(snap instanceof ConnectorMtmvSnapshot.SnapshotIdMtmvSnapshot);
         Assertions.assertEquals(999L, snap.marker());
@@ -355,7 +356,7 @@ class IcebergMtmvOpsTest {
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
         Assertions.assertThrows(NullPointerException.class,
-                () -> ops.getPartitionSnapshot(DB, TBL, null, HINT, Optional.empty()));
+                () -> ops.getPartitionSnapshot(ConnectorTableId.of(DB, TBL), null, HINT, Optional.empty()));
     }
 
     @Test
@@ -363,7 +364,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(PartitionSpec.unpartitioned(), null);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        ConnectorMtmvSnapshot snap = ops.getPartitionSnapshot(DB, TBL, "p1", HINT, Optional.empty());
+        ConnectorMtmvSnapshot snap = ops.getPartitionSnapshot(ConnectorTableId.of(DB, TBL), "p1", HINT, Optional.empty());
         Assertions.assertEquals(-1L, snap.marker());
     }
 
@@ -372,7 +373,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(PartitionSpec.unpartitioned(), 100L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        ConnectorMtmvSnapshot snap = ops.getPartitionSnapshot(DB, TBL, "p1", HINT,
+        ConnectorMtmvSnapshot snap = ops.getPartitionSnapshot(ConnectorTableId.of(DB, TBL), "p1", HINT,
                 Optional.of(mvccBySnapshotId(7L)));
 
         Assertions.assertEquals(7L, snap.marker());
@@ -385,7 +386,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(PartitionSpec.unpartitioned(), 555L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        ConnectorMtmvSnapshot snap = ops.getTableSnapshot(DB, TBL, HINT, Optional.empty());
+        ConnectorMtmvSnapshot snap = ops.getTableSnapshot(ConnectorTableId.of(DB, TBL), HINT, Optional.empty());
         Assertions.assertTrue(snap instanceof ConnectorMtmvSnapshot.SnapshotIdMtmvSnapshot);
         Assertions.assertEquals(555L, snap.marker());
     }
@@ -396,7 +397,7 @@ class IcebergMtmvOpsTest {
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
         Assertions.assertEquals(-1L,
-                ops.getTableSnapshot(DB, TBL, HINT, Optional.empty()).marker());
+                ops.getTableSnapshot(ConnectorTableId.of(DB, TBL), HINT, Optional.empty()).marker());
     }
 
     // -------- getNewestUpdateVersionOrTime ------------------------------
@@ -406,7 +407,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(PartitionSpec.unpartitioned(), 321L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Assertions.assertEquals(321L, ops.getNewestUpdateVersionOrTime(DB, TBL));
+        Assertions.assertEquals(321L, ops.getNewestUpdateVersionOrTime(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -414,7 +415,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(PartitionSpec.unpartitioned(), null);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Assertions.assertEquals(-1L, ops.getNewestUpdateVersionOrTime(DB, TBL));
+        Assertions.assertEquals(-1L, ops.getNewestUpdateVersionOrTime(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -424,7 +425,7 @@ class IcebergMtmvOpsTest {
         };
         IcebergMtmvOps ops = new IcebergMtmvOps(badLoader);
 
-        Assertions.assertEquals(-1L, ops.getNewestUpdateVersionOrTime(DB, TBL));
+        Assertions.assertEquals(-1L, ops.getNewestUpdateVersionOrTime(ConnectorTableId.of(DB, TBL)));
     }
 
     // -------- isPartitionColumnAllowNull --------------------------------
@@ -435,7 +436,7 @@ class IcebergMtmvOpsTest {
             throw new AssertionError("should not load");
         });
 
-        Assertions.assertTrue(ops.isPartitionColumnAllowNull(DB, TBL));
+        Assertions.assertTrue(ops.isPartitionColumnAllowNull(ConnectorTableId.of(DB, TBL)));
     }
 
     // -------- isValidRelatedTable ---------------------------------------
@@ -445,7 +446,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(PartitionSpec.unpartitioned(), 1L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Assertions.assertTrue(ops.isValidRelatedTable(DB, TBL));
+        Assertions.assertTrue(ops.isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -454,7 +455,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(spec, 1L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Assertions.assertTrue(ops.isValidRelatedTable(DB, TBL));
+        Assertions.assertTrue(ops.isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -463,7 +464,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(spec, 1L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Assertions.assertTrue(ops.isValidRelatedTable(DB, TBL));
+        Assertions.assertTrue(ops.isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -473,7 +474,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(spec, 1L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Assertions.assertFalse(ops.isValidRelatedTable(DB, TBL));
+        Assertions.assertFalse(ops.isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -482,7 +483,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(spec, 1L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Assertions.assertFalse(ops.isValidRelatedTable(DB, TBL));
+        Assertions.assertFalse(ops.isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -491,7 +492,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(spec, 1L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Assertions.assertFalse(ops.isValidRelatedTable(DB, TBL));
+        Assertions.assertFalse(ops.isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -501,7 +502,7 @@ class IcebergMtmvOpsTest {
         };
         IcebergMtmvOps ops = new IcebergMtmvOps(badLoader);
 
-        Assertions.assertFalse(ops.isValidRelatedTable(DB, TBL));
+        Assertions.assertFalse(ops.isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     @Test
@@ -514,7 +515,7 @@ class IcebergMtmvOpsTest {
         Table t = mockTable(spec1, specs, 1L);
         IcebergMtmvOps ops = new IcebergMtmvOps(loader(t));
 
-        Assertions.assertFalse(ops.isValidRelatedTable(DB, TBL));
+        Assertions.assertFalse(ops.isValidRelatedTable(ConnectorTableId.of(DB, TBL)));
     }
 
     // -------- needAutoRefresh --------------------------------------------
@@ -525,7 +526,7 @@ class IcebergMtmvOpsTest {
             throw new AssertionError("should not load");
         });
 
-        Assertions.assertTrue(ops.needAutoRefresh(DB, TBL));
+        Assertions.assertTrue(ops.needAutoRefresh(ConnectorTableId.of(DB, TBL)));
     }
 
     // -------- constructor guard -----------------------------------------

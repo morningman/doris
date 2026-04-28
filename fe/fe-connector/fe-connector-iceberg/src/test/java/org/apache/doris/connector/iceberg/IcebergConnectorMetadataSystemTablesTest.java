@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.iceberg;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.systable.SysTableExecutionMode;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 
@@ -33,7 +34,7 @@ class IcebergConnectorMetadataSystemTablesTest {
     void exposesSevenSystemTablesViaConnectorMetadataSurface() {
         IcebergConnectorMetadata metadata = new IcebergConnectorMetadata(
                 null, new HashMap<>(), null, null, null);
-        List<SysTableSpec> specs = metadata.listSysTables("db", "tbl");
+        List<SysTableSpec> specs = metadata.listSysTables(ConnectorTableId.of("db", "tbl"));
         Assertions.assertEquals(7, specs.size());
         for (SysTableSpec spec : specs) {
             Assertions.assertEquals(SysTableExecutionMode.NATIVE, spec.mode());
@@ -46,18 +47,18 @@ class IcebergConnectorMetadataSystemTablesTest {
     void getSysTableRoutesByName() {
         IcebergConnectorMetadata metadata = new IcebergConnectorMetadata(
                 null, new HashMap<>(), null, null, null);
-        Assertions.assertTrue(metadata.getSysTable("db", "tbl", "snapshots").isPresent());
-        Assertions.assertTrue(metadata.getSysTable("db", "tbl", "history").isPresent());
-        Assertions.assertTrue(metadata.getSysTable("db", "tbl", "refs").isPresent());
+        Assertions.assertTrue(metadata.getSysTable(ConnectorTableId.of("db", "tbl"), "snapshots").isPresent());
+        Assertions.assertTrue(metadata.getSysTable(ConnectorTableId.of("db", "tbl"), "history").isPresent());
+        Assertions.assertTrue(metadata.getSysTable(ConnectorTableId.of("db", "tbl"), "refs").isPresent());
         Assertions.assertEquals(Optional.empty(),
-                metadata.getSysTable("db", "tbl", "position_deletes"));
+                metadata.getSysTable(ConnectorTableId.of("db", "tbl"), "position_deletes"));
     }
 
     @Test
     void supportsSysTableDelegates() {
         IcebergConnectorMetadata metadata = new IcebergConnectorMetadata(
                 null, new HashMap<>(), null, null, null);
-        Assertions.assertTrue(metadata.supportsSysTable("db", "tbl", "files"));
-        Assertions.assertFalse(metadata.supportsSysTable("db", "tbl", "nope"));
+        Assertions.assertTrue(metadata.supportsSysTable(ConnectorTableId.of("db", "tbl"), "files"));
+        Assertions.assertFalse(metadata.supportsSysTable(ConnectorTableId.of("db", "tbl"), "nope"));
     }
 }

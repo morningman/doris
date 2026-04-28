@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.hive.systable;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.systable.SysTableExecutionMode;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.TvfInvocation;
@@ -33,7 +34,7 @@ class HiveSystemTableOpsTest {
     @Test
     void publishesExactlyOneSpecForPartitions() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        List<SysTableSpec> specs = ops.listSysTables("db", "tbl");
+        List<SysTableSpec> specs = ops.listSysTables(ConnectorTableId.of("db", "tbl"));
         Assertions.assertEquals(1, specs.size());
         Assertions.assertEquals("partitions", specs.get(0).name());
     }
@@ -41,7 +42,7 @@ class HiveSystemTableOpsTest {
     @Test
     void partitionsSpecDeclaresTvfMode() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        SysTableSpec spec = ops.getSysTable("db", "tbl", "partitions").orElseThrow();
+        SysTableSpec spec = ops.getSysTable(ConnectorTableId.of("db", "tbl"), "partitions").orElseThrow();
         Assertions.assertEquals(SysTableExecutionMode.TVF, spec.mode(),
                 "Hive $partitions must use TVF execution mode (M1-15)");
         Assertions.assertTrue(spec.tvfInvoker().isPresent());
@@ -52,7 +53,7 @@ class HiveSystemTableOpsTest {
     @Test
     void partitionsSpecAcceptsNoTableVersion() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        SysTableSpec spec = ops.getSysTable("db", "tbl", "partitions").orElseThrow();
+        SysTableSpec spec = ops.getSysTable(ConnectorTableId.of("db", "tbl"), "partitions").orElseThrow();
         Assertions.assertFalse(spec.acceptsTableVersion(),
                 "Hive partition listings are always latest-state; version must be stripped.");
     }
@@ -60,7 +61,7 @@ class HiveSystemTableOpsTest {
     @Test
     void partitionsSpecHasPlaceholderSchema() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        SysTableSpec spec = ops.getSysTable("db", "tbl", "partitions").orElseThrow();
+        SysTableSpec spec = ops.getSysTable(ConnectorTableId.of("db", "tbl"), "partitions").orElseThrow();
         Assertions.assertEquals(1, spec.schema().getColumns().size());
         Assertions.assertEquals("partition_name", spec.schema().getColumns().get(0).getName());
     }
@@ -68,21 +69,21 @@ class HiveSystemTableOpsTest {
     @Test
     void getSysTableIsCaseInsensitive() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        Assertions.assertTrue(ops.getSysTable("db", "tbl", "PARTITIONS").isPresent());
-        Assertions.assertTrue(ops.getSysTable("db", "tbl", "Partitions").isPresent());
+        Assertions.assertTrue(ops.getSysTable(ConnectorTableId.of("db", "tbl"), "PARTITIONS").isPresent());
+        Assertions.assertTrue(ops.getSysTable(ConnectorTableId.of("db", "tbl"), "Partitions").isPresent());
     }
 
     @Test
     void getSysTableUnknownReturnsEmpty() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        Assertions.assertEquals(Optional.empty(), ops.getSysTable("db", "tbl", "snapshots"));
-        Assertions.assertEquals(Optional.empty(), ops.getSysTable("db", "tbl", "history"));
+        Assertions.assertEquals(Optional.empty(), ops.getSysTable(ConnectorTableId.of("db", "tbl"), "snapshots"));
+        Assertions.assertEquals(Optional.empty(), ops.getSysTable(ConnectorTableId.of("db", "tbl"), "history"));
     }
 
     @Test
     void listSysTableSuffixesIsImmutableAndExposesPartitions() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        Set<String> suffixes = ops.listSysTableSuffixes("db", "tbl");
+        Set<String> suffixes = ops.listSysTableSuffixes(ConnectorTableId.of("db", "tbl"));
         Assertions.assertEquals(Set.of("partitions"), suffixes);
         Assertions.assertThrows(UnsupportedOperationException.class, () -> suffixes.add("foo"));
     }
@@ -90,26 +91,23 @@ class HiveSystemTableOpsTest {
     @Test
     void listSysTablesReturnsImmutable() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        List<SysTableSpec> specs = ops.listSysTables("db", "tbl");
+        List<SysTableSpec> specs = ops.listSysTables(ConnectorTableId.of("db", "tbl"));
         Assertions.assertThrows(UnsupportedOperationException.class, () -> specs.add(specs.get(0)));
     }
 
     @Test
     void listSysTablesNpeOnNullArgs() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        Assertions.assertThrows(NullPointerException.class, () -> ops.listSysTables(null, "t"));
-        Assertions.assertThrows(NullPointerException.class, () -> ops.listSysTables("d", null));
-        Assertions.assertThrows(NullPointerException.class, () -> ops.getSysTable(null, "t", "partitions"));
-        Assertions.assertThrows(NullPointerException.class, () -> ops.getSysTable("d", null, "partitions"));
-        Assertions.assertThrows(NullPointerException.class, () -> ops.getSysTable("d", "t", null));
-        Assertions.assertThrows(NullPointerException.class, () -> ops.listSysTableSuffixes(null, "t"));
-        Assertions.assertThrows(NullPointerException.class, () -> ops.listSysTableSuffixes("d", null));
+        Assertions.assertThrows(NullPointerException.class, () -> ops.listSysTables(null));
+        Assertions.assertThrows(NullPointerException.class, () -> ops.getSysTable(null, "partitions"));
+        Assertions.assertThrows(NullPointerException.class, () -> ops.getSysTable(ConnectorTableId.of("d", "t"), null));
+        Assertions.assertThrows(NullPointerException.class, () -> ops.listSysTableSuffixes(null));
     }
 
     @Test
     void invokerProducesPartitionValuesInvocationWithDbAndTable() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        SysTableSpec spec = ops.getSysTable("db", "tbl", "partitions").orElseThrow();
+        SysTableSpec spec = ops.getSysTable(ConnectorTableId.of("db", "tbl"), "partitions").orElseThrow();
         TvfInvocation inv = spec.tvfInvoker().orElseThrow()
                 .resolve("default", "orders", "partitions", Optional.empty());
         Assertions.assertEquals("partition_values", inv.functionName());
@@ -120,8 +118,8 @@ class HiveSystemTableOpsTest {
     @Test
     void multipleListInvocationsReturnEqualSpecsAcrossDbTable() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        SysTableSpec a = ops.getSysTable("db1", "t1", "partitions").orElseThrow();
-        SysTableSpec b = ops.getSysTable("db2", "t2", "partitions").orElseThrow();
+        SysTableSpec a = ops.getSysTable(ConnectorTableId.of("db1", "t1"), "partitions").orElseThrow();
+        SysTableSpec b = ops.getSysTable(ConnectorTableId.of("db2", "t2"), "partitions").orElseThrow();
         // Specs are static — same instance should be returned regardless of db/table.
         Assertions.assertSame(a, b);
     }
@@ -129,7 +127,7 @@ class HiveSystemTableOpsTest {
     @Test
     void schemaTypeNameIsHiveMetadata() {
         HiveSystemTableOps ops = new HiveSystemTableOps();
-        SysTableSpec spec = ops.getSysTable("db", "tbl", "partitions").orElseThrow();
+        SysTableSpec spec = ops.getSysTable(ConnectorTableId.of("db", "tbl"), "partitions").orElseThrow();
         Assertions.assertEquals("HIVE_METADATA", spec.schema().getTableFormatType());
     }
 }

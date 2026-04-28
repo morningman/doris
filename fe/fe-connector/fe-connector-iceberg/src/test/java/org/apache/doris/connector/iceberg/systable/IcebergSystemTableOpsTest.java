@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.iceberg.systable;
 
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.systable.SysTableExecutionMode;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 
@@ -43,7 +44,7 @@ class IcebergSystemTableOpsTest {
     @Test
     void publishesSevenSpecsInExpectedOrder() {
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
-        List<SysTableSpec> specs = ops.listSysTables("db", "tbl");
+        List<SysTableSpec> specs = ops.listSysTables(ConnectorTableId.of("db", "tbl"));
         Assertions.assertEquals(7, specs.size());
         List<String> expected = Arrays.asList(
                 "snapshots", "history", "files", "entries", "manifests", "refs", "partitions");
@@ -56,7 +57,7 @@ class IcebergSystemTableOpsTest {
     @Test
     void listSysTableSuffixesReturnsTheSameSevenNames() {
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
-        Set<String> suffixes = ops.listSysTableSuffixes("db", "tbl");
+        Set<String> suffixes = ops.listSysTableSuffixes(ConnectorTableId.of("db", "tbl"));
         Assertions.assertEquals(
                 new LinkedHashSet<>(Arrays.asList(
                         "snapshots", "history", "files", "entries", "manifests", "refs", "partitions")),
@@ -66,7 +67,7 @@ class IcebergSystemTableOpsTest {
     @Test
     void listSysTableSuffixesIsImmutable() {
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
-        Set<String> suffixes = ops.listSysTableSuffixes("db", "tbl");
+        Set<String> suffixes = ops.listSysTableSuffixes(ConnectorTableId.of("db", "tbl"));
         Assertions.assertThrows(UnsupportedOperationException.class, () -> suffixes.add("foo"));
     }
 
@@ -75,7 +76,7 @@ class IcebergSystemTableOpsTest {
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
         for (String name : Arrays.asList(
                 "snapshots", "history", "files", "entries", "manifests", "refs", "partitions")) {
-            Optional<SysTableSpec> spec = ops.getSysTable("db", "tbl", name);
+            Optional<SysTableSpec> spec = ops.getSysTable(ConnectorTableId.of("db", "tbl"), name);
             Assertions.assertTrue(spec.isPresent(), "missing spec for " + name);
             Assertions.assertEquals(name, spec.get().name());
             Assertions.assertEquals(SysTableExecutionMode.NATIVE, spec.get().mode());
@@ -89,32 +90,32 @@ class IcebergSystemTableOpsTest {
     @Test
     void getSysTableIsCaseInsensitive() {
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
-        Assertions.assertTrue(ops.getSysTable("db", "tbl", "SNAPSHOTS").isPresent());
-        Assertions.assertTrue(ops.getSysTable("db", "tbl", "History").isPresent());
+        Assertions.assertTrue(ops.getSysTable(ConnectorTableId.of("db", "tbl"), "SNAPSHOTS").isPresent());
+        Assertions.assertTrue(ops.getSysTable(ConnectorTableId.of("db", "tbl"), "History").isPresent());
     }
 
     @Test
     void unknownSysTableReturnsEmpty() {
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
         Assertions.assertEquals(Optional.empty(),
-                ops.getSysTable("db", "tbl", "position_deletes"));
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "position_deletes"));
         Assertions.assertEquals(Optional.empty(),
-                ops.getSysTable("db", "tbl", "all_data_files"));
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "all_data_files"));
         Assertions.assertEquals(Optional.empty(),
-                ops.getSysTable("db", "tbl", "totally-not-a-thing"));
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "totally-not-a-thing"));
     }
 
     @Test
     void supportsSysTableDelegatesToGetSysTable() {
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
-        Assertions.assertTrue(ops.supportsSysTable("db", "tbl", "snapshots"));
-        Assertions.assertFalse(ops.supportsSysTable("db", "tbl", "position_deletes"));
+        Assertions.assertTrue(ops.supportsSysTable(ConnectorTableId.of("db", "tbl"), "snapshots"));
+        Assertions.assertFalse(ops.supportsSysTable(ConnectorTableId.of("db", "tbl"), "position_deletes"));
     }
 
     @Test
     void allSchemasAreNonEmpty() {
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
-        for (SysTableSpec spec : ops.listSysTables("db", "tbl")) {
+        for (SysTableSpec spec : ops.listSysTables(ConnectorTableId.of("db", "tbl"))) {
             Assertions.assertFalse(spec.schema().getColumns().isEmpty(),
                     spec.name() + " schema is empty");
             Assertions.assertEquals("ICEBERG_METADATA", spec.schema().getTableFormatType());
@@ -125,23 +126,21 @@ class IcebergSystemTableOpsTest {
     void specsAreSharedAcrossListSysTablesCalls() {
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
         Assertions.assertSame(
-                ops.getSysTable("db", "tbl", "snapshots").get(),
-                ops.getSysTable("db", "tbl", "snapshots").get());
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "snapshots").get(),
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "snapshots").get());
     }
 
     @Test
     void nullArgumentsRejected() {
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
         Assertions.assertThrows(NullPointerException.class,
-                () -> ops.getSysTable(null, "tbl", "snapshots"));
+                () -> ops.getSysTable(null, "snapshots"));
         Assertions.assertThrows(NullPointerException.class,
-                () -> ops.getSysTable("db", null, "snapshots"));
+                () -> ops.getSysTable(ConnectorTableId.of("db", "tbl"), null));
         Assertions.assertThrows(NullPointerException.class,
-                () -> ops.getSysTable("db", "tbl", null));
+                () -> ops.listSysTables(null));
         Assertions.assertThrows(NullPointerException.class,
-                () -> ops.listSysTables(null, "tbl"));
-        Assertions.assertThrows(NullPointerException.class,
-                () -> ops.listSysTableSuffixes("db", null));
+                () -> ops.listSysTableSuffixes(null));
         Assertions.assertThrows(NullPointerException.class,
                 () -> new IcebergSystemTableOps(null));
     }
@@ -153,8 +152,8 @@ class IcebergSystemTableOpsTest {
             calls.incrementAndGet();
             throw new IllegalStateException("loader called");
         });
-        ops.listSysTables("db", "tbl");
-        ops.getSysTable("db", "tbl", "snapshots");
+        ops.listSysTables(ConnectorTableId.of("db", "tbl"));
+        ops.getSysTable(ConnectorTableId.of("db", "tbl"), "snapshots");
         Assertions.assertEquals(0, calls.get(),
                 "spec construction and lookup must not load the base iceberg table");
     }
@@ -162,7 +161,7 @@ class IcebergSystemTableOpsTest {
     @Test
     void nativeFactoryProducesProviderForKnownType() {
         IcebergSystemTableOps ops = new IcebergSystemTableOps((db, t) -> null);
-        SysTableSpec spec = ops.getSysTable("db", "tbl", "snapshots").orElseThrow();
+        SysTableSpec spec = ops.getSysTable(ConnectorTableId.of("db", "tbl"), "snapshots").orElseThrow();
         Assertions.assertNotNull(spec.nativeFactory().get().create(
                 "db", "tbl", "snapshots", Optional.empty()));
     }
@@ -173,19 +172,19 @@ class IcebergSystemTableOpsTest {
         // Sanity: each known sys table has a non-empty hard-coded layout.
         // Exact counts mirror the columns we publish in IcebergMetadataTables.
         Assertions.assertEquals(6,
-                ops.getSysTable("db", "tbl", "snapshots").get().schema().getColumns().size());
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "snapshots").get().schema().getColumns().size());
         Assertions.assertEquals(4,
-                ops.getSysTable("db", "tbl", "history").get().schema().getColumns().size());
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "history").get().schema().getColumns().size());
         Assertions.assertEquals(6,
-                ops.getSysTable("db", "tbl", "refs").get().schema().getColumns().size());
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "refs").get().schema().getColumns().size());
         Assertions.assertEquals(11,
-                ops.getSysTable("db", "tbl", "manifests").get().schema().getColumns().size());
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "manifests").get().schema().getColumns().size());
         Assertions.assertEquals(5,
-                ops.getSysTable("db", "tbl", "entries").get().schema().getColumns().size());
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "entries").get().schema().getColumns().size());
         Assertions.assertEquals(14,
-                ops.getSysTable("db", "tbl", "files").get().schema().getColumns().size());
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "files").get().schema().getColumns().size());
         Assertions.assertEquals(11,
-                ops.getSysTable("db", "tbl", "partitions").get().schema().getColumns().size());
+                ops.getSysTable(ConnectorTableId.of("db", "tbl"), "partitions").get().schema().getColumns().size());
     }
 
     @Test
@@ -193,14 +192,14 @@ class IcebergSystemTableOpsTest {
         // Sys-table spec lookup is independent of the (db, table) identity for
         // iceberg — every iceberg main table exposes the same seven sys tables.
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
-        Assertions.assertEquals(7, ops.listSysTables("", "").size());
-        Assertions.assertTrue(ops.getSysTable("", "", "history").isPresent());
+        Assertions.assertEquals(7, ops.listSysTables(ConnectorTableId.of("", "")).size());
+        Assertions.assertTrue(ops.getSysTable(ConnectorTableId.of("", ""), "history").isPresent());
     }
 
     @Test
     void listSysTablesReturnsImmutableView() {
         IcebergSystemTableOps ops = new IcebergSystemTableOps(NEVER_CALL);
-        List<SysTableSpec> specs = ops.listSysTables("db", "tbl");
+        List<SysTableSpec> specs = ops.listSysTables(ConnectorTableId.of("db", "tbl"));
         Assertions.assertThrows(UnsupportedOperationException.class,
                 () -> specs.add(null));
         Assertions.assertThrows(UnsupportedOperationException.class,

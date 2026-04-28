@@ -18,6 +18,7 @@
 package org.apache.doris.connector.paimon.mtmv;
 
 import org.apache.doris.connector.api.ConnectorColumn;
+import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.mtmv.ConnectorMtmvSnapshot;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionItem;
 import org.apache.doris.connector.api.mtmv.ConnectorPartitionType;
@@ -96,7 +97,10 @@ public final class PaimonMtmvOps implements MtmvOps {
 
     @Override
     public Map<String, ConnectorPartitionItem> listPartitions(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Table paimonTable = loadTable(database, table);
         List<String> partitionKeys = paimonTable.partitionKeys();
         if (partitionKeys == null || partitionKeys.isEmpty()) {
@@ -133,7 +137,10 @@ public final class PaimonMtmvOps implements MtmvOps {
 
     @Override
     public ConnectorPartitionType getPartitionType(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Table paimonTable = loadTable(database, table);
         List<String> partitionKeys = paimonTable.partitionKeys();
         if (partitionKeys == null || partitionKeys.isEmpty()) {
@@ -144,7 +151,10 @@ public final class PaimonMtmvOps implements MtmvOps {
 
     @Override
     public Set<String> getPartitionColumnNames(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Table paimonTable = loadTable(database, table);
         List<String> partitionKeys = paimonTable.partitionKeys();
         if (partitionKeys == null || partitionKeys.isEmpty()) {
@@ -159,7 +169,10 @@ public final class PaimonMtmvOps implements MtmvOps {
 
     @Override
     public List<ConnectorColumn> getPartitionColumns(
-            String database, String table, Optional<ConnectorMvccSnapshot> snapshot) {
+            ConnectorTableId id, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Table paimonTable = loadTable(database, table);
         List<String> partitionKeys = paimonTable.partitionKeys();
         if (partitionKeys == null || partitionKeys.isEmpty()) {
@@ -190,8 +203,11 @@ public final class PaimonMtmvOps implements MtmvOps {
 
     @Override
     public ConnectorMtmvSnapshot getPartitionSnapshot(
-            String database, String table, String partitionName,
+            ConnectorTableId id, String partitionName,
             MtmvRefreshHint hint, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Objects.requireNonNull(partitionName, "partitionName");
         Table paimonTable = loadTable(database, table);
         return new ConnectorMtmvSnapshot.SnapshotIdMtmvSnapshot(latestSnapshotId(paimonTable));
@@ -199,14 +215,20 @@ public final class PaimonMtmvOps implements MtmvOps {
 
     @Override
     public ConnectorMtmvSnapshot getTableSnapshot(
-            String database, String table,
+            ConnectorTableId id,
             MtmvRefreshHint hint, Optional<ConnectorMvccSnapshot> snapshot) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         Table paimonTable = loadTable(database, table);
         return new ConnectorMtmvSnapshot.SnapshotIdMtmvSnapshot(latestSnapshotId(paimonTable));
     }
 
     @Override
-    public long getNewestUpdateVersionOrTime(String database, String table) {
+    public long getNewestUpdateVersionOrTime(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         try {
             Table paimonTable = loadTable(database, table);
             return latestSnapshotId(paimonTable);
@@ -218,14 +240,18 @@ public final class PaimonMtmvOps implements MtmvOps {
     }
 
     @Override
-    public boolean isPartitionColumnAllowNull(String database, String table) {
+    public boolean isPartitionColumnAllowNull(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
         // Paimon writes a sentinel "null" partition rather than rejecting NULLs,
         // matching the legacy PaimonExternalTable contract.
         return true;
     }
 
     @Override
-    public boolean isValidRelatedTable(String database, String table) {
+    public boolean isValidRelatedTable(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
+        String database = id.database();
+        String table = id.table();
         try {
             loadTable(database, table);
             return true;
@@ -237,7 +263,8 @@ public final class PaimonMtmvOps implements MtmvOps {
     }
 
     @Override
-    public boolean needAutoRefresh(String database, String table) {
+    public boolean needAutoRefresh(ConnectorTableId id) {
+        Objects.requireNonNull(id, "id");
         return true;
     }
 
