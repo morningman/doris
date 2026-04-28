@@ -43,11 +43,13 @@ import java.util.Optional;
  * helper layers Base64 (RFC 4648, no padding stripping) on top so the
  * serialised form is safe to embed in JSON / SQL state.</p>
  *
- * <p>TODO(M3-mtmv-codec-callsite): wire MTMV refresh persistence to call
- * {@link #serialize}/{@link #deserialize} when the related table is a
- * plugin-driven external table. The MTMV layer presently bridges to
- * legacy {@code MvccSnapshot} subclasses for hudi/iceberg/paimon; the
- * cross-cutting refactor is tracked separately.</p>
+ * <p>The MTMV refresh layer consumes this helper through
+ * {@link PluginMtmvSnapshotBridge}, which adds a connector-type tag and
+ * exposes the result as the GSON-persistable
+ * {@link org.apache.doris.mtmv.MTMVPluginMvccSnapshot}. The legacy
+ * iceberg/hudi/paimon paths continue to bridge through their own
+ * {@code MvccSnapshot} subclasses; that cutover is tracked separately
+ * (M3-iceberg-cutover et al.).</p>
  */
 public final class MvccSnapshotPersistence {
 
