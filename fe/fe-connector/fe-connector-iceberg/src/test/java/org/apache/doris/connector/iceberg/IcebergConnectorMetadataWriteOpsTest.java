@@ -176,12 +176,42 @@ class IcebergConnectorMetadataWriteOpsTest {
     }
 
     @Test
-    void beginInsertRejectsBranchUntilM304() {
-        createUnpartitioned("br_tbl");
-        WriteIntent intent = WriteIntent.builder().branch("feature").build();
+    void beginInsertWithBranchValidBranchSucceeds() throws Exception {
+        Table t = createUnpartitioned("br_ok");
+        appendStaged(t, Collections.singletonList(stageDataFile(t, "seed", 1, null)));
+        Table reloaded = catalog.loadTable(TableIdentifier.of("db", "br_ok"));
+        long mainSnap = reloaded.currentSnapshot().snapshotId();
+        reloaded.manageSnapshots().createBranch("dev", mainSnap).commit();
+
+        WriteIntent intent = WriteIntent.builder().branch("dev").build();
+        IcebergInsertHandle ih = (IcebergInsertHandle) metadata.beginInsert(
+                null, handleFor("br_ok"), Collections.emptyList(), intent);
+        Assertions.assertEquals("dev", ih.getIntent().branch().orElse(null));
+    }
+
+    @Test
+    void beginInsertWithBranchUnknownBranchThrows() {
+        createUnpartitioned("br_unknown");
+        WriteIntent intent = WriteIntent.builder().branch("nope").build();
         DorisConnectorException ex = Assertions.assertThrows(DorisConnectorException.class,
-                () -> metadata.beginInsert(null, handleFor("br_tbl"), Collections.emptyList(), intent));
-        Assertions.assertTrue(ex.getMessage().contains("M3-04"));
+                () -> metadata.beginInsert(null, handleFor("br_unknown"), Collections.emptyList(), intent));
+        Assertions.assertTrue(ex.getMessage().contains("does not exist"),
+                "expected branch-not-found message, got: " + ex.getMessage());
+    }
+
+    @Test
+    void beginInsertWithBranchPointsToTagThrows() throws Exception {
+        Table t = createUnpartitioned("br_tag");
+        appendStaged(t, Collections.singletonList(stageDataFile(t, "seed", 1, null)));
+        Table reloaded = catalog.loadTable(TableIdentifier.of("db", "br_tag"));
+        long mainSnap = reloaded.currentSnapshot().snapshotId();
+        reloaded.manageSnapshots().createTag("v1", mainSnap).commit();
+
+        WriteIntent intent = WriteIntent.builder().branch("v1").build();
+        DorisConnectorException ex = Assertions.assertThrows(DorisConnectorException.class,
+                () -> metadata.beginInsert(null, handleFor("br_tag"), Collections.emptyList(), intent));
+        Assertions.assertTrue(ex.getMessage().contains("tag"),
+                "expected tag-not-branch message, got: " + ex.getMessage());
     }
 
     @Test
@@ -300,6 +330,112 @@ class IcebergConnectorMetadataWriteOpsTest {
         metadata.abortInsert(null, h);
         Table reloaded = catalog.loadTable(TableIdentifier.of("db", "e2e_abort"));
         Assertions.assertNull(reloaded.currentSnapshot(), "no snapshot should be produced by aborted insert");
+    }
+
+    @Test
+    void finishInsertWithBranchAppendOnlyCommitsToBranchMainUntouched() throws Exception {
+        Table t = createUnpartitioned("br_app");
+        appendStaged(t, Collections.singletonList(stageDataFile(t, "main-seed", 1, null)));
+        Table seeded = catalog.loadTable(TableIdentifier.of("db", "br_app"));
+        long mainSnapBefore = seeded.currentSnapshot().snapshotId();
+        long mainFilesBefore = countDataFiles(seeded);
+        seeded.manageSnapshots().createBranch("dev", mainSnapBefore).commit();
+
+        DataFile newFile = stageDataFile(t, "dev-1", 7, null);
+        byte[] frag = makeFragment(newFile.path().toString(), newFile.recordCount(), newFile.fileSizeInBytes(), null);
+        WriteIntent intent = WriteIntent.builder().branch("dev").build();
+        runInsert(t, intent, Collections.singletonList(frag));
+
+        Table after = catalog.loadTable(TableIdentifier.of("db", "br_app"));
+        Assertions.assertEquals(mainSnapBefore, after.currentSnapshot().snapshotId(),
+                "main branch must not advance when writing to dev");
+        Assertions.assertEquals(mainFilesBefore, countDataFiles(after));
+        Snapshot devSnap = after.snapshot(after.refs().get("dev").snapshotId());
+        Assertions.assertNotNull(devSnap);
+        Assertions.assertEquals("append", devSnap.operation());
+        Assertions.assertNotEquals(mainSnapBefore, devSnap.snapshotId(),
+                "dev branch must point at a new snapshot");
+    }
+
+    @Test
+    void finishInsertWithBranchOverwriteFullCommitsToBranch() throws Exception {
+        Table t = createUnpartitioned("br_full");
+        appendStaged(t, Arrays.asList(
+                stageDataFile(t, "old-1", 2, null),
+                stageDataFile(t, "old-2", 3, null)));
+        Table seeded = catalog.loadTable(TableIdentifier.of("db", "br_full"));
+        long mainSnapBefore = seeded.currentSnapshot().snapshotId();
+        seeded.manageSnapshots().createBranch("dev", mainSnapBefore).commit();
+
+        DataFile replacement = stageDataFile(t, "dev-new", 9, null);
+        byte[] frag = makeFragment(
+                replacement.path().toString(), replacement.recordCount(), replacement.fileSizeInBytes(), null);
+        WriteIntent intent = WriteIntent.builder()
+                .overwriteMode(WriteIntent.OverwriteMode.FULL_TABLE)
+                .branch("dev")
+                .build();
+        runInsert(t, intent, Collections.singletonList(frag));
+
+        Table after = catalog.loadTable(TableIdentifier.of("db", "br_full"));
+        Assertions.assertEquals(mainSnapBefore, after.currentSnapshot().snapshotId(),
+                "main must remain at its pre-write snapshot");
+        Snapshot devSnap = after.snapshot(after.refs().get("dev").snapshotId());
+        Assertions.assertNotNull(devSnap);
+        Assertions.assertEquals("overwrite", devSnap.operation());
+    }
+
+    @Test
+    void finishInsertWithBranchReplacePartitionsCommitsToBranchPartitionedTable() throws Exception {
+        Table t = createPartitioned("br_dyn");
+        appendStaged(t, Arrays.asList(
+                stageDataFile(t, "us-1", 2, Collections.singletonList("us")),
+                stageDataFile(t, "eu-1", 3, Collections.singletonList("eu"))));
+        Table seeded = catalog.loadTable(TableIdentifier.of("db", "br_dyn"));
+        long mainSnapBefore = seeded.currentSnapshot().snapshotId();
+        seeded.manageSnapshots().createBranch("dev", mainSnapBefore).commit();
+
+        DataFile newUs = stageDataFile(t, "us-dev", 8, Collections.singletonList("us"));
+        byte[] frag = makeFragment(
+                newUs.path().toString(), newUs.recordCount(), newUs.fileSizeInBytes(),
+                Collections.singletonList("us"));
+        WriteIntent intent = WriteIntent.builder()
+                .overwriteMode(WriteIntent.OverwriteMode.DYNAMIC_PARTITION)
+                .branch("dev")
+                .build();
+        runInsert(t, intent, Collections.singletonList(frag));
+
+        Table after = catalog.loadTable(TableIdentifier.of("db", "br_dyn"));
+        Assertions.assertEquals(mainSnapBefore, after.currentSnapshot().snapshotId(),
+                "main must not advance for branch dynamic-partition overwrite");
+        Snapshot devSnap = after.snapshot(after.refs().get("dev").snapshotId());
+        Assertions.assertNotNull(devSnap);
+        Assertions.assertEquals("overwrite", devSnap.operation());
+    }
+
+    @Test
+    void finishInsertBranchWriteThenMainRemainsIsolated() throws Exception {
+        Table t = createUnpartitioned("br_iso");
+        appendStaged(t, Collections.singletonList(stageDataFile(t, "seed", 1, null)));
+        Table seeded = catalog.loadTable(TableIdentifier.of("db", "br_iso"));
+        long mainSnapBefore = seeded.currentSnapshot().snapshotId();
+        seeded.manageSnapshots().createBranch("dev", mainSnapBefore).commit();
+
+        DataFile devFile = stageDataFile(t, "dev-add", 4, null);
+        byte[] devFrag = makeFragment(
+                devFile.path().toString(), devFile.recordCount(), devFile.fileSizeInBytes(), null);
+        runInsert(t, WriteIntent.builder().branch("dev").build(), Collections.singletonList(devFrag));
+
+        DataFile mainFile = stageDataFile(t, "main-add", 2, null);
+        byte[] mainFrag = makeFragment(
+                mainFile.path().toString(), mainFile.recordCount(), mainFile.fileSizeInBytes(), null);
+        runInsert(t, WriteIntent.simple(), Collections.singletonList(mainFrag));
+
+        Table after = catalog.loadTable(TableIdentifier.of("db", "br_iso"));
+        long devSnap = after.refs().get("dev").snapshotId();
+        long mainSnapAfter = after.currentSnapshot().snapshotId();
+        Assertions.assertNotEquals(devSnap, mainSnapAfter, "dev and main must diverge");
+        Assertions.assertNotEquals(mainSnapBefore, mainSnapAfter, "main must advance from its own append");
+        Assertions.assertNotEquals(mainSnapBefore, devSnap, "dev must advance from branch append");
     }
 
     private void runInsert(Table table, WriteIntent intent, List<byte[]> fragments) {

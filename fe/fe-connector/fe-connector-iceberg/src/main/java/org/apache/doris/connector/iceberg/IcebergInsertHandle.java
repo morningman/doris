@@ -33,9 +33,10 @@ import java.util.Objects;
  * can dispatch APPEND / OVERWRITE / REPLACE-PARTITIONS without re-resolving
  * connector state.</p>
  *
- * <p>Branch-aware writes are intentionally out of scope until M3-04; if the
- * supplied intent carries a branch, {@code IcebergConnectorMetadata#beginInsert}
- * rejects it before reaching this handle.</p>
+ * <p>If the supplied intent carries a branch (M3-04), {@code finishInsert}
+ * routes each iceberg operation to that branch via {@code .toBranch(name)};
+ * {@code IcebergConnectorMetadata#beginInsert} validates the branch up
+ * front and rejects unknown names or refs that resolve to a tag.</p>
  */
 public final class IcebergInsertHandle implements ConnectorInsertHandle {
 

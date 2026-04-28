@@ -534,7 +534,8 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
     /**
      * Iceberg writes are file-based and support every overwrite shape produced by
      * the M3-02 nereids analyzer (NONE / FULL_TABLE / STATIC_PARTITION /
-     * DYNAMIC_PARTITION). Branch-targeted writes remain disabled until M3-04.
+     * DYNAMIC_PARTITION). Branch-targeted writes (M3-04) commit to the supplied
+     * branch via {@code .toBranch(branchName)} on each iceberg operation.
      */
     @Override
     public boolean supportsInsert() {
@@ -616,11 +617,6 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
             WriteIntent intent) {
         Objects.requireNonNull(handle, "handle");
         Objects.requireNonNull(intent, "intent");
-        if (intent.branch().isPresent()) {
-            throw new DorisConnectorException(
-                    "Branch-targeted iceberg writes are not yet supported by the SPI plugin "
-                            + "(scheduled for M3-04); branch=" + intent.branch().get());
-        }
         IcebergTableHandle iceHandle = (IcebergTableHandle) handle;
         Table table = loadIcebergTable(iceHandle.getDbName(), iceHandle.getTableName());
         validateIntentAgainstTable(intent, table);
@@ -630,6 +626,20 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
     }
 
     private static void validateIntentAgainstTable(WriteIntent intent, Table table) {
+        if (intent.branch().isPresent()) {
+            String branchName = intent.branch().get();
+            SnapshotRef ref = table.refs().get(branchName);
+            if (ref == null) {
+                throw new DorisConnectorException(
+                        "Iceberg branch '" + branchName + "' does not exist on table "
+                                + table.name());
+            }
+            if (!ref.isBranch()) {
+                throw new DorisConnectorException(
+                        "Iceberg ref '" + branchName + "' on table " + table.name()
+                                + " is a tag, not a branch");
+            }
+        }
         if (intent.overwriteMode() == WriteIntent.OverwriteMode.STATIC_PARTITION
                 || intent.overwriteMode() == WriteIntent.OverwriteMode.DYNAMIC_PARTITION) {
             if (!table.spec().isPartitioned()) {
@@ -662,46 +672,55 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
                 insertHandle.getTable(), fragments);
 
         WriteIntent.OverwriteMode mode = insertHandle.getIntent().overwriteMode();
+        String branch = insertHandle.getIntent().branch().orElse(null);
         switch (mode) {
             case NONE:
-                commitAppend(transaction, dataFiles);
+                commitAppend(transaction, dataFiles, branch);
                 break;
             case FULL_TABLE:
-                commitFullTableOverwrite(transaction, dataFiles);
+                commitFullTableOverwrite(transaction, dataFiles, branch);
                 break;
             case STATIC_PARTITION:
                 commitStaticPartitionOverwrite(
                         transaction,
                         insertHandle.getIntent().staticPartitions(),
-                        dataFiles);
+                        dataFiles,
+                        branch);
                 break;
             case DYNAMIC_PARTITION:
-                commitDynamicPartitionOverwrite(transaction, dataFiles);
+                commitDynamicPartitionOverwrite(transaction, dataFiles, branch);
                 break;
             default:
                 throw new DorisConnectorException("Unsupported iceberg overwrite mode: " + mode);
         }
         transaction.commitTransaction();
         if (LOG.isDebugEnabled()) {
-            LOG.debug("Iceberg insert committed for {}.{} mode={} files={}",
+            LOG.debug("Iceberg insert committed for {}.{} mode={} branch={} files={}",
                     insertHandle.getDbName(), insertHandle.getTableName(),
-                    mode, dataFiles.size());
+                    mode, branch, dataFiles.size());
         }
     }
 
-    private static void commitAppend(Transaction transaction, List<DataFile> dataFiles) {
+    private static void commitAppend(Transaction transaction, List<DataFile> dataFiles, String branch) {
         AppendFiles append = transaction.newAppend();
         for (DataFile file : dataFiles) {
             append.appendFile(file);
         }
+        if (branch != null) {
+            append.toBranch(branch);
+        }
         append.commit();
     }
 
-    private static void commitFullTableOverwrite(Transaction transaction, List<DataFile> dataFiles) {
+    private static void commitFullTableOverwrite(
+            Transaction transaction, List<DataFile> dataFiles, String branch) {
         OverwriteFiles overwrite = transaction.newOverwrite()
                 .overwriteByRowFilter(Expressions.alwaysTrue());
         for (DataFile file : dataFiles) {
             overwrite.addFile(file);
+        }
+        if (branch != null) {
+            overwrite.toBranch(branch);
         }
         overwrite.commit();
     }
@@ -709,7 +728,8 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
     private static void commitStaticPartitionOverwrite(
             Transaction transaction,
             Map<String, String> staticPartitions,
-            List<DataFile> dataFiles) {
+            List<DataFile> dataFiles,
+            String branch) {
         Table table = transaction.table();
         Expression filter = buildStaticPartitionFilter(
                 staticPartitions, table.spec(), table.schema());
@@ -718,13 +738,20 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
         for (DataFile file : dataFiles) {
             overwrite.addFile(file);
         }
+        if (branch != null) {
+            overwrite.toBranch(branch);
+        }
         overwrite.commit();
     }
 
-    private static void commitDynamicPartitionOverwrite(Transaction transaction, List<DataFile> dataFiles) {
+    private static void commitDynamicPartitionOverwrite(
+            Transaction transaction, List<DataFile> dataFiles, String branch) {
         ReplacePartitions replace = transaction.newReplacePartitions();
         for (DataFile file : dataFiles) {
             replace.addFile(file);
+        }
+        if (branch != null) {
+            replace.toBranch(branch);
         }
         replace.commit();
     }
