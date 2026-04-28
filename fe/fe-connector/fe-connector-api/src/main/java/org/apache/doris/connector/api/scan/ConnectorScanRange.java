@@ -114,6 +114,27 @@ public interface ConnectorScanRange extends Serializable {
     }
 
     /**
+     * Returns a copy of this scan range with the table-level row count
+     * carried alongside (used by metadata-only {@code COUNT(*)} pushdown).
+     *
+     * <p>The default returns {@code this} unchanged, which is correct for
+     * connectors that do not support count pushdown — for those the engine
+     * never observes a non-empty
+     * {@link ConnectorScanPlanProvider#getCountPushdownResult} so this
+     * method is never called. Connectors that participate in count
+     * pushdown override this to rebuild the range with the supplied
+     * count threaded through to BE (e.g. iceberg routes it to
+     * {@code TTableFormatFileDesc.tableLevelRowCount}).</p>
+     *
+     * @param count total table row count to associate with this range
+     * @return a range carrying the supplied count (may be {@code this}
+     *         if the connector ignores count pushdown)
+     */
+    default ConnectorScanRange withTableLevelRowCount(long count) {
+        return this;
+    }
+
+    /**
      * Populates per-range Thrift params from this scan range's data.
      *
      * <p>Connectors that need typed Thrift structs (e.g., Hudi, Paimon)

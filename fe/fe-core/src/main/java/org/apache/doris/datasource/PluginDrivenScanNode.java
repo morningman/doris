@@ -47,6 +47,7 @@ import org.apache.doris.thrift.TFileAttributes;
 import org.apache.doris.thrift.TFileFormatType;
 import org.apache.doris.thrift.TFileRangeDesc;
 import org.apache.doris.thrift.TFileTextScanRangeParams;
+import org.apache.doris.thrift.TPushAggOp;
 import org.apache.doris.thrift.TTableFormatFileDesc;
 
 import org.apache.logging.log4j.LogManager;
@@ -367,14 +368,57 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         tryPushDownProjection(columns);
         Optional<ConnectorExpression> remainingFilter = buildRemainingFilter();
 
+        Optional<Long> countPushdown = Optional.empty();
+        if (getPushDownAggNoGroupingOp() == TPushAggOp.COUNT) {
+            countPushdown = scanProvider.getCountPushdownResult(
+                    connectorSession, currentHandle, remainingFilter);
+        }
+
         List<ConnectorScanRange> ranges = scanProvider.planScan(
                 connectorSession, currentHandle, columns, remainingFilter, limit);
+
+        if (countPushdown.isPresent()) {
+            long total = countPushdown.get();
+            setPushDownCount(total);
+            ranges = applyCountToRanges(ranges, total);
+        }
 
         List<Split> splits = new ArrayList<>(ranges.size());
         for (ConnectorScanRange range : ranges) {
             splits.add(new PluginDrivenSplit(range));
         }
         return splits;
+    }
+
+    /**
+     * Distributes a metadata-only {@code COUNT(*)} total across the
+     * produced ranges. Mirrors the legacy
+     * {@code IcebergScanNode#assignCountToSplits} algorithm: each of the
+     * first {@code N-1} ranges receives {@code total/N} and the LAST
+     * range receives {@code total/N + total%N}, so the integer remainder
+     * is captured exactly without inflating the per-range count beyond
+     * what BE can attribute to that scan task.
+     *
+     * <p>Returns a new list; original ranges are not mutated. For ranges
+     * that opt out of count pushdown (default
+     * {@link ConnectorScanRange#withTableLevelRowCount} returns
+     * {@code this}), the override is a no-op so the call is safe across
+     * connector types.</p>
+     */
+    static List<ConnectorScanRange> applyCountToRanges(
+            List<ConnectorScanRange> ranges, long total) {
+        if (ranges.isEmpty()) {
+            return ranges;
+        }
+        int n = ranges.size();
+        long perRange = total / n;
+        long remainder = total % n;
+        List<ConnectorScanRange> out = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            long count = (i == n - 1) ? perRange + remainder : perRange;
+            out.add(ranges.get(i).withTableLevelRowCount(count));
+        }
+        return out;
     }
 
     @Override

@@ -327,6 +327,46 @@ public final class IcebergScanRange implements ConnectorScanRange {
         return new Builder();
     }
 
+    /**
+     * Returns a copy of this range with {@code tableLevelRowCount}
+     * replaced by {@code count}; every other field is preserved
+     * unchanged (immutability of the original instance).
+     *
+     * <p>Used by the engine-side count-pushdown distribution after
+     * {@link IcebergScanPlanProvider#getCountPushdownResult} reports a
+     * metadata-only row count: the count is split across the produced
+     * ranges so that BE's per-fragment {@code TIcebergFileDesc} carries
+     * the right share for each scan task, mirroring the legacy
+     * {@code IcebergScanNode#assignCountToSplits} behaviour.</p>
+     */
+    @Override
+    public IcebergScanRange withTableLevelRowCount(long count) {
+        return toBuilder().tableLevelRowCount(count).build();
+    }
+
+    /**
+     * Returns a {@link Builder} pre-populated with this range's fields,
+     * enabling cheap field-by-field rebuild for immutable mutation.
+     */
+    public Builder toBuilder() {
+        Builder b = new Builder();
+        b.path = path;
+        b.start = start;
+        b.length = length;
+        b.fileSize = fileSize;
+        b.formatVersion = formatVersion;
+        b.partitionSpecId = partitionSpecId;
+        b.partitionDataJson = partitionDataJson;
+        b.partitionValues = partitionValues;
+        b.originalFilePath = originalFilePath;
+        b.deleteFiles = deleteFiles;
+        b.firstRowId = firstRowId;
+        b.lastUpdatedSequenceNumber = lastUpdatedSequenceNumber;
+        b.tableLevelRowCount = tableLevelRowCount;
+        b.properties = properties;
+        return b;
+    }
+
     /** Builder for {@link IcebergScanRange}. */
     public static final class Builder {
         private String path;
