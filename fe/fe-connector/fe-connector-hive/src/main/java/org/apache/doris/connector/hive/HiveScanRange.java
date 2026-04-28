@@ -25,6 +25,7 @@ import org.apache.doris.thrift.TTransactionalHiveDeleteDeltaDesc;
 import org.apache.doris.thrift.TTransactionalHiveDesc;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -141,10 +142,15 @@ public class HiveScanRange implements ConnectorScanRange {
     @Override
     public void populateRangeParams(TTableFormatFileDesc formatDesc,
             TFileRangeDesc rangeDesc) {
+        // Legacy HiveScanNode#setScanParams always advertises
+        // tableLevelRowCount = -1 (no manifest-level row-count pushdown for
+        // hive); preserve that wire shape unconditionally for parity.
+        formatDesc.setTableLevelRowCount(-1L);
         if ("transactional_hive".equals(getTableFormatType())) {
             populateTransactionalHiveParams(formatDesc);
         }
-        // Non-transactional hive needs no per-split TTableFormatFileDesc fields.
+        // Non-transactional hive needs no per-split TTableFormatFileDesc fields
+        // beyond the table-level row count above.
     }
 
     private void populateTransactionalHiveParams(TTableFormatFileDesc formatDesc) {
@@ -165,9 +171,17 @@ public class HiveScanRange implements ConnectorScanRange {
                 if (deltaStr != null) {
                     TTransactionalHiveDeleteDeltaDesc delta =
                             new TTransactionalHiveDeleteDeltaDesc();
-                    delta.setDirectoryLocation(deltaStr.contains("|")
-                            ? deltaStr.substring(0, deltaStr.indexOf('|'))
-                            : deltaStr);
+                    int sep = deltaStr.indexOf('|');
+                    if (sep < 0) {
+                        delta.setDirectoryLocation(deltaStr);
+                    } else {
+                        delta.setDirectoryLocation(deltaStr.substring(0, sep));
+                        String filesPart = deltaStr.substring(sep + 1);
+                        List<String> fileNames = filesPart.isEmpty()
+                                ? Collections.emptyList()
+                                : Arrays.asList(filesPart.split(","));
+                        delta.setFileNames(fileNames);
+                    }
                     deltas.add(delta);
                 }
             }
