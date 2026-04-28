@@ -26,6 +26,7 @@ import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
+import org.apache.doris.connector.api.mtmv.MtmvOps;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.SystemTableOps;
 import org.apache.doris.connector.api.timetravel.RefOps;
@@ -33,6 +34,7 @@ import org.apache.doris.connector.paimon.api.PaimonBackend;
 import org.apache.doris.connector.paimon.api.PaimonBackendContext;
 import org.apache.doris.connector.paimon.cache.PaimonTableCacheKey;
 import org.apache.doris.connector.paimon.event.PaimonEventSourceOps;
+import org.apache.doris.connector.paimon.mtmv.PaimonMtmvOps;
 import org.apache.doris.connector.paimon.systable.PaimonSystemTableOps;
 
 import org.apache.logging.log4j.LogManager;
@@ -75,6 +77,7 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
     private final String catalogName;
     private volatile SystemTableOps sysTableOps;
     private volatile EventSourceOps eventSourceOps;
+    private volatile MtmvOps mtmvOps;
 
     public PaimonConnectorMetadata(Catalog catalog, Map<String, String> properties) {
         this(catalog, properties, null, null, null, "");
@@ -136,6 +139,32 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
             return Optional.of(new PaimonRefOps(backend, backendContext));
         }
         return Optional.empty();
+    }
+
+    // ========== MtmvOps (D8 / M2-09) ==========
+
+    /**
+     * Lazily wires {@link PaimonMtmvOps} to this metadata's catalog so paimon
+     * tables can serve as MV base tables. Returns {@link Optional#empty()}
+     * only when the catalog handle is missing (test fixtures), in which case
+     * {@code PluginDrivenExternalTable} falls back to the legacy fe-core path.
+     */
+    @Override
+    public Optional<MtmvOps> mtmvOps() {
+        if (catalog == null) {
+            return Optional.empty();
+        }
+        MtmvOps ops = mtmvOps;
+        if (ops == null) {
+            synchronized (this) {
+                ops = mtmvOps;
+                if (ops == null) {
+                    ops = new PaimonMtmvOps(catalog, typeMappingOptions);
+                    mtmvOps = ops;
+                }
+            }
+        }
+        return Optional.of(ops);
     }
 
     // ========== SystemTableOps (M1-14) ==========

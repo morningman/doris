@@ -18,6 +18,7 @@
 package org.apache.doris.connector.paimon;
 
 import org.apache.doris.connector.api.Connector;
+import org.apache.doris.connector.api.ConnectorCapability;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.DorisConnectorException;
@@ -44,9 +45,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Paimon connector orchestrator. All metadata caching (catalog SDK
@@ -101,6 +104,11 @@ public class PaimonConnector implements Connector {
         this.snapshotsBinding = PaimonCacheBindings.snapshotsBinding(this::loadSnapshots);
         this.bindings = Collections.unmodifiableList(
                 new ArrayList<>(Arrays.asList(catalogBinding, tableBinding, snapshotsBinding)));
+    }
+
+    @Override
+    public Set<ConnectorCapability> getCapabilities() {
+        return EnumSet.of(ConnectorCapability.SUPPORTS_MTMV);
     }
 
     @Override
