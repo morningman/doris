@@ -49,6 +49,7 @@ import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.write.ConnectorWriteConfig;
+import org.apache.doris.connector.timetravel.ConnectorRefSpecResolver;
 import org.apache.doris.connector.timetravel.ConnectorTableVersionResolver;
 import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.FileQueryScanNode;
@@ -811,6 +812,16 @@ public class PhysicalPlanTranslator extends DefaultPlanVisitor<PlanFragment, Pla
             fileScan.getTableSnapshot()
                     .flatMap(ConnectorTableVersionResolver::resolve)
                     .ifPresent(fileQueryScanNode::setConnectorTableVersion);
+            // Plugin-driven scans also accept the SPI-typed branch/tag pin
+            // resolved from @branch(...)/@tag(...) TVF syntax. Other
+            // FileQueryScanNode subclasses still consume the legacy
+            // TableScanParams via setScanParams().
+            if (scanNode instanceof PluginDrivenScanNode) {
+                PluginDrivenScanNode pluginNode = (PluginDrivenScanNode) scanNode;
+                fileScan.getScanParams()
+                        .flatMap(ConnectorRefSpecResolver::resolve)
+                        .ifPresent(pluginNode::setConnectorRefSpec);
+            }
         }
         return getPlanFragmentForPhysicalFileScan(fileScan, context, scanNode);
     }

@@ -39,6 +39,9 @@ import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRequest;
 import org.apache.doris.connector.api.scan.ScanNodePropertiesResult;
+import org.apache.doris.connector.api.timetravel.ConnectorMvccSnapshot;
+import org.apache.doris.connector.api.timetravel.ConnectorRefSpec;
+import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
 import org.apache.doris.planner.PlanNodeId;
 import org.apache.doris.planner.ScanContext;
 import org.apache.doris.qe.SessionVariable;
@@ -62,6 +65,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -107,6 +111,16 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
     private Map<String, String> scanNodeProperties;
     // Maps filtered conjunct indices (after CAST removal) back to original conjunct indices
     private List<Integer> filteredToOriginalIndex;
+
+    // Time-travel coordinates resolved from the Nereids translator before
+    // getSplits() runs. All three are optional and surface to the connector
+    // via ConnectorScanRequest. The first time getSplits() runs and either
+    // {@code connectorRefSpec} or {@link FileQueryScanNode#getConnectorTableVersion()}
+    // is set, the table handle is refreshed via the time-travel-aware
+    // 5-arg getTableHandle(); see resolveTableHandleWithTimeTravel().
+    private ConnectorRefSpec connectorRefSpec;
+    private ConnectorMvccSnapshot connectorMvccSnapshot;
+    private boolean handleResolvedWithTimeTravel;
 
     public PluginDrivenScanNode(PlanNodeId id, TupleDescriptor desc,
             boolean needCheckColumnPriv, SessionVariable sv,
@@ -356,8 +370,87 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         }
     }
 
+    /**
+     * Sets the SPI-typed branch/tag pin resolved from the Nereids
+     * {@code @branch(...)/@tag(...)} TVF syntax. Mirrors
+     * {@link FileQueryScanNode#setConnectorTableVersion}: both fields are
+     * read once at the top of {@link #getSplits(int)} and propagated
+     * through the {@link ConnectorScanRequest}.
+     */
+    public void setConnectorRefSpec(ConnectorRefSpec connectorRefSpec) {
+        this.connectorRefSpec = connectorRefSpec;
+    }
+
+    public ConnectorRefSpec getConnectorRefSpec() {
+        return connectorRefSpec;
+    }
+
+    /**
+     * Sets the engine-resolved MVCC snapshot for this scan. Currently
+     * unused at FE planning time; the field exists so MTMV refresh and
+     * other engine paths that thread an opaque snapshot through the scan
+     * can populate it without re-plumbing the constructor. See
+     * {@link org.apache.doris.connector.timetravel.MvccSnapshotPersistence}
+     * for the FE→state-store round-trip helper.
+     */
+    public void setConnectorMvccSnapshot(ConnectorMvccSnapshot connectorMvccSnapshot) {
+        this.connectorMvccSnapshot = connectorMvccSnapshot;
+    }
+
+    public ConnectorMvccSnapshot getConnectorMvccSnapshot() {
+        return connectorMvccSnapshot;
+    }
+
+    /**
+     * Refreshes {@link #currentHandle} via the time-travel-aware 5-arg
+     * {@link ConnectorMetadata#getTableHandle(ConnectorSession, String,
+     * String, java.util.Optional, java.util.Optional)} when either a
+     * {@link ConnectorTableVersion} or {@link ConnectorRefSpec} has been
+     * threaded in by the Nereids translator.
+     *
+     * <p>The constructor / {@link #create} resolves the handle eagerly via
+     * the legacy 3-arg overload because at create-time the translator has
+     * not yet attached time-travel coordinates. We re-resolve lazily here,
+     * exactly once per scan, just before {@code planScan} runs. Connectors
+     * whose default 5-arg {@code getTableHandle} delegates back to the
+     * 3-arg form keep working unchanged.</p>
+     */
+    private void resolveTableHandleWithTimeTravel() {
+        if (handleResolvedWithTimeTravel) {
+            return;
+        }
+        ConnectorTableVersion version = getConnectorTableVersion();
+        if (version == null && connectorRefSpec == null) {
+            return;
+        }
+        TableIf tbl = desc.getTable();
+        if (!(tbl instanceof PluginDrivenExternalTable)) {
+            return;
+        }
+        PluginDrivenExternalTable pdt = (PluginDrivenExternalTable) tbl;
+        String dbName = pdt.getDb() != null ? pdt.getDb().getRemoteName() : "";
+        String tableName = pdt.getRemoteName();
+        ConnectorMetadata metadata = connector.getMetadata(connectorSession);
+        Optional<ConnectorTableHandle> refreshed = metadata.getTableHandle(
+                connectorSession, dbName, tableName,
+                Optional.ofNullable(version),
+                Optional.ofNullable(connectorRefSpec));
+        if (refreshed.isPresent()) {
+            currentHandle = refreshed.get();
+            // Cached scan properties were derived from the un-pinned handle;
+            // invalidate so EXPLAIN / split planning re-fetches against the
+            // pinned handle.
+            scanNodeProperties = null;
+            cachedPropertiesResult = null;
+        }
+        handleResolvedWithTimeTravel = true;
+    }
+
     @Override
     public List<Split> getSplits(int numBackends) throws UserException {
+        // Refresh handle with time-travel coordinates (FOR VERSION/TIME AS OF
+        // and @branch/@tag) before any pushdown reads from currentHandle.
+        resolveTableHandleWithTimeTravel();
         // Attempt limit and projection pushdown via SPI protocol
         tryPushDownLimit();
 
@@ -378,8 +471,7 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         }
 
         List<ConnectorScanRange> ranges = scanProvider.planScan(
-                ConnectorScanRequest.of(connectorSession, currentHandle,
-                        columns, remainingFilter, limit));
+                buildScanRequest(columns, remainingFilter));
 
         if (countPushdown.isPresent()) {
             long total = countPushdown.get();
@@ -423,6 +515,31 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
             out.add(ranges.get(i).withTableLevelRowCount(count));
         }
         return out;
+    }
+
+    /**
+     * Builds the {@link ConnectorScanRequest} fed to
+     * {@link ConnectorScanPlanProvider#planScan}, threading the engine-side
+     * limit and the optional time-travel coordinates
+     * ({@link ConnectorTableVersion}, {@link ConnectorRefSpec},
+     * {@link ConnectorMvccSnapshot}) through to the connector. Package-
+     * private so tests can exercise the request shape without driving the
+     * full {@link #getSplits} pipeline.
+     */
+    ConnectorScanRequest buildScanRequest(List<ConnectorColumnHandle> columns,
+                                          Optional<ConnectorExpression> remainingFilter) {
+        ConnectorScanRequest.Builder builder = ConnectorScanRequest.builder()
+                .session(connectorSession)
+                .table(currentHandle)
+                .columns(columns)
+                .filter(remainingFilter)
+                .version(Optional.ofNullable(getConnectorTableVersion()))
+                .refSpec(Optional.ofNullable(connectorRefSpec))
+                .mvccSnapshot(Optional.ofNullable(connectorMvccSnapshot));
+        if (limit > 0) {
+            builder.limit(OptionalLong.of(limit));
+        }
+        return builder.build();
     }
 
     @Override
