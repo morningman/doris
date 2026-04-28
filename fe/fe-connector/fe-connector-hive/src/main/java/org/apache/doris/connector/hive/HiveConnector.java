@@ -61,12 +61,14 @@ public class HiveConnector implements Connector {
 
     @Override
     public ConnectorScanPlanProvider getScanPlanProvider() {
-        return new HiveScanPlanProvider(getOrCreateClient(), properties);
+        return new HiveScanPlanProvider(getOrCreateClient(), properties, context);
     }
 
     @Override
     public Set<ConnectorCapability> getCapabilities() {
-        return EnumSet.of(ConnectorCapability.SUPPORTS_MTMV);
+        return EnumSet.of(
+                ConnectorCapability.SUPPORTS_MTMV,
+                ConnectorCapability.EMITS_AUDIT_EVENTS);
     }
 
     private HmsClient getOrCreateClient() {

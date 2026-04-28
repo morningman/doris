@@ -21,6 +21,7 @@ import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
+import org.apache.doris.connector.api.audit.ConnectorAuditOps;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
@@ -34,6 +35,7 @@ import org.apache.doris.connector.api.pushdown.ConnectorLiteral;
 import org.apache.doris.connector.api.pushdown.FilterApplicationResult;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.SystemTableOps;
+import org.apache.doris.connector.hive.audit.HiveAuditOps;
 import org.apache.doris.connector.hive.event.HiveEventSourceOps;
 import org.apache.doris.connector.hive.mtmv.HiveMtmvOps;
 import org.apache.doris.connector.hive.systable.HiveSystemTableOps;
@@ -128,6 +130,13 @@ public class HiveConnectorMetadata implements ConnectorMetadata {
             }
         }
         return Optional.of(ops);
+    }
+
+    // ========== ConnectorAuditOps (D8 / M2-13a) ==========
+
+    @Override
+    public Optional<ConnectorAuditOps> auditOps() {
+        return Optional.of(HiveAuditOps.INSTANCE);
     }
 
     // ========== SystemTableOps (D6 / M1-15) ==========

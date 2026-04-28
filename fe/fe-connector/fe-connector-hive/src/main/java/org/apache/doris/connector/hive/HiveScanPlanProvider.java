@@ -19,6 +19,7 @@ package org.apache.doris.connector.hive;
 
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.DorisConnectorException;
+import org.apache.doris.connector.api.audit.ConnectorAuditEvent.PlanCompletedAuditEvent;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.pushdown.ConnectorExpression;
@@ -27,6 +28,7 @@ import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
 import org.apache.doris.connector.hms.HmsClient;
 import org.apache.doris.connector.hms.HmsPartitionInfo;
+import org.apache.doris.connector.spi.ConnectorContext;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -80,10 +82,22 @@ public class HiveScanPlanProvider implements ConnectorScanPlanProvider {
 
     private final HmsClient hmsClient;
     private final Map<String, String> catalogProperties;
+    private final ConnectorContext context;
 
+    /**
+     * Back-compat constructor used by tests that don't exercise the audit
+     * path; equivalent to passing a {@code null} {@link ConnectorContext},
+     * in which case audit publication is skipped.
+     */
     public HiveScanPlanProvider(HmsClient hmsClient, Map<String, String> catalogProperties) {
+        this(hmsClient, catalogProperties, null);
+    }
+
+    public HiveScanPlanProvider(HmsClient hmsClient, Map<String, String> catalogProperties,
+            ConnectorContext context) {
         this.hmsClient = hmsClient;
         this.catalogProperties = catalogProperties;
+        this.context = context;
     }
 
     @Override
@@ -100,35 +114,60 @@ public class HiveScanPlanProvider implements ConnectorScanPlanProvider {
         HiveTableHandle hiveHandle = (HiveTableHandle) handle;
         String dbName = hiveHandle.getDbName();
         String tableName = hiveHandle.getTableName();
+        long startNanos = System.nanoTime();
 
         List<PartitionScanInfo> partitions = resolvePartitions(hiveHandle);
+        List<ConnectorScanRange> ranges;
         if (partitions.isEmpty()) {
-            return Collections.emptyList();
-        }
+            ranges = Collections.emptyList();
+        } else {
+            HiveFileFormat fileFormat = HiveFileFormat.detect(
+                    hiveHandle.getInputFormat(), hiveHandle.getSerializationLib());
+            long targetSplitSize = getTargetSplitSize(session);
+            boolean splittable = fileFormat.isSplittable();
 
-        HiveFileFormat fileFormat = HiveFileFormat.detect(
-                hiveHandle.getInputFormat(), hiveHandle.getSerializationLib());
-        long targetSplitSize = getTargetSplitSize(session);
-        boolean splittable = fileFormat.isSplittable();
+            ranges = new ArrayList<>();
+            Configuration hadoopConf = buildHadoopConf();
 
-        List<ConnectorScanRange> ranges = new ArrayList<>();
-        Configuration hadoopConf = buildHadoopConf();
-
-        for (PartitionScanInfo partition : partitions) {
-            HiveFileFormat partFormat = partition.fileFormat != null
-                    ? partition.fileFormat : fileFormat;
-            try {
-                listAndSplitFiles(hadoopConf, partition, partFormat,
-                        splittable, targetSplitSize, ranges);
-            } catch (IOException e) {
-                throw new DorisConnectorException(
-                        "Failed to list files for partition: " + partition.location, e);
+            for (PartitionScanInfo partition : partitions) {
+                HiveFileFormat partFormat = partition.fileFormat != null
+                        ? partition.fileFormat : fileFormat;
+                try {
+                    listAndSplitFiles(hadoopConf, partition, partFormat,
+                            splittable, targetSplitSize, ranges);
+                } catch (IOException e) {
+                    throw new DorisConnectorException(
+                            "Failed to list files for partition: " + partition.location, e);
+                }
             }
         }
 
         LOG.info("Hive scan plan: table={}.{}, partitions={}, splits={}",
                 dbName, tableName, partitions.size(), ranges.size());
+        publishPlanCompletedAudit(dbName, tableName, startNanos, ranges.size());
         return ranges;
+    }
+
+    private void publishPlanCompletedAudit(String db, String table, long startNanos, long scanRangeCount) {
+        ConnectorContext ctx = context;
+        if (ctx == null) {
+            return;
+        }
+        try {
+            long planTimeMillis = (System.nanoTime() - startNanos) / 1_000_000L;
+            PlanCompletedAuditEvent event = new PlanCompletedAuditEvent(
+                    ctx.getCatalogName(),
+                    System.currentTimeMillis(),
+                    Optional.empty(),
+                    db,
+                    table,
+                    planTimeMillis,
+                    scanRangeCount);
+            ctx.publishAuditEvent(event);
+        } catch (Throwable t) {
+            LOG.warn("Hive plan-completed audit publish failed for {}.{}: {}",
+                    db, table, t.toString());
+        }
     }
 
     @Override
