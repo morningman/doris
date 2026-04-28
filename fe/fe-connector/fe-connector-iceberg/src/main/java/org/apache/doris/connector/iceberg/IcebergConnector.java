@@ -110,7 +110,8 @@ public class IcebergConnector implements Connector {
 
     @Override
     public Set<ConnectorCapability> getCapabilities() {
-        return EnumSet.of(ConnectorCapability.SUPPORTS_MTMV);
+        return EnumSet.of(ConnectorCapability.SUPPORTS_MTMV,
+                ConnectorCapability.SUPPORTS_FILTER_PUSHDOWN);
     }
 
     @Override
