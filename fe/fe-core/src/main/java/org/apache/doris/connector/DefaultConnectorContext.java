@@ -34,6 +34,7 @@ import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
 import org.apache.doris.connector.api.cache.InvalidateRequest;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.credential.CredentialBroker;
+import org.apache.doris.connector.api.credential.UserContext;
 import org.apache.doris.connector.api.event.ConnectorMetaChangeEvent;
 import org.apache.doris.connector.audit.AuditEventChainListener;
 import org.apache.doris.connector.audit.PluginAuditEventBridge;
@@ -45,6 +46,7 @@ import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.datasource.CatalogIf;
 import org.apache.doris.datasource.CatalogMgr;
 import org.apache.doris.datasource.PluginDrivenExternalCatalog;
+import org.apache.doris.qe.ConnectContext;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.logging.log4j.LogManager;
@@ -228,6 +230,16 @@ public class DefaultConnectorContext implements ConnectorContext {
     @Override
     public <T> T executeAuthenticated(Callable<T> task) throws Exception {
         return authSupplier.get().execute(task);
+    }
+
+    @Override
+    public UserContext currentUserContext() {
+        ConnectContext cc = ConnectContext.get();
+        String username = cc == null ? null : cc.getQualifiedUser();
+        if (username == null || username.isEmpty()) {
+            username = "system";
+        }
+        return UserContext.builder().username(username).build();
     }
 
     @Override

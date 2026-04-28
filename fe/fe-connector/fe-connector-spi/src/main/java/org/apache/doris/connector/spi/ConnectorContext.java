@@ -24,6 +24,8 @@ import org.apache.doris.connector.api.cache.InvalidateRequest;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.credential.CredentialBroker;
 import org.apache.doris.connector.api.credential.CredentialResolver;
+import org.apache.doris.connector.api.credential.RuntimeImpersonationOps;
+import org.apache.doris.connector.api.credential.UserContext;
 import org.apache.doris.connector.api.event.ConnectorMetaChangeEvent;
 import org.apache.doris.connector.api.event.MasterOnlyScheduler;
 
@@ -90,7 +92,11 @@ public interface ConnectorContext {
      * <p>Connectors accessing secured external systems (e.g., Hive Metastore
      * with Kerberos) MUST use this method to wrap their external calls.</p>
      *
-     * <p>The default implementation simply executes the task directly (simple auth).</p>
+     * <p>The default implementation forwards to
+     * {@code getCredentialBroker().impersonation().runAs(currentUserContext(), task::call)} so
+     * connectors written against the deprecated {@code executeAuthenticated} API still flow
+     * through the unified credential broker. When no broker is wired (legacy / test contexts)
+     * the task is executed directly to preserve back-compat.</p>
      *
      * @param task the task to execute within the authentication context
      * @param <T>  the return type of the task
@@ -101,7 +107,31 @@ public interface ConnectorContext {
      */
     @Deprecated
     default <T> T executeAuthenticated(Callable<T> task) throws Exception {
-        return task.call();
+        CredentialBroker broker;
+        try {
+            broker = getCredentialBroker();
+        } catch (UnsupportedOperationException notWired) {
+            return task.call();
+        }
+        if (broker == null) {
+            return task.call();
+        }
+        RuntimeImpersonationOps imp = broker.impersonation();
+        if (imp == null) {
+            return task.call();
+        }
+        return imp.runAs(currentUserContext(), task::call);
+    }
+
+    /**
+     * Returns the current authentication identity used by
+     * {@link #executeAuthenticated(Callable)} when forwarding to the credential broker's
+     * impersonation surface. Engine implementations override this to return the active
+     * session user; the default returns a {@code system} principal so connectors invoked
+     * from background tasks (no session) still observe a valid {@link UserContext}.
+     */
+    default UserContext currentUserContext() {
+        return UserContext.builder().username("system").build();
     }
 
     /**
