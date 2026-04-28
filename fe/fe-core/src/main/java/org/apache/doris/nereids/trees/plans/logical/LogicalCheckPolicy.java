@@ -20,7 +20,12 @@ package org.apache.doris.nereids.trees.plans.logical;
 import org.apache.doris.analysis.UserIdentity;
 import org.apache.doris.catalog.DatabaseIf;
 import org.apache.doris.catalog.TableIf;
+import org.apache.doris.catalog.info.TableNameInfo;
+import org.apache.doris.connector.api.credential.UserContext;
+import org.apache.doris.connector.api.policy.ColumnMaskHint;
+import org.apache.doris.connector.api.policy.ConnectorPolicyContext;
 import org.apache.doris.datasource.CatalogIf;
+import org.apache.doris.datasource.policy.PluginDrivenPolicyBridge;
 import org.apache.doris.mysql.privilege.AccessControllerManager;
 import org.apache.doris.mysql.privilege.DataMaskPolicy;
 import org.apache.doris.mysql.privilege.RowFilterPolicy;
@@ -179,9 +184,20 @@ public class LogicalCheckPolicy<CHILD_TYPE extends Plan> extends LogicalUnary<CH
         StatementContext statementContext = cascadesContext.getStatementContext();
         Optional<SqlCacheContext> sqlCacheContext = statementContext.getSqlCacheContext();
         boolean hasDataMask = false;
+        TableNameInfo tableNameInfo = new TableNameInfo(ctlName, dbName, tableName);
+        UserContext pluginUser = PluginDrivenPolicyBridge.buildUserContext(connectContext);
         for (Slot slot : logicalPlan.getOutput()) {
             Optional<DataMaskPolicy> dataMaskPolicy = accessManager.evalDataMaskPolicy(
                     currentUserIdentity, ctlName, dbName, tableName, slot.getName());
+            if (dataMaskPolicy.isEmpty()) {
+                // Engine has no opinion: ask the plugin for a hint as fallback.
+                Optional<ColumnMaskHint> hint = PluginDrivenPolicyBridge.hintForColumn(
+                        tableNameInfo, slot.getName(), pluginUser);
+                if (hint.isPresent()) {
+                    dataMaskPolicy = Optional.of(PluginDrivenPolicyBridge.adaptMaskHint(
+                            ctlName, dbName, tableName, slot.getName(), hint.get()));
+                }
+            }
             if (dataMaskPolicy.isPresent()) {
                 Expression unboundExpr = nereidsParser.parseExpression(dataMaskPolicy.get().getMaskTypeDef());
                 Expression childOfAlias
@@ -205,6 +221,19 @@ public class LogicalCheckPolicy<CHILD_TYPE extends Plan> extends LogicalUnary<CH
                 currentUserIdentity, ctlName, dbName, tableName);
         if (sqlCacheContext.isPresent()) {
             sqlCacheContext.get().setRowFilterPolicy(ctlName, dbName, tableName, rowPolicies);
+        }
+        // D8 §11: ask the plugin whether the engine-decided RLS may be
+        // pushed down to the connector. The row-filter is still applied by
+        // the engine; we only record a hint so future push-down rules know
+        // not to inline the predicate into the connector scan.
+        if (CollectionUtils.isNotEmpty(rowPolicies)) {
+            ConnectorPolicyContext policyCtx = PluginDrivenPolicyBridge.buildPolicyContext(
+                    connectContext, ctlName, dbName, tableName);
+            Optional<Boolean> pluginAllowsPushdown = PluginDrivenPolicyBridge.supportsRlsAt(
+                    tableNameInfo, policyCtx);
+            if (pluginAllowsPushdown.isPresent() && !pluginAllowsPushdown.get()) {
+                statementContext.markPluginRlsPushdownRejected(ctlName, dbName, tableName);
+            }
         }
 
         return new RelatedPolicy(

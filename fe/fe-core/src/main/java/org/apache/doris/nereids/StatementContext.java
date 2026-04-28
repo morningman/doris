@@ -327,6 +327,13 @@ public class StatementContext implements Closeable {
     // CTEs that must be materialized (e.g., containing non-deterministic functions)
     private final Set<CTEId> forceMaterializeCTEs = new HashSet<>();
 
+    // D8 §11 PolicyOps RLS hint: tables for which the plugin returned
+    // supportsRlsAt=false. Engine still applies the row-filter; future
+    // push-down rules consult this map to skip inlining the predicate into
+    // the connector scan. Key: [catalog, database, table] (case-sensitive,
+    // matching the names used in LogicalCheckPolicy#findPolicy).
+    private final Map<List<String>, Boolean> pluginRlsPushdownRejected = Maps.newHashMap();
+
     public StatementContext() {
         this(ConnectContext.get(), null, 0);
     }
@@ -1222,6 +1229,27 @@ public class StatementContext implements Closeable {
 
     public Set<CTEId> getForceMaterializeCTEs() {
         return forceMaterializeCTEs;
+    }
+
+    /**
+     * Marks (catalog, database, table) as one for which the plugin's
+     * {@code PolicyOps.supportsRlsAt} returned {@code false}. The engine
+     * still applies the row-filter; future push-down rules consult this map
+     * to decide whether the predicate may be inlined into the connector
+     * scan. See D8 §11.
+     */
+    public void markPluginRlsPushdownRejected(String catalog, String database, String table) {
+        pluginRlsPushdownRejected.put(ImmutableList.of(catalog, database, table), Boolean.TRUE);
+    }
+
+    /** Whether the plugin opted out of RLS push-down for this table. */
+    public boolean isPluginRlsPushdownRejected(String catalog, String database, String table) {
+        return pluginRlsPushdownRejected.getOrDefault(
+                ImmutableList.of(catalog, database, table), Boolean.FALSE);
+    }
+
+    public Map<List<String>, Boolean> getPluginRlsPushdownRejected() {
+        return pluginRlsPushdownRejected;
     }
 
     public int getLowerCaseTableNames(String catalogName) {
