@@ -26,6 +26,7 @@ import org.apache.doris.connector.api.DorisConnectorException;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
+import org.apache.doris.connector.api.handle.ConnectorInsertHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.mtmv.MtmvOps;
 import org.apache.doris.connector.api.systable.SysTableSpec;
@@ -34,6 +35,9 @@ import org.apache.doris.connector.api.timetravel.ConnectorRefSpec;
 import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
 import org.apache.doris.connector.api.timetravel.RefKind;
 import org.apache.doris.connector.api.timetravel.RefOps;
+import org.apache.doris.connector.api.write.ConnectorWriteConfig;
+import org.apache.doris.connector.api.write.ConnectorWriteType;
+import org.apache.doris.connector.api.write.WriteIntent;
 import org.apache.doris.connector.iceberg.api.IcebergBackend;
 import org.apache.doris.connector.iceberg.api.IcebergBackendContext;
 import org.apache.doris.connector.iceberg.cache.IcebergTableCacheKey;
@@ -41,23 +45,34 @@ import org.apache.doris.connector.iceberg.event.IcebergEventSourceOps;
 import org.apache.doris.connector.iceberg.mtmv.IcebergMtmvOps;
 import org.apache.doris.connector.iceberg.systable.IcebergSystemTableOps;
 
+import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.OverwriteFiles;
+import org.apache.iceberg.PartitionField;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.ReplacePartitions;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.Transaction;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -512,6 +527,258 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
     @Override
     public Map<String, String> getProperties() {
         return properties;
+    }
+
+    // ========== ConnectorWriteOps (M3-03) ==========
+
+    /**
+     * Iceberg writes are file-based and support every overwrite shape produced by
+     * the M3-02 nereids analyzer (NONE / FULL_TABLE / STATIC_PARTITION /
+     * DYNAMIC_PARTITION). Branch-targeted writes remain disabled until M3-04.
+     */
+    @Override
+    public boolean supportsInsert() {
+        return true;
+    }
+
+    @Override
+    public ConnectorWriteConfig getWriteConfig(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            List<ConnectorColumn> columns) {
+        Objects.requireNonNull(handle, "handle");
+        IcebergTableHandle iceHandle = (IcebergTableHandle) handle;
+        Table table = loadIcebergTable(iceHandle.getDbName(), iceHandle.getTableName());
+
+        String fileFormat = table.properties()
+                .getOrDefault(TableProperties.DEFAULT_FILE_FORMAT,
+                        TableProperties.DEFAULT_FILE_FORMAT_DEFAULT);
+        String compression = resolveCompression(table, fileFormat);
+
+        List<String> partitionColumns;
+        if (table.spec().isPartitioned()) {
+            partitionColumns = table.spec().fields().stream()
+                    .map(PartitionField::name)
+                    .collect(Collectors.toList());
+        } else {
+            partitionColumns = Collections.emptyList();
+        }
+
+        Map<String, String> writeProps = new HashMap<>();
+        Integer formatVersion = null;
+        if (table instanceof BaseTable) {
+            TableMetadata meta = ((BaseTable) table).operations().current();
+            if (meta != null) {
+                formatVersion = meta.formatVersion();
+            }
+        }
+        writeProps.put("iceberg.format-version",
+                String.valueOf(formatVersion != null ? formatVersion : 2));
+        if (table.location() != null) {
+            writeProps.put("location", table.location());
+        }
+        writeProps.put("file-format", fileFormat);
+
+        return ConnectorWriteConfig.builder(ConnectorWriteType.FILE_WRITE)
+                .fileFormat(fileFormat)
+                .compression(compression)
+                .writeLocation(table.location())
+                .partitionColumns(partitionColumns)
+                .properties(writeProps)
+                .build();
+    }
+
+    private static String resolveCompression(Table table, String fileFormat) {
+        Map<String, String> props = table.properties();
+        switch (fileFormat.toLowerCase()) {
+            case "parquet":
+                return props.getOrDefault(
+                        TableProperties.PARQUET_COMPRESSION,
+                        TableProperties.PARQUET_COMPRESSION_DEFAULT);
+            case "orc":
+                return props.getOrDefault(
+                        TableProperties.ORC_COMPRESSION,
+                        TableProperties.ORC_COMPRESSION_DEFAULT);
+            case "avro":
+                return props.getOrDefault(
+                        TableProperties.AVRO_COMPRESSION,
+                        TableProperties.AVRO_COMPRESSION_DEFAULT);
+            default:
+                return "none";
+        }
+    }
+
+    @Override
+    public ConnectorInsertHandle beginInsert(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            List<ConnectorColumn> columns,
+            WriteIntent intent) {
+        Objects.requireNonNull(handle, "handle");
+        Objects.requireNonNull(intent, "intent");
+        if (intent.branch().isPresent()) {
+            throw new DorisConnectorException(
+                    "Branch-targeted iceberg writes are not yet supported by the SPI plugin "
+                            + "(scheduled for M3-04); branch=" + intent.branch().get());
+        }
+        IcebergTableHandle iceHandle = (IcebergTableHandle) handle;
+        Table table = loadIcebergTable(iceHandle.getDbName(), iceHandle.getTableName());
+        validateIntentAgainstTable(intent, table);
+        Transaction transaction = table.newTransaction();
+        return new IcebergInsertHandle(
+                iceHandle.getDbName(), iceHandle.getTableName(), table, transaction, intent);
+    }
+
+    private static void validateIntentAgainstTable(WriteIntent intent, Table table) {
+        if (intent.overwriteMode() == WriteIntent.OverwriteMode.STATIC_PARTITION
+                || intent.overwriteMode() == WriteIntent.OverwriteMode.DYNAMIC_PARTITION) {
+            if (!table.spec().isPartitioned()) {
+                throw new DorisConnectorException(
+                        "Partition overwrite requested on unpartitioned iceberg table "
+                                + table.name() + " (mode=" + intent.overwriteMode() + ")");
+            }
+        }
+        if (intent.overwriteMode() == WriteIntent.OverwriteMode.STATIC_PARTITION) {
+            for (String key : intent.staticPartitions().keySet()) {
+                boolean known = table.spec().fields().stream()
+                        .anyMatch(f -> f.name().equals(key));
+                if (!known) {
+                    throw new DorisConnectorException(
+                            "Unknown partition column '" + key + "' for iceberg table "
+                                    + table.name());
+                }
+            }
+        }
+    }
+
+    @Override
+    public void finishInsert(ConnectorSession session,
+            ConnectorInsertHandle handle,
+            Collection<byte[]> fragments) {
+        Objects.requireNonNull(handle, "handle");
+        IcebergInsertHandle insertHandle = (IcebergInsertHandle) handle;
+        Transaction transaction = insertHandle.getTransaction();
+        List<DataFile> dataFiles = IcebergCommitDataConverter.decodeDataFiles(
+                insertHandle.getTable(), fragments);
+
+        WriteIntent.OverwriteMode mode = insertHandle.getIntent().overwriteMode();
+        switch (mode) {
+            case NONE:
+                commitAppend(transaction, dataFiles);
+                break;
+            case FULL_TABLE:
+                commitFullTableOverwrite(transaction, dataFiles);
+                break;
+            case STATIC_PARTITION:
+                commitStaticPartitionOverwrite(
+                        transaction,
+                        insertHandle.getIntent().staticPartitions(),
+                        dataFiles);
+                break;
+            case DYNAMIC_PARTITION:
+                commitDynamicPartitionOverwrite(transaction, dataFiles);
+                break;
+            default:
+                throw new DorisConnectorException("Unsupported iceberg overwrite mode: " + mode);
+        }
+        transaction.commitTransaction();
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Iceberg insert committed for {}.{} mode={} files={}",
+                    insertHandle.getDbName(), insertHandle.getTableName(),
+                    mode, dataFiles.size());
+        }
+    }
+
+    private static void commitAppend(Transaction transaction, List<DataFile> dataFiles) {
+        AppendFiles append = transaction.newAppend();
+        for (DataFile file : dataFiles) {
+            append.appendFile(file);
+        }
+        append.commit();
+    }
+
+    private static void commitFullTableOverwrite(Transaction transaction, List<DataFile> dataFiles) {
+        OverwriteFiles overwrite = transaction.newOverwrite()
+                .overwriteByRowFilter(Expressions.alwaysTrue());
+        for (DataFile file : dataFiles) {
+            overwrite.addFile(file);
+        }
+        overwrite.commit();
+    }
+
+    private static void commitStaticPartitionOverwrite(
+            Transaction transaction,
+            Map<String, String> staticPartitions,
+            List<DataFile> dataFiles) {
+        Table table = transaction.table();
+        Expression filter = buildStaticPartitionFilter(
+                staticPartitions, table.spec(), table.schema());
+        OverwriteFiles overwrite = transaction.newOverwrite()
+                .overwriteByRowFilter(filter);
+        for (DataFile file : dataFiles) {
+            overwrite.addFile(file);
+        }
+        overwrite.commit();
+    }
+
+    private static void commitDynamicPartitionOverwrite(Transaction transaction, List<DataFile> dataFiles) {
+        ReplacePartitions replace = transaction.newReplacePartitions();
+        for (DataFile file : dataFiles) {
+            replace.addFile(file);
+        }
+        replace.commit();
+    }
+
+    private static Expression buildStaticPartitionFilter(
+            Map<String, String> staticPartitions,
+            PartitionSpec spec,
+            Schema schema) {
+        if (staticPartitions == null || staticPartitions.isEmpty()) {
+            return Expressions.alwaysTrue();
+        }
+        List<Expression> predicates = new ArrayList<>(staticPartitions.size());
+        for (PartitionField field : spec.fields()) {
+            String name = field.name();
+            if (!staticPartitions.containsKey(name)) {
+                continue;
+            }
+            Types.NestedField source = schema.findField(field.sourceId());
+            if (source == null) {
+                throw new DorisConnectorException(
+                        "Source column for partition field '" + name + "' not found in schema");
+            }
+            String value = staticPartitions.get(name);
+            String sourceName = source.name();
+            if (value == null) {
+                predicates.add(Expressions.isNull(sourceName));
+            } else {
+                Object internal = IcebergCommitDataConverter
+                        .parsePartitionValue(value, source.type());
+                predicates.add(Expressions.equal(sourceName, internal));
+            }
+        }
+        if (predicates.isEmpty()) {
+            return Expressions.alwaysTrue();
+        }
+        Expression result = predicates.get(0);
+        for (int i = 1; i < predicates.size(); i++) {
+            result = Expressions.and(result, predicates.get(i));
+        }
+        return result;
+    }
+
+    @Override
+    public void abortInsert(ConnectorSession session, ConnectorInsertHandle handle) {
+        Objects.requireNonNull(handle, "handle");
+        IcebergInsertHandle iceHandle = (IcebergInsertHandle) handle;
+        // Iceberg transactions hold no external resources prior to commit; dropping
+        // the in-flight Transaction reference is sufficient. A debug log line helps
+        // diagnose double-aborts and lifecycle issues.
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Iceberg insert aborted for {}.{} mode={}",
+                    iceHandle.getDbName(), iceHandle.getTableName(),
+                    iceHandle.getIntent().overwriteMode());
+        }
     }
 
     // ========== Internal helpers ==========

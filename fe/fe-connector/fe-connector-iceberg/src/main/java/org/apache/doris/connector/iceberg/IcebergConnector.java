@@ -131,7 +131,14 @@ public class IcebergConnector implements Connector {
                 ConnectorCapability.SUPPORTS_PARTITION_PRUNING,
                 ConnectorCapability.SUPPORTS_VENDED_CREDENTIALS,
                 ConnectorCapability.SUPPORTS_TIME_TRAVEL,
-                ConnectorCapability.SUPPORTS_MVCC_SNAPSHOT);
+                ConnectorCapability.SUPPORTS_MVCC_SNAPSHOT,
+                // M3-03: WriteOps INSERT + INSERT OVERWRITE (FULL_TABLE /
+                // STATIC_PARTITION / DYNAMIC_PARTITION). Branch writes (M3-04)
+                // and equality-delete / DV (M3-05) are intentionally excluded.
+                ConnectorCapability.SUPPORTS_INSERT,
+                ConnectorCapability.SUPPORTS_INSERT_OVERWRITE,
+                ConnectorCapability.SUPPORTS_PARTITION_OVERWRITE,
+                ConnectorCapability.SUPPORTS_DYNAMIC_PARTITION_INSERT);
     }
 
     @Override
