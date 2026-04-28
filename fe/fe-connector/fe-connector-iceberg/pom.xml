@@ -111,6 +111,15 @@ under the License.
             <version>${hadoop.version}</version>
         </dependency>
 
+        <!-- Thrift types for constructing TIcebergFileDesc / TIcebergDeleteFileDesc
+             in IcebergScanRange#populateRangeParams. -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>fe-thrift</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
