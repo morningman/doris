@@ -17,13 +17,10 @@
 
 package org.apache.doris.connector.iceberg.systable;
 
-import org.apache.doris.connector.api.ConnectorSession;
-import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
-import org.apache.doris.connector.api.handle.ConnectorTableHandle;
-import org.apache.doris.connector.api.pushdown.ConnectorExpression;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
 
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.MetadataTableUtils;
@@ -34,7 +31,6 @@ import org.apache.logging.log4j.Logger;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -108,11 +104,8 @@ public final class IcebergMetadataScanPlanProvider implements ConnectorScanPlanP
     }
 
     @Override
-    public List<ConnectorScanRange> planScan(
-            ConnectorSession session,
-            ConnectorTableHandle handle,
-            List<ConnectorColumnHandle> columns,
-            Optional<ConnectorExpression> filter) {
+    public List<ConnectorScanRange> planScan(ConnectorScanRequest req) {
+        Objects.requireNonNull(req, "req");
         // M1-13: SPI surface is published; the fe-core ScanNode that
         // consumes plugin sys-table ranges is M1-15 (see M1-12 handoff hook #2).
         // resolveMetadataTable() above is the integration point; until M1-15

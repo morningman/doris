@@ -17,6 +17,8 @@
 
 package org.apache.doris.connector.es;
 
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -121,7 +123,7 @@ class EsScanPlanProviderTest {
         EsScanPlanProvider provider = new EsScanPlanProvider(client, minimalProps());
         EsTableHandle handle = new EsTableHandle("test_index");
 
-        provider.planScan(EMPTY_SESSION, handle, Collections.emptyList(), java.util.Optional.empty());
+        provider.planScan(ConnectorScanRequest.from(EMPTY_SESSION, handle, Collections.emptyList(), java.util.Optional.empty()));
         provider.getScanNodeProperties(EMPTY_SESSION, handle, Collections.emptyList(),
                 java.util.Optional.empty());
         Assertions.assertEquals(2, client.getMappingCount.get(),
@@ -134,10 +136,10 @@ class EsScanPlanProviderTest {
     void testDifferentIndexesFetchSeparately() {
         CountingRestClient client = new CountingRestClient();
         EsScanPlanProvider provider = new EsScanPlanProvider(client, minimalProps());
-        provider.planScan(EMPTY_SESSION, new EsTableHandle("index_a"),
-                Collections.emptyList(), java.util.Optional.empty());
-        provider.planScan(EMPTY_SESSION, new EsTableHandle("index_b"),
-                Collections.emptyList(), java.util.Optional.empty());
+        provider.planScan(ConnectorScanRequest.from(EMPTY_SESSION, new EsTableHandle("index_a"),
+                Collections.emptyList(), java.util.Optional.empty()));
+        provider.planScan(ConnectorScanRequest.from(EMPTY_SESSION, new EsTableHandle("index_b"),
+                Collections.emptyList(), java.util.Optional.empty()));
         Assertions.assertEquals(2, client.getMappingCount.get(),
                 "Different indexes should each fetch their own metadata");
     }

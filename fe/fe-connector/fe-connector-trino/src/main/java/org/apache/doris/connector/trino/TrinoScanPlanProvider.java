@@ -23,6 +23,7 @@ import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.pushdown.ConnectorExpression;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
 import org.apache.doris.trinoconnector.TrinoColumnMetadata;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -55,6 +56,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -83,21 +85,13 @@ public class TrinoScanPlanProvider implements ConnectorScanPlanProvider {
     }
 
     @Override
-    public List<ConnectorScanRange> planScan(
-            ConnectorSession session,
-            ConnectorTableHandle handle,
-            List<ConnectorColumnHandle> columns,
-            Optional<ConnectorExpression> filter) {
-        return planScan(session, handle, columns, filter, -1);
-    }
-
-    @Override
-    public List<ConnectorScanRange> planScan(
-            ConnectorSession session,
-            ConnectorTableHandle handle,
-            List<ConnectorColumnHandle> columns,
-            Optional<ConnectorExpression> filter,
-            long limit) {
+    public List<ConnectorScanRange> planScan(ConnectorScanRequest req) {
+        Objects.requireNonNull(req, "req");
+        ConnectorSession session = req.getSession();
+        ConnectorTableHandle handle = req.getTable();
+        List<ConnectorColumnHandle> columns = req.getColumns();
+        Optional<ConnectorExpression> filter = req.getFilter();
+        long limit = req.getLimit().orElse(-1L);
         TrinoTableHandle trinoHandle = (TrinoTableHandle) handle;
 
         Connector connector = dorisConnector.getTrinoConnector();

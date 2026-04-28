@@ -17,12 +17,12 @@
 
 package org.apache.doris.connector.maxcompute;
 
-import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.pushdown.ConnectorExpression;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
 
 import com.aliyun.odps.Column;
 import com.aliyun.odps.OdpsType;
@@ -53,6 +53,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -163,16 +164,12 @@ public class MaxComputeScanPlanProvider implements ConnectorScanPlanProvider {
     }
 
     @Override
-    public List<ConnectorScanRange> planScan(ConnectorSession session,
-            ConnectorTableHandle handle, List<ConnectorColumnHandle> columns,
-            Optional<ConnectorExpression> filter) {
-        return planScan(session, handle, columns, filter, -1);
-    }
-
-    @Override
-    public List<ConnectorScanRange> planScan(ConnectorSession session,
-            ConnectorTableHandle handle, List<ConnectorColumnHandle> columns,
-            Optional<ConnectorExpression> filter, long limit) {
+    public List<ConnectorScanRange> planScan(ConnectorScanRequest req) {
+        Objects.requireNonNull(req, "req");
+        ConnectorTableHandle handle = req.getTable();
+        List<ConnectorColumnHandle> columns = req.getColumns();
+        Optional<ConnectorExpression> filter = req.getFilter();
+        long limit = req.getLimit().orElse(-1L);
         ensureInitialized();
         MaxComputeTableHandle mcHandle = (MaxComputeTableHandle) handle;
         Table odpsTable = mcHandle.getOdpsTable();

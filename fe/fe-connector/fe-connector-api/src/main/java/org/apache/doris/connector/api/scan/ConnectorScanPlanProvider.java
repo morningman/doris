@@ -53,64 +53,19 @@ public interface ConnectorScanPlanProvider {
     /**
      * Plans the scan for the given table, returning a list of scan ranges.
      *
-     * <p>This 4-arg overload is the legacy entry point. Connectors that
-     * need access to time-travel coordinates (version / ref / mvcc
-     * snapshot) or the row-limit pushdown should override
-     * {@link #planScan(ConnectorScanRequest)} instead — the engine
-     * prefers the request-shaped overload when a connector overrides
-     * it.</p>
+     * <p>This is the sole entry point for plugin-driven scan planning;
+     * the engine resolves every coordinate (session, handle, projection,
+     * filter, optional row limit, optional time-travel version / ref /
+     * mvcc snapshot) into the {@link ConnectorScanRequest} and hands the
+     * bundle here. Connectors that don't need a particular coordinate
+     * simply ignore the corresponding getter — missing coordinates
+     * surface as {@link Optional#empty()} or
+     * {@link java.util.OptionalLong#empty()}.</p>
      *
-     * @param session the current session
-     * @param handle  the table handle to scan (may have been updated by applyFilter/applyProjection)
-     * @param columns the columns to read
-     * @param filter  an optional filter expression (remaining after pushdown)
+     * @param req aggregating scan request (never {@code null})
      * @return a list of scan ranges that cover the requested data
      */
-    List<ConnectorScanRange> planScan(
-            ConnectorSession session,
-            ConnectorTableHandle handle,
-            List<ConnectorColumnHandle> columns,
-            Optional<ConnectorExpression> filter);
-
-    /**
-     * Plans the scan from an aggregating {@link ConnectorScanRequest}.
-     *
-     * <p>This is the preferred entry point for new connectors and for any
-     * connector that needs access to time-travel coordinates or the row
-     * limit. The default forwards to the legacy 4-arg
-     * {@link #planScan(ConnectorSession, ConnectorTableHandle, List, Optional)}
-     * which discards the time-travel and limit fields, so existing
-     * connectors keep working unchanged.</p>
-     *
-     * @param req aggregating scan request
-     * @return a list of scan ranges
-     */
-    default List<ConnectorScanRange> planScan(ConnectorScanRequest req) {
-        return planScan(req.getSession(), req.getTable(), req.getColumns(), req.getFilter());
-    }
-
-    /**
-     * Plans the scan with an optional row limit.
-     *
-     * <p>Some connectors (e.g., JDBC) can push the limit into the remote query
-     * to reduce data transfer. The default delegates to the 4-arg planScan,
-     * ignoring the limit.</p>
-     *
-     * @param session the current session
-     * @param handle  the table handle
-     * @param columns the columns to read
-     * @param filter  an optional remaining filter expression
-     * @param limit   the maximum number of rows to return, or -1 for no limit
-     * @return a list of scan ranges
-     */
-    default List<ConnectorScanRange> planScan(
-            ConnectorSession session,
-            ConnectorTableHandle handle,
-            List<ConnectorColumnHandle> columns,
-            Optional<ConnectorExpression> filter,
-            long limit) {
-        return planScan(session, handle, columns, filter);
-    }
+    List<ConnectorScanRange> planScan(ConnectorScanRequest req);
 
     /**
      * Returns scan-node-level properties shared across all scan ranges.

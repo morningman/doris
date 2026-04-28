@@ -27,6 +27,7 @@ import org.apache.doris.connector.api.pushdown.ConnectorFunctionCall;
 import org.apache.doris.connector.api.pushdown.ConnectorLiteral;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
 import org.apache.doris.connector.iceberg.IcebergColumnHandle;
 import org.apache.doris.connector.iceberg.IcebergTableHandle;
 import org.apache.doris.thrift.TFileScanRangeParams;
@@ -150,8 +151,8 @@ class IcebergScanPlanProviderTest {
     void emptyTableNoSnapshotReturnsEmpty() {
         Table table = mockTable(Collections.emptyList(), null, null, null);
         IcebergScanPlanProvider p = providerFor(table);
-        List<ConnectorScanRange> ranges = p.planScan(null, handleV(1, null),
-                Collections.emptyList(), Optional.empty());
+        List<ConnectorScanRange> ranges = p.planScan(ConnectorScanRequest.from(null, handleV(1, null),
+                Collections.emptyList(), Optional.empty()));
         Assertions.assertTrue(ranges.isEmpty());
     }
 
@@ -162,8 +163,8 @@ class IcebergScanPlanProviderTest {
         Table table = mockTable(Collections.singletonList(task), null, 7L, null);
         IcebergScanPlanProvider p = providerFor(table);
 
-        List<ConnectorScanRange> ranges = p.planScan(null, handleV(1, null),
-                Collections.emptyList(), Optional.empty());
+        List<ConnectorScanRange> ranges = p.planScan(ConnectorScanRequest.from(null, handleV(1, null),
+                Collections.emptyList(), Optional.empty()));
         Assertions.assertEquals(1, ranges.size());
         IcebergScanRange r = (IcebergScanRange) ranges.get(0);
         Assertions.assertEquals("/x/a.parquet", r.getPath().orElseThrow(() -> new AssertionError("no path")));
@@ -181,8 +182,8 @@ class IcebergScanPlanProviderTest {
         FileScanTask t1 = mockTask(mockDataFile("/x/a.parquet", 100L, 0), 0L, 100L, Collections.emptyList());
         FileScanTask t2 = mockTask(mockDataFile("/x/b.parquet", 200L, 0), 0L, 200L, Collections.emptyList());
         Table table = mockTable(Arrays.asList(t1, t2), null, 1L, null);
-        List<ConnectorScanRange> ranges = providerFor(table).planScan(null, handleV(1, null),
-                Collections.emptyList(), Optional.empty());
+        List<ConnectorScanRange> ranges = providerFor(table).planScan(ConnectorScanRequest.from(null, handleV(1, null),
+                Collections.emptyList(), Optional.empty()));
         Assertions.assertEquals(2, ranges.size());
     }
 
@@ -197,8 +198,8 @@ class IcebergScanPlanProviderTest {
                 ConnectorComparison.Operator.EQ,
                 new ConnectorColumnRef("id", ConnectorType.of("BIGINT")),
                 ConnectorLiteral.ofLong(5L));
-        providerFor(table).planScan(null, handleV(1, null),
-                Collections.emptyList(), Optional.of(filter));
+        providerFor(table).planScan(ConnectorScanRequest.from(null, handleV(1, null),
+                Collections.emptyList(), Optional.of(filter)));
         ArgumentCaptor<Expression> exprCap = ArgumentCaptor.forClass(Expression.class);
         Mockito.verify(capt[0], Mockito.atLeastOnce()).filter(exprCap.capture());
         Assertions.assertFalse(exprCap.getValue() instanceof True,
@@ -214,8 +215,8 @@ class IcebergScanPlanProviderTest {
         // function call on an unsupported function → converter returns alwaysTrue.
         ConnectorExpression filter = new ConnectorFunctionCall("unknown_fn",
                 ConnectorType.of("BOOLEAN"), Collections.emptyList());
-        List<ConnectorScanRange> ranges = providerFor(table).planScan(
-                null, handleV(1, null), Collections.emptyList(), Optional.of(filter));
+        List<ConnectorScanRange> ranges = providerFor(table).planScan(ConnectorScanRequest.from(
+                null, handleV(1, null), Collections.emptyList(), Optional.of(filter)));
         Assertions.assertEquals(1, ranges.size());
         Mockito.verify(capt[0], Mockito.never()).filter(Mockito.any());
     }
@@ -227,8 +228,8 @@ class IcebergScanPlanProviderTest {
         Table table = mockTable(Collections.singletonList(task), null, 1L, capt);
 
         ConnectorColumnHandle idCh = new IcebergColumnHandle(1, "id", Types.LongType.get(), false);
-        List<ConnectorScanRange> ranges = providerFor(table).planScan(
-                null, handleV(1, null), Collections.singletonList(idCh), Optional.empty());
+        List<ConnectorScanRange> ranges = providerFor(table).planScan(ConnectorScanRequest.from(
+                null, handleV(1, null), Collections.singletonList(idCh), Optional.empty()));
         Assertions.assertEquals(1, ranges.size());
         ArgumentCaptor<java.util.Collection<String>> cap = ArgumentCaptor.forClass(java.util.Collection.class);
         Mockito.verify(capt[0]).select(cap.capture());
@@ -254,8 +255,8 @@ class IcebergScanPlanProviderTest {
 
         FileScanTask task = mockTask(df, 0L, 10L, Collections.singletonList(pos));
         Table table = mockTable(Collections.singletonList(task), null, 1L, null);
-        List<ConnectorScanRange> ranges = providerFor(table).planScan(
-                null, handleV(2, null), Collections.emptyList(), Optional.empty());
+        List<ConnectorScanRange> ranges = providerFor(table).planScan(ConnectorScanRequest.from(
+                null, handleV(2, null), Collections.emptyList(), Optional.empty()));
         Assertions.assertEquals(1, ranges.size());
         IcebergScanRange r = (IcebergScanRange) ranges.get(0);
         Assertions.assertEquals(1, r.getIcebergDeleteFiles().size());
@@ -277,8 +278,8 @@ class IcebergScanPlanProviderTest {
 
         FileScanTask task = mockTask(df, 0L, 10L, Collections.singletonList(eq));
         Table table = mockTable(Collections.singletonList(task), null, 1L, null);
-        List<ConnectorScanRange> ranges = providerFor(table).planScan(
-                null, handleV(2, null), Collections.emptyList(), Optional.empty());
+        List<ConnectorScanRange> ranges = providerFor(table).planScan(ConnectorScanRequest.from(
+                null, handleV(2, null), Collections.emptyList(), Optional.empty()));
         IcebergScanRange r = (IcebergScanRange) ranges.get(0);
         Assertions.assertEquals(1, r.getIcebergDeleteFiles().size());
         IcebergDeleteFileDescriptor d = r.getIcebergDeleteFiles().get(0);
@@ -292,8 +293,8 @@ class IcebergScanPlanProviderTest {
         TableScan[] capt = new TableScan[1];
         Table table = mockTable(Collections.singletonList(task), null, 1L, capt);
 
-        providerFor(table).planScan(null, handleV(1, 42L),
-                Collections.emptyList(), Optional.empty());
+        providerFor(table).planScan(ConnectorScanRequest.from(null, handleV(1, 42L),
+                Collections.emptyList(), Optional.empty()));
         Mockito.verify(capt[0]).useSnapshot(42L);
     }
 
@@ -527,8 +528,8 @@ class IcebergScanPlanProviderTest {
         Table table = mockTable(Collections.singletonList(task), null, 1L, capt);
 
         IcebergScanPlanProvider p = providerFor(table); // cache off
-        List<ConnectorScanRange> ranges = p.planScan(null, handleV(1, null),
-                Collections.emptyList(), Optional.empty());
+        List<ConnectorScanRange> ranges = p.planScan(ConnectorScanRequest.from(null, handleV(1, null),
+                Collections.emptyList(), Optional.empty()));
         Assertions.assertEquals(1, ranges.size());
         Mockito.verify(capt[0], Mockito.atLeastOnce()).planFiles();
     }
@@ -592,8 +593,8 @@ class IcebergScanPlanProviderTest {
                 new org.apache.doris.connector.iceberg.cache.IcebergPluginManifestCache(8);
         IcebergScanPlanProvider p = new IcebergScanPlanProvider(
                 (db, tbl) -> table, Collections.emptyMap(), null, cache, true);
-        List<ConnectorScanRange> ranges = p.planScan(null, handleV(1, null),
-                Collections.emptyList(), Optional.empty());
+        List<ConnectorScanRange> ranges = p.planScan(ConnectorScanRequest.from(null, handleV(1, null),
+                Collections.emptyList(), Optional.empty()));
         Assertions.assertFalse(ranges.isEmpty(), "fallback path must yield ranges");
         Assertions.assertEquals(1, p.getCacheStats().failures);
     }
@@ -612,8 +613,8 @@ class IcebergScanPlanProviderTest {
                 new org.apache.doris.connector.iceberg.cache.IcebergPluginManifestCache(8);
         IcebergScanPlanProvider p = new IcebergScanPlanProvider(
                 (db, tbl) -> table, Collections.emptyMap(), null, cache, true);
-        List<ConnectorScanRange> ranges = p.planScan(null, handleV(1, null),
-                Collections.emptyList(), Optional.empty());
+        List<ConnectorScanRange> ranges = p.planScan(ConnectorScanRequest.from(null, handleV(1, null),
+                Collections.emptyList(), Optional.empty()));
         Assertions.assertTrue(ranges.isEmpty());
         Assertions.assertEquals(0, p.getCacheStats().failures);
     }

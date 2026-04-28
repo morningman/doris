@@ -20,6 +20,7 @@ package org.apache.doris.connector.hive.audit;
 import org.apache.doris.connector.api.ConnectorHttpSecurityHook;
 import org.apache.doris.connector.api.audit.ConnectorAuditEvent;
 import org.apache.doris.connector.api.audit.ConnectorAuditEvent.PlanCompletedAuditEvent;
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
 import org.apache.doris.connector.hive.HiveScanPlanProvider;
 import org.apache.doris.connector.hive.HiveTableHandle;
 import org.apache.doris.connector.hive.HiveTableType;
@@ -94,7 +95,7 @@ class HiveScanPlanProviderAuditTest {
         RecordingContext ctx = new RecordingContext(CATALOG);
         HiveScanPlanProvider provider = new HiveScanPlanProvider(client, new HashMap<>(), ctx);
 
-        provider.planScan(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty());
+        provider.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty()));
 
         Assertions.assertEquals(1, ctx.events.size());
         Assertions.assertTrue(ctx.events.get(0) instanceof PlanCompletedAuditEvent);
@@ -106,7 +107,7 @@ class HiveScanPlanProviderAuditTest {
         RecordingContext ctx = new RecordingContext(CATALOG);
         HiveScanPlanProvider provider = new HiveScanPlanProvider(client, new HashMap<>(), ctx);
 
-        provider.planScan(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty());
+        provider.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty()));
 
         PlanCompletedAuditEvent ev = (PlanCompletedAuditEvent) ctx.events.get(0);
         Assertions.assertEquals(CATALOG, ev.catalog());
@@ -124,8 +125,8 @@ class HiveScanPlanProviderAuditTest {
         RecordingContext ctx = new RecordingContext(CATALOG);
         HiveScanPlanProvider provider = new HiveScanPlanProvider(client, new HashMap<>(), ctx);
 
-        List<?> ranges = provider.planScan(null, emptyPartitionsHandle(),
-                Collections.emptyList(), Optional.empty());
+        List<?> ranges = provider.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(),
+                Collections.emptyList(), Optional.empty()));
 
         Assertions.assertTrue(ranges.isEmpty());
         Assertions.assertEquals(1, ctx.events.size());
@@ -145,7 +146,7 @@ class HiveScanPlanProviderAuditTest {
                 .build();
 
         Assertions.assertThrows(RuntimeException.class,
-                () -> provider.planScan(null, handle, Collections.emptyList(), Optional.empty()));
+                () -> provider.planScan(ConnectorScanRequest.from(null, handle, Collections.emptyList(), Optional.empty())));
         Assertions.assertTrue(ctx.events.isEmpty(), "no audit event on failure");
     }
 
@@ -157,8 +158,8 @@ class HiveScanPlanProviderAuditTest {
         HiveScanPlanProvider provider = new HiveScanPlanProvider(client, new HashMap<>(), ctx);
 
         // planScan must complete normally even though publishAuditEvent throws.
-        List<?> ranges = provider.planScan(null, emptyPartitionsHandle(),
-                Collections.emptyList(), Optional.empty());
+        List<?> ranges = provider.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(),
+                Collections.emptyList(), Optional.empty()));
         Assertions.assertTrue(ranges.isEmpty());
         Assertions.assertTrue(ctx.events.isEmpty());
     }
@@ -170,8 +171,8 @@ class HiveScanPlanProviderAuditTest {
         ctx.publishFailure = new OutOfMemoryError("simulated");
         HiveScanPlanProvider provider = new HiveScanPlanProvider(client, new HashMap<>(), ctx);
 
-        Assertions.assertDoesNotThrow(() -> provider.planScan(null, emptyPartitionsHandle(),
-                Collections.emptyList(), Optional.empty()));
+        Assertions.assertDoesNotThrow(() -> provider.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(),
+                Collections.emptyList(), Optional.empty())));
     }
 
     @Test
@@ -180,8 +181,8 @@ class HiveScanPlanProviderAuditTest {
         // Back-compat ctor → null context, audit publication is skipped.
         HiveScanPlanProvider provider = new HiveScanPlanProvider(client, new HashMap<>());
 
-        Assertions.assertDoesNotThrow(() -> provider.planScan(null, emptyPartitionsHandle(),
-                Collections.emptyList(), Optional.empty()));
+        Assertions.assertDoesNotThrow(() -> provider.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(),
+                Collections.emptyList(), Optional.empty())));
     }
 
     @Test
@@ -190,9 +191,9 @@ class HiveScanPlanProviderAuditTest {
         RecordingContext ctx = new RecordingContext(CATALOG);
         HiveScanPlanProvider provider = new HiveScanPlanProvider(client, new HashMap<>(), ctx);
 
-        provider.planScan(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty());
-        provider.planScan(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty());
-        provider.planScan(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty());
+        provider.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty()));
+        provider.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty()));
+        provider.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty()));
 
         Assertions.assertEquals(3, ctx.events.size());
         for (ConnectorAuditEvent ev : ctx.events) {
@@ -209,9 +210,9 @@ class HiveScanPlanProviderAuditTest {
         HiveScanPlanProvider providerA = new HiveScanPlanProvider(client, new HashMap<>(), ctxA);
         HiveScanPlanProvider providerB = new HiveScanPlanProvider(client, new HashMap<>(), ctxB);
 
-        providerA.planScan(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty());
-        providerB.planScan(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty());
-        providerB.planScan(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty());
+        providerA.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty()));
+        providerB.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty()));
+        providerB.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty()));
 
         Assertions.assertEquals(1, ctxA.events.size());
         Assertions.assertEquals(2, ctxB.events.size());
@@ -230,7 +231,7 @@ class HiveScanPlanProviderAuditTest {
         props.put("uri", "thrift://nowhere:9083");
         HiveScanPlanProvider provider = new HiveScanPlanProvider(client, props, ctx);
 
-        provider.planScan(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty());
+        provider.planScan(ConnectorScanRequest.from(null, emptyPartitionsHandle(), Collections.emptyList(), Optional.empty()));
 
         Assertions.assertEquals(1, ctx.events.size());
     }

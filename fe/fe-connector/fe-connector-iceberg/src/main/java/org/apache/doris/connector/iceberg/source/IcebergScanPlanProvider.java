@@ -232,28 +232,6 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
     }
 
     @Override
-    public List<ConnectorScanRange> planScan(
-            ConnectorSession session,
-            ConnectorTableHandle handle,
-            List<ConnectorColumnHandle> columns,
-            Optional<ConnectorExpression> filter) {
-        IcebergTableHandle iceHandle = (IcebergTableHandle) Objects.requireNonNull(handle, "handle");
-        return doPlanScan(session, iceHandle, columns, filter, iceHandle.getSnapshotId());
-    }
-
-    /**
-     * Request-shaped overload honouring time-travel coordinates: an
-     * {@link IcebergConnectorMvccSnapshot} on
-     * {@link ConnectorScanRequest#getMvccSnapshot()} takes priority, then a
-     * {@link ConnectorTableVersion#BySnapshotId} on
-     * {@link ConnectorScanRequest#getVersion()}, finally the snapshot id
-     * already pinned on the handle (which is the primary resolution path
-     * — set by {@link
-     * org.apache.doris.connector.iceberg.IcebergConnectorMetadata#getTableHandle(
-     * org.apache.doris.connector.api.ConnectorSession, String, String,
-     * java.util.Optional, java.util.Optional)}).
-     */
-    @Override
     public List<ConnectorScanRange> planScan(ConnectorScanRequest req) {
         Objects.requireNonNull(req, "req");
         IcebergTableHandle iceHandle =
@@ -263,6 +241,18 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
                 req.getFilter(), effectiveSnapshotId);
     }
 
+    /**
+     * Picks the effective snapshot id to read: an
+     * {@link IcebergConnectorMvccSnapshot} on
+     * {@link ConnectorScanRequest#getMvccSnapshot()} takes priority, then a
+     * {@link ConnectorTableVersion.BySnapshotId} on
+     * {@link ConnectorScanRequest#getVersion()}, finally the snapshot id
+     * already pinned on the handle (which is the primary resolution path
+     * — set by {@link
+     * org.apache.doris.connector.iceberg.IcebergConnectorMetadata#getTableHandle(
+     * org.apache.doris.connector.api.ConnectorSession, String, String,
+     * java.util.Optional, java.util.Optional)}).
+     */
     private static Long resolveEffectiveSnapshotId(ConnectorScanRequest req, IcebergTableHandle handle) {
         if (req.getMvccSnapshot().isPresent()) {
             ConnectorMvccSnapshot mvcc = req.getMvccSnapshot().get();

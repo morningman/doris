@@ -37,6 +37,7 @@ import org.apache.doris.connector.api.pushdown.LimitApplicationResult;
 import org.apache.doris.connector.api.pushdown.ProjectionApplicationResult;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
 import org.apache.doris.connector.api.scan.ScanNodePropertiesResult;
 import org.apache.doris.planner.PlanNodeId;
 import org.apache.doris.planner.ScanContext;
@@ -318,8 +319,10 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
      * Called before getSplits(), after filter pushdown.
      *
      * <p>If the connector accepts the limit, the handle is updated.
-     * The limit is still passed to planScan() as a parameter for
-     * connectors that handle limit directly in planScan().</p>
+     * The limit is also propagated through the {@link ConnectorScanRequest}
+     * passed to {@code planScan()} so connectors that handle the limit
+     * directly during scan planning (e.g., JDBC, MaxCompute) can read it
+     * from {@link ConnectorScanRequest#getLimit()}.</p>
      */
     private void tryPushDownLimit() {
         if (limit <= 0) {
@@ -375,7 +378,8 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
         }
 
         List<ConnectorScanRange> ranges = scanProvider.planScan(
-                connectorSession, currentHandle, columns, remainingFilter, limit);
+                ConnectorScanRequest.of(connectorSession, currentHandle,
+                        columns, remainingFilter, limit));
 
         if (countPushdown.isPresent()) {
             long total = countPushdown.get();

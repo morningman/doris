@@ -24,6 +24,7 @@ import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.pushdown.ConnectorExpression;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
 
 import org.apache.avro.Schema;
 import org.apache.hadoop.conf.Configuration;
@@ -49,6 +50,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -82,11 +84,9 @@ public class HudiScanPlanProvider implements ConnectorScanPlanProvider {
     }
 
     @Override
-    public List<ConnectorScanRange> planScan(
-            ConnectorSession session,
-            ConnectorTableHandle handle,
-            List<ConnectorColumnHandle> columns,
-            Optional<ConnectorExpression> filter) {
+    public List<ConnectorScanRange> planScan(ConnectorScanRequest req) {
+        Objects.requireNonNull(req, "req");
+        ConnectorTableHandle handle = req.getTable();
         HudiTableHandle hudiHandle = (HudiTableHandle) handle;
         String basePath = hudiHandle.getBasePath();
         boolean isCow = "COPY_ON_WRITE".equals(hudiHandle.getHudiTableType());

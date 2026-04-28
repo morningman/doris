@@ -18,6 +18,7 @@
 package org.apache.doris.connector.iceberg.systable;
 
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
 
 import org.apache.iceberg.MetadataTableType;
 import org.apache.iceberg.Table;
@@ -70,8 +71,10 @@ class IcebergMetadataScanPlanProviderTest {
                     calls.incrementAndGet();
                     return null;
                 });
-        Assertions.assertTrue(provider.planScan(
-                null, null, Collections.emptyList(), Optional.empty()).isEmpty());
+        Assertions.assertTrue(provider.planScan(ConnectorScanRequest.from(
+                null, org.mockito.Mockito.mock(
+                        org.apache.doris.connector.api.handle.ConnectorTableHandle.class),
+                Collections.emptyList(), Optional.empty())).isEmpty());
         Assertions.assertEquals(0, calls.get(),
                 "planScan must remain a no-op until M1-15 wires the fe-core ScanNode");
     }

@@ -25,6 +25,7 @@ import org.apache.doris.connector.api.pushdown.ConnectorExpression;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -63,21 +65,13 @@ public class JdbcScanPlanProvider implements ConnectorScanPlanProvider {
     }
 
     @Override
-    public List<ConnectorScanRange> planScan(
-            ConnectorSession session,
-            ConnectorTableHandle handle,
-            List<ConnectorColumnHandle> columns,
-            Optional<ConnectorExpression> filter) {
-        return planScan(session, handle, columns, filter, -1);
-    }
-
-    @Override
-    public List<ConnectorScanRange> planScan(
-            ConnectorSession session,
-            ConnectorTableHandle handle,
-            List<ConnectorColumnHandle> columns,
-            Optional<ConnectorExpression> filter,
-            long limit) {
+    public List<ConnectorScanRange> planScan(ConnectorScanRequest req) {
+        Objects.requireNonNull(req, "req");
+        ConnectorSession session = req.getSession();
+        ConnectorTableHandle handle = req.getTable();
+        List<ConnectorColumnHandle> columns = req.getColumns();
+        Optional<ConnectorExpression> filter = req.getFilter();
+        long limit = req.getLimit().orElse(-1L);
         String querySql;
         if (handle instanceof PassthroughQueryTableHandle) {
             // Query passthrough from TVF — use the raw SQL directly

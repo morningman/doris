@@ -20,6 +20,7 @@ package org.apache.doris.connector.paimon.systable;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
 import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
 
 import org.apache.paimon.table.Table;
@@ -75,8 +76,10 @@ class PaimonMetadataScanFactoryTest {
                 });
         ConnectorScanPlanProvider provider = factory.create(
                 "db", "tbl", "tags", Optional.empty());
-        List<ConnectorScanRange> ranges = provider.planScan(
-                null, null, Collections.emptyList(), Optional.empty());
+        List<ConnectorScanRange> ranges = provider.planScan(ConnectorScanRequest.from(
+                null, org.mockito.Mockito.mock(
+                        org.apache.doris.connector.api.handle.ConnectorTableHandle.class),
+                Collections.emptyList(), Optional.empty()));
         // M1-14 publishes the SPI surface; range generation is M1-15. Empty plan
         // is the contract until then (mirrors M1-13 iceberg).
         Assertions.assertTrue(ranges.isEmpty());

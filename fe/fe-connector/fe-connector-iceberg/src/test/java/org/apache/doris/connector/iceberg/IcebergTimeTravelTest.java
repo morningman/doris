@@ -218,8 +218,8 @@ class IcebergTimeTravelTest {
         ConnectorTableHandle handle = metadata.getTableHandle(null, "db", "t").orElseThrow();
         IcebergScanPlanProvider provider = new IcebergScanPlanProvider(
                 (db, tbl) -> table, Collections.emptyMap(), null);
-        List<ConnectorScanRange> ranges = provider.planScan(
-                null, handle, Collections.emptyList(), Optional.empty());
+        List<ConnectorScanRange> ranges = provider.planScan(ConnectorScanRequest.from(
+                null, handle, Collections.emptyList(), Optional.empty()));
         Assertions.assertEquals(2, ranges.size());
     }
 

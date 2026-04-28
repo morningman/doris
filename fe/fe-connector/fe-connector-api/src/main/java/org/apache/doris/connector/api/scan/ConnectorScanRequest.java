@@ -40,12 +40,12 @@ import java.util.OptionalLong;
  * coordinates: {@link ConnectorTableVersion}, {@link ConnectorRefSpec},
  * {@link ConnectorMvccSnapshot}).
  *
- * <p>This type is purely additive on top of the legacy multi-arg
- * {@code planScan(session, handle, columns, filter)} entry points: it is
- * forwarded to a new request-shaped overload (see
- * {@link ConnectorScanPlanProvider#planScan(ConnectorScanRequest)}) which
- * defaults to delegating to the legacy 4-arg overload, so connectors that
- * have not migrated keep working unchanged.</p>
+ * <p>This object is the sole input to
+ * {@link ConnectorScanPlanProvider#planScan(ConnectorScanRequest)}. The
+ * engine fills the bundle once at planning time and the connector reads
+ * whichever fields it needs; missing optional coordinates surface as
+ * {@link Optional#empty()} (or {@link OptionalLong#empty()} for the row
+ * limit) so connectors that ignore them keep working unchanged.</p>
  */
 public final class ConnectorScanRequest implements Serializable {
 
@@ -119,7 +119,9 @@ public final class ConnectorScanRequest implements Serializable {
     /**
      * Shortcut producing a request mirroring the legacy 4-arg
      * {@code planScan(session, handle, columns, filter)} inputs with all
-     * time-travel fields empty and no row limit.
+     * time-travel fields empty and no row limit. Useful for tests and
+     * for engine call sites that have not yet plumbed time-travel
+     * coordinates into the scan node.
      */
     public static ConnectorScanRequest from(ConnectorSession session,
                                             ConnectorTableHandle table,
@@ -130,6 +132,28 @@ public final class ConnectorScanRequest implements Serializable {
                 .table(table)
                 .columns(columns)
                 .filter(filter)
+                .build();
+    }
+
+    /**
+     * Convenience constructor mirroring the legacy 5-arg
+     * {@code planScan(session, handle, columns, filter, limit)} inputs.
+     * A {@code limit} of {@code -1} or any non-positive value is treated
+     * as "no limit" and surfaces as {@link OptionalLong#empty()}; positive
+     * values become {@link OptionalLong#of(long)}.
+     */
+    public static ConnectorScanRequest of(ConnectorSession session,
+                                          ConnectorTableHandle table,
+                                          List<ConnectorColumnHandle> columns,
+                                          Optional<ConnectorExpression> filter,
+                                          long limit) {
+        OptionalLong wrapped = limit > 0 ? OptionalLong.of(limit) : OptionalLong.empty();
+        return builder()
+                .session(session)
+                .table(table)
+                .columns(columns)
+                .filter(filter)
+                .limit(wrapped)
                 .build();
     }
 
