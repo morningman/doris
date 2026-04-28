@@ -2310,6 +2310,16 @@ public class Config extends ConfigBase {
     public static int hms_events_polling_interval_ms = 10000;
 
     /**
+     * Polling interval (seconds) for connector self-managed event sources
+     * (D7 push-style; e.g. hudi timeline watcher). The fe-core
+     * {@code ConnectorEventDispatcher} schedules each plugin's
+     * {@code SelfManagedEventSource#getSelfManagedTask()} on its master-only
+     * scheduler at this rate. Minimum effective interval is 1 second.
+     */
+    @ConfField(masterOnly = true)
+    public static int connector_self_managed_event_poll_interval_seconds = 30;
+
+    /**
      * Maximum number of error tablets showed in broker load
      */
     @ConfField(masterOnly = true, mutable = true)

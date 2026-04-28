@@ -38,7 +38,13 @@ public class AuditEvent {
         BEFORE_QUERY,
         AFTER_QUERY,
         LOAD_SUCCEED,
-        STREAM_LOAD_FINISH
+        STREAM_LOAD_FINISH,
+        // D8 — connector-driven audit events forwarded by
+        // PluginAuditEventBridge into AuditEventProcessor.
+        PLUGIN_PLAN_COMPLETED,
+        PLUGIN_COMMIT_COMPLETED,
+        PLUGIN_MTMV_REFRESH,
+        PLUGIN_POLICY_EVAL
     }
 
     @Retention(RetentionPolicy.RUNTIME)

@@ -23,6 +23,7 @@ import org.apache.doris.connector.api.event.EventCursor;
 import org.apache.doris.connector.api.event.EventFilter;
 import org.apache.doris.connector.api.event.EventSourceException;
 import org.apache.doris.connector.api.event.EventSourceOps;
+import org.apache.doris.connector.api.event.SelfManagedEventSource;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -63,7 +64,7 @@ import java.util.function.Consumer;
  *
  * <p>Cursor blob magic: {@code 0xCE 0x01}.
  */
-public final class HudiEventSourceOps implements EventSourceOps {
+public final class HudiEventSourceOps implements EventSourceOps, SelfManagedEventSource {
 
     private static final byte CURSOR_MAGIC = (byte) 0xCE;
     private static final byte CURSOR_VERSION = 1;
@@ -87,6 +88,7 @@ public final class HudiEventSourceOps implements EventSourceOps {
      * this with the engine's {@code MasterOnlyScheduler} at a
      * configurable interval. No production code currently invokes it.
      */
+    @Override
     public Runnable getSelfManagedTask() {
         return watcher;
     }

@@ -30,6 +30,7 @@ import org.apache.doris.connector.api.event.EventCursor;
 import org.apache.doris.connector.api.event.EventFilter;
 import org.apache.doris.connector.api.event.EventSourceException;
 import org.apache.doris.connector.api.event.EventSourceOps;
+import org.apache.doris.connector.api.event.SelfManagedEventSource;
 import org.apache.doris.connector.cache.ConnectorMetaCacheRegistry;
 import org.apache.doris.datasource.CatalogIf;
 import org.apache.doris.datasource.CatalogMgr;
@@ -76,6 +77,7 @@ public final class ConnectorEventDispatcher {
     private static final Logger LOG = LogManager.getLogger(ConnectorEventDispatcher.class);
 
     private static final String POLL_TASK_NAME = "connector-event-poll";
+    private static final String SELF_MANAGED_TASK_PREFIX = "connector-self-managed-";
     private static final int DEFAULT_POLL_BATCH = 256;
     private static final Duration DEFAULT_POLL_TIMEOUT = Duration.ofSeconds(1);
 
@@ -84,9 +86,11 @@ public final class ConnectorEventDispatcher {
     private final CatalogProvider catalogProvider;
     private final EditLogSink editLogSink;
     private final long pollIntervalMs;
+    private final BooleanSupplier isMaster;
 
     private final ConcurrentHashMap<Long, EventCursor> cursorByCatalogId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Long> lastEventIdByCatalogId = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, String> selfManagedTaskByCatalogId = new ConcurrentHashMap<>();
 
     private volatile boolean started;
 
@@ -111,8 +115,8 @@ public final class ConnectorEventDispatcher {
             throw new IllegalArgumentException("pollIntervalMs must be positive");
         }
         this.pollIntervalMs = pollIntervalMs;
-        this.executor = new MasterOnlyScheduledExecutor(1, "connector-event-dispatcher",
-                Objects.requireNonNull(isMaster, "isMaster"));
+        this.isMaster = Objects.requireNonNull(isMaster, "isMaster");
+        this.executor = new MasterOnlyScheduledExecutor(1, "connector-event-dispatcher", isMaster);
     }
 
     /**
@@ -131,6 +135,7 @@ public final class ConnectorEventDispatcher {
             }
         }
         executor.scheduleAtFixedRate(POLL_TASK_NAME, this::pollOnce, pollIntervalMs, pollIntervalMs);
+        scheduleSelfManagedSources();
         started = true;
         LOG.info("ConnectorEventDispatcher started, pollIntervalMs={}", pollIntervalMs);
     }
@@ -233,6 +238,109 @@ public final class ConnectorEventDispatcher {
         }
         recordToEditLog(catalog, event);
         lastEventIdByCatalogId.put(catalog.getId(), event.eventId());
+    }
+
+    /**
+     * Public ingress used by the {@code DefaultConnectorContext.publishExternalEvent}
+     * override. Resolves the catalog by name (so plugins do not need to hold an
+     * engine-side reference) and routes through {@link #dispatchEvent}. On a
+     * follower FE the call is dropped (logged at DEBUG) — only the master
+     * fans out invalidations and writes the edit log.
+     */
+    public void dispatchExternal(String catalogName, ConnectorMetaChangeEvent event) {
+        Objects.requireNonNull(catalogName, "catalogName");
+        Objects.requireNonNull(event, "event");
+        if (!safeIsMaster()) {
+            LOG.debug("dispatcher dropping external event for catalog {} on follower",
+                    catalogName);
+            return;
+        }
+        PluginDrivenExternalCatalog catalog = findCatalog(catalogName);
+        if (catalog == null) {
+            LOG.warn("dispatcher: no plugin-driven catalog named {} for external event",
+                    catalogName);
+            return;
+        }
+        try {
+            dispatchEvent(catalog, catalog.getConnectorContext(), event);
+        } catch (Throwable t) {
+            LOG.warn("dispatcher: external event for catalog {} failed", catalogName, t);
+        }
+    }
+
+    /**
+     * Attach (or re-attach) the master-only schedule for a single
+     * self-managed catalog. No-op when the catalog's source is not
+     * {@link SelfManagedEventSource}. Idempotent within an instance.
+     */
+    public synchronized void attachSelfManaged(PluginDrivenExternalCatalog catalog) {
+        Objects.requireNonNull(catalog, "catalog");
+        Connector connector = catalog.getConnector();
+        if (connector == null) {
+            return;
+        }
+        ConnectorSession session = catalog.buildConnectorSession();
+        ConnectorMetadata md = connector.getMetadata(session);
+        EventSourceOps ops = md.getEventSourceOps();
+        if (!(ops instanceof SelfManagedEventSource sms)) {
+            return;
+        }
+        Runnable task = sms.getSelfManagedTask();
+        Objects.requireNonNull(task, "self-managed task");
+        long periodMs = Math.max(1000L,
+                Config.connector_self_managed_event_poll_interval_seconds * 1000L);
+        String name = SELF_MANAGED_TASK_PREFIX + catalog.getName();
+        // Initial delay 0 so the watcher catches up immediately at startup;
+        // subsequent ticks are paced by `periodMs`.
+        executor.scheduleAtFixedRate(name, task, 0L, periodMs);
+        selfManagedTaskByCatalogId.put(catalog.getId(), name);
+        LOG.info("ConnectorEventDispatcher scheduled self-managed task {} every {}ms",
+                name, periodMs);
+    }
+
+    /**
+     * Cancel the master-only schedule for a previously {@link #attachSelfManaged
+     * attached} catalog. Returns {@code true} if a task was found and cancellation
+     * was attempted; {@code false} otherwise.
+     */
+    public synchronized boolean detachSelfManaged(long catalogId) {
+        String name = selfManagedTaskByCatalogId.remove(catalogId);
+        if (name == null) {
+            return false;
+        }
+        boolean cancelled = executor.cancel(name);
+        LOG.info("ConnectorEventDispatcher detached self-managed task {} (cancelled={})",
+                name, cancelled);
+        return cancelled;
+    }
+
+    private void scheduleSelfManagedSources() {
+        for (PluginDrivenExternalCatalog catalog : catalogProvider.listPluginCatalogs()) {
+            try {
+                attachSelfManaged(catalog);
+            } catch (Throwable t) {
+                LOG.warn("dispatcher: attachSelfManaged failed for catalog {}",
+                        safeName(catalog), t);
+            }
+        }
+    }
+
+    private boolean safeIsMaster() {
+        try {
+            return isMaster.getAsBoolean();
+        } catch (Throwable t) {
+            LOG.warn("master predicate threw, treating as non-master", t);
+            return false;
+        }
+    }
+
+    private PluginDrivenExternalCatalog findCatalog(String catalogName) {
+        for (PluginDrivenExternalCatalog c : catalogProvider.listPluginCatalogs()) {
+            if (catalogName.equals(c.getName())) {
+                return c;
+            }
+        }
+        return null;
     }
 
     /**

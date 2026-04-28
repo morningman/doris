@@ -162,6 +162,30 @@ public final class MasterOnlyScheduledExecutor {
         return shutdown;
     }
 
+    /**
+     * Cancel a previously-scheduled task by name. Returns {@code true} if a
+     * task with that name was found and cancellation was attempted (the
+     * underlying {@link ScheduledFuture#cancel(boolean)} is called with
+     * {@code mayInterruptIfRunning=false}). The task name's run / skip
+     * counters remain in place so post-cancellation observability still
+     * works.
+     */
+    public boolean cancel(String taskName) {
+        Objects.requireNonNull(taskName, "taskName");
+        ScheduledFuture<?> f = tasks.remove(taskName);
+        if (f == null) {
+            return false;
+        }
+        f.cancel(false);
+        return true;
+    }
+
+    /** Whether a task with the given name is currently scheduled. */
+    public boolean isScheduled(String taskName) {
+        ScheduledFuture<?> f = tasks.get(taskName);
+        return f != null && !f.isCancelled() && !f.isDone();
+    }
+
     public void shutdown() {
         shutdown = true;
         for (ScheduledFuture<?> f : tasks.values()) {
