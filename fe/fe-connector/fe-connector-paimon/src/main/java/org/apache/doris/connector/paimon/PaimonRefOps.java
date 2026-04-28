@@ -53,6 +53,29 @@ import java.util.Set;
  * branch refs the snapshot id is branch-local (see
  * {@code PaimonBackend#resolveVersion}); branch-name plumbing for the scan
  * side is tracked as follow-up work.
+ *
+ * <p><strong>Why {@code getRef}, {@code replaceBranch} and
+ * {@code cherrypickSnapshot} keep the {@link RefOps} defaults
+ * (M3-paimon-readpath investigation):</strong>
+ * <ul>
+ *   <li>{@code getRef} — the default linear scan of {@link #listRefs} is
+ *       correct for paimon. {@code BranchManager.branches()} and
+ *       {@code TagManager.tags()} both already enumerate everything,
+ *       so a constant-time override would just re-implement
+ *       {@code listRefs} without saving any work.</li>
+ *   <li>{@code replaceBranch(branch, snapshotId)} — paimon
+ *       {@code BranchManager} exposes only {@code fastForward(branch)}
+ *       (fast-forward <em>main</em> from {@code branch}),
+ *       {@code createBranch(name [, tagName])} and {@code dropBranch}.
+ *       None of these matches the iceberg {@code replaceBranch} contract
+ *       atomically — there is no "set arbitrary branch to snapshot id"
+ *       primitive. Default {@link UnsupportedOperationException} is
+ *       therefore the honest answer; emulating via drop+create would be
+ *       non-atomic and {@code createBranch} takes a tag name not a
+ *       snapshot id.</li>
+ *   <li>{@code cherrypickSnapshot} — paimon has no equivalent primitive
+ *       in any version. Default retained.</li>
+ * </ul>
  */
 public final class PaimonRefOps implements RefOps {
 

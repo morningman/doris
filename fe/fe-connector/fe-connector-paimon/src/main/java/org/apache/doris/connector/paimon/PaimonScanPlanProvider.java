@@ -24,6 +24,9 @@ import org.apache.doris.connector.api.pushdown.ConnectorExpression;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRequest;
+import org.apache.doris.connector.api.timetravel.ConnectorRefSpec;
+import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
+import org.apache.doris.connector.api.timetravel.RefKind;
 import org.apache.doris.thrift.TFileScanRangeParams;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -96,6 +99,16 @@ public class PaimonScanPlanProvider implements ConnectorScanPlanProvider {
         PaimonTableHandle paimonHandle = (PaimonTableHandle) handle;
         Table table = paimonHandle.getPaimonTable();
 
+        // Honour engine-side time-travel coordinates: snapshot id, branch
+        // ref, tag ref. Mirrors IcebergScanPlanProvider#resolveEffectiveSnapshotId
+        // for the cheap, deterministic cases (BySnapshotId / ByRef-to-name);
+        // richer resolution (ByTimestamp / ByOpaque) is expected at
+        // getTableHandle time and is not driven from the scan path.
+        Map<String, String> timeTravelOptions = collectTimeTravelOptions(req);
+        if (!timeTravelOptions.isEmpty()) {
+            table = table.copy(timeTravelOptions);
+        }
+
         // Build predicates from filter expression
         RowType rowType = table.rowType();
         List<org.apache.paimon.predicate.Predicate> predicates = Collections.emptyList();
@@ -122,6 +135,15 @@ public class PaimonScanPlanProvider implements ConnectorScanPlanProvider {
         }
         if (projected.length > 0) {
             readBuilder.withProjection(projected);
+        }
+        // Honour engine-side row limit if present and representable as int
+        // (paimon ReadBuilder.withLimit takes int). Negative / zero / > MAX_VALUE
+        // values are treated as "no limit" — same contract as iceberg.
+        if (req.getLimit().isPresent()) {
+            long lim = req.getLimit().getAsLong();
+            if (lim > 0 && lim <= Integer.MAX_VALUE) {
+                readBuilder.withLimit((int) lim);
+            }
         }
         TableScan scan = readBuilder.newScan();
         List<Split> paimonSplits = scan.plan().splits();
@@ -256,6 +278,42 @@ public class PaimonScanPlanProvider implements ConnectorScanPlanProvider {
         }
 
         return props;
+    }
+
+    /**
+     * Translate {@link ConnectorScanRequest#getVersion()} and
+     * {@link ConnectorScanRequest#getRefSpec()} into the paimon scan options
+     * the {@code Table.copy(Map)} API understands. Cheap subtypes only:
+     *
+     * <ul>
+     *   <li>{@link ConnectorTableVersion.BySnapshotId} → {@code scan.snapshot-id}</li>
+     *   <li>{@link ConnectorRefSpec} of kind {@link RefKind#BRANCH} → {@code branch}</li>
+     *   <li>{@link ConnectorRefSpec} of kind {@link RefKind#TAG} → {@code scan.tag-name}</li>
+     * </ul>
+     *
+     * <p>{@code ByTimestamp} / {@code ByRef} / {@code ByOpaque} on
+     * {@code req.getVersion()} are intentionally ignored here; richer
+     * resolution is the responsibility of {@code getTableHandle}-time
+     * (mirrors iceberg).
+     */
+    private static Map<String, String> collectTimeTravelOptions(ConnectorScanRequest req) {
+        Map<String, String> opts = new HashMap<>();
+        if (req.getVersion().isPresent()) {
+            ConnectorTableVersion v = req.getVersion().get();
+            if (v instanceof ConnectorTableVersion.BySnapshotId) {
+                long snapshotId = ((ConnectorTableVersion.BySnapshotId) v).snapshotId();
+                opts.put(CoreOptions.SCAN_SNAPSHOT_ID.key(), String.valueOf(snapshotId));
+            }
+        }
+        if (req.getRefSpec().isPresent()) {
+            ConnectorRefSpec spec = req.getRefSpec().get();
+            if (spec.kind() == RefKind.BRANCH) {
+                opts.put(CoreOptions.BRANCH.key(), spec.name());
+            } else if (spec.kind() == RefKind.TAG) {
+                opts.put(CoreOptions.SCAN_TAG_NAME.key(), spec.name());
+            }
+        }
+        return opts;
     }
 
     private PaimonScanRange buildJniScanRange(Split split, String tableLocation,

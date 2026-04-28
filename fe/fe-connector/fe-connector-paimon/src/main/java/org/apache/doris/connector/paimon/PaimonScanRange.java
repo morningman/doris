@@ -59,6 +59,15 @@ public class PaimonScanRange implements ConnectorScanRange {
     private final Map<String, String> partitionValues;
     private final Map<String, String> properties;
     private final long selfSplitWeight;
+    private final long tableLevelRowCount;
+
+    // Retained for round-trip via toBuilder()/withTableLevelRowCount().
+    private final String paimonSplit;
+    private final String tableLocation;
+    private final Long schemaId;
+    private final String deletionFilePath;
+    private final long deletionFileOffset;
+    private final long deletionFileLength;
 
     private PaimonScanRange(Builder builder) {
         this.path = builder.path;
@@ -67,6 +76,13 @@ public class PaimonScanRange implements ConnectorScanRange {
         this.fileSize = builder.fileSize;
         this.fileFormat = builder.fileFormat;
         this.selfSplitWeight = builder.selfSplitWeight;
+        this.tableLevelRowCount = builder.tableLevelRowCount;
+        this.paimonSplit = builder.paimonSplit;
+        this.tableLocation = builder.tableLocation;
+        this.schemaId = builder.schemaId;
+        this.deletionFilePath = builder.deletionFilePath;
+        this.deletionFileOffset = builder.deletionFileOffset;
+        this.deletionFileLength = builder.deletionFileLength;
         this.partitionValues = builder.partitionValues != null
                 ? Collections.unmodifiableMap(builder.partitionValues)
                 : Collections.emptyMap();
@@ -86,8 +102,8 @@ public class PaimonScanRange implements ConnectorScanRange {
             props.put("paimon.deletion_file.offset", String.valueOf(builder.deletionFileOffset));
             props.put("paimon.deletion_file.length", String.valueOf(builder.deletionFileLength));
         }
-        if (builder.rowCount != null) {
-            props.put("paimon.row_count", String.valueOf(builder.rowCount));
+        if (builder.tableLevelRowCount >= 0) {
+            props.put("paimon.row_count", String.valueOf(builder.tableLevelRowCount));
         }
         if (builder.selfSplitWeight > 0) {
             props.put("paimon.self_split_weight", String.valueOf(builder.selfSplitWeight));
@@ -144,6 +160,38 @@ public class PaimonScanRange implements ConnectorScanRange {
         return selfSplitWeight;
     }
 
+    public long getTableLevelRowCount() {
+        return tableLevelRowCount;
+    }
+
+    @Override
+    public PaimonScanRange withTableLevelRowCount(long count) {
+        return toBuilder().tableLevelRowCount(count).build();
+    }
+
+    /**
+     * Returns a {@link Builder} pre-populated with this range's fields,
+     * enabling cheap field-by-field rebuild for immutable mutation.
+     */
+    public Builder toBuilder() {
+        Builder b = new Builder();
+        b.path = path;
+        b.start = start;
+        b.length = length;
+        b.fileSize = fileSize;
+        b.fileFormat = fileFormat;
+        b.partitionValues = partitionValues;
+        b.selfSplitWeight = selfSplitWeight;
+        b.paimonSplit = paimonSplit;
+        b.tableLocation = tableLocation;
+        b.schemaId = schemaId;
+        b.deletionFilePath = deletionFilePath;
+        b.deletionFileOffset = deletionFileOffset;
+        b.deletionFileLength = deletionFileLength;
+        b.tableLevelRowCount = tableLevelRowCount;
+        return b;
+    }
+
     @Override
     public String toString() {
         return "PaimonScanRange{path=" + path + ", format=" + fileFormat
@@ -198,13 +246,9 @@ public class PaimonScanRange implements ConnectorScanRange {
             fileDesc.setDeletionFile(deletionFile);
         }
 
-        // Row count for count pushdown
-        String rowCountStr = props.get("paimon.row_count");
-        if (rowCountStr != null) {
-            formatDesc.setTableLevelRowCount(Long.parseLong(rowCountStr));
-        } else {
-            formatDesc.setTableLevelRowCount(-1);
-        }
+        // Row count for count pushdown — read field directly so engine-side
+        // count distribution via withTableLevelRowCount() flows through.
+        formatDesc.setTableLevelRowCount(tableLevelRowCount);
 
         formatDesc.setPaimonParams(fileDesc);
 
@@ -246,8 +290,8 @@ public class PaimonScanRange implements ConnectorScanRange {
         private long deletionFileOffset;
         private long deletionFileLength;
 
-        // COUNT pushdown
-        private Long rowCount;
+        // COUNT pushdown — -1 means "no override" (the default thrift sentinel).
+        private long tableLevelRowCount = -1L;
 
         public Builder path(String path) {
             this.path = path;
@@ -307,7 +351,12 @@ public class PaimonScanRange implements ConnectorScanRange {
         }
 
         public Builder rowCount(long rowCount) {
-            this.rowCount = rowCount;
+            this.tableLevelRowCount = rowCount;
+            return this;
+        }
+
+        public Builder tableLevelRowCount(long tableLevelRowCount) {
+            this.tableLevelRowCount = tableLevelRowCount;
             return this;
         }
 
