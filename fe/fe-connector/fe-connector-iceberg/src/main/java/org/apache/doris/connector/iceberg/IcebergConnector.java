@@ -24,11 +24,13 @@ import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.DorisConnectorException;
 import org.apache.doris.connector.api.cache.ConnectorMetaCacheBinding;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
+import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.iceberg.api.IcebergBackend;
 import org.apache.doris.connector.iceberg.api.IcebergBackendContext;
 import org.apache.doris.connector.iceberg.api.IcebergBackendFactory;
 import org.apache.doris.connector.iceberg.cache.IcebergCacheBindings;
 import org.apache.doris.connector.iceberg.cache.IcebergTableCacheKey;
+import org.apache.doris.connector.iceberg.source.IcebergScanPlanProvider;
 import org.apache.doris.connector.spi.ConnectorContext;
 
 import org.apache.hadoop.conf.Configuration;
@@ -81,6 +83,7 @@ public class IcebergConnector implements Connector {
     private volatile MetaCacheHandle<String, Catalog> catalogHandle;
     private volatile MetaCacheHandle<IcebergTableCacheKey, Table> tableHandle;
     private volatile MetaCacheHandle<IcebergTableCacheKey, List<Snapshot>> snapshotsHandle;
+    private volatile IcebergScanPlanProvider scanPlanProvider;
 
     public IcebergConnector(Map<String, String> properties, ConnectorContext context) {
         this.properties = Collections.unmodifiableMap(properties);
@@ -111,7 +114,28 @@ public class IcebergConnector implements Connector {
     @Override
     public Set<ConnectorCapability> getCapabilities() {
         return EnumSet.of(ConnectorCapability.SUPPORTS_MTMV,
-                ConnectorCapability.SUPPORTS_FILTER_PUSHDOWN);
+                ConnectorCapability.SUPPORTS_FILTER_PUSHDOWN,
+                ConnectorCapability.SUPPORTS_PROJECTION_PUSHDOWN);
+    }
+
+    @Override
+    public ConnectorScanPlanProvider getScanPlanProvider() {
+        IcebergScanPlanProvider local = scanPlanProvider;
+        if (local == null) {
+            synchronized (this) {
+                local = scanPlanProvider;
+                if (local == null) {
+                    ensureHandles();
+                    final MetaCacheHandle<IcebergTableCacheKey, Table> th = tableHandle;
+                    local = new IcebergScanPlanProvider(
+                            (db, tbl) -> th.get(new IcebergTableCacheKey(db, tbl)),
+                            properties,
+                            context);
+                    scanPlanProvider = local;
+                }
+            }
+        }
+        return local;
     }
 
     @Override

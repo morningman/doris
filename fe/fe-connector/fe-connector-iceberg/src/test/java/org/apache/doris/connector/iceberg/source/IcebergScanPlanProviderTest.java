@@ -1,0 +1,329 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package org.apache.doris.connector.iceberg.source;
+
+import org.apache.doris.connector.api.ConnectorType;
+import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
+import org.apache.doris.connector.api.pushdown.ConnectorColumnRef;
+import org.apache.doris.connector.api.pushdown.ConnectorComparison;
+import org.apache.doris.connector.api.pushdown.ConnectorExpression;
+import org.apache.doris.connector.api.pushdown.ConnectorFunctionCall;
+import org.apache.doris.connector.api.pushdown.ConnectorLiteral;
+import org.apache.doris.connector.api.scan.ConnectorScanRange;
+import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
+import org.apache.doris.connector.iceberg.IcebergColumnHandle;
+import org.apache.doris.connector.iceberg.IcebergTableHandle;
+
+import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
+import org.apache.iceberg.FileContent;
+import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.MetadataColumns;
+import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.Table;
+import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.TableScan;
+import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.True;
+import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+
+import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+class IcebergScanPlanProviderTest {
+
+    private static final String DB = "db";
+    private static final String TBL = "t";
+
+    private static final Schema SCHEMA = new Schema(
+            Types.NestedField.required(1, "id", Types.LongType.get()),
+            Types.NestedField.optional(2, "name", Types.StringType.get()));
+
+    private static IcebergTableHandle handleV(int formatVersion, Long snapshotId) {
+        return IcebergTableHandle.builder()
+                .dbName(DB)
+                .tableName(TBL)
+                .formatVersion(formatVersion)
+                .snapshotId(snapshotId)
+                .schemaId(0)
+                .partitionSpecId(0)
+                .build();
+    }
+
+    private static DataFile mockDataFile(String path, long size, int specId) {
+        DataFile df = Mockito.mock(DataFile.class);
+        Mockito.when(df.path()).thenReturn(path);
+        Mockito.when(df.fileSizeInBytes()).thenReturn(size);
+        Mockito.when(df.specId()).thenReturn(specId);
+        Mockito.when(df.partition()).thenReturn(null);
+        Mockito.when(df.firstRowId()).thenReturn(null);
+        Mockito.when(df.fileSequenceNumber()).thenReturn(null);
+        return df;
+    }
+
+    private static FileScanTask mockTask(DataFile file, long start, long length, List<DeleteFile> deletes) {
+        FileScanTask t = Mockito.mock(FileScanTask.class);
+        Mockito.when(t.file()).thenReturn(file);
+        Mockito.when(t.start()).thenReturn(start);
+        Mockito.when(t.length()).thenReturn(length);
+        Mockito.when(t.deletes()).thenReturn(deletes);
+        Mockito.when(t.spec()).thenReturn(PartitionSpec.unpartitioned());
+        Mockito.when(t.sizeBytes()).thenReturn(length);
+        Mockito.when(t.estimatedRowsCount()).thenReturn(1L);
+        // TableScanUtil.splitFiles invokes split(targetSplitSize); for small
+        // tasks return self so the splitter simply forwards.
+        Mockito.when(t.split(Mockito.anyLong())).thenReturn(Collections.singletonList(t));
+        return t;
+    }
+
+    /** Configure a mocked Table whose newScan() returns a scan that planFiles() yields the given tasks. */
+    private static Table mockTable(List<FileScanTask> tasks, Map<String, String> tableProps,
+                                   Long currentSnapshotId, TableScan[] capturedScan) {
+        Table table = Mockito.mock(Table.class);
+        Mockito.when(table.schema()).thenReturn(SCHEMA);
+        Mockito.when(table.properties()).thenReturn(tableProps == null ? Collections.emptyMap() : tableProps);
+        if (currentSnapshotId != null) {
+            Snapshot snap = Mockito.mock(Snapshot.class);
+            Mockito.when(snap.snapshotId()).thenReturn(currentSnapshotId);
+            Mockito.when(table.currentSnapshot()).thenReturn(snap);
+        } else {
+            Mockito.when(table.currentSnapshot()).thenReturn(null);
+        }
+        TableScan scan = Mockito.mock(TableScan.class);
+        Mockito.when(scan.useSnapshot(Mockito.anyLong())).thenReturn(scan);
+        Mockito.when(scan.filter(Mockito.any())).thenReturn(scan);
+        Mockito.when(scan.select(Mockito.anyCollection())).thenReturn(scan);
+        Mockito.when(scan.targetSplitSize()).thenReturn(128L * 1024 * 1024);
+        Mockito.when(scan.planFiles()).thenReturn(CloseableIterable.withNoopClose(tasks));
+        Mockito.when(table.newScan()).thenReturn(scan);
+        if (capturedScan != null) {
+            capturedScan[0] = scan;
+        }
+        return table;
+    }
+
+    private static IcebergScanPlanProvider providerFor(Table table) {
+        return new IcebergScanPlanProvider((db, tbl) -> table, Collections.emptyMap(), null);
+    }
+
+    // ----- Tests -----
+
+    @Test
+    void rangeTypeIsFileScan() {
+        Table table = mockTable(Collections.emptyList(), null, 1L, null);
+        Assertions.assertEquals(ConnectorScanRangeType.FILE_SCAN, providerFor(table).getScanRangeType());
+    }
+
+    @Test
+    void emptyTableNoSnapshotReturnsEmpty() {
+        Table table = mockTable(Collections.emptyList(), null, null, null);
+        IcebergScanPlanProvider p = providerFor(table);
+        List<ConnectorScanRange> ranges = p.planScan(null, handleV(1, null),
+                Collections.emptyList(), Optional.empty());
+        Assertions.assertTrue(ranges.isEmpty());
+    }
+
+    @Test
+    void singleDataFileV1() {
+        DataFile df = mockDataFile("/x/a.parquet", 1024L, 0);
+        FileScanTask task = mockTask(df, 0L, 1024L, Collections.emptyList());
+        Table table = mockTable(Collections.singletonList(task), null, 7L, null);
+        IcebergScanPlanProvider p = providerFor(table);
+
+        List<ConnectorScanRange> ranges = p.planScan(null, handleV(1, null),
+                Collections.emptyList(), Optional.empty());
+        Assertions.assertEquals(1, ranges.size());
+        IcebergScanRange r = (IcebergScanRange) ranges.get(0);
+        Assertions.assertEquals("/x/a.parquet", r.getPath().orElseThrow(() -> new AssertionError("no path")));
+        Assertions.assertEquals(0L, r.getStart());
+        Assertions.assertEquals(1024L, r.getLength());
+        Assertions.assertEquals(1024L, r.getFileSize());
+        Assertions.assertEquals(1, r.getFormatVersion());
+        Assertions.assertEquals("/x/a.parquet", r.getOriginalFilePath());
+        Assertions.assertEquals(-1L, r.getTableLevelRowCount());
+        Assertions.assertTrue(r.getIcebergDeleteFiles().isEmpty());
+    }
+
+    @Test
+    void twoDataFilesV1() {
+        FileScanTask t1 = mockTask(mockDataFile("/x/a.parquet", 100L, 0), 0L, 100L, Collections.emptyList());
+        FileScanTask t2 = mockTask(mockDataFile("/x/b.parquet", 200L, 0), 0L, 200L, Collections.emptyList());
+        Table table = mockTable(Arrays.asList(t1, t2), null, 1L, null);
+        List<ConnectorScanRange> ranges = providerFor(table).planScan(null, handleV(1, null),
+                Collections.emptyList(), Optional.empty());
+        Assertions.assertEquals(2, ranges.size());
+    }
+
+    @Test
+    void filterPresentAndConvertsToNonTrueIsAppliedToScan() {
+        FileScanTask task = mockTask(mockDataFile("/x/a.parquet", 10L, 0), 0L, 10L, Collections.emptyList());
+        TableScan[] capt = new TableScan[1];
+        Table table = mockTable(Collections.singletonList(task), null, 1L, capt);
+
+        // id = 5 → translates to a non-True iceberg expression.
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("id", ConnectorType.of("BIGINT")),
+                ConnectorLiteral.ofLong(5L));
+        providerFor(table).planScan(null, handleV(1, null),
+                Collections.emptyList(), Optional.of(filter));
+        ArgumentCaptor<Expression> exprCap = ArgumentCaptor.forClass(Expression.class);
+        Mockito.verify(capt[0], Mockito.atLeastOnce()).filter(exprCap.capture());
+        Assertions.assertFalse(exprCap.getValue() instanceof True,
+                "non-True iceberg expression should be passed to scan.filter");
+    }
+
+    @Test
+    void filterDegradedToAlwaysTrueIsNotForwardedToScan() {
+        FileScanTask task = mockTask(mockDataFile("/x/a.parquet", 10L, 0), 0L, 10L, Collections.emptyList());
+        TableScan[] capt = new TableScan[1];
+        Table table = mockTable(Collections.singletonList(task), null, 1L, capt);
+
+        // function call on an unsupported function → converter returns alwaysTrue.
+        ConnectorExpression filter = new ConnectorFunctionCall("unknown_fn",
+                ConnectorType.of("BOOLEAN"), Collections.emptyList());
+        List<ConnectorScanRange> ranges = providerFor(table).planScan(
+                null, handleV(1, null), Collections.emptyList(), Optional.of(filter));
+        Assertions.assertEquals(1, ranges.size());
+        Mockito.verify(capt[0], Mockito.never()).filter(Mockito.any());
+    }
+
+    @Test
+    void projectionPassesColumnNamesToScan() {
+        FileScanTask task = mockTask(mockDataFile("/x/a.parquet", 10L, 0), 0L, 10L, Collections.emptyList());
+        TableScan[] capt = new TableScan[1];
+        Table table = mockTable(Collections.singletonList(task), null, 1L, capt);
+
+        ConnectorColumnHandle idCh = new IcebergColumnHandle(1, "id", Types.LongType.get(), false);
+        List<ConnectorScanRange> ranges = providerFor(table).planScan(
+                null, handleV(1, null), Collections.singletonList(idCh), Optional.empty());
+        Assertions.assertEquals(1, ranges.size());
+        ArgumentCaptor<java.util.Collection<String>> cap = ArgumentCaptor.forClass(java.util.Collection.class);
+        Mockito.verify(capt[0]).select(cap.capture());
+        Assertions.assertTrue(cap.getValue().contains("id"));
+    }
+
+    @Test
+    void v2WithPositionDeleteFile() {
+        DataFile df = mockDataFile("/x/a.parquet", 10L, 0);
+        DeleteFile pos = Mockito.mock(DeleteFile.class);
+        Mockito.when(pos.path()).thenReturn("/x/pos.parquet");
+        Mockito.when(pos.content()).thenReturn(FileContent.POSITION_DELETES);
+        Mockito.when(pos.format()).thenReturn(FileFormat.PARQUET);
+        Mockito.when(pos.fileSizeInBytes()).thenReturn(33L);
+        ByteBuffer lower = Conversions.toByteBuffer(MetadataColumns.DELETE_FILE_POS.type(), 0L);
+        ByteBuffer upper = Conversions.toByteBuffer(MetadataColumns.DELETE_FILE_POS.type(), 99L);
+        Map<Integer, ByteBuffer> lowMap = new HashMap<>();
+        lowMap.put(MetadataColumns.DELETE_FILE_POS.fieldId(), lower);
+        Map<Integer, ByteBuffer> upMap = new HashMap<>();
+        upMap.put(MetadataColumns.DELETE_FILE_POS.fieldId(), upper);
+        Mockito.when(pos.lowerBounds()).thenReturn(lowMap);
+        Mockito.when(pos.upperBounds()).thenReturn(upMap);
+
+        FileScanTask task = mockTask(df, 0L, 10L, Collections.singletonList(pos));
+        Table table = mockTable(Collections.singletonList(task), null, 1L, null);
+        List<ConnectorScanRange> ranges = providerFor(table).planScan(
+                null, handleV(2, null), Collections.emptyList(), Optional.empty());
+        Assertions.assertEquals(1, ranges.size());
+        IcebergScanRange r = (IcebergScanRange) ranges.get(0);
+        Assertions.assertEquals(1, r.getIcebergDeleteFiles().size());
+        IcebergDeleteFileDescriptor d = r.getIcebergDeleteFiles().get(0);
+        Assertions.assertEquals(IcebergDeleteFileDescriptor.Kind.POSITION_DELETE, d.getKind());
+        Assertions.assertEquals(0L, d.getPositionLowerBound());
+        Assertions.assertEquals(99L, d.getPositionUpperBound());
+    }
+
+    @Test
+    void v2WithEqualityDeleteFile() {
+        DataFile df = mockDataFile("/x/a.parquet", 10L, 0);
+        DeleteFile eq = Mockito.mock(DeleteFile.class);
+        Mockito.when(eq.path()).thenReturn("/x/eq.parquet");
+        Mockito.when(eq.content()).thenReturn(FileContent.EQUALITY_DELETES);
+        Mockito.when(eq.format()).thenReturn(FileFormat.PARQUET);
+        Mockito.when(eq.fileSizeInBytes()).thenReturn(11L);
+        Mockito.when(eq.equalityFieldIds()).thenReturn(Arrays.asList(1, 2));
+
+        FileScanTask task = mockTask(df, 0L, 10L, Collections.singletonList(eq));
+        Table table = mockTable(Collections.singletonList(task), null, 1L, null);
+        List<ConnectorScanRange> ranges = providerFor(table).planScan(
+                null, handleV(2, null), Collections.emptyList(), Optional.empty());
+        IcebergScanRange r = (IcebergScanRange) ranges.get(0);
+        Assertions.assertEquals(1, r.getIcebergDeleteFiles().size());
+        IcebergDeleteFileDescriptor d = r.getIcebergDeleteFiles().get(0);
+        Assertions.assertEquals(IcebergDeleteFileDescriptor.Kind.EQUALITY_DELETE, d.getKind());
+        Assertions.assertArrayEquals(new int[]{1, 2}, d.getFieldIds());
+    }
+
+    @Test
+    void explicitSnapshotIdRoutedToScan() {
+        FileScanTask task = mockTask(mockDataFile("/x/a.parquet", 10L, 0), 0L, 10L, Collections.emptyList());
+        TableScan[] capt = new TableScan[1];
+        Table table = mockTable(Collections.singletonList(task), null, 1L, capt);
+
+        providerFor(table).planScan(null, handleV(1, 42L),
+                Collections.emptyList(), Optional.empty());
+        Mockito.verify(capt[0]).useSnapshot(42L);
+    }
+
+    @Test
+    void scanNodePropertiesContainsFormatTypeAndVersion() {
+        Map<String, String> tprops = new HashMap<>();
+        tprops.put(TableProperties.DEFAULT_FILE_FORMAT, "parquet");
+        Table table = mockTable(Collections.emptyList(), tprops, 1L, null);
+        Map<String, String> props = providerFor(table).getScanNodeProperties(
+                null, handleV(2, null), Collections.emptyList(), Optional.empty());
+        Assertions.assertEquals("PARQUET", props.get(IcebergScanPlanProvider.PROP_FILE_FORMAT_TYPE));
+        Assertions.assertEquals("2", props.get(IcebergScanPlanProvider.PROP_ICEBERG_FORMAT_VERSION));
+    }
+
+    @Test
+    void scanNodePropertiesDefaultsToParquetWhenMissing() {
+        Table table = mockTable(Collections.emptyList(), null, 1L, null);
+        Map<String, String> props = providerFor(table).getScanNodeProperties(
+                null, handleV(1, null), Collections.emptyList(), Optional.empty());
+        Assertions.assertEquals("PARQUET", props.get(IcebergScanPlanProvider.PROP_FILE_FORMAT_TYPE));
+        Assertions.assertEquals("1", props.get(IcebergScanPlanProvider.PROP_ICEBERG_FORMAT_VERSION));
+    }
+
+    @Test
+    void appendExplainInfoIncludesKeys() {
+        Table table = mockTable(Collections.emptyList(), null, 1L, null);
+        IcebergScanPlanProvider p = providerFor(table);
+        Map<String, String> props = p.getScanNodeProperties(
+                null, handleV(2, null), Collections.emptyList(), Optional.empty());
+        StringBuilder sb = new StringBuilder();
+        p.appendExplainInfo(sb, "  ", props);
+        String s = sb.toString();
+        Assertions.assertTrue(s.contains("iceberg.format_version=2"), s);
+        Assertions.assertTrue(s.contains("file_format_type=PARQUET"), s);
+    }
+}
