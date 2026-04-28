@@ -24,6 +24,7 @@ import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
+import org.apache.doris.connector.api.mtmv.MtmvOps;
 import org.apache.doris.connector.api.pushdown.ConnectorAnd;
 import org.apache.doris.connector.api.pushdown.ConnectorComparison;
 import org.apache.doris.connector.api.pushdown.ConnectorExpression;
@@ -34,6 +35,7 @@ import org.apache.doris.connector.api.pushdown.FilterApplicationResult;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.SystemTableOps;
 import org.apache.doris.connector.hive.event.HiveEventSourceOps;
+import org.apache.doris.connector.hive.mtmv.HiveMtmvOps;
 import org.apache.doris.connector.hive.systable.HiveSystemTableOps;
 import org.apache.doris.connector.hms.HmsClient;
 import org.apache.doris.connector.hms.HmsClientException;
@@ -77,6 +79,7 @@ public class HiveConnectorMetadata implements ConnectorMetadata {
     private final String catalogName;
     private volatile SystemTableOps sysTableOps;
     private volatile EventSourceOps eventSourceOps;
+    private volatile MtmvOps mtmvOps;
 
     public HiveConnectorMetadata(HmsClient hmsClient, Map<String, String> properties) {
         this(hmsClient, properties, "");
@@ -108,6 +111,23 @@ public class HiveConnectorMetadata implements ConnectorMetadata {
             }
         }
         return ops;
+    }
+
+    // ========== MtmvOps (D8 / M2-07) ==========
+
+    @Override
+    public Optional<MtmvOps> mtmvOps() {
+        MtmvOps ops = mtmvOps;
+        if (ops == null) {
+            synchronized (this) {
+                ops = mtmvOps;
+                if (ops == null) {
+                    ops = new HiveMtmvOps(hmsClient);
+                    mtmvOps = ops;
+                }
+            }
+        }
+        return Optional.of(ops);
     }
 
     // ========== SystemTableOps (D6 / M1-15) ==========

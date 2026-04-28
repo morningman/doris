@@ -33,10 +33,19 @@ public final class HmsPartitionInfo {
     private final String outputFormat;
     private final String serializationLib;
     private final Map<String, String> parameters;
+    private final int createTime;
 
     public HmsPartitionInfo(List<String> values, String location,
             String inputFormat, String outputFormat,
             String serializationLib, Map<String, String> parameters) {
+        this(values, location, inputFormat, outputFormat,
+                serializationLib, parameters, 0);
+    }
+
+    public HmsPartitionInfo(List<String> values, String location,
+            String inputFormat, String outputFormat,
+            String serializationLib, Map<String, String> parameters,
+            int createTime) {
         this.values = values == null
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(values);
@@ -47,6 +56,12 @@ public final class HmsPartitionInfo {
         this.parameters = parameters == null
                 ? Collections.emptyMap()
                 : Collections.unmodifiableMap(parameters);
+        this.createTime = createTime;
+    }
+
+    /** Partition create time, in seconds since the epoch (Hive native unit). */
+    public int getCreateTime() {
+        return createTime;
     }
 
     /** Partition column values in declaration order. */

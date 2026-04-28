@@ -353,7 +353,8 @@ public class ThriftHmsClient implements HmsClient {
                 sd != null ? sd.getOutputFormat() : null,
                 sd != null && sd.getSerdeInfo() != null
                         ? sd.getSerdeInfo().getSerializationLib() : null,
-                partition.getParameters());
+                partition.getParameters(),
+                partition.getCreateTime());
     }
 
     // ========== Pool management ==========
