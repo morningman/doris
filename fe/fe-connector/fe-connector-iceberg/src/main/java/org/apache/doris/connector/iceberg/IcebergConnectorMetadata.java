@@ -23,6 +23,7 @@ import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.event.EventSourceOps;
+import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.mtmv.MtmvOps;
 import org.apache.doris.connector.api.systable.SysTableSpec;
@@ -35,8 +36,12 @@ import org.apache.doris.connector.iceberg.event.IcebergEventSourceOps;
 import org.apache.doris.connector.iceberg.mtmv.IcebergMtmvOps;
 import org.apache.doris.connector.iceberg.systable.IcebergSystemTableOps;
 
+import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.TableMetadata;
+import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
@@ -48,8 +53,10 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -232,7 +239,41 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
         if (!catalog.tableExists(tableId)) {
             return Optional.empty();
         }
-        return Optional.of(new IcebergTableHandle(dbName, tableName));
+        Table table = loadIcebergTable(dbName, tableName);
+        return Optional.of(buildTableHandle(dbName, tableName, table));
+    }
+
+    /**
+     * Build an {@link IcebergTableHandle} from a resolved iceberg {@link Table},
+     * populating snapshot / schema / spec / format-version / metadata-location
+     * fields per D11 §4. {@code refSpec} is left null and will be wired in
+     * M2-Iceberg-07 when time-travel propagation lands.
+     */
+    private IcebergTableHandle buildTableHandle(String dbName, String tableName, Table table) {
+        Snapshot current = table.currentSnapshot();
+        Long snapshotId = current != null ? current.snapshotId() : null;
+
+        Integer formatVersion = null;
+        String metadataLocation = null;
+        if (table instanceof BaseTable) {
+            TableOperations ops = ((BaseTable) table).operations();
+            TableMetadata meta = ops.current();
+            if (meta != null) {
+                formatVersion = meta.formatVersion();
+                metadataLocation = meta.metadataFileLocation();
+            }
+        }
+
+        return IcebergTableHandle.builder()
+                .dbName(dbName)
+                .tableName(tableName)
+                .snapshotId(snapshotId)
+                .refSpec(null)
+                .formatVersion(formatVersion)
+                .schemaId(table.schema().schemaId())
+                .partitionSpecId(table.spec().specId())
+                .metadataLocation(metadataLocation)
+                .build();
     }
 
     @Override
@@ -260,6 +301,47 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
         }
 
         return new ConnectorTableSchema(tableName, columns, "ICEBERG", tableProps);
+    }
+
+    @Override
+    public Map<String, ConnectorColumnHandle> getColumnHandles(
+            ConnectorSession session, ConnectorTableHandle handle) {
+        Objects.requireNonNull(handle, "handle");
+        IcebergTableHandle iceHandle = (IcebergTableHandle) handle;
+        Table table = loadIcebergTable(iceHandle.getDbName(), iceHandle.getTableName());
+
+        Schema schema;
+        Integer schemaId = iceHandle.getSchemaId();
+        if (schemaId != null) {
+            schema = table.schemas().get(schemaId);
+            if (schema == null) {
+                throw new IllegalStateException("Iceberg schema id " + schemaId
+                        + " not found on table "
+                        + iceHandle.getDbName() + "." + iceHandle.getTableName());
+            }
+        } else {
+            schema = table.schema();
+        }
+
+        List<Types.NestedField> fields = schema.columns();
+        if (fields.isEmpty()) {
+            throw new IllegalStateException("Iceberg table "
+                    + iceHandle.getDbName() + "." + iceHandle.getTableName()
+                    + " has empty schema (schemaId=" + schema.schemaId() + ")");
+        }
+
+        Map<String, ConnectorColumnHandle> result = new LinkedHashMap<>(fields.size());
+        int position = 0;
+        for (Types.NestedField field : fields) {
+            result.put(field.name(), new IcebergColumnHandle(
+                    field.fieldId(),
+                    field.name(),
+                    field.type(),
+                    field.isOptional(),
+                    field.doc(),
+                    position++));
+        }
+        return result;
     }
 
     @Override
