@@ -29,6 +29,7 @@ import org.apache.iceberg.Snapshot;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -80,6 +81,24 @@ public final class IcebergRefOps implements RefOps {
     public void dropRef(String database, String table, String name, RefKind kind) {
         throw new UnsupportedOperationException(
                 "iceberg RefOps.dropRef not yet implemented (tracked post-M1-07)");
+    }
+
+    @Override
+    public Optional<ConnectorRef> getRef(String database, String table, String name, RefKind kind) {
+        Objects.requireNonNull(name, "name");
+        Objects.requireNonNull(kind, "kind");
+        return backend.getRef(context, database, table, name, kind);
+    }
+
+    @Override
+    public void cherrypickSnapshot(String database, String table, long snapshotId) {
+        backend.cherrypickSnapshot(context, database, table, snapshotId);
+    }
+
+    @Override
+    public void replaceBranch(String database, String table, String branch, long snapshotId) {
+        Objects.requireNonNull(branch, "branch");
+        backend.replaceBranch(context, database, table, branch, snapshotId);
     }
 
     /**

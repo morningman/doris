@@ -18,6 +18,8 @@
 package org.apache.doris.connector.api.timetravel;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -44,4 +46,46 @@ public interface RefOps {
 
     /** Drops the named ref of the given kind on the given table. */
     void dropRef(String database, String table, String name, RefKind kind);
+
+    /**
+     * Returns the named ref of the given kind, or empty if absent.
+     *
+     * <p>Default implementation linearly scans {@link #listRefs}. Plugins MAY
+     * override for a constant-time lookup. Connectors that do not support refs
+     * at all SHOULD leave this default and rely on {@link #supportedRefKinds()}
+     * returning empty.</p>
+     */
+    default Optional<ConnectorRef> getRef(String database, String table, String name, RefKind kind) {
+        Objects.requireNonNull(name, "name");
+        Objects.requireNonNull(kind, "kind");
+        return listRefs(database, table).stream()
+                .filter(r -> r.kind() == kind && name.equals(r.name()))
+                .findFirst();
+    }
+
+    /**
+     * Cherry-picks the given snapshot onto the current main branch.
+     *
+     * <p>Implementations MAY throw {@link UnsupportedOperationException} when
+     * the underlying table format does not expose a cherrypick primitive. The
+     * default implementation always throws to surface attempted mutations
+     * loudly rather than silently dropping them.</p>
+     */
+    default void cherrypickSnapshot(String database, String table, long snapshotId) {
+        throw new UnsupportedOperationException(
+                "RefOps.cherrypickSnapshot not supported by this connector");
+    }
+
+    /**
+     * Fast-forwards or rewinds {@code branch} to point at {@code snapshotId}.
+     *
+     * <p>Implementations MAY throw {@link UnsupportedOperationException} when
+     * the underlying table format does not expose this primitive. The default
+     * implementation always throws to surface attempted mutations loudly
+     * rather than silently dropping them.</p>
+     */
+    default void replaceBranch(String database, String table, String branch, long snapshotId) {
+        throw new UnsupportedOperationException(
+                "RefOps.replaceBranch not supported by this connector");
+    }
 }

@@ -19,11 +19,13 @@ package org.apache.doris.connector.iceberg.api;
 
 import org.apache.doris.connector.api.timetravel.ConnectorRef;
 import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
+import org.apache.doris.connector.api.timetravel.RefKind;
 
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.catalog.Catalog;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Plugin-internal SPI implemented by every Iceberg backend variant (hms,
@@ -87,5 +89,54 @@ public interface IcebergBackend {
                                     ConnectorTableVersion version) {
         return IcebergBackendSupport.resolveVersion(
                 buildCatalog(context), database, table, version);
+    }
+
+    /**
+     * Look up a single ref by {@code (name, kind)}.
+     *
+     * <p>Default implementation opens the backend's {@link Catalog} via
+     * {@link #buildCatalog(IcebergBackendContext)} and delegates to
+     * {@link IcebergBackendSupport#getRef(Catalog, String, String, String, RefKind)}.
+     * Returns empty when the ref is absent or its kind does not match the
+     * requested {@link RefKind}.
+     */
+    default Optional<ConnectorRef> getRef(IcebergBackendContext context,
+                                          String database,
+                                          String table,
+                                          String name,
+                                          RefKind kind) {
+        return IcebergBackendSupport.getRef(
+                buildCatalog(context), database, table, name, kind);
+    }
+
+    /**
+     * Cherry-pick {@code snapshotId} onto the table's current main branch.
+     *
+     * <p>Default implementation opens the backend's {@link Catalog} via
+     * {@link #buildCatalog(IcebergBackendContext)} and delegates to
+     * {@link IcebergBackendSupport#cherrypickSnapshot(Catalog, String, String, long)}.
+     */
+    default void cherrypickSnapshot(IcebergBackendContext context,
+                                    String database,
+                                    String table,
+                                    long snapshotId) {
+        IcebergBackendSupport.cherrypickSnapshot(
+                buildCatalog(context), database, table, snapshotId);
+    }
+
+    /**
+     * Fast-forward or rewind {@code branch} to point at {@code snapshotId}.
+     *
+     * <p>Default implementation opens the backend's {@link Catalog} via
+     * {@link #buildCatalog(IcebergBackendContext)} and delegates to
+     * {@link IcebergBackendSupport#replaceBranch(Catalog, String, String, String, long)}.
+     */
+    default void replaceBranch(IcebergBackendContext context,
+                               String database,
+                               String table,
+                               String branch,
+                               long snapshotId) {
+        IcebergBackendSupport.replaceBranch(
+                buildCatalog(context), database, table, branch, snapshotId);
     }
 }

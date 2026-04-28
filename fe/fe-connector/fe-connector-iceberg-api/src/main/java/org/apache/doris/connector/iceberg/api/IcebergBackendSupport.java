@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Shared helpers used by backends that delegate to the standard Iceberg
@@ -182,5 +183,77 @@ public final class IcebergBackendSupport {
                             + " on table " + database + "." + table);
         }
         return snap;
+    }
+
+    /**
+     * Look up the named ref of the given kind on {@code database.table}. Returns
+     * empty when the ref is absent or its kind does not match {@code expectedKind}.
+     * Mirrors {@link #listRefs} semantics (kind derived from
+     * {@link SnapshotRef#isBranch()} / {@link SnapshotRef#isTag()}).
+     */
+    public static Optional<ConnectorRef> getRef(Catalog catalog,
+                                                String database,
+                                                String table,
+                                                String name,
+                                                RefKind expectedKind) {
+        Objects.requireNonNull(catalog, "catalog");
+        Objects.requireNonNull(database, "database");
+        Objects.requireNonNull(table, "table");
+        Objects.requireNonNull(name, "name");
+        Objects.requireNonNull(expectedKind, "expectedKind");
+        Table tbl = catalog.loadTable(TableIdentifier.of(database, table));
+        SnapshotRef ref = tbl.refs().get(name);
+        if (ref == null) {
+            return Optional.empty();
+        }
+        RefKind actual = ref.isBranch() ? RefKind.BRANCH
+                : ref.isTag() ? RefKind.TAG
+                : RefKind.UNKNOWN;
+        if (actual != expectedKind) {
+            return Optional.empty();
+        }
+        ConnectorRef.Builder b = ConnectorRef.builder()
+                .name(name)
+                .kind(actual)
+                .snapshotId(ref.snapshotId());
+        Snapshot snap = tbl.snapshot(ref.snapshotId());
+        if (snap != null) {
+            b.createdAt(Instant.ofEpochMilli(snap.timestampMillis()));
+        }
+        return Optional.of(b.build());
+    }
+
+    /**
+     * Cherry-pick {@code snapshotId} onto the current main branch of
+     * {@code database.table}. Surfaces the underlying Iceberg validation
+     * error (e.g. unknown snapshot id) directly.
+     */
+    public static void cherrypickSnapshot(Catalog catalog,
+                                          String database,
+                                          String table,
+                                          long snapshotId) {
+        Objects.requireNonNull(catalog, "catalog");
+        Objects.requireNonNull(database, "database");
+        Objects.requireNonNull(table, "table");
+        Table tbl = catalog.loadTable(TableIdentifier.of(database, table));
+        tbl.manageSnapshots().cherrypick(snapshotId).commit();
+    }
+
+    /**
+     * Fast-forward or rewind {@code branch} on {@code database.table} to point
+     * at {@code snapshotId}. Surfaces the underlying Iceberg validation error
+     * (e.g. unknown snapshot id) directly.
+     */
+    public static void replaceBranch(Catalog catalog,
+                                     String database,
+                                     String table,
+                                     String branch,
+                                     long snapshotId) {
+        Objects.requireNonNull(catalog, "catalog");
+        Objects.requireNonNull(database, "database");
+        Objects.requireNonNull(table, "table");
+        Objects.requireNonNull(branch, "branch");
+        Table tbl = catalog.loadTable(TableIdentifier.of(database, table));
+        tbl.manageSnapshots().replaceBranch(branch, snapshotId).commit();
     }
 }
