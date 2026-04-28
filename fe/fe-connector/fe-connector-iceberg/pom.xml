@@ -104,6 +104,16 @@ under the License.
             <version>${iceberg.version}</version>
         </dependency>
 
+        <!-- Caffeine: backing store for the plugin-private manifest cache
+             (IcebergPluginManifestCache). Iceberg-core declares Caffeine
+             at runtime scope only, so we promote it to compile scope here
+             so the cache class can reference Caffeine APIs directly. -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+            <version>3.2.3</version>
+        </dependency>
+
         <!-- Hadoop for Configuration construction in the orchestrator. -->
         <dependency>
             <groupId>org.apache.hadoop</groupId>

@@ -28,21 +28,34 @@ import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
 import org.apache.doris.connector.iceberg.IcebergColumnHandle;
 import org.apache.doris.connector.iceberg.IcebergPredicateConverter;
 import org.apache.doris.connector.iceberg.IcebergTableHandle;
+import org.apache.doris.connector.iceberg.cache.IcebergPluginManifestCache;
+import org.apache.doris.connector.iceberg.cache.ManifestCacheKey;
+import org.apache.doris.connector.iceberg.cache.ManifestCacheValue;
 import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.thrift.TFileScanRangeParams;
 
+import org.apache.iceberg.BaseFileScanTask;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileContent;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
+import org.apache.iceberg.IcebergPluginInternals;
+import org.apache.iceberg.ManifestContent;
+import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.PartitionSpecParser;
+import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
+import org.apache.iceberg.expressions.Expressions;
+import org.apache.iceberg.expressions.InclusiveMetricsEvaluator;
+import org.apache.iceberg.expressions.ManifestEvaluator;
+import org.apache.iceberg.expressions.ResidualEvaluator;
 import org.apache.iceberg.expressions.True;
 import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.types.Conversions;
@@ -60,6 +73,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiFunction;
 
 /**
@@ -138,6 +152,25 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
     private final Map<String, String> catalogProperties;
     private final ConnectorContext context;
     private final String defaultTimeZone;
+    private final IcebergPluginManifestCache manifestCache;
+    private final boolean manifestCacheEnabled;
+    private final String catalogName;
+
+    private final LongAdder manifestCacheHits = new LongAdder();
+    private final LongAdder manifestCacheMisses = new LongAdder();
+    private final LongAdder manifestCacheFailures = new LongAdder();
+
+    /**
+     * Construct a provider with the manifest cache disabled. Equivalent
+     * to {@link #IcebergScanPlanProvider(BiFunction, Map, ConnectorContext,
+     * IcebergPluginManifestCache, boolean)} with a {@code null} cache and
+     * {@code false} enable flag.
+     */
+    public IcebergScanPlanProvider(BiFunction<String, String, Table> tableLoader,
+                                   Map<String, String> catalogProperties,
+                                   ConnectorContext context) {
+        this(tableLoader, catalogProperties, context, null, false);
+    }
 
     /**
      * Construct a provider.
@@ -146,19 +179,31 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
      *                         by the iceberg plugin's
      *                         {@code iceberg.table} {@code MetaCacheHandle}
      *                         so cache-driven invalidation propagates.
-     * @param catalogProperties iceberg connector properties (for downstream PRs;
-     *                         currently only used for the explain summary).
+     * @param catalogProperties iceberg connector properties (used for the
+     *                         explain summary and for cache-key derivation).
      * @param context          connector context (may be {@code null} in tests).
+     * @param manifestCache    plugin-private manifest cache (per-connector
+     *                         singleton owned by the connector — may be
+     *                         {@code null} when the cache is disabled).
+     * @param manifestCacheEnabled when {@code true}, scan planning routes
+     *                         through {@link #planFileScanTaskWithManifestCache}
+     *                         and falls back to {@link TableScan#planFiles()}
+     *                         on any error.
      */
     public IcebergScanPlanProvider(BiFunction<String, String, Table> tableLoader,
                                    Map<String, String> catalogProperties,
-                                   ConnectorContext context) {
+                                   ConnectorContext context,
+                                   IcebergPluginManifestCache manifestCache,
+                                   boolean manifestCacheEnabled) {
         this.tableLoader = Objects.requireNonNull(tableLoader, "tableLoader");
         this.catalogProperties = catalogProperties == null
                 ? Collections.emptyMap()
                 : catalogProperties;
         this.context = context;
         this.defaultTimeZone = "UTC";
+        this.manifestCache = manifestCache;
+        this.manifestCacheEnabled = manifestCacheEnabled && manifestCache != null;
+        this.catalogName = context != null ? context.getCatalogName() : "default";
     }
 
     @Override
@@ -206,7 +251,7 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
         String tz = resolveTimeZone(session);
 
         List<ConnectorScanRange> ranges = new ArrayList<>();
-        try (CloseableIterable<FileScanTask> rawTasks = scan.planFiles();
+        try (CloseableIterable<FileScanTask> rawTasks = planFileScanTask(scan, table);
                 CloseableIterable<FileScanTask> tasks = TableScanUtil.splitFiles(
                         rawTasks, scan.targetSplitSize())) {
             for (FileScanTask task : tasks) {
@@ -368,9 +413,198 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
         if (fmt != null) {
             output.append(prefix).append("file_format_type=").append(fmt).append('\n');
         }
+        if (manifestCacheEnabled) {
+            CacheStats stats = getCacheStats();
+            output.append(prefix).append("manifest cache: hits=").append(stats.hits)
+                    .append(", misses=").append(stats.misses)
+                    .append(", failures=").append(stats.failures).append('\n');
+        }
+    }
+
+    /** Snapshot of the per-provider cumulative manifest-cache counters.
+     *  Counters accumulate across {@link #planScan} calls (per-query
+     *  isolation is intentionally <i>not</i> done here — the legacy
+     *  {@code recordManifestCacheProfile} SummaryProfile path that
+     *  flushed counters per query lives in fe-core and cannot be
+     *  reproduced from the plugin layer). */
+    public CacheStats getCacheStats() {
+        return new CacheStats(
+                manifestCacheHits.sum(),
+                manifestCacheMisses.sum(),
+                manifestCacheFailures.sum());
+    }
+
+    /** Visible for tests: the cache passed at construction time, or
+     *  {@code null} when disabled. */
+    public IcebergPluginManifestCache getManifestCache() {
+        return manifestCache;
+    }
+
+    /** Visible for tests: whether the manifest-cache code path is active. */
+    public boolean isManifestCacheEnabled() {
+        return manifestCacheEnabled;
+    }
+
+    /** Hit/miss/failure counters for the plugin manifest cache. */
+    public static final class CacheStats {
+        public final long hits;
+        public final long misses;
+        public final long failures;
+
+        CacheStats(long hits, long misses, long failures) {
+            this.hits = hits;
+            this.misses = misses;
+            this.failures = failures;
+        }
     }
 
     // -------- helpers --------
+
+    /** Dispatch between the legacy {@code scan.planFiles()} path and the
+     *  manifest-cache-aware path. Mirrors the legacy
+     *  {@code IcebergScanNode#planFileScanTask} fallback semantics:
+     *  on any cache error increment {@link #manifestCacheFailures} and
+     *  fall back to the uncached scan. */
+    private CloseableIterable<FileScanTask> planFileScanTask(TableScan scan, Table icebergTable) {
+        if (!manifestCacheEnabled) {
+            return scan.planFiles();
+        }
+        try {
+            return planFileScanTaskWithManifestCache(scan, icebergTable);
+        } catch (Exception e) {
+            manifestCacheFailures.increment();
+            LOG.warn("Plan with manifest cache failed, fallback to scan.planFiles(): {}",
+                    e.getMessage(), e);
+            return scan.planFiles();
+        }
+    }
+
+    /**
+     * Manifest-cache-aware port of the legacy fe-core
+     * {@code IcebergScanNode#planFileScanTaskWithManifestCache}
+     * (lines 630-749). The algorithm is preserved verbatim:
+     *
+     * <ol>
+     *   <li>Resolve the scan's snapshot; empty when null.</li>
+     *   <li>Build per-spec {@link ResidualEvaluator}s and a single
+     *       {@link InclusiveMetricsEvaluator} from the scan's residual
+     *       filter (defaulting to {@code alwaysTrue} when the scan
+     *       carries no filter — the plugin uses
+     *       {@link Expressions#alwaysTrue()} because the residual
+     *       filter is applied via {@link TableScan#filter} above and
+     *       iceberg may have rewritten it).</li>
+     *   <li>Phase 1: walk the snapshot's delete manifests, prune by
+     *       {@link ManifestEvaluator}, then load delete files via
+     *       {@link IcebergPluginManifestCache#getOrLoadDeleteFiles}.
+     *       Build a {@link DeleteFileIndex} for sequence-aware lookup.</li>
+     *   <li>Phase 2: walk the snapshot's matching data manifests, load
+     *       data files via the cache, prune each by metrics + residual,
+     *       and emit a {@link BaseFileScanTask} carrying the matched
+     *       deletes.</li>
+     * </ol>
+     *
+     * <p>Note: the legacy implementation depended on fe-core
+     * {@code ExternalTable} for the cache key; the plugin uses a
+     * {@code (catalogName, manifestPath, content)} key instead — the
+     * iceberg table object is still passed through to the cache for
+     * loading the manifest contents on miss.</p>
+     */
+    private CloseableIterable<FileScanTask> planFileScanTaskWithManifestCache(
+            TableScan scan, Table icebergTable) throws IOException {
+        Snapshot snapshot = scan.snapshot();
+        if (snapshot == null) {
+            return CloseableIterable.withNoopClose(Collections.emptyList());
+        }
+
+        Expression filterExpr = scan.filter() != null ? scan.filter() : Expressions.alwaysTrue();
+        Map<Integer, PartitionSpec> specsById = icebergTable.specs();
+        boolean caseSensitive = true;
+
+        Map<Integer, ResidualEvaluator> residualEvaluators = new HashMap<>();
+        specsById.forEach((id, spec) -> residualEvaluators.put(id,
+                ResidualEvaluator.of(spec, filterExpr, caseSensitive)));
+
+        InclusiveMetricsEvaluator metricsEvaluator =
+                new InclusiveMetricsEvaluator(icebergTable.schema(), filterExpr, caseSensitive);
+
+        // ========== Phase 1: delete manifests ==========
+        List<DeleteFile> deleteFiles = new ArrayList<>();
+        List<ManifestFile> deleteManifests = snapshot.deleteManifests(icebergTable.io());
+        for (ManifestFile manifest : deleteManifests) {
+            if (manifest.content() != ManifestContent.DELETES) {
+                continue;
+            }
+            PartitionSpec spec = specsById.get(manifest.partitionSpecId());
+            if (spec == null) {
+                continue;
+            }
+            ManifestEvaluator evaluator =
+                    ManifestEvaluator.forPartitionFilter(filterExpr, spec, caseSensitive);
+            if (!evaluator.eval(manifest)) {
+                continue;
+            }
+            ManifestCacheValue value = manifestCache.getOrLoadDeleteFiles(
+                    ManifestCacheKey.of(catalogName, manifest),
+                    manifest, icebergTable, this::recordCacheAccess);
+            deleteFiles.addAll(value.getDeleteFiles());
+        }
+
+        IcebergPluginInternals.DeleteFileLookup deleteIndex =
+                IcebergPluginInternals.buildDeleteFileLookup(deleteFiles, specsById, caseSensitive);
+
+        // ========== Phase 2: data manifests ==========
+        List<FileScanTask> tasks = new ArrayList<>();
+        try (CloseableIterable<ManifestFile> dataManifests =
+                     IcebergPluginInternals.matchingDataManifests(
+                             snapshot.dataManifests(icebergTable.io()),
+                             specsById, filterExpr)) {
+            for (ManifestFile manifest : dataManifests) {
+                if (manifest.content() != ManifestContent.DATA) {
+                    continue;
+                }
+                PartitionSpec spec = specsById.get(manifest.partitionSpecId());
+                if (spec == null) {
+                    continue;
+                }
+                ResidualEvaluator residualEvaluator = residualEvaluators.get(manifest.partitionSpecId());
+                if (residualEvaluator == null) {
+                    continue;
+                }
+
+                ManifestCacheValue value = manifestCache.getOrLoadDataFiles(
+                        ManifestCacheKey.of(catalogName, manifest),
+                        manifest, icebergTable, this::recordCacheAccess);
+
+                for (DataFile dataFile : value.getDataFiles()) {
+                    if (!metricsEvaluator.eval(dataFile)) {
+                        continue;
+                    }
+                    if (residualEvaluator.residualFor(dataFile.partition())
+                            .equals(Expressions.alwaysFalse())) {
+                        continue;
+                    }
+                    List<DeleteFile> deletes = deleteIndex.forDataFile(
+                            dataFile.dataSequenceNumber(), dataFile);
+                    tasks.add(new BaseFileScanTask(
+                            dataFile,
+                            deletes.toArray(new DeleteFile[0]),
+                            SchemaParser.toJson(icebergTable.schema()),
+                            PartitionSpecParser.toJson(spec),
+                            residualEvaluator));
+                }
+            }
+        }
+
+        return CloseableIterable.withNoopClose(tasks);
+    }
+
+    private void recordCacheAccess(boolean cacheHit) {
+        if (cacheHit) {
+            manifestCacheHits.increment();
+        } else {
+            manifestCacheMisses.increment();
+        }
+    }
 
     private IcebergScanRange buildRange(FileScanTask task, int formatVersion, String tz) {
         DataFile dataFile = task.file();

@@ -29,6 +29,8 @@ import org.apache.doris.connector.iceberg.api.IcebergBackend;
 import org.apache.doris.connector.iceberg.api.IcebergBackendContext;
 import org.apache.doris.connector.iceberg.api.IcebergBackendFactory;
 import org.apache.doris.connector.iceberg.cache.IcebergCacheBindings;
+import org.apache.doris.connector.iceberg.cache.IcebergManifestCacheConfig;
+import org.apache.doris.connector.iceberg.cache.IcebergPluginManifestCache;
 import org.apache.doris.connector.iceberg.cache.IcebergTableCacheKey;
 import org.apache.doris.connector.iceberg.source.IcebergScanPlanProvider;
 import org.apache.doris.connector.spi.ConnectorContext;
@@ -85,6 +87,9 @@ public class IcebergConnector implements Connector {
     private volatile MetaCacheHandle<IcebergTableCacheKey, List<Snapshot>> snapshotsHandle;
     private volatile IcebergScanPlanProvider scanPlanProvider;
 
+    private final IcebergManifestCacheConfig manifestCacheConfig;
+    private final IcebergPluginManifestCache manifestCache;
+
     public IcebergConnector(Map<String, String> properties, ConnectorContext context) {
         this.properties = Collections.unmodifiableMap(properties);
         this.context = Objects.requireNonNull(context, "context");
@@ -109,6 +114,13 @@ public class IcebergConnector implements Connector {
         this.snapshotsBinding = IcebergCacheBindings.snapshotsBinding(this::loadSnapshots);
         this.bindings = Collections.unmodifiableList(
                 new ArrayList<>(java.util.Arrays.asList(catalogBinding, tableBinding, snapshotsBinding)));
+
+        // Plugin-private manifest cache (D3: cache lives in the plugin,
+        // not in fe-core). Always instantiated so toggling the enable
+        // flag at runtime would be possible without rebuilding state;
+        // the provider only routes through it when the flag is on.
+        this.manifestCacheConfig = IcebergManifestCacheConfig.fromProperties(this.properties);
+        this.manifestCache = new IcebergPluginManifestCache(manifestCacheConfig.getMaxEntries());
     }
 
     @Override
@@ -132,12 +144,24 @@ public class IcebergConnector implements Connector {
                     local = new IcebergScanPlanProvider(
                             (db, tbl) -> th.get(new IcebergTableCacheKey(db, tbl)),
                             properties,
-                            context);
+                            context,
+                            manifestCache,
+                            manifestCacheConfig.isEnabled());
                     scanPlanProvider = local;
                 }
             }
         }
         return local;
+    }
+
+    /** Visible for tests: the per-connector plugin manifest cache singleton. */
+    public IcebergPluginManifestCache getManifestCache() {
+        return manifestCache;
+    }
+
+    /** Visible for tests: whether the manifest cache is enabled by catalog properties. */
+    public boolean isManifestCacheEnabled() {
+        return manifestCacheConfig.isEnabled();
     }
 
     @Override
@@ -222,5 +246,6 @@ public class IcebergConnector implements Connector {
         if (catalogHandle != null) {
             catalogHandle.invalidateAll();
         }
+        manifestCache.invalidateAll();
     }
 }
