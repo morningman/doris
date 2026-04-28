@@ -19,11 +19,13 @@ package org.apache.doris.connector;
 
 import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.spi.ConnectorContext;
+import org.apache.doris.connector.spi.ConnectorProvider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Static factory providing access to the {@link ConnectorPluginManager}.
@@ -100,6 +102,19 @@ public final class ConnectorFactory {
         if (mgr != null) {
             mgr.validateProperties(catalogType, properties);
         }
+    }
+
+    /**
+     * Returns the registered {@link ConnectorProvider} for the given catalog
+     * type, or {@link Optional#empty()} if the plugin manager is not
+     * initialized or no provider matches.
+     */
+    public static Optional<ConnectorProvider> findProvider(String catalogType) {
+        ConnectorPluginManager mgr = pluginManager;
+        if (mgr == null) {
+            return Optional.empty();
+        }
+        return mgr.findProvider(catalogType);
     }
 
     /** For testing only. */

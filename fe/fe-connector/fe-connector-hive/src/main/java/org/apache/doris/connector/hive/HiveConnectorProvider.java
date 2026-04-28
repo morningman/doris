@@ -22,6 +22,7 @@ import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorProvider;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * SPI entry point for the Hive (HMS) connector plugin.
@@ -39,5 +40,16 @@ public class HiveConnectorProvider implements ConnectorProvider {
     @Override
     public Connector create(Map<String, String> properties, ConnectorContext context) {
         return new HiveConnector(properties, context);
+    }
+
+    /**
+     * Hive catalogs default to the {@code ranger-hive} access controller so
+     * that Ranger-based deployments do not have to repeat
+     * {@code access_controller.class} on every CREATE CATALOG (D8 §11.4).
+     * Users can still override per-catalog via the property.
+     */
+    @Override
+    public Optional<String> defaultAccessControllerFactoryName() {
+        return Optional.of("ranger-hive");
     }
 }

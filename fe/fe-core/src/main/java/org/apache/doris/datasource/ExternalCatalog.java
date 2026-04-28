@@ -473,11 +473,32 @@ public abstract class ExternalCatalog
      * )
      * <p>
      * isDryRun: if true, it will try to create the custom access controller, but will not add it to the access manager.
+     * <p>
+     * Resolution order for the access controller factory identifier:
+     * <ol>
+     *   <li>The {@code access_controller.class} property, if non-empty.</li>
+     *   <li>For {@link PluginDrivenExternalCatalog}, the SPI default returned
+     *       by {@code ConnectorProvider#defaultAccessControllerFactoryName()}
+     *       (D8 §11.1, §11.4). This lets plugin connectors declare a default
+     *       (e.g. {@code "ranger-hive"}) without forcing users to repeat it
+     *       on every CREATE CATALOG.</li>
+     *   <li>Otherwise, fall through to the engine's built-in access
+     *       controller. This preserves existing jdbc/es behaviour: those
+     *       providers intentionally return {@link Optional#empty()}.</li>
+     * </ol>
      */
     public void initAccessController(boolean isDryRun) {
         Map<String, String> properties = catalogProperty.getProperties();
         // 1. get access controller class name
         String className = properties.getOrDefault(CatalogMgr.ACCESS_CONTROLLER_CLASS_PROP, "");
+        if (Strings.isNullOrEmpty(className) && this instanceof PluginDrivenExternalCatalog) {
+            Optional<String> spiDefault = ((PluginDrivenExternalCatalog) this).getProvider()
+                    .flatMap(p -> p.defaultAccessControllerFactoryName());
+            if (spiDefault.isPresent()) {
+                className = spiDefault.get();
+                LOG.info("Catalog {} uses default access controller from plugin: {}", name, className);
+            }
+        }
         if (Strings.isNullOrEmpty(className)) {
             // not set access controller, use internal access controller
             return;

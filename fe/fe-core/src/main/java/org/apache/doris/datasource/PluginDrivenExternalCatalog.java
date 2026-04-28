@@ -26,6 +26,7 @@ import org.apache.doris.connector.api.Connector;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTestResult;
 import org.apache.doris.connector.cache.ConnectorMetaCacheBootstrap;
+import org.apache.doris.connector.spi.ConnectorProvider;
 import org.apache.doris.datasource.property.metastore.MetastoreProperties;
 import org.apache.doris.qe.ConnectContext;
 import org.apache.doris.transaction.PluginDrivenTransactionManager;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * An {@link ExternalCatalog} backed by a Connector SPI plugin.
@@ -256,6 +258,17 @@ public class PluginDrivenExternalCatalog extends ExternalCatalog {
     public Connector getConnector() {
         makeSureInitialized();
         return connector;
+    }
+
+    /**
+     * Returns the {@link ConnectorProvider} registered for this catalog's type,
+     * if any. Used by {@link ExternalCatalog#initAccessController(boolean)} to
+     * query the SPI default {@code AccessControllerFactory} name without
+     * forcing connector initialization. Package-private: this is an
+     * engine-internal hook, not a public API.
+     */
+    Optional<ConnectorProvider> getProvider() {
+        return ConnectorFactory.findProvider(getType());
     }
 
     /**

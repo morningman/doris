@@ -60,4 +60,14 @@ public class IcebergConnectorProvider implements ConnectorProvider {
     public Connector create(Map<String, String> properties, ConnectorContext context) {
         return new IcebergConnector(properties, context);
     }
+
+    /**
+     * Iceberg catalogs reuse the Hive Ranger plugin for authorization, so we
+     * default to {@code ranger-hive} (D8 §11.4). Users can override per-catalog
+     * via {@code access_controller.class}.
+     */
+    @Override
+    public Optional<String> defaultAccessControllerFactoryName() {
+        return Optional.of("ranger-hive");
+    }
 }

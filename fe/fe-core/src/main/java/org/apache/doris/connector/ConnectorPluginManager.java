@@ -32,8 +32,10 @@ import org.apache.logging.log4j.Logger;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -141,6 +143,22 @@ public class ConnectorPluginManager {
         LOG.debug("No ConnectorProvider supports catalogType='{}'. Registered: {}",
                 catalogType, providerNames());
         return null;
+    }
+
+    /**
+     * Returns the registered provider matching the given catalog type, if any.
+     * Used by the engine to query SPI metadata such as the default
+     * {@code AccessControllerFactory} name without first instantiating a
+     * {@link Connector}. Mirrors the dispatch rule of
+     * {@link #createConnector(String, Map, ConnectorContext)}.
+     */
+    public Optional<ConnectorProvider> findProvider(String catalogType) {
+        for (ConnectorProvider provider : providers) {
+            if (provider.supports(catalogType, Collections.emptyMap())) {
+                return Optional.of(provider);
+            }
+        }
+        return Optional.empty();
     }
 
     /** Returns the type names of all registered providers. */

@@ -22,6 +22,7 @@ import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorProvider;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * SPI entry point for the Hudi connector plugin.
@@ -40,5 +41,15 @@ public class HudiConnectorProvider implements ConnectorProvider {
     @Override
     public Connector create(Map<String, String> properties, ConnectorContext context) {
         return new HudiConnector(properties, context);
+    }
+
+    /**
+     * Hudi catalogs reuse the Hive Ranger plugin for authorization, so we
+     * default to {@code ranger-hive} (D8 §11.4). Users can override per-catalog
+     * via {@code access_controller.class}.
+     */
+    @Override
+    public Optional<String> defaultAccessControllerFactoryName() {
+        return Optional.of("ranger-hive");
     }
 }
