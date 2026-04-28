@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector.iceberg.source;
 
+import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.pushdown.ConnectorColumnRef;
@@ -28,6 +29,7 @@ import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
 import org.apache.doris.connector.iceberg.IcebergColumnHandle;
 import org.apache.doris.connector.iceberg.IcebergTableHandle;
+import org.apache.doris.thrift.TFileScanRangeParams;
 
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -44,6 +46,7 @@ import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.True;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Types;
 import org.junit.jupiter.api.Assertions;
@@ -325,5 +328,190 @@ class IcebergScanPlanProviderTest {
         String s = sb.toString();
         Assertions.assertTrue(s.contains("iceberg.format_version=2"), s);
         Assertions.assertTrue(s.contains("file_format_type=PARQUET"), s);
+    }
+
+    // -------- M2-Iceberg-05: vended creds + name mapping + count pushdown --------
+
+    private static Table mockTableWithIo(Map<String, String> tableProps,
+                                         Map<String, String> ioProps,
+                                         Long currentSnapshotId) {
+        Table table = mockTable(Collections.emptyList(), tableProps, currentSnapshotId, null);
+        FileIO io = Mockito.mock(FileIO.class);
+        Mockito.when(io.properties()).thenReturn(ioProps == null ? Collections.emptyMap() : ioProps);
+        Mockito.when(table.io()).thenReturn(io);
+        return table;
+    }
+
+    @Test
+    void nameMappingPropagatedWhenTableHasIt() {
+        String mappingJson = "[{\"field-id\":1,\"names\":[\"id\"]}]";
+        Map<String, String> tprops = new HashMap<>();
+        tprops.put(TableProperties.DEFAULT_NAME_MAPPING, mappingJson);
+        Table table = mockTableWithIo(tprops, null, 1L);
+        Map<String, String> props = providerFor(table).getScanNodeProperties(
+                null, handleV(2, null), Collections.emptyList(), Optional.empty());
+        Assertions.assertEquals(mappingJson, props.get(IcebergScanPlanProvider.PROP_NAME_MAPPING));
+    }
+
+    @Test
+    void nameMappingAbsentWhenTableLacksIt() {
+        Table table = mockTableWithIo(Collections.emptyMap(), null, 1L);
+        Map<String, String> props = providerFor(table).getScanNodeProperties(
+                null, handleV(2, null), Collections.emptyList(), Optional.empty());
+        Assertions.assertNull(props.get(IcebergScanPlanProvider.PROP_NAME_MAPPING));
+    }
+
+    @Test
+    void populateScanLevelParamsCopiesNameMappingVerbatim() {
+        Table table = mockTableWithIo(Collections.emptyMap(), null, 1L);
+        IcebergScanPlanProvider p = providerFor(table);
+        Map<String, String> nodeProps = new HashMap<>();
+        String mappingJson = "[{\"field-id\":42,\"names\":[\"x\"]}]";
+        nodeProps.put(IcebergScanPlanProvider.PROP_NAME_MAPPING, mappingJson);
+        TFileScanRangeParams params = new TFileScanRangeParams();
+        p.populateScanLevelParams(params, nodeProps);
+        Assertions.assertNotNull(params.getProperties());
+        Assertions.assertEquals(mappingJson,
+                params.getProperties().get(IcebergScanPlanProvider.PROP_NAME_MAPPING));
+    }
+
+    @Test
+    void populateScanLevelParamsStripsLocationPrefix() {
+        Table table = mockTableWithIo(Collections.emptyMap(), null, 1L);
+        IcebergScanPlanProvider p = providerFor(table);
+        Map<String, String> nodeProps = new HashMap<>();
+        nodeProps.put(IcebergScanPlanProvider.PROP_LOCATION_PREFIX + "s3.access-key-id", "AKIA");
+        nodeProps.put(IcebergScanPlanProvider.PROP_LOCATION_PREFIX + "s3.endpoint", "https://x");
+        nodeProps.put("file_format_type", "PARQUET"); // non-prefixed: must NOT leak
+        TFileScanRangeParams params = new TFileScanRangeParams();
+        p.populateScanLevelParams(params, nodeProps);
+        Map<String, String> out = params.getProperties();
+        Assertions.assertEquals("AKIA", out.get("s3.access-key-id"));
+        Assertions.assertEquals("https://x", out.get("s3.endpoint"));
+        Assertions.assertNull(out.get("file_format_type"));
+        Assertions.assertNull(out.get(IcebergScanPlanProvider.PROP_LOCATION_PREFIX + "s3.access-key-id"));
+    }
+
+    @Test
+    void vendedCredsMergedFromCatalogAndTable() {
+        Map<String, String> catalogProps = new HashMap<>();
+        catalogProps.put("s3.endpoint", "https://x");
+        Map<String, String> ioProps = new HashMap<>();
+        ioProps.put("s3.access-key-id", "AKIA");
+        ioProps.put("s3.secret-access-key", "secret");
+        Table table = mockTableWithIo(Collections.emptyMap(), ioProps, 1L);
+        IcebergScanPlanProvider p = new IcebergScanPlanProvider(
+                (db, tbl) -> table, catalogProps, null);
+        Map<String, String> props = p.getScanNodeProperties(
+                null, handleV(2, null), Collections.emptyList(), Optional.empty());
+        String prefix = IcebergScanPlanProvider.PROP_LOCATION_PREFIX;
+        Assertions.assertEquals("https://x", props.get(prefix + "s3.endpoint"));
+        Assertions.assertEquals("AKIA", props.get(prefix + "s3.access-key-id"));
+        Assertions.assertEquals("secret", props.get(prefix + "s3.secret-access-key"));
+    }
+
+    @Test
+    void vendedCredsTableValueSupersedesCatalogValue() {
+        Map<String, String> catalogProps = new HashMap<>();
+        catalogProps.put("s3.endpoint", "https://catalog");
+        Map<String, String> ioProps = new HashMap<>();
+        ioProps.put("s3.endpoint", "https://vended");
+        Table table = mockTableWithIo(Collections.emptyMap(), ioProps, 1L);
+        IcebergScanPlanProvider p = new IcebergScanPlanProvider(
+                (db, tbl) -> table, catalogProps, null);
+        Map<String, String> props = p.getScanNodeProperties(
+                null, handleV(2, null), Collections.emptyList(), Optional.empty());
+        Assertions.assertEquals("https://vended",
+                props.get(IcebergScanPlanProvider.PROP_LOCATION_PREFIX + "s3.endpoint"));
+    }
+
+    /**
+     * Mocks a snapshot with the given summary entries. Pass null for any
+     * key to omit it (mirrors a real iceberg snapshot that hasn't recorded
+     * the field — e.g. a freshly-created v1 table).
+     */
+    private static Table mockTableWithSnapshotSummary(String totalRecords, String posDeletes,
+                                                       String eqDeletes, Long snapshotId) {
+        Table table = Mockito.mock(Table.class);
+        Mockito.when(table.schema()).thenReturn(SCHEMA);
+        Mockito.when(table.properties()).thenReturn(Collections.emptyMap());
+        if (snapshotId == null) {
+            Mockito.when(table.currentSnapshot()).thenReturn(null);
+            return table;
+        }
+        Snapshot snap = Mockito.mock(Snapshot.class);
+        Mockito.when(snap.snapshotId()).thenReturn(snapshotId);
+        Map<String, String> summary = new HashMap<>();
+        if (totalRecords != null) {
+            summary.put("total-records", totalRecords);
+        }
+        if (posDeletes != null) {
+            summary.put("total-position-deletes", posDeletes);
+        }
+        if (eqDeletes != null) {
+            summary.put("total-equality-deletes", eqDeletes);
+        }
+        Mockito.when(snap.summary()).thenReturn(summary);
+        Mockito.when(table.currentSnapshot()).thenReturn(snap);
+        Mockito.when(table.snapshot(snapshotId)).thenReturn(snap);
+        return table;
+    }
+
+    @Test
+    void countPushdownEmptyTableReturnsZero() {
+        Table table = mockTableWithSnapshotSummary(null, null, null, null);
+        Optional<Long> r = providerFor(table).getCountPushdownResult(
+                null, handleV(2, null), Optional.empty());
+        Assertions.assertEquals(Optional.of(0L), r);
+    }
+
+    @Test
+    void countPushdownOnlyDataFilesReturnsTotalRecords() {
+        Table table = mockTableWithSnapshotSummary("1000", "0", "0", 1L);
+        Optional<Long> r = providerFor(table).getCountPushdownResult(
+                null, handleV(2, null), Optional.empty());
+        Assertions.assertEquals(Optional.of(1000L), r);
+    }
+
+    @Test
+    void countPushdownEqualityDeletesReturnsEmpty() {
+        Table table = mockTableWithSnapshotSummary("1000", "0", "5", 1L);
+        Optional<Long> r = providerFor(table).getCountPushdownResult(
+                null, handleV(2, null), Optional.empty());
+        Assertions.assertFalse(r.isPresent());
+    }
+
+    @Test
+    void countPushdownPositionDeletesWithoutDanglingFlagReturnsEmpty() {
+        Table table = mockTableWithSnapshotSummary("1000", "10", "0", 1L);
+        ConnectorSession session = Mockito.mock(ConnectorSession.class);
+        Mockito.when(session.getSessionProperties()).thenReturn(Collections.emptyMap());
+        Optional<Long> r = providerFor(table).getCountPushdownResult(
+                session, handleV(2, null), Optional.empty());
+        Assertions.assertFalse(r.isPresent());
+    }
+
+    @Test
+    void countPushdownPositionDeletesWithDanglingFlagSubtracts() {
+        Table table = mockTableWithSnapshotSummary("1000", "10", "0", 1L);
+        ConnectorSession session = Mockito.mock(ConnectorSession.class);
+        Mockito.when(session.getSessionProperties()).thenReturn(
+                Collections.singletonMap(
+                        IcebergScanPlanProvider.SESSION_VAR_IGNORE_DANGLING_DELETE, "true"));
+        Optional<Long> r = providerFor(table).getCountPushdownResult(
+                session, handleV(2, null), Optional.empty());
+        Assertions.assertEquals(Optional.of(990L), r);
+    }
+
+    @Test
+    void countPushdownWithFilterReturnsEmpty() {
+        Table table = mockTableWithSnapshotSummary("1000", "0", "0", 1L);
+        ConnectorExpression filter = new ConnectorComparison(
+                ConnectorComparison.Operator.EQ,
+                new ConnectorColumnRef("id", ConnectorType.of("BIGINT")),
+                ConnectorLiteral.ofLong(5L));
+        Optional<Long> r = providerFor(table).getCountPushdownResult(
+                null, handleV(2, null), Optional.of(filter));
+        Assertions.assertFalse(r.isPresent());
     }
 }

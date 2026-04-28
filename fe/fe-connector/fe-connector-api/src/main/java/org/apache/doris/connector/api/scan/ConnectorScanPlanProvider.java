@@ -181,6 +181,43 @@ public interface ConnectorScanPlanProvider {
     }
 
     /**
+     * Reports whether this connector can satisfy {@code SELECT COUNT(*)}
+     * (no GROUP BY) for the given scan from metadata alone, without
+     * reading data files.
+     *
+     * <p>The default returns {@link Optional#empty()} which means
+     * "no count pushdown" — the engine must execute the count normally.
+     * Connectors with row-count-bearing snapshot summaries (e.g. iceberg's
+     * {@code total-records} / {@code total-position-deletes} /
+     * {@code total-equality-deletes}) override this to return
+     * {@code Optional.of(rowCount)} when the count can be answered from
+     * metadata, and {@link Optional#empty()} when it cannot (e.g. when
+     * equality deletes are present and the count would require materialising
+     * deletes).</p>
+     *
+     * <p>The engine is expected to call this before {@link #planScan} when
+     * the planner has matched a {@code COUNT(*)}-only aggregate; if the
+     * result is non-empty the engine may either short-circuit the scan or
+     * distribute the count across produced ranges. Engine wiring is a
+     * separate concern; until that wiring lands, this hook is informational
+     * and connectors may safely override it.</p>
+     *
+     * @param session the current session
+     * @param handle  the table handle to count
+     * @param filter  remaining filter expression after pushdown (if any
+     *                conjuncts could not be pushed, the connector should
+     *                return {@link Optional#empty()})
+     * @return total row count answerable from metadata, or
+     *         {@link Optional#empty()} when count cannot be pushed down
+     */
+    default Optional<Long> getCountPushdownResult(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            Optional<ConnectorExpression> filter) {
+        return Optional.empty();
+    }
+
+    /**
      * Returns the serialized table representation for this connector,
      * or {@code null} if not applicable.
      *

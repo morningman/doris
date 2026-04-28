@@ -29,6 +29,7 @@ import org.apache.doris.connector.iceberg.IcebergColumnHandle;
 import org.apache.doris.connector.iceberg.IcebergPredicateConverter;
 import org.apache.doris.connector.iceberg.IcebergTableHandle;
 import org.apache.doris.connector.spi.ConnectorContext;
+import org.apache.doris.thrift.TFileScanRangeParams;
 
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DeleteFile;
@@ -37,6 +38,7 @@ import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.FileScanTask;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.TableScan;
@@ -77,16 +79,19 @@ import java.util.function.BiFunction;
  *
  * <p>Out-of-scope deferrals (per task brief):
  * <ul>
- *   <li>vended credentials / {@code location.*} props (M2-Iceberg-05)</li>
- *   <li>name mapping JSON injection (M2-Iceberg-05)</li>
- *   <li>count pushdown / {@code getCountFromSnapshot} (M2-Iceberg-05)</li>
  *   <li>manifest-cache binding (M2-Iceberg-06)</li>
  *   <li>time travel / branch / tag (M2-Iceberg-07) — the
  *       {@link IcebergTableHandle#getRefSpec()} is intentionally <b>not</b>
  *       consumed; this PR always reads the pinned {@code snapshotId} when
  *       present, otherwise the table's {@code currentSnapshot()}.</li>
- *   <li>{@code LocationProvider} URI normalisation (M2-Iceberg-05) — paths
- *       are stored as-is on the produced ranges.</li>
+ *   <li>{@code LocationProvider} URI normalisation — paths are stored
+ *       as-is on the produced ranges; engine-side glue resolves them.</li>
+ *   <li>Engine wiring of {@link #getCountPushdownResult} into
+ *       {@link IcebergScanRange#getTableLevelRowCount()} (M2-Iceberg-05b /
+ *       follow-up): this provider exposes the metadata-only count on the
+ *       SPI hook, but does not eagerly populate the per-range row count
+ *       because the SPI carries no signal yet that a {@code COUNT(*)}
+ *       aggregate is being pushed down.</li>
  * </ul>
  */
 public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
@@ -96,6 +101,35 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
     /** Scan-node property keys produced by {@link #getScanNodeProperties}. */
     public static final String PROP_FILE_FORMAT_TYPE = "file_format_type";
     public static final String PROP_ICEBERG_FORMAT_VERSION = "iceberg.format_version";
+
+    /**
+     * Prefix under which the merged storage / vended-credential properties
+     * are exposed on the scan-node-properties map. Stripped by
+     * {@link #populateScanLevelParams} when copying into
+     * {@code TFileScanRangeParams.properties} (PlanNodes.thrift field 9).
+     */
+    public static final String PROP_LOCATION_PREFIX = "iceberg.location.";
+
+    /**
+     * Name-mapping JSON key. Set on the scan-node-properties map when the
+     * iceberg table's {@link TableProperties#DEFAULT_NAME_MAPPING} is
+     * non-null, and copied verbatim into
+     * {@code TFileScanRangeParams.properties} by
+     * {@link #populateScanLevelParams}.
+     */
+    public static final String PROP_NAME_MAPPING = "iceberg.name-mapping";
+
+    /**
+     * Session-property key consulted by {@link #getCountPushdownResult}
+     * when the table has only position deletes. Mirrors the legacy
+     * {@code SessionVariable#ignoreIcebergDanglingDelete}; absent / "false"
+     * means count cannot be pushed down through dangling deletes.
+     */
+    public static final String SESSION_VAR_IGNORE_DANGLING_DELETE = "ignore_iceberg_dangling_delete";
+
+    private static final String ICEBERG_TOTAL_RECORDS = "total-records";
+    private static final String ICEBERG_TOTAL_POSITION_DELETES = "total-position-deletes";
+    private static final String ICEBERG_TOTAL_EQUALITY_DELETES = "total-equality-deletes";
 
     private static final int MIN_DELETE_FILE_VERSION = 2;
     private static final int MIN_ROW_LINEAGE_VERSION = 3;
@@ -205,9 +239,122 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
         props.put(PROP_FILE_FORMAT_TYPE, defaultFormat.toUpperCase());
         props.put(PROP_ICEBERG_FORMAT_VERSION,
                 String.valueOf(resolveFormatVersion(iceHandle, table)));
-        // M2-Iceberg-05 will add: location.* (vended creds), iceberg.name-mapping.
-        // M2-Iceberg-07 will add snapshot/refSpec-derived props if needed.
+
+        // Vended credentials: merge the catalog-level storage props with any
+        // per-table credentials iceberg attached to table.io() (REST catalog
+        // vending), and surface them under a stable prefix that
+        // populateScanLevelParams strips when copying into Thrift.
+        Map<String, String> mergedStorage = IcebergVendedCredentialsUtil
+                .mergeStorageProperties(table, catalogProperties);
+        props.putAll(IcebergVendedCredentialsUtil.withPrefix(mergedStorage, PROP_LOCATION_PREFIX));
+
+        // Schema name mapping (id-less parquet/orc reads): only set when the
+        // table actually defines it, so that the Thrift map stays compact.
+        String nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
+        if (nameMapping != null && !nameMapping.isEmpty()) {
+            props.put(PROP_NAME_MAPPING, nameMapping);
+        }
         return props;
+    }
+
+    /**
+     * Pushes the iceberg-specific scan-node properties into the Thrift
+     * scan-range params consumed by BE:
+     * <ul>
+     *   <li>Strips {@link #PROP_LOCATION_PREFIX} from each storage /
+     *       vended-credential key so BE sees raw {@code s3.*} /
+     *       {@code oss.*} / {@code gs.*} / {@code adlfs.*} keys.</li>
+     *   <li>Copies {@link #PROP_NAME_MAPPING} verbatim — BE consumes this
+     *       key directly when applying iceberg name-mapping during
+     *       parquet/orc reads.</li>
+     * </ul>
+     */
+    @Override
+    public void populateScanLevelParams(TFileScanRangeParams params,
+                                        Map<String, String> nodeProperties) {
+        Objects.requireNonNull(params, "params");
+        if (nodeProperties == null || nodeProperties.isEmpty()) {
+            return;
+        }
+        if (params.getProperties() == null) {
+            params.setProperties(new HashMap<>());
+        }
+        Map<String, String> out = params.getProperties();
+        for (Map.Entry<String, String> e : nodeProperties.entrySet()) {
+            String key = e.getKey();
+            if (key.startsWith(PROP_LOCATION_PREFIX)) {
+                out.put(key.substring(PROP_LOCATION_PREFIX.length()), e.getValue());
+            }
+        }
+        String nameMapping = nodeProperties.get(PROP_NAME_MAPPING);
+        if (nameMapping != null) {
+            out.put(PROP_NAME_MAPPING, nameMapping);
+        }
+    }
+
+    /**
+     * Metadata-only {@code COUNT(*)} pushdown derived from the iceberg
+     * snapshot summary. Mirrors the legacy fe-core
+     * {@code IcebergScanNode#getCountFromSnapshot} algorithm exactly:
+     * <ol>
+     *   <li>Resolve the snapshot to use ({@code handle.snapshotId} when
+     *       set, otherwise {@code table.currentSnapshot()}).</li>
+     *   <li>No snapshot → empty table → {@code Optional.of(0)}.</li>
+     *   <li>{@code total-equality-deletes != 0} → cannot push,
+     *       {@code Optional.empty()}.</li>
+     *   <li>{@code total-position-deletes == 0} → exact count is
+     *       {@code total-records}.</li>
+     *   <li>Position deletes present and the session enables
+     *       {@link #SESSION_VAR_IGNORE_DANGLING_DELETE} → {@code total-records
+     *       - total-position-deletes}; otherwise cannot push.</li>
+     * </ol>
+     *
+     * <p>The {@code filter} argument is only honoured to the extent that
+     * a non-trivial filter forces no-pushdown (any filter could exclude
+     * rows that the snapshot summary cannot subtract). Iceberg {@code True}
+     * filters are treated as no-op, mirroring legacy behaviour where the
+     * scan node only pushes count when the WHERE clause is fully empty.</p>
+     */
+    @Override
+    public Optional<Long> getCountPushdownResult(ConnectorSession session,
+                                                 ConnectorTableHandle handle,
+                                                 Optional<ConnectorExpression> filter) {
+        if (filter.isPresent()) {
+            // Any residual filter requires per-row evaluation; no metadata-only count.
+            return Optional.empty();
+        }
+        IcebergTableHandle iceHandle = (IcebergTableHandle) Objects.requireNonNull(handle, "handle");
+        Table table = tableLoader.apply(iceHandle.getDbName(), iceHandle.getTableName());
+        Objects.requireNonNull(table, "iceberg table not loaded");
+
+        Snapshot snapshot = iceHandle.getSnapshotId() != null
+                ? table.snapshot(iceHandle.getSnapshotId())
+                : table.currentSnapshot();
+        if (snapshot == null) {
+            return Optional.of(0L);
+        }
+
+        Map<String, String> summary = snapshot.summary();
+        String eqDeletes = summary != null ? summary.get(ICEBERG_TOTAL_EQUALITY_DELETES) : null;
+        if (eqDeletes != null && !"0".equals(eqDeletes)) {
+            return Optional.empty();
+        }
+
+        String totalRecords = summary != null ? summary.get(ICEBERG_TOTAL_RECORDS) : null;
+        if (totalRecords == null) {
+            return Optional.empty();
+        }
+
+        String posDeletesStr = summary.get(ICEBERG_TOTAL_POSITION_DELETES);
+        long posDeletes = posDeletesStr != null ? Long.parseLong(posDeletesStr) : 0L;
+        if (posDeletes == 0L) {
+            return Optional.of(Long.parseLong(totalRecords));
+        }
+
+        if (ignoreDanglingDelete(session)) {
+            return Optional.of(Long.parseLong(totalRecords) - posDeletes);
+        }
+        return Optional.empty();
     }
 
     @Override
@@ -363,5 +510,17 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
     private String resolveTimeZone(ConnectorSession session) {
         String tz = session != null ? session.getProperty("time_zone", String.class) : null;
         return tz == null || tz.isEmpty() ? defaultTimeZone : tz;
+    }
+
+    private static boolean ignoreDanglingDelete(ConnectorSession session) {
+        if (session == null) {
+            return false;
+        }
+        Map<String, String> sessionProps = session.getSessionProperties();
+        if (sessionProps == null) {
+            return false;
+        }
+        String raw = sessionProps.get(SESSION_VAR_IGNORE_DANGLING_DELETE);
+        return "true".equalsIgnoreCase(raw);
     }
 }
