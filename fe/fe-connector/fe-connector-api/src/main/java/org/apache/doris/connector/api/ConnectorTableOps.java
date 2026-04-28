@@ -19,6 +19,8 @@ package org.apache.doris.connector.api;
 
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
+import org.apache.doris.connector.api.timetravel.ConnectorRefSpec;
+import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
 
 import java.util.Collections;
 import java.util.List;
@@ -35,6 +37,23 @@ public interface ConnectorTableOps {
             ConnectorSession session, String dbName,
             String tableName) {
         return Optional.empty();
+    }
+
+    /**
+     * Time-travel-aware overload of {@link #getTableHandle}. The engine
+     * passes the resolved {@link ConnectorTableVersion} (from
+     * {@code FOR VERSION/TIME AS OF}) and {@link ConnectorRefSpec} (from
+     * {@code @branch(...)/@tag(...)}) the user requested; the connector
+     * resolves both into a snapshot pin on the returned handle. The
+     * default ignores both and falls back to the legacy 3-arg overload
+     * so connectors without time-travel support keep working unchanged.
+     * (D5 §3.0.2 / G-D5)
+     */
+    default Optional<ConnectorTableHandle> getTableHandle(
+            ConnectorSession session, String dbName, String tableName,
+            Optional<ConnectorTableVersion> version,
+            Optional<ConnectorRefSpec> refSpec) {
+        return getTableHandle(session, dbName, tableName);
     }
 
     /** Returns the schema (columns, format, etc.) for the given table. */

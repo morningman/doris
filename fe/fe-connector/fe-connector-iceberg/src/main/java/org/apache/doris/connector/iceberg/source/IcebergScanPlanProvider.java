@@ -25,7 +25,11 @@ import org.apache.doris.connector.api.pushdown.ConnectorExpression;
 import org.apache.doris.connector.api.scan.ConnectorScanPlanProvider;
 import org.apache.doris.connector.api.scan.ConnectorScanRange;
 import org.apache.doris.connector.api.scan.ConnectorScanRangeType;
+import org.apache.doris.connector.api.scan.ConnectorScanRequest;
+import org.apache.doris.connector.api.timetravel.ConnectorMvccSnapshot;
+import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
 import org.apache.doris.connector.iceberg.IcebergColumnHandle;
+import org.apache.doris.connector.iceberg.IcebergConnectorMvccSnapshot;
 import org.apache.doris.connector.iceberg.IcebergPredicateConverter;
 import org.apache.doris.connector.iceberg.IcebergTableHandle;
 import org.apache.doris.connector.iceberg.cache.IcebergPluginManifestCache;
@@ -134,6 +138,22 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
     public static final String PROP_NAME_MAPPING = "iceberg.name-mapping";
 
     /**
+     * Scan-node-property key carrying the iceberg snapshot id selected
+     * for this plan (handle's pinned snapshot, or
+     * {@code table.currentSnapshot()} when unpinned). Used by
+     * {@link #appendExplainInfo} to render the time-travel coordinate.
+     */
+    public static final String PROP_SNAPSHOT_ID = "iceberg.snapshot_id";
+
+    /**
+     * Scan-node-property key carrying the diagnostic ref label
+     * ({@code "branch:<name>"} / {@code "tag:<name>"}) when the handle
+     * was resolved from a ref. Engine-side scan resolution always reads
+     * {@link #PROP_SNAPSHOT_ID}; this key is purely for EXPLAIN.
+     */
+    public static final String PROP_REF_SPEC = "iceberg.ref_spec";
+
+    /**
      * Session-property key consulted by {@link #getCountPushdownResult}
      * when the table has only position deletes. Mirrors the legacy
      * {@code SessionVariable#ignoreIcebergDanglingDelete}; absent / "false"
@@ -218,18 +238,68 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
             List<ConnectorColumnHandle> columns,
             Optional<ConnectorExpression> filter) {
         IcebergTableHandle iceHandle = (IcebergTableHandle) Objects.requireNonNull(handle, "handle");
+        return doPlanScan(session, iceHandle, columns, filter, iceHandle.getSnapshotId());
+    }
+
+    /**
+     * Request-shaped overload honouring time-travel coordinates: an
+     * {@link IcebergConnectorMvccSnapshot} on
+     * {@link ConnectorScanRequest#getMvccSnapshot()} takes priority, then a
+     * {@link ConnectorTableVersion#BySnapshotId} on
+     * {@link ConnectorScanRequest#getVersion()}, finally the snapshot id
+     * already pinned on the handle (which is the primary resolution path
+     * — set by {@link
+     * org.apache.doris.connector.iceberg.IcebergConnectorMetadata#getTableHandle(
+     * org.apache.doris.connector.api.ConnectorSession, String, String,
+     * java.util.Optional, java.util.Optional)}).
+     */
+    @Override
+    public List<ConnectorScanRange> planScan(ConnectorScanRequest req) {
+        Objects.requireNonNull(req, "req");
+        IcebergTableHandle iceHandle =
+                (IcebergTableHandle) Objects.requireNonNull(req.getTable(), "handle");
+        Long effectiveSnapshotId = resolveEffectiveSnapshotId(req, iceHandle);
+        return doPlanScan(req.getSession(), iceHandle, req.getColumns(),
+                req.getFilter(), effectiveSnapshotId);
+    }
+
+    private static Long resolveEffectiveSnapshotId(ConnectorScanRequest req, IcebergTableHandle handle) {
+        if (req.getMvccSnapshot().isPresent()) {
+            ConnectorMvccSnapshot mvcc = req.getMvccSnapshot().get();
+            if (mvcc instanceof IcebergConnectorMvccSnapshot) {
+                return ((IcebergConnectorMvccSnapshot) mvcc).snapshotId();
+            }
+        }
+        if (req.getVersion().isPresent()) {
+            ConnectorTableVersion v = req.getVersion().get();
+            if (v instanceof ConnectorTableVersion.BySnapshotId) {
+                return ((ConnectorTableVersion.BySnapshotId) v).snapshotId();
+            }
+            // Other version kinds are resolved at getTableHandle time and pinned
+            // onto the handle itself; the scan path only honours the cheap
+            // BySnapshotId case to stay engine-side-deterministic.
+        }
+        return handle.getSnapshotId();
+    }
+
+    private List<ConnectorScanRange> doPlanScan(
+            ConnectorSession session,
+            IcebergTableHandle iceHandle,
+            List<ConnectorColumnHandle> columns,
+            Optional<ConnectorExpression> filter,
+            Long pinnedSnapshotId) {
         Table table = tableLoader.apply(iceHandle.getDbName(), iceHandle.getTableName());
         Objects.requireNonNull(table, "iceberg table not loaded");
 
-        if (table.currentSnapshot() == null && iceHandle.getSnapshotId() == null) {
+        if (table.currentSnapshot() == null && pinnedSnapshotId == null) {
             // Unsnapshotted table: nothing to scan. Mirrors legacy fast-path
             // where TableScan over a snapshot-less table yields zero files.
             return Collections.emptyList();
         }
 
         TableScan scan = table.newScan();
-        if (iceHandle.getSnapshotId() != null) {
-            scan = scan.useSnapshot(iceHandle.getSnapshotId());
+        if (pinnedSnapshotId != null) {
+            scan = scan.useSnapshot(pinnedSnapshotId);
         }
 
         if (filter.isPresent()) {
@@ -251,9 +321,15 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
         String tz = resolveTimeZone(session);
 
         List<ConnectorScanRange> ranges = new ArrayList<>();
-        try (CloseableIterable<FileScanTask> rawTasks = planFileScanTask(scan, table);
-                CloseableIterable<FileScanTask> tasks = TableScanUtil.splitFiles(
-                        rawTasks, scan.targetSplitSize())) {
+        // Note: only `tasks` is owned by the try-with-resources because
+        // TableScanUtil.splitFiles returns a CloseableIterable that
+        // already cascades close() to its source iterable; double-closing
+        // raw planFiles() iterables (some iceberg backends instrument
+        // them with single-shot Timers) raises "stop() called multiple
+        // times".
+        CloseableIterable<FileScanTask> rawTasks = planFileScanTask(scan, table);
+        try (CloseableIterable<FileScanTask> tasks = TableScanUtil.splitFiles(
+                rawTasks, scan.targetSplitSize())) {
             for (FileScanTask task : tasks) {
                 ranges.add(buildRange(task, formatVersion, tz));
             }
@@ -264,7 +340,8 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
 
         LOG.info("Iceberg scan plan: table={}.{}, snapshot={}, formatVersion={}, splits={}",
                 iceHandle.getDbName(), iceHandle.getTableName(),
-                effectiveSnapshotId(iceHandle, table), formatVersion, ranges.size());
+                pinnedSnapshotId != null ? pinnedSnapshotId : effectiveSnapshotId(iceHandle, table),
+                formatVersion, ranges.size());
         return ranges;
     }
 
@@ -298,6 +375,14 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
         String nameMapping = table.properties().get(TableProperties.DEFAULT_NAME_MAPPING);
         if (nameMapping != null && !nameMapping.isEmpty()) {
             props.put(PROP_NAME_MAPPING, nameMapping);
+        }
+
+        Long snapshotId = effectiveSnapshotId(iceHandle, table);
+        if (snapshotId != null) {
+            props.put(PROP_SNAPSHOT_ID, snapshotId.toString());
+        }
+        if (iceHandle.getRefSpec() != null) {
+            props.put(PROP_REF_SPEC, iceHandle.getRefSpec());
         }
         return props;
     }
@@ -407,11 +492,19 @@ public class IcebergScanPlanProvider implements ConnectorScanPlanProvider {
                                   Map<String, String> nodeProperties) {
         String fv = nodeProperties.get(PROP_ICEBERG_FORMAT_VERSION);
         String fmt = nodeProperties.get(PROP_FILE_FORMAT_TYPE);
+        String snap = nodeProperties.get(PROP_SNAPSHOT_ID);
+        String ref = nodeProperties.get(PROP_REF_SPEC);
         if (fv != null) {
             output.append(prefix).append("iceberg.format_version=").append(fv).append('\n');
         }
         if (fmt != null) {
             output.append(prefix).append("file_format_type=").append(fmt).append('\n');
+        }
+        if (snap != null) {
+            output.append(prefix).append("iceberg snapshot=").append(snap).append('\n');
+        }
+        if (ref != null) {
+            output.append(prefix).append("iceberg ref=").append(ref).append('\n');
         }
         if (manifestCacheEnabled) {
             CacheStats stats = getCacheStats();

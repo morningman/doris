@@ -18,6 +18,7 @@
 package org.apache.doris.connector.iceberg;
 
 import org.apache.doris.connector.api.Connector;
+import org.apache.doris.connector.api.timetravel.ConnectorMvccSnapshot;
 import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorProvider;
 
@@ -69,5 +70,17 @@ public class IcebergConnectorProvider implements ConnectorProvider {
     @Override
     public Optional<String> defaultAccessControllerFactoryName() {
         return Optional.of("ranger-hive");
+    }
+
+    /**
+     * Iceberg supports MVCC snapshot pinning; the codec round-trips an
+     * {@link IcebergConnectorMvccSnapshot} via a fixed 24-byte binary
+     * frame (see {@link IcebergConnectorMvccSnapshot.Codec}). The engine
+     * uses this codec to ferry the snapshot across FE→BE and to persist
+     * MTMV refresh metadata.
+     */
+    @Override
+    public Optional<ConnectorMvccSnapshot.Codec> getMvccSnapshotCodec() {
+        return Optional.of(new IcebergConnectorMvccSnapshot.Codec());
     }
 }

@@ -129,7 +129,9 @@ public class IcebergConnector implements Connector {
                 ConnectorCapability.SUPPORTS_FILTER_PUSHDOWN,
                 ConnectorCapability.SUPPORTS_PROJECTION_PUSHDOWN,
                 ConnectorCapability.SUPPORTS_PARTITION_PRUNING,
-                ConnectorCapability.SUPPORTS_VENDED_CREDENTIALS);
+                ConnectorCapability.SUPPORTS_VENDED_CREDENTIALS,
+                ConnectorCapability.SUPPORTS_TIME_TRAVEL,
+                ConnectorCapability.SUPPORTS_MVCC_SNAPSHOT);
     }
 
     @Override

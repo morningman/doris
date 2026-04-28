@@ -137,6 +137,14 @@ class IcebergConnectorBindingsTest {
                 () -> new IcebergConnector(props, new FakeConnectorContext("c", 1L)));
     }
 
+    @Test
+    void capabilitiesIncludeTimeTravelAndMvccSnapshot() {
+        Assertions.assertTrue(connector.getCapabilities().contains(
+                org.apache.doris.connector.api.ConnectorCapability.SUPPORTS_TIME_TRAVEL));
+        Assertions.assertTrue(connector.getCapabilities().contains(
+                org.apache.doris.connector.api.ConnectorCapability.SUPPORTS_MVCC_SNAPSHOT));
+    }
+
     /** Closeable + Catalog so Mockito mock can verify the close-on-removal path. */
     interface CloseableCatalog extends Catalog, Closeable {
     }

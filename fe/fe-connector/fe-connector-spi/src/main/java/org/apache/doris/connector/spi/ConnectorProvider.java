@@ -18,6 +18,7 @@
 package org.apache.doris.connector.spi;
 
 import org.apache.doris.connector.api.Connector;
+import org.apache.doris.connector.api.timetravel.ConnectorMvccSnapshot;
 import org.apache.doris.extension.spi.Plugin;
 import org.apache.doris.extension.spi.PluginFactory;
 
@@ -125,6 +126,20 @@ public interface ConnectorProvider extends PluginFactory {
     /** API version for compatibility checking. Major version change = incompatible. */
     default int apiVersion() {
         return 1;
+    }
+
+    /**
+     * Returns the connector-specific {@link ConnectorMvccSnapshot.Codec}
+     * used by the engine to round-trip an
+     * {@link org.apache.doris.connector.api.timetravel.ConnectorMvccSnapshot}
+     * across the FE→BE plan boundary and to persist it into MTMV refresh
+     * metadata. Connectors that do not declare
+     * {@link org.apache.doris.connector.api.ConnectorCapability#SUPPORTS_MVCC_SNAPSHOT}
+     * may keep the empty default; the engine never asks for a codec it
+     * was not promised one for. (D5 §3.3)
+     */
+    default Optional<ConnectorMvccSnapshot.Codec> getMvccSnapshotCodec() {
+        return Optional.empty();
     }
 
     /**

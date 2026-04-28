@@ -21,6 +21,7 @@ import org.apache.doris.connector.api.ConnectorColumn;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
+import org.apache.doris.connector.api.DorisConnectorException;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
@@ -28,6 +29,9 @@ import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.mtmv.MtmvOps;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.SystemTableOps;
+import org.apache.doris.connector.api.timetravel.ConnectorRefSpec;
+import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
+import org.apache.doris.connector.api.timetravel.RefKind;
 import org.apache.doris.connector.api.timetravel.RefOps;
 import org.apache.doris.connector.iceberg.api.IcebergBackend;
 import org.apache.doris.connector.iceberg.api.IcebergBackendContext;
@@ -39,6 +43,7 @@ import org.apache.doris.connector.iceberg.systable.IcebergSystemTableOps;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
+import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableOperations;
@@ -47,6 +52,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -240,18 +246,176 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
             return Optional.empty();
         }
         Table table = loadIcebergTable(dbName, tableName);
-        return Optional.of(buildTableHandle(dbName, tableName, table));
+        return Optional.of(buildTableHandle(dbName, tableName, table, null, null));
+    }
+
+    /**
+     * Time-travel-aware {@code getTableHandle}: resolves the supplied
+     * {@link ConnectorTableVersion} / {@link ConnectorRefSpec} to an
+     * iceberg snapshot id and pins it on the returned handle. Resolution
+     * mirrors legacy {@code IcebergUtils.getQuerySpecSnapshot}: ref + ref-kind
+     * mismatches and unknown refs raise {@link DorisConnectorException};
+     * {@link ConnectorTableVersion.ByOpaque} accepts the
+     * {@code "iceberg:&lt;snapshotId&gt;:&lt;commitMs&gt;"} token shape produced by
+     * {@link IcebergConnectorMvccSnapshot#toOpaqueToken()}.
+     */
+    @Override
+    public Optional<ConnectorTableHandle> getTableHandle(
+            ConnectorSession session, String dbName, String tableName,
+            Optional<ConnectorTableVersion> version,
+            Optional<ConnectorRefSpec> refSpec) {
+        Objects.requireNonNull(version, "version");
+        Objects.requireNonNull(refSpec, "refSpec");
+        TableIdentifier tableId = TableIdentifier.of(dbName, tableName);
+        if (!catalog.tableExists(tableId)) {
+            return Optional.empty();
+        }
+        Table table = loadIcebergTable(dbName, tableName);
+        Long snapshotId = null;
+        String renderedRef = null;
+        if (version.isPresent()) {
+            ResolvedRef rr = resolveVersion(table, version.get());
+            snapshotId = rr.snapshotId;
+            renderedRef = rr.renderedRef;
+        } else if (refSpec.isPresent()) {
+            ResolvedRef rr = resolveRef(table, refSpec.get().name(), refSpec.get().kind());
+            snapshotId = rr.snapshotId;
+            renderedRef = rr.renderedRef;
+        }
+        return Optional.of(buildTableHandle(dbName, tableName, table, snapshotId, renderedRef));
+    }
+
+    private static final class ResolvedRef {
+        final long snapshotId;
+        final String renderedRef;
+
+        ResolvedRef(long snapshotId, String renderedRef) {
+            this.snapshotId = snapshotId;
+            this.renderedRef = renderedRef;
+        }
+    }
+
+    private ResolvedRef resolveVersion(Table table, ConnectorTableVersion version) {
+        if (version instanceof ConnectorTableVersion.BySnapshotId) {
+            long sid = ((ConnectorTableVersion.BySnapshotId) version).snapshotId();
+            return new ResolvedRef(sid, null);
+        }
+        if (version instanceof ConnectorTableVersion.ByTimestamp) {
+            long ts = ((ConnectorTableVersion.ByTimestamp) version).ts().toEpochMilli();
+            long sid = SnapshotUtil.snapshotIdAsOfTime(table, ts);
+            return new ResolvedRef(sid, null);
+        }
+        if (version instanceof ConnectorTableVersion.ByRef) {
+            ConnectorTableVersion.ByRef br = (ConnectorTableVersion.ByRef) version;
+            return resolveRef(table, br.name(), br.kind());
+        }
+        if (version instanceof ConnectorTableVersion.ByRefAtTimestamp) {
+            ConnectorTableVersion.ByRefAtTimestamp brt =
+                    (ConnectorTableVersion.ByRefAtTimestamp) version;
+            ResolvedRef refResolved = resolveRef(table, brt.name(), brt.kind());
+            long sid = walkAncestorsForTimestamp(
+                    table, refResolved.snapshotId, brt.ts().toEpochMilli());
+            return new ResolvedRef(sid, refResolved.renderedRef);
+        }
+        if (version instanceof ConnectorTableVersion.ByOpaque) {
+            String token = ((ConnectorTableVersion.ByOpaque) version).token();
+            return new ResolvedRef(parseOpaqueSnapshotId(token), null);
+        }
+        throw new DorisConnectorException(
+                "Unsupported ConnectorTableVersion: " + version.getClass().getName());
+    }
+
+    private ResolvedRef resolveRef(Table table, String refName, RefKind kind) {
+        SnapshotRef ref = table.refs().get(refName);
+        if (ref == null) {
+            throw new DorisConnectorException(
+                    "Iceberg table " + table.name() + " has no ref named '" + refName + "'");
+        }
+        if (kind == RefKind.BRANCH && !ref.isBranch()) {
+            throw new DorisConnectorException(
+                    "Iceberg ref '" + refName + "' on " + table.name()
+                            + " is not a branch");
+        }
+        if (kind == RefKind.TAG && !ref.isTag()) {
+            throw new DorisConnectorException(
+                    "Iceberg ref '" + refName + "' on " + table.name()
+                            + " is not a tag");
+        }
+        String rendered = (kind == RefKind.TAG ? "tag:" : "branch:") + refName;
+        return new ResolvedRef(ref.snapshotId(), rendered);
+    }
+
+    /**
+     * Find the latest snapshot in the {@code refHead}'s ancestry whose
+     * commit-time is &le; {@code timestampMs}. Mirrors the legacy
+     * "walk ancestors and stop when committed-after-ts" pattern from
+     * iceberg's {@code SnapshotUtil#snapshotIdAsOfTime}, but scoped to a
+     * named ref's history rather than the table's main lineage.
+     */
+    private long walkAncestorsForTimestamp(Table table, long refHead, long timestampMs) {
+        Long matched = null;
+        for (Long ancestor : SnapshotUtil.ancestorIdsBetween(refHead, null, table::snapshot)) {
+            Snapshot s = table.snapshot(ancestor);
+            if (s == null) {
+                continue;
+            }
+            if (s.timestampMillis() <= timestampMs) {
+                matched = s.snapshotId();
+                break;
+            }
+        }
+        if (matched == null) {
+            throw new DorisConnectorException(
+                    "Iceberg ref " + refHead + " has no snapshot at or before timestamp "
+                            + timestampMs + "ms");
+        }
+        return matched;
+    }
+
+    private static long parseOpaqueSnapshotId(String token) {
+        if (!token.startsWith("iceberg:")) {
+            throw new DorisConnectorException(
+                    "Iceberg cannot decode opaque token (must start with 'iceberg:'): " + token);
+        }
+        String rest = token.substring("iceberg:".length());
+        int colon = rest.indexOf(':');
+        String snapshotIdStr = colon < 0 ? rest : rest.substring(0, colon);
+        try {
+            return Long.parseLong(snapshotIdStr);
+        } catch (NumberFormatException e) {
+            throw new DorisConnectorException(
+                    "Iceberg opaque token has non-numeric snapshotId: " + token, e);
+        }
     }
 
     /**
      * Build an {@link IcebergTableHandle} from a resolved iceberg {@link Table},
      * populating snapshot / schema / spec / format-version / metadata-location
-     * fields per D11 §4. {@code refSpec} is left null and will be wired in
-     * M2-Iceberg-07 when time-travel propagation lands.
+     * fields per D11 §4. {@code pinnedSnapshotId} overrides the table's
+     * current snapshot when a time-travel coordinate was resolved;
+     * {@code renderedRef} is a diagnostic-only "branch:foo" / "tag:bar"
+     * label. Engine-side scan resolution always reads {@code snapshotId}.
      */
-    private IcebergTableHandle buildTableHandle(String dbName, String tableName, Table table) {
-        Snapshot current = table.currentSnapshot();
-        Long snapshotId = current != null ? current.snapshotId() : null;
+    private IcebergTableHandle buildTableHandle(String dbName, String tableName, Table table,
+                                                Long pinnedSnapshotId, String renderedRef) {
+        Long snapshotId = pinnedSnapshotId;
+        if (snapshotId == null) {
+            Snapshot current = table.currentSnapshot();
+            snapshotId = current != null ? current.snapshotId() : null;
+        }
+
+        Integer schemaId;
+        if (pinnedSnapshotId != null) {
+            // Use the schema bound to the pinned snapshot so projections resolve
+            // against the historical layout, mirroring legacy
+            // IcebergUtils.getQuerySpecSnapshot's schema resolution.
+            Snapshot snap = table.snapshot(pinnedSnapshotId);
+            schemaId = snap != null && snap.schemaId() != null
+                    ? snap.schemaId()
+                    : table.schema().schemaId();
+        } else {
+            schemaId = table.schema().schemaId();
+        }
 
         Integer formatVersion = null;
         String metadataLocation = null;
@@ -268,9 +432,9 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
                 .dbName(dbName)
                 .tableName(tableName)
                 .snapshotId(snapshotId)
-                .refSpec(null)
+                .refSpec(renderedRef)
                 .formatVersion(formatVersion)
-                .schemaId(table.schema().schemaId())
+                .schemaId(schemaId)
                 .partitionSpecId(table.spec().specId())
                 .metadataLocation(metadataLocation)
                 .build();

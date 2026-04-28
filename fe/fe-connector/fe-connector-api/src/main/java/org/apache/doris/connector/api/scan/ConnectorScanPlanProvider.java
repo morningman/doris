@@ -53,6 +53,13 @@ public interface ConnectorScanPlanProvider {
     /**
      * Plans the scan for the given table, returning a list of scan ranges.
      *
+     * <p>This 4-arg overload is the legacy entry point. Connectors that
+     * need access to time-travel coordinates (version / ref / mvcc
+     * snapshot) or the row-limit pushdown should override
+     * {@link #planScan(ConnectorScanRequest)} instead — the engine
+     * prefers the request-shaped overload when a connector overrides
+     * it.</p>
+     *
      * @param session the current session
      * @param handle  the table handle to scan (may have been updated by applyFilter/applyProjection)
      * @param columns the columns to read
@@ -64,6 +71,23 @@ public interface ConnectorScanPlanProvider {
             ConnectorTableHandle handle,
             List<ConnectorColumnHandle> columns,
             Optional<ConnectorExpression> filter);
+
+    /**
+     * Plans the scan from an aggregating {@link ConnectorScanRequest}.
+     *
+     * <p>This is the preferred entry point for new connectors and for any
+     * connector that needs access to time-travel coordinates or the row
+     * limit. The default forwards to the legacy 4-arg
+     * {@link #planScan(ConnectorSession, ConnectorTableHandle, List, Optional)}
+     * which discards the time-travel and limit fields, so existing
+     * connectors keep working unchanged.</p>
+     *
+     * @param req aggregating scan request
+     * @return a list of scan ranges
+     */
+    default List<ConnectorScanRange> planScan(ConnectorScanRequest req) {
+        return planScan(req.getSession(), req.getTable(), req.getColumns(), req.getFilter());
+    }
 
     /**
      * Plans the scan with an optional row limit.
@@ -111,6 +135,18 @@ public interface ConnectorScanPlanProvider {
     }
 
     /**
+     * Request-shaped overload of {@link #getScanNodeProperties}. Default
+     * delegates to the legacy 4-arg overload, ignoring the request's
+     * time-travel coordinates and limit. Connectors that want to render
+     * version / ref / mvcc-snapshot info into the scan-node properties
+     * should override this overload instead.
+     */
+    default Map<String, String> getScanNodeProperties(ConnectorScanRequest req) {
+        return getScanNodeProperties(req.getSession(), req.getTable(),
+                req.getColumns(), req.getFilter());
+    }
+
+    /**
      * Estimates the number of scan ranges for parallelism planning.
      * Returns -1 if the estimate is unknown.
      *
@@ -147,6 +183,14 @@ public interface ConnectorScanPlanProvider {
             Optional<ConnectorExpression> filter) {
         return new ScanNodePropertiesResult(
                 getScanNodeProperties(session, handle, columns, filter));
+    }
+
+    /**
+     * Request-shaped overload of {@link #getScanNodePropertiesResult}. Default
+     * delegates to the legacy 4-arg overload.
+     */
+    default ScanNodePropertiesResult getScanNodePropertiesResult(ConnectorScanRequest req) {
+        return new ScanNodePropertiesResult(getScanNodeProperties(req));
     }
 
     /**
@@ -215,6 +259,14 @@ public interface ConnectorScanPlanProvider {
             ConnectorTableHandle handle,
             Optional<ConnectorExpression> filter) {
         return Optional.empty();
+    }
+
+    /**
+     * Request-shaped overload of {@link #getCountPushdownResult}. Default
+     * delegates to the legacy 3-arg overload.
+     */
+    default Optional<Long> getCountPushdownResult(ConnectorScanRequest req) {
+        return getCountPushdownResult(req.getSession(), req.getTable(), req.getFilter());
     }
 
     /**
