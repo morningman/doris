@@ -17,10 +17,49 @@
 
 package org.apache.doris.nereids.trees.plans.commands.insert;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 /**
  * Insert command context for plugin-driven connector catalogs.
- * No additional fields — overwrite is inherited from BaseExternalTableInsertCommandContext.
- * Connector plugins provide write config through the ConnectorWriteOps SPI.
+ *
+ * <p>Carries the overwrite flag (inherited from {@link BaseExternalTableInsertCommandContext})
+ * along with the partition specification parsed by the nereids INSERT OVERWRITE pipeline:</p>
+ * <ul>
+ *   <li>{@code staticPartitionValues} — literal-only key/value pairs from
+ *       {@code PARTITION (k='v', ...)}; populated when overwrite is fully static.</li>
+ *   <li>{@code dynamicPartitionNames} — partition column names from
+ *       {@code PARTITION (p1, p2)} (no values); populated when overwrite targets
+ *       runtime-determined partitions.</li>
+ * </ul>
+ *
+ * <p>Both collections are empty for plain {@code INSERT INTO} and for
+ * {@code INSERT OVERWRITE TABLE} without a {@code PARTITION} clause.</p>
  */
 public class PluginDrivenInsertCommandContext extends BaseExternalTableInsertCommandContext {
+
+    private Map<String, String> staticPartitionValues = ImmutableMap.of();
+    private List<String> dynamicPartitionNames = ImmutableList.of();
+
+    public Map<String, String> getStaticPartitionValues() {
+        return staticPartitionValues;
+    }
+
+    public void setStaticPartitionValues(Map<String, String> staticPartitionValues) {
+        Objects.requireNonNull(staticPartitionValues, "staticPartitionValues");
+        this.staticPartitionValues = ImmutableMap.copyOf(staticPartitionValues);
+    }
+
+    public List<String> getDynamicPartitionNames() {
+        return dynamicPartitionNames;
+    }
+
+    public void setDynamicPartitionNames(List<String> dynamicPartitionNames) {
+        Objects.requireNonNull(dynamicPartitionNames, "dynamicPartitionNames");
+        this.dynamicPartitionNames = ImmutableList.copyOf(dynamicPartitionNames);
+    }
 }

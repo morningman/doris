@@ -28,6 +28,7 @@ import org.apache.doris.connector.api.ConnectorWriteOps;
 import org.apache.doris.connector.api.handle.ConnectorInsertHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.write.ConnectorWriteType;
+import org.apache.doris.connector.api.write.WriteIntent;
 import org.apache.doris.datasource.ConnectorColumnConverter;
 import org.apache.doris.datasource.ExternalTable;
 import org.apache.doris.datasource.PluginDrivenExternalCatalog;
@@ -97,10 +98,53 @@ public class PluginDrivenInsertExecutor extends BaseExternalTableInsertExecutor 
         resolvedWriteType = writeOps.getWriteConfig(
                 connectorSession, tableHandle.get(), columns).getWriteType();
 
-        // Begin insert
-        insertHandle = writeOps.beginInsert(connectorSession, tableHandle.get(), columns);
-        LOG.info("Plugin-driven insert started for table {}.{}, txnId={}",
-                remoteDbName, remoteTableName, txnId);
+        // Translate the nereids INSERT intent into the SPI WriteIntent so
+        // connectors that declare overwrite/upsert capabilities can honor it.
+        WriteIntent writeIntent = buildWriteIntent(insertCtx);
+        insertHandle = writeOps.beginInsert(connectorSession, tableHandle.get(), columns, writeIntent);
+        LOG.info("Plugin-driven insert started for table {}.{}, txnId={}, intent={}",
+                remoteDbName, remoteTableName, txnId, writeIntent);
+    }
+
+    /**
+     * Build the {@link WriteIntent} that describes the high-level semantics of
+     * this INSERT for the connector SPI.
+     *
+     * <p>Mapping rules (see PR-task-breakdown M3-02 and D1 §0/§2.1):</p>
+     * <ul>
+     *   <li>plain INSERT INTO → {@link WriteIntent.OverwriteMode#NONE}</li>
+     *   <li>INSERT OVERWRITE TABLE (no PARTITION clause) →
+     *       {@link WriteIntent.OverwriteMode#FULL_TABLE}</li>
+     *   <li>INSERT OVERWRITE PARTITION (k='v', ...) all literal →
+     *       {@link WriteIntent.OverwriteMode#STATIC_PARTITION} with the
+     *       static partition map populated</li>
+     *   <li>INSERT OVERWRITE PARTITION (p1, p2) name-only, or any partial /
+     *       runtime-determined partition spec →
+     *       {@link WriteIntent.OverwriteMode#DYNAMIC_PARTITION}</li>
+     * </ul>
+     */
+    static WriteIntent buildWriteIntent(Optional<InsertCommandContext> ctxOpt) {
+        if (!ctxOpt.isPresent() || !(ctxOpt.get() instanceof PluginDrivenInsertCommandContext)) {
+            return WriteIntent.simple();
+        }
+        PluginDrivenInsertCommandContext ctx = (PluginDrivenInsertCommandContext) ctxOpt.get();
+        if (!ctx.isOverwrite()) {
+            return WriteIntent.simple();
+        }
+        if (!ctx.getStaticPartitionValues().isEmpty()) {
+            return WriteIntent.builder()
+                    .overwriteMode(WriteIntent.OverwriteMode.STATIC_PARTITION)
+                    .staticPartitions(ctx.getStaticPartitionValues())
+                    .build();
+        }
+        if (!ctx.getDynamicPartitionNames().isEmpty()) {
+            return WriteIntent.builder()
+                    .overwriteMode(WriteIntent.OverwriteMode.DYNAMIC_PARTITION)
+                    .build();
+        }
+        return WriteIntent.builder()
+                .overwriteMode(WriteIntent.OverwriteMode.FULL_TABLE)
+                .build();
     }
 
     @Override
