@@ -18,6 +18,7 @@
 package org.apache.doris.connector.iceberg;
 
 import org.apache.doris.connector.api.Connector;
+import org.apache.doris.connector.api.ConnectorCapability;
 import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.DorisConnectorException;
@@ -41,9 +42,11 @@ import org.apache.logging.log4j.Logger;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Iceberg connector orchestrator. All metadata caching (catalog SDK
@@ -103,6 +106,11 @@ public class IcebergConnector implements Connector {
         this.snapshotsBinding = IcebergCacheBindings.snapshotsBinding(this::loadSnapshots);
         this.bindings = Collections.unmodifiableList(
                 new ArrayList<>(java.util.Arrays.asList(catalogBinding, tableBinding, snapshotsBinding)));
+    }
+
+    @Override
+    public Set<ConnectorCapability> getCapabilities() {
+        return EnumSet.of(ConnectorCapability.SUPPORTS_MTMV);
     }
 
     @Override

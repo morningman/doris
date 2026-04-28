@@ -24,6 +24,7 @@ import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
+import org.apache.doris.connector.api.mtmv.MtmvOps;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.SystemTableOps;
 import org.apache.doris.connector.api.timetravel.RefOps;
@@ -31,6 +32,7 @@ import org.apache.doris.connector.iceberg.api.IcebergBackend;
 import org.apache.doris.connector.iceberg.api.IcebergBackendContext;
 import org.apache.doris.connector.iceberg.cache.IcebergTableCacheKey;
 import org.apache.doris.connector.iceberg.event.IcebergEventSourceOps;
+import org.apache.doris.connector.iceberg.mtmv.IcebergMtmvOps;
 import org.apache.doris.connector.iceberg.systable.IcebergSystemTableOps;
 
 import org.apache.iceberg.Schema;
@@ -76,6 +78,7 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
     private final String catalogName;
     private volatile SystemTableOps sysTableOps;
     private volatile EventSourceOps eventSourceOps;
+    private volatile MtmvOps mtmvOps;
 
     public IcebergConnectorMetadata(Catalog catalog, Map<String, String> properties) {
         this(catalog, properties, null, null, null, "");
@@ -122,6 +125,23 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
             }
         }
         return ops;
+    }
+
+    // ========== MtmvOps (D8 / M2-08) ==========
+
+    @Override
+    public Optional<MtmvOps> mtmvOps() {
+        MtmvOps ops = mtmvOps;
+        if (ops == null) {
+            synchronized (this) {
+                ops = mtmvOps;
+                if (ops == null) {
+                    ops = new IcebergMtmvOps(this::loadIcebergTable);
+                    mtmvOps = ops;
+                }
+            }
+        }
+        return Optional.of(ops);
     }
 
     @Override
