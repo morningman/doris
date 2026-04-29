@@ -147,7 +147,10 @@ public class IcebergConnector implements Connector {
                 ConnectorCapability.SUPPORTS_ROW_LEVEL_DELETE,
                 ConnectorCapability.SUPPORTS_POSITION_DELETE,
                 ConnectorCapability.SUPPORTS_EQUALITY_DELETE,
-                ConnectorCapability.SUPPORTS_DELETION_VECTOR);
+                ConnectorCapability.SUPPORTS_DELETION_VECTOR,
+                // M3-11: expose iceberg housekeeping procedures (expire_snapshots,
+                // remove_orphan_files, rewrite_data_files) via ConnectorActionOps.
+                ConnectorCapability.SUPPORTS_PROCEDURES);
     }
 
     @Override

@@ -23,6 +23,7 @@ import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.DorisConnectorException;
+import org.apache.doris.connector.api.action.ConnectorActionOps;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
@@ -113,6 +114,7 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
     private volatile SystemTableOps sysTableOps;
     private volatile EventSourceOps eventSourceOps;
     private volatile MtmvOps mtmvOps;
+    private volatile ConnectorActionOps actionOps;
 
     public IcebergConnectorMetadata(Catalog catalog, Map<String, String> properties) {
         this(catalog, properties, null, null, null, "");
@@ -172,6 +174,23 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
                 if (ops == null) {
                     ops = new IcebergMtmvOps(this::loadIcebergTable);
                     mtmvOps = ops;
+                }
+            }
+        }
+        return Optional.of(ops);
+    }
+
+    // ========== ConnectorActionOps (D1-write-path / M3-11) ==========
+
+    @Override
+    public Optional<ConnectorActionOps> actionOps() {
+        ConnectorActionOps ops = actionOps;
+        if (ops == null) {
+            synchronized (this) {
+                ops = actionOps;
+                if (ops == null) {
+                    ops = new IcebergActionOps(this::loadIcebergTable);
+                    actionOps = ops;
                 }
             }
         }
