@@ -40,6 +40,8 @@ import org.apache.doris.connector.api.pushdown.ConnectorLiteral;
 import org.apache.doris.connector.api.pushdown.FilterApplicationResult;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.SystemTableOps;
+import org.apache.doris.connector.api.write.ConnectorTransactionContext;
+import org.apache.doris.connector.api.write.ConnectorTxnCapability;
 import org.apache.doris.connector.api.write.ConnectorWriteConfig;
 import org.apache.doris.connector.api.write.ConnectorWriteType;
 import org.apache.doris.connector.api.write.WriteIntent;
@@ -62,6 +64,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -608,6 +611,33 @@ public class HiveConnectorMetadata implements ConnectorMetadata {
             return "text";
         }
         return "parquet";
+    }
+
+    @Override
+    public EnumSet<ConnectorTxnCapability> txnCapabilities() {
+        return EnumSet.copyOf(HiveTransactionContext.CONNECTOR_CAPABILITIES);
+    }
+
+    @Override
+    public ConnectorTransactionContext beginTransaction(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            WriteIntent intent) {
+        Objects.requireNonNull(handle, "handle");
+        Objects.requireNonNull(intent, "intent");
+        HiveTableHandle hiveHandle = (HiveTableHandle) handle;
+        HmsTableInfo tableInfo = hmsClient.getTable(hiveHandle.getDbName(), hiveHandle.getTableName());
+        boolean isAcid = HiveAcidUtil.isFullAcidTable(tableInfo);
+        validateOverwriteAgainstTable(intent, hiveHandle, tableInfo, isAcid);
+
+        HiveAcidContext.Builder ctx = HiveAcidContext.builder(
+                        hiveHandle.getDbName(), hiveHandle.getTableName(), intent)
+                .stagingLocation(tableInfo.getLocation())
+                .acid(isAcid);
+        if (isAcid) {
+            startAcidTransaction(ctx, hiveHandle, HmsAcidOperation.INSERT, intent);
+        }
+        return new HiveTransactionContext(ctx.build());
     }
 
     @Override

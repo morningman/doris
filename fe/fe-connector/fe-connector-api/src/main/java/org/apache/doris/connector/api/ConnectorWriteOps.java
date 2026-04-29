@@ -21,8 +21,10 @@ import org.apache.doris.connector.api.handle.ConnectorDeleteHandle;
 import org.apache.doris.connector.api.handle.ConnectorInsertHandle;
 import org.apache.doris.connector.api.handle.ConnectorMergeHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
+import org.apache.doris.connector.api.write.ConnectorTransactionContext;
 import org.apache.doris.connector.api.write.ConnectorTxnCapability;
 import org.apache.doris.connector.api.write.ConnectorWriteConfig;
+import org.apache.doris.connector.api.write.NoopTransactionContext;
 import org.apache.doris.connector.api.write.WriteIntent;
 
 import java.util.Collection;
@@ -129,6 +131,36 @@ public interface ConnectorWriteOps {
      */
     default EnumSet<ConnectorTxnCapability> txnCapabilities() {
         return EnumSet.noneOf(ConnectorTxnCapability.class);
+    }
+
+    /**
+     * Opens a fresh {@link ConnectorTransactionContext} for an upcoming
+     * DML statement (D1 §2.3, M3-09).
+     *
+     * <p>Default returns a {@link NoopTransactionContext} so connectors
+     * that do not (yet) honour the new commit-model SPI keep working
+     * untouched. Connectors that advertise any of
+     * {@link ConnectorTxnCapability#MULTI_STATEMENT},
+     * {@link ConnectorTxnCapability#COMMIT_RETRY} or
+     * {@link ConnectorTxnCapability#FAILOVER_SAFE} via
+     * {@link #txnCapabilities()} MUST override this method and return a
+     * context whose {@link ConnectorTransactionContext#txnCapabilities()}
+     * is a subset of the connector-level set.</p>
+     *
+     * <p><b>M3-09 scope</b>: the returned context is currently only
+     * inspected for declarative purposes. fe-core's
+     * {@code PluginDrivenInsertExecutor} continues to drive
+     * {@code beginInsert / finishInsert / abortInsert} on the existing
+     * {@link org.apache.doris.connector.api.handle.ConnectorInsertHandle}
+     * path; wiring the context into commit/abort retry and failover
+     * resumption is deferred to the M3-15 cutover PR.</p>
+     */
+    default ConnectorTransactionContext beginTransaction(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            WriteIntent intent) {
+        Objects.requireNonNull(intent, "intent");
+        return NoopTransactionContext.forIntent(intent);
     }
 
     /**

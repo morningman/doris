@@ -35,6 +35,8 @@ import org.apache.doris.connector.api.timetravel.ConnectorRefSpec;
 import org.apache.doris.connector.api.timetravel.ConnectorTableVersion;
 import org.apache.doris.connector.api.timetravel.RefKind;
 import org.apache.doris.connector.api.timetravel.RefOps;
+import org.apache.doris.connector.api.write.ConnectorTransactionContext;
+import org.apache.doris.connector.api.write.ConnectorTxnCapability;
 import org.apache.doris.connector.api.write.ConnectorWriteConfig;
 import org.apache.doris.connector.api.write.ConnectorWriteType;
 import org.apache.doris.connector.api.write.WriteIntent;
@@ -76,6 +78,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -609,6 +612,26 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
             default:
                 return "none";
         }
+    }
+
+    @Override
+    public EnumSet<ConnectorTxnCapability> txnCapabilities() {
+        return EnumSet.copyOf(IcebergTransactionContext.CAPABILITIES);
+    }
+
+    @Override
+    public ConnectorTransactionContext beginTransaction(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            WriteIntent intent) {
+        Objects.requireNonNull(handle, "handle");
+        Objects.requireNonNull(intent, "intent");
+        IcebergTableHandle iceHandle = (IcebergTableHandle) handle;
+        Table table = loadIcebergTable(iceHandle.getDbName(), iceHandle.getTableName());
+        validateIntentAgainstTable(intent, table);
+        Transaction transaction = table.newTransaction();
+        return new IcebergTransactionContext(
+                iceHandle.getDbName(), iceHandle.getTableName(), table, transaction, intent);
     }
 
     @Override

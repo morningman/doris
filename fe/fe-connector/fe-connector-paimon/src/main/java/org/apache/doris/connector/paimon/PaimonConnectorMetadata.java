@@ -33,6 +33,8 @@ import org.apache.doris.connector.api.mtmv.MtmvOps;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.SystemTableOps;
 import org.apache.doris.connector.api.timetravel.RefOps;
+import org.apache.doris.connector.api.write.ConnectorTransactionContext;
+import org.apache.doris.connector.api.write.ConnectorTxnCapability;
 import org.apache.doris.connector.api.write.ConnectorWriteConfig;
 import org.apache.doris.connector.api.write.ConnectorWriteType;
 import org.apache.doris.connector.api.write.WriteIntent;
@@ -59,6 +61,7 @@ import org.apache.paimon.types.RowType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -426,6 +429,29 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
             builder.writeLocation(writeProps.get("location"));
         }
         return builder.build();
+    }
+
+    @Override
+    public EnumSet<ConnectorTxnCapability> txnCapabilities() {
+        return EnumSet.copyOf(PaimonTransactionContext.CAPABILITIES);
+    }
+
+    @Override
+    public ConnectorTransactionContext beginTransaction(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            WriteIntent intent) {
+        Objects.requireNonNull(handle, "handle");
+        Objects.requireNonNull(intent, "intent");
+        PaimonTableHandle paimonHandle = (PaimonTableHandle) handle;
+        Table baseTable = loadTableForWrite(paimonHandle.getDatabaseName(), paimonHandle.getTableName());
+        validateIntentAgainstTable(intent, baseTable);
+        Table targetTable = switchBranchIfRequested(baseTable, intent);
+        BatchWriteBuilder writeBuilder = targetTable.newBatchWriteBuilder();
+        applyOverwriteMode(writeBuilder, intent);
+        return new PaimonTransactionContext(
+                paimonHandle.getDatabaseName(), paimonHandle.getTableName(),
+                targetTable, writeBuilder, intent);
     }
 
     @Override
