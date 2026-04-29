@@ -158,6 +158,7 @@ import org.apache.doris.nereids.trees.plans.commands.LoadCommand;
 import org.apache.doris.nereids.trees.plans.commands.LockTablesCommand;
 import org.apache.doris.nereids.trees.plans.commands.PauseJobCommand;
 import org.apache.doris.nereids.trees.plans.commands.PauseMTMVCommand;
+import org.apache.doris.nereids.trees.plans.commands.PluginDrivenExecuteActionCommand;
 import org.apache.doris.nereids.trees.plans.commands.RecoverDatabaseCommand;
 import org.apache.doris.nereids.trees.plans.commands.RecoverPartitionCommand;
 import org.apache.doris.nereids.trees.plans.commands.RecoverTableCommand;
@@ -670,6 +671,10 @@ public interface CommandVisitor<R, C> {
     }
 
     default R visitExecuteActionCommand(ExecuteActionCommand command, C context) {
+        return visitCommand(command, context);
+    }
+
+    default R visitPluginDrivenExecuteActionCommand(PluginDrivenExecuteActionCommand command, C context) {
         return visitCommand(command, context);
     }
 

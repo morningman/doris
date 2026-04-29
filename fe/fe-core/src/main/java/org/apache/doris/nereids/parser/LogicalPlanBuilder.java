@@ -772,6 +772,7 @@ import org.apache.doris.nereids.trees.plans.commands.LoadCommand;
 import org.apache.doris.nereids.trees.plans.commands.LockTablesCommand;
 import org.apache.doris.nereids.trees.plans.commands.PauseJobCommand;
 import org.apache.doris.nereids.trees.plans.commands.PauseMTMVCommand;
+import org.apache.doris.nereids.trees.plans.commands.PluginDrivenExecuteActionCommand;
 import org.apache.doris.nereids.trees.plans.commands.RecoverDatabaseCommand;
 import org.apache.doris.nereids.trees.plans.commands.RecoverPartitionCommand;
 import org.apache.doris.nereids.trees.plans.commands.RecoverTableCommand;
@@ -5475,12 +5476,45 @@ public class LogicalPlanBuilder extends DorisParserBaseVisitor<Object> {
     @Override
     public Object visitCallProcedure(CallProcedureContext ctx) {
         List<String> nameParts = visitMultipartIdentifier(ctx.name);
+
+        List<Expression> positional = new ArrayList<>();
+        Map<String, Expression> named = new LinkedHashMap<>();
+        boolean sawNamed = false;
+        for (DorisParser.CallArgumentContext argCtx : ctx.callArgument()) {
+            Expression value = typedVisit(argCtx.value);
+            if (argCtx.name != null) {
+                String argName = argCtx.name.getText();
+                if (named.containsKey(argName.toLowerCase())) {
+                    throw new ParseException("Duplicated named argument '" + argName + "'", argCtx);
+                }
+                named.put(argName.toLowerCase(), value);
+                sawNamed = true;
+            } else {
+                if (sawNamed) {
+                    throw new ParseException(
+                            "Positional argument cannot follow a named argument", argCtx);
+                }
+                positional.add(value);
+            }
+        }
+
+        // Catalog-qualified action call: <catalog>.<db>.<table>.<action>
+        if (nameParts.size() == 4) {
+            TableNameInfo tableNameInfo = new TableNameInfo(
+                    nameParts.get(0), nameParts.get(1), nameParts.get(2));
+            return new PluginDrivenExecuteActionCommand(
+                    tableNameInfo, nameParts.get(3), positional, named, getOriginSql(ctx));
+        }
+
+        // Stored-procedure CALL (existing behavior): named args not supported.
+        if (!named.isEmpty()) {
+            throw new ParseException(
+                    "Named arguments are only supported for catalog-qualified action calls "
+                            + "(CALL catalog.db.table.action(...))", ctx);
+        }
         FuncNameInfo procedureName = new FuncNameInfo(nameParts);
-        List<Expression> arguments = ctx.expression().stream()
-                .<Expression>map(this::typedVisit)
-                .collect(ImmutableList.toImmutableList());
         UnboundFunction unboundFunction = new UnboundFunction(procedureName.getDbName(), procedureName.getName(),
-                true, arguments, false);
+                true, ImmutableList.copyOf(positional), false);
         return new CallCommand(unboundFunction, getOriginSql(ctx));
     }
 

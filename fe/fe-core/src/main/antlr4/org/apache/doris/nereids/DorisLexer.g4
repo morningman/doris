@@ -656,6 +656,7 @@ DOUBLEPIPES: '||';
 HAT: '^';
 COLON: ':';
 ARROW: '->';
+FATARROW: '=>';
 HINT_START: '/*+';
 HINT_END: '*/';
 COMMENT_START: '/*';

@@ -39,7 +39,7 @@ expressionWithEof
 
 statement
     : statementBase # statementBaseAlias
-    | CALL name=multipartIdentifier LEFT_PAREN (expression (COMMA expression)*)? RIGHT_PAREN #callProcedure
+    | CALL name=multipartIdentifier LEFT_PAREN (callArgument (COMMA callArgument)*)? RIGHT_PAREN #callProcedure
     // FIXME: like should be wildWhere? FRONTEND should not contain FROM backendid
     | ADMIN? SHOW type=(FRONTEND | BACKEND) CONFIG (LIKE pattern=valueExpression)? (FROM backendId=INTEGER_VALUE)? #showConfig
     ;
@@ -1736,6 +1736,10 @@ exceptOrReplace
 castDataType
     : dataType
     |(SIGNED|UNSIGNED) (INT|INTEGER)?
+    ;
+
+callArgument
+    : (name=identifier FATARROW)? value=expression
     ;
 
 functionCallExpression
