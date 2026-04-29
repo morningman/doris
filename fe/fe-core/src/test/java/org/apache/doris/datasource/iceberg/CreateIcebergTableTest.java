@@ -19,9 +19,7 @@ package org.apache.doris.datasource.iceberg;
 
 import org.apache.doris.common.DdlException;
 import org.apache.doris.common.UserException;
-import org.apache.doris.datasource.CatalogFactory;
 import org.apache.doris.nereids.parser.NereidsParser;
-import org.apache.doris.nereids.trees.plans.commands.CreateCatalogCommand;
 import org.apache.doris.nereids.trees.plans.commands.CreateTableCommand;
 import org.apache.doris.nereids.trees.plans.commands.info.CreateTableInfo;
 import org.apache.doris.nereids.trees.plans.logical.LogicalPlan;
@@ -63,9 +61,11 @@ public class CreateIcebergTableTest {
         param.put("iceberg.catalog.type", "hadoop");
         param.put("warehouse", warehouse);
 
-        // create catalog
-        CreateCatalogCommand createCatalogCommand = new CreateCatalogCommand("iceberg", true, "", "comment", param);
-        icebergCatalog = (IcebergHadoopExternalCatalog) CatalogFactory.createFromCommand(1, createCatalogCommand);
+        // After M3-15 iceberg goes through the SPI path (PluginDrivenExternalCatalog),
+        // so CatalogFactory#createFromCommand no longer returns IcebergHadoopExternalCatalog.
+        // This test exercises the legacy iceberg metadata-ops code path directly, so we
+        // construct the legacy catalog instance bypassing the SPI gate.
+        icebergCatalog = new IcebergHadoopExternalCatalog(1, "iceberg", "", param, "comment");
         icebergCatalog.makeSureInitialized();
         // create db
         ops = new IcebergMetadataOps(icebergCatalog, icebergCatalog.getCatalog());

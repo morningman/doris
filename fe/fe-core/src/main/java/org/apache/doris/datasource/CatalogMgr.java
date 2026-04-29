@@ -124,6 +124,17 @@ public class CatalogMgr implements Writable, GsonPostProcessable {
         }
     }
 
+    /**
+     * Test-only entry point to register an already-constructed catalog without
+     * going through CatalogFactory / SPI gating. Used by tests that exercise
+     * legacy ExternalCatalog implementations whose CREATE-CATALOG path now
+     * routes through PluginDrivenExternalCatalog (e.g. iceberg after M3-15).
+     */
+    @com.google.common.annotations.VisibleForTesting
+    public void addCatalogForTest(CatalogIf catalog) {
+        addCatalog(catalog);
+    }
+
     private RemovedCatalog removeCatalog(long catalogId) {
         CatalogIf catalog = idToCatalog.get(catalogId);
         if (catalog == null) {
