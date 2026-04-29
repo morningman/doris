@@ -24,6 +24,7 @@ import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorType;
 import org.apache.doris.connector.api.DorisConnectorException;
+import org.apache.doris.connector.api.action.ConnectorActionOps;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
@@ -94,6 +95,7 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
     private volatile SystemTableOps sysTableOps;
     private volatile EventSourceOps eventSourceOps;
     private volatile MtmvOps mtmvOps;
+    private volatile ConnectorActionOps actionOps;
 
     public PaimonConnectorMetadata(Catalog catalog, Map<String, String> properties) {
         this(catalog, properties, null, null, null, "");
@@ -155,6 +157,50 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
             return Optional.of(new PaimonRefOps(backend, backendContext));
         }
         return Optional.empty();
+    }
+
+    // ========== ConnectorActionOps (D1-write-path / M3-12) ==========
+
+    /**
+     * Lazily wires {@link PaimonActionOps} so the {@code CALL} dispatcher
+     * (M3-10) can invoke paimon's native {@code create_tag},
+     * {@code delete_tag}, {@code create_branch}, {@code delete_branch}, and
+     * the placeholder {@code compact} procedure. Returns
+     * {@link Optional#empty()} only when the catalog handle is missing
+     * (test fixtures), in which case the engine reports the action as
+     * unknown.
+     */
+    @Override
+    public Optional<ConnectorActionOps> actionOps() {
+        if (catalog == null) {
+            return Optional.empty();
+        }
+        ConnectorActionOps ops = actionOps;
+        if (ops == null) {
+            synchronized (this) {
+                ops = actionOps;
+                if (ops == null) {
+                    ops = new PaimonActionOps(this::loadPaimonTableForAction);
+                    actionOps = ops;
+                }
+            }
+        }
+        return Optional.of(ops);
+    }
+
+    /**
+     * Loader bridge for {@link PaimonActionOps} — unwraps the checked
+     * {@link Catalog.TableNotExistException} into a runtime so it can flow
+     * through the {@code BiFunction} surface, and routes through the
+     * {@code paimon.table} cache binding when present.
+     */
+    private Table loadPaimonTableForAction(String dbName, String tableName) {
+        try {
+            return loadTable(dbName, tableName);
+        } catch (Catalog.TableNotExistException e) {
+            throw new DorisConnectorException(
+                    "Paimon table not found for action: " + dbName + "." + tableName, e);
+        }
     }
 
     // ========== MtmvOps (D8 / M2-09) ==========
