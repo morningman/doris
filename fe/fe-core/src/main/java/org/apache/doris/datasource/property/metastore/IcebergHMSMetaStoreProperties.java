@@ -18,7 +18,6 @@
 package org.apache.doris.datasource.property.metastore;
 
 import org.apache.doris.common.security.authentication.HadoopExecutionAuthenticator;
-import org.apache.doris.datasource.iceberg.IcebergExternalCatalog;
 import org.apache.doris.datasource.property.storage.StorageProperties;
 import org.apache.doris.foundation.property.ConnectorProperty;
 
@@ -54,7 +53,7 @@ public class IcebergHMSMetaStoreProperties extends AbstractIcebergProperties {
 
     @Override
     public String getIcebergCatalogType() {
-        return IcebergExternalCatalog.ICEBERG_HMS;
+        return AbstractIcebergProperties.ICEBERG_HMS;
     }
 
     @Override

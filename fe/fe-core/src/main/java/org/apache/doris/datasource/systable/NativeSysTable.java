@@ -23,7 +23,7 @@ import org.apache.doris.datasource.ExternalTable;
  * Abstract base class for system tables that use the native table execution path.
  *
  * <p>Native system tables are executed through FileQueryScanNode (e.g., PaimonScanNode,
- * IcebergScanNode) instead of MetadataScanNode. This provides:
+ * the iceberg scan node) instead of MetadataScanNode. This provides:
  * <ul>
  *   <li>Unified execution path with regular tables</li>
  *   <li>Native vectorized reading for data-oriented system tables</li>

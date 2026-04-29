@@ -47,6 +47,7 @@ import org.apache.doris.common.util.PropertyAnalyzer;
 import org.apache.doris.common.util.Util;
 import org.apache.doris.datasource.CatalogIf;
 import org.apache.doris.datasource.InternalCatalog;
+import org.apache.doris.datasource.PluginDrivenExternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
 import org.apache.doris.datasource.iceberg.IcebergExternalCatalog;
 import org.apache.doris.datasource.maxcompute.MaxComputeExternalCatalog;
@@ -384,6 +385,10 @@ public class CreateTableInfo {
         if (catalog instanceof HMSExternalCatalog && !engineName.equals(ENGINE_HIVE)) {
             throw new AnalysisException("Hms type catalog can only use `hive` engine.");
         } else if (catalog instanceof IcebergExternalCatalog && !engineName.equals(ENGINE_ICEBERG)) {
+            throw new AnalysisException("Iceberg type catalog can only use `iceberg` engine.");
+        } else if (catalog instanceof PluginDrivenExternalCatalog
+                && ENGINE_ICEBERG.equals(((PluginDrivenExternalCatalog) catalog).getType())
+                && !engineName.equals(ENGINE_ICEBERG)) {
             throw new AnalysisException("Iceberg type catalog can only use `iceberg` engine.");
         } else if (catalog instanceof PaimonExternalCatalog && !engineName.equals(ENGINE_PAIMON)) {
             throw new AnalysisException("Paimon type catalog can only use `paimon` engine.");
@@ -906,6 +911,9 @@ public class CreateTableInfo {
             } else if (catalog instanceof HMSExternalCatalog) {
                 engineName = ENGINE_HIVE;
             } else if (catalog instanceof IcebergExternalCatalog) {
+                engineName = ENGINE_ICEBERG;
+            } else if (catalog instanceof PluginDrivenExternalCatalog
+                    && ENGINE_ICEBERG.equals(((PluginDrivenExternalCatalog) catalog).getType())) {
                 engineName = ENGINE_ICEBERG;
             } else if (catalog instanceof PaimonExternalCatalog) {
                 engineName = ENGINE_PAIMON;

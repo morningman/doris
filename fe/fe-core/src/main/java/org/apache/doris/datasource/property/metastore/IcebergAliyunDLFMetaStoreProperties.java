@@ -17,7 +17,6 @@
 
 package org.apache.doris.datasource.property.metastore;
 
-import org.apache.doris.datasource.iceberg.IcebergExternalCatalog;
 import org.apache.doris.datasource.iceberg.dlf.DLFCatalog;
 import org.apache.doris.datasource.property.storage.StorageProperties;
 
@@ -41,7 +40,7 @@ public class IcebergAliyunDLFMetaStoreProperties extends AbstractIcebergProperti
 
     @Override
     public String getIcebergCatalogType() {
-        return IcebergExternalCatalog.ICEBERG_DLF;
+        return AbstractIcebergProperties.ICEBERG_DLF;
     }
 
     @Override

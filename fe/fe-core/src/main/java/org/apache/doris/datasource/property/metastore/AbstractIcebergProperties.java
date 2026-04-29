@@ -18,7 +18,6 @@
 package org.apache.doris.datasource.property.metastore;
 
 import org.apache.doris.common.security.authentication.ExecutionAuthenticator;
-import org.apache.doris.datasource.iceberg.IcebergExternalCatalog;
 import org.apache.doris.datasource.metacache.CacheSpec;
 import org.apache.doris.datasource.property.storage.AbstractS3CompatibleProperties;
 import org.apache.doris.datasource.property.storage.S3Properties;
@@ -44,6 +43,24 @@ import java.util.Map;
  * @See org.apache.iceberg.CatalogProperties
  */
 public abstract class AbstractIcebergProperties extends MetastoreProperties {
+
+    // Iceberg metastore catalog type identifiers (used as values of the
+    // `iceberg.catalog.type` user property and as ConnectorMetadata#metastoreType()).
+    public static final String ICEBERG_REST = "rest";
+    public static final String ICEBERG_HMS = "hms";
+    public static final String ICEBERG_HADOOP = "hadoop";
+    public static final String ICEBERG_GLUE = "glue";
+    public static final String ICEBERG_DLF = "dlf";
+    public static final String ICEBERG_JDBC = "jdbc";
+    public static final String ICEBERG_S3_TABLES = "s3tables";
+
+    // Iceberg manifest cache settings (legacy meta-cache layer).
+    public static final String ICEBERG_MANIFEST_CACHE_ENABLE = "meta.cache.iceberg.manifest.enable";
+    public static final String ICEBERG_MANIFEST_CACHE_TTL_SECOND = "meta.cache.iceberg.manifest.ttl-second";
+    public static final String ICEBERG_MANIFEST_CACHE_CAPACITY = "meta.cache.iceberg.manifest.capacity";
+    public static final boolean DEFAULT_ICEBERG_MANIFEST_CACHE_ENABLE = false;
+    public static final long DEFAULT_ICEBERG_MANIFEST_CACHE_CAPACITY = 1024;
+    public static final long DEFAULT_ICEBERG_MANIFEST_CACHE_TTL_SECOND = 48 * 60 * 60;
 
     @Getter
     @ConnectorProperty(
@@ -173,12 +190,12 @@ public abstract class AbstractIcebergProperties extends MetastoreProperties {
         // default enable io manifest cache if the meta.cache.manifest is enabled
         if (!hasIoManifestCacheEnabled) {
             CacheSpec manifestCacheSpec = CacheSpec.fromProperties(catalogProps, CacheSpec.propertySpecBuilder()
-                    .enable(IcebergExternalCatalog.ICEBERG_MANIFEST_CACHE_ENABLE,
-                            IcebergExternalCatalog.DEFAULT_ICEBERG_MANIFEST_CACHE_ENABLE)
-                    .ttl(IcebergExternalCatalog.ICEBERG_MANIFEST_CACHE_TTL_SECOND,
-                            IcebergExternalCatalog.DEFAULT_ICEBERG_MANIFEST_CACHE_TTL_SECOND)
-                    .capacity(IcebergExternalCatalog.ICEBERG_MANIFEST_CACHE_CAPACITY,
-                            IcebergExternalCatalog.DEFAULT_ICEBERG_MANIFEST_CACHE_CAPACITY)
+                    .enable(ICEBERG_MANIFEST_CACHE_ENABLE,
+                            DEFAULT_ICEBERG_MANIFEST_CACHE_ENABLE)
+                    .ttl(ICEBERG_MANIFEST_CACHE_TTL_SECOND,
+                            DEFAULT_ICEBERG_MANIFEST_CACHE_TTL_SECOND)
+                    .capacity(ICEBERG_MANIFEST_CACHE_CAPACITY,
+                            DEFAULT_ICEBERG_MANIFEST_CACHE_CAPACITY)
                     .build());
             if (CacheSpec.isCacheEnabled(manifestCacheSpec.isEnable(),
                     manifestCacheSpec.getTtlSecond(),

@@ -488,8 +488,8 @@ public class PluginDrivenScanNode extends FileQueryScanNode {
 
     /**
      * Distributes a metadata-only {@code COUNT(*)} total across the
-     * produced ranges. Mirrors the legacy
-     * {@code IcebergScanNode#assignCountToSplits} algorithm: each of the
+     * produced ranges. Mirrors the legacy iceberg scan-node
+     * {@code assignCountToSplits} algorithm: each of the
      * first {@code N-1} ranges receives {@code total/N} and the LAST
      * range receives {@code total/N + total%N}, so the integer remainder
      * is captured exactly without inflating the per-range count beyond

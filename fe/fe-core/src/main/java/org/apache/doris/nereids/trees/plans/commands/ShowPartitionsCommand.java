@@ -38,6 +38,7 @@ import org.apache.doris.common.proc.ProcService;
 import org.apache.doris.common.util.OrderByPair;
 import org.apache.doris.datasource.CatalogIf;
 import org.apache.doris.datasource.ExternalTable;
+import org.apache.doris.datasource.PluginDrivenExternalCatalog;
 import org.apache.doris.datasource.hive.HMSExternalCatalog;
 import org.apache.doris.datasource.iceberg.IcebergExternalCatalog;
 import org.apache.doris.datasource.maxcompute.MaxComputeExternalCatalog;
@@ -436,6 +437,11 @@ public class ShowPartitionsCommand extends ShowCommand {
                 builder.addColumn(new Column(col, ScalarType.createVarchar(30)));
             }
         } else if (catalog instanceof IcebergExternalCatalog) {
+            builder.addColumn(new Column("Partition", ScalarType.createVarchar(60)));
+            builder.addColumn(new Column("Lower Bound", ScalarType.createVarchar(100)));
+            builder.addColumn(new Column("Upper Bound", ScalarType.createVarchar(100)));
+        } else if (catalog instanceof PluginDrivenExternalCatalog
+                && "iceberg".equals(((PluginDrivenExternalCatalog) catalog).getType())) {
             builder.addColumn(new Column("Partition", ScalarType.createVarchar(60)));
             builder.addColumn(new Column("Lower Bound", ScalarType.createVarchar(100)));
             builder.addColumn(new Column("Upper Bound", ScalarType.createVarchar(100)));

@@ -99,6 +99,13 @@ public class ShowCreateDatabaseCommand extends ShowCommand {
                 .append(db.getLocation())
                 .append("'");
         } else {
+            // NOTE: iceberg catalogs created post phase-1 are PluginDrivenExternalCatalog
+            // and reach this fallback. The LOCATION clause is not yet surfaced by the
+            // plugin SPI.
+            // TODO(M3-15-cleanup-show-create-db-iceberg-location): expose database
+            // LOCATION through PluginDrivenExternalDatabase / ConnectorMetadata so
+            // SHOW CREATE DATABASE on a plugin-driven iceberg catalog renders the
+            // LOCATION clause.
             DatabaseIf db = catalog.getDbOrAnalysisException(databaseName);
             sb.append("CREATE DATABASE `").append(databaseName).append("`");
             if (db.getDbProperties().getProperties().size() > 0) {
