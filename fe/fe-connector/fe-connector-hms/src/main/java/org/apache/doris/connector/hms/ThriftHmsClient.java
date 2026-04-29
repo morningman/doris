@@ -29,14 +29,22 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaHookLoader;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
 import org.apache.hadoop.hive.metastore.IMetaStoreClient;
+import org.apache.hadoop.hive.metastore.LockComponentBuilder;
+import org.apache.hadoop.hive.metastore.LockRequestBuilder;
 import org.apache.hadoop.hive.metastore.RetryingMetaStoreClient;
 import org.apache.hadoop.hive.metastore.api.CurrentNotificationEventId;
+import org.apache.hadoop.hive.metastore.api.DataOperationType;
 import org.apache.hadoop.hive.metastore.api.Database;
 import org.apache.hadoop.hive.metastore.api.FieldSchema;
+import org.apache.hadoop.hive.metastore.api.LockComponent;
+import org.apache.hadoop.hive.metastore.api.LockLevel;
+import org.apache.hadoop.hive.metastore.api.LockResponse;
+import org.apache.hadoop.hive.metastore.api.LockState;
 import org.apache.hadoop.hive.metastore.api.MetaException;
 import org.apache.hadoop.hive.metastore.api.NotificationEvent;
 import org.apache.hadoop.hive.metastore.api.NotificationEventResponse;
 import org.apache.hadoop.hive.metastore.api.Partition;
+import org.apache.hadoop.hive.metastore.api.SerDeInfo;
 import org.apache.hadoop.hive.metastore.api.StorageDescriptor;
 import org.apache.hadoop.hive.metastore.api.Table;
 import org.apache.logging.log4j.LogManager;
@@ -67,7 +75,7 @@ import java.util.stream.Collectors;
  * <p>Authentication is handled by an injectable {@link AuthAction}
  * functional interface, replacing fe-core's ExecutionAuthenticator.</p>
  */
-public class ThriftHmsClient implements HmsClient {
+public class ThriftHmsClient implements HmsClient, HmsWriteOps {
 
     private static final Logger LOG = LogManager.getLogger(ThriftHmsClient.class);
 
@@ -541,5 +549,159 @@ public class ThriftHmsClient implements HmsClient {
         } else {
             return HiveMetaStoreClient.class.getName();
         }
+    }
+
+    // ========== HmsWriteOps implementation (M3-08) ==========
+
+    @Override
+    public void addPartitions(String dbName, String tableName, List<HmsPartitionSpec> partitions) {
+        if (partitions == null || partitions.isEmpty()) {
+            return;
+        }
+        execute(client -> {
+            Table table = client.getTable(dbName, tableName);
+            List<Partition> hmsPartitions = new ArrayList<>(partitions.size());
+            for (HmsPartitionSpec spec : partitions) {
+                hmsPartitions.add(toHmsPartition(table, spec));
+            }
+            client.add_partitions(hmsPartitions, true /* if-not-exists */, false /* needResults */);
+            return null;
+        });
+    }
+
+    @Override
+    public void dropPartition(String dbName, String tableName, List<String> values, boolean deleteData) {
+        execute(client -> {
+            client.dropPartition(dbName, tableName, values, deleteData);
+            return null;
+        });
+    }
+
+    @Override
+    public void alterPartitionLocation(String dbName, String tableName,
+            List<String> values, String newLocation) {
+        execute(client -> {
+            Partition partition = client.getPartition(dbName, tableName, values);
+            partition.getSd().setLocation(newLocation);
+            client.alter_partition(dbName, tableName, partition);
+            return null;
+        });
+    }
+
+    @Override
+    public long openTxn(String user) {
+        return execute(client -> client.openTxn(user));
+    }
+
+    @Override
+    public void commitTxn(long txnId) {
+        execute(client -> {
+            client.commitTxn(txnId);
+            return null;
+        });
+    }
+
+    @Override
+    public void abortTxn(long txnId) {
+        execute(client -> {
+            client.abortTxns(Collections.singletonList(txnId));
+            return null;
+        });
+    }
+
+    @Override
+    public long allocateWriteId(long txnId, String dbName, String tableName) {
+        return execute(client -> client.allocateTableWriteId(txnId, dbName, tableName));
+    }
+
+    @Override
+    public long acquireLock(long txnId, String user, String queryId,
+            String dbName, String tableName, boolean sharedWrite) {
+        return execute(client -> {
+            LockComponentBuilder cb = new LockComponentBuilder()
+                    .setDbName(dbName)
+                    .setTableName(tableName)
+                    .setOperationType(sharedWrite ? DataOperationType.INSERT : DataOperationType.NO_TXN);
+            if (sharedWrite) {
+                cb.setShared();
+            } else {
+                cb.setExclusive();
+            }
+            LockComponent component = cb.build();
+            component.setLevel(LockLevel.TABLE);
+            LockRequestBuilder builder = new LockRequestBuilder(queryId)
+                    .setTransactionId(txnId).setUser(user)
+                    .addLockComponent(component);
+            LockResponse response = client.lock(builder.build());
+            if (response.getState() != LockState.ACQUIRED) {
+                throw new HmsClientException(
+                        "Failed to acquire lock for txn " + txnId + " on " + dbName + "." + tableName
+                                + ", state=" + response.getState());
+            }
+            return response.getLockid();
+        });
+    }
+
+    @Override
+    public void heartbeat(long txnId, long lockId) {
+        execute(client -> {
+            client.heartbeat(txnId, lockId);
+            return null;
+        });
+    }
+
+    @Override
+    public void addDynamicPartitions(long txnId, long writeId, String dbName, String tableName,
+            List<String> partitionNames, HmsAcidOperation op) {
+        if (partitionNames == null || partitionNames.isEmpty()) {
+            return;
+        }
+        execute(client -> {
+            client.addDynamicPartitions(txnId, writeId, dbName, tableName,
+                    new ArrayList<>(partitionNames), toDataOperationType(op));
+            return null;
+        });
+    }
+
+    private static DataOperationType toDataOperationType(HmsAcidOperation op) {
+        switch (op) {
+            case INSERT:
+                return DataOperationType.INSERT;
+            case UPDATE:
+                return DataOperationType.UPDATE;
+            case DELETE:
+                return DataOperationType.DELETE;
+            default:
+                throw new HmsClientException("Unknown HmsAcidOperation: " + op);
+        }
+    }
+
+    private static Partition toHmsPartition(Table table, HmsPartitionSpec spec) {
+        Partition p = new Partition();
+        p.setDbName(table.getDbName());
+        p.setTableName(table.getTableName());
+        p.setValues(new ArrayList<>(spec.getValues()));
+        StorageDescriptor sd = table.getSd() == null ? new StorageDescriptor()
+                : new StorageDescriptor(table.getSd());
+        sd.setLocation(spec.getLocation());
+        if (spec.getInputFormat() != null) {
+            sd.setInputFormat(spec.getInputFormat());
+        }
+        if (spec.getOutputFormat() != null) {
+            sd.setOutputFormat(spec.getOutputFormat());
+        }
+        if (spec.getSerializationLib() != null) {
+            SerDeInfo serde = sd.getSerdeInfo() != null ? new SerDeInfo(sd.getSerdeInfo()) : new SerDeInfo();
+            serde.setSerializationLib(spec.getSerializationLib());
+            sd.setSerdeInfo(serde);
+        }
+        p.setSd(sd);
+        if (spec.getParameters() != null && !spec.getParameters().isEmpty()) {
+            p.setParameters(new HashMap<>(spec.getParameters()));
+        }
+        int now = (int) (System.currentTimeMillis() / 1000L);
+        p.setCreateTime(now);
+        p.setLastAccessTime(now);
+        return p;
     }
 }

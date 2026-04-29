@@ -22,9 +22,13 @@ import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorTableSchema;
+import org.apache.doris.connector.api.DorisConnectorException;
 import org.apache.doris.connector.api.audit.ConnectorAuditOps;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
+import org.apache.doris.connector.api.handle.ConnectorDeleteHandle;
+import org.apache.doris.connector.api.handle.ConnectorInsertHandle;
+import org.apache.doris.connector.api.handle.ConnectorMergeHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.mtmv.MtmvOps;
 import org.apache.doris.connector.api.pushdown.ConnectorAnd;
@@ -36,27 +40,40 @@ import org.apache.doris.connector.api.pushdown.ConnectorLiteral;
 import org.apache.doris.connector.api.pushdown.FilterApplicationResult;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.SystemTableOps;
+import org.apache.doris.connector.api.write.ConnectorWriteConfig;
+import org.apache.doris.connector.api.write.ConnectorWriteType;
+import org.apache.doris.connector.api.write.WriteIntent;
 import org.apache.doris.connector.hive.audit.HiveAuditOps;
 import org.apache.doris.connector.hive.event.HiveEventSourceOps;
 import org.apache.doris.connector.hive.mtmv.HiveMtmvOps;
 import org.apache.doris.connector.hive.systable.HiveSystemTableOps;
+import org.apache.doris.connector.hms.HmsAcidOperation;
 import org.apache.doris.connector.hms.HmsClient;
 import org.apache.doris.connector.hms.HmsClientException;
 import org.apache.doris.connector.hms.HmsPartitionInfo;
 import org.apache.doris.connector.hms.HmsTableInfo;
 import org.apache.doris.connector.hms.HmsTypeMapping;
+import org.apache.doris.connector.hms.HmsWriteOps;
+import org.apache.doris.thrift.THivePartitionUpdate;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -76,10 +93,17 @@ public class HiveConnectorMetadata implements ConnectorMetadata {
 
     private static final Logger LOG = LogManager.getLogger(HiveConnectorMetadata.class);
 
+    /** Default heartbeat period for in-flight ACID transactions. */
+    static final long DEFAULT_HEARTBEAT_PERIOD_MS = 30_000L;
+
     private final HmsClient hmsClient;
+    private final HmsWriteOps writeOps;
+    private final ScheduledExecutorService heartbeatExecutor;
+    private final long heartbeatPeriodMs;
     private final Map<String, String> properties;
     private final HmsTypeMapping.Options typeMappingOptions;
     private final String catalogName;
+    private final AtomicLong stmtIdSequence = new AtomicLong(0);
     private volatile SystemTableOps sysTableOps;
     private volatile EventSourceOps eventSourceOps;
     private volatile MtmvOps mtmvOps;
@@ -89,7 +113,18 @@ public class HiveConnectorMetadata implements ConnectorMetadata {
     }
 
     public HiveConnectorMetadata(HmsClient hmsClient, Map<String, String> properties, String catalogName) {
+        this(hmsClient, hmsClient instanceof HmsWriteOps ? (HmsWriteOps) hmsClient : null,
+                null, DEFAULT_HEARTBEAT_PERIOD_MS, properties, catalogName);
+    }
+
+    /** Test / advanced constructor: inject {@link HmsWriteOps} and heartbeat executor. */
+    public HiveConnectorMetadata(HmsClient hmsClient, HmsWriteOps writeOps,
+            ScheduledExecutorService heartbeatExecutor, long heartbeatPeriodMs,
+            Map<String, String> properties, String catalogName) {
         this.hmsClient = hmsClient;
+        this.writeOps = writeOps;
+        this.heartbeatExecutor = heartbeatExecutor;
+        this.heartbeatPeriodMs = heartbeatPeriodMs;
         this.properties = properties;
         this.typeMappingOptions = buildTypeMappingOptions(properties);
         this.catalogName = catalogName == null ? "" : catalogName;
@@ -513,5 +548,343 @@ public class HiveConnectorMetadata implements ConnectorMetadata {
             }
         }
         return true;
+    }
+
+    // ========== ConnectorWriteOps (D1 / M3-08) ==========
+
+    @Override
+    public boolean supportsInsert() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsDelete() {
+        // Row-level DELETE is gated per-table by beginDelete (ACID only);
+        // this flag is the connector-wide capability — declaring true lets
+        // the planner attempt to dispatch row-level deletes, and the
+        // per-table check below short-circuits non-ACID tables.
+        return writeOps != null;
+    }
+
+    @Override
+    public boolean supportsMerge() {
+        return writeOps != null;
+    }
+
+    @Override
+    public ConnectorWriteConfig getWriteConfig(ConnectorSession session, ConnectorTableHandle handle,
+            List<ConnectorColumn> columns) {
+        Objects.requireNonNull(handle, "handle");
+        HiveTableHandle hiveHandle = (HiveTableHandle) handle;
+        HmsTableInfo tableInfo = hmsClient.getTable(hiveHandle.getDbName(), hiveHandle.getTableName());
+
+        Map<String, String> writeProps = new HashMap<>();
+        writeProps.put("input-format", String.valueOf(tableInfo.getInputFormat()));
+        writeProps.put("serialization-lib", String.valueOf(tableInfo.getSerializationLib()));
+        if (HiveAcidUtil.isFullAcidTable(tableInfo)) {
+            writeProps.put("acid", "true");
+        }
+
+        return ConnectorWriteConfig.builder(ConnectorWriteType.FILE_WRITE)
+                .fileFormat(detectFileFormat(tableInfo.getInputFormat()))
+                .writeLocation(tableInfo.getLocation())
+                .partitionColumns(new ArrayList<>(hiveHandle.getPartitionKeyNames()))
+                .properties(writeProps)
+                .build();
+    }
+
+    private static String detectFileFormat(String inputFormat) {
+        if (inputFormat == null) {
+            return "parquet";
+        }
+        String lower = inputFormat.toLowerCase(java.util.Locale.ROOT);
+        if (lower.contains("orc")) {
+            return "orc";
+        }
+        if (lower.contains("parquet")) {
+            return "parquet";
+        }
+        if (lower.contains("text")) {
+            return "text";
+        }
+        return "parquet";
+    }
+
+    @Override
+    public ConnectorInsertHandle beginInsert(ConnectorSession session,
+            ConnectorTableHandle handle, List<ConnectorColumn> columns, WriteIntent intent) {
+        Objects.requireNonNull(handle, "handle");
+        Objects.requireNonNull(intent, "intent");
+        HiveTableHandle hiveHandle = (HiveTableHandle) handle;
+        HmsTableInfo tableInfo = hmsClient.getTable(hiveHandle.getDbName(), hiveHandle.getTableName());
+        boolean isAcid = HiveAcidUtil.isFullAcidTable(tableInfo);
+        validateOverwriteAgainstTable(intent, hiveHandle, tableInfo, isAcid);
+
+        HiveAcidContext.Builder ctx = HiveAcidContext.builder(
+                        hiveHandle.getDbName(), hiveHandle.getTableName(), intent)
+                .stagingLocation(tableInfo.getLocation())
+                .acid(isAcid);
+        if (isAcid) {
+            startAcidTransaction(ctx, hiveHandle, HmsAcidOperation.INSERT, intent);
+        }
+        return new HiveInsertHandle(ctx.build());
+    }
+
+    private void validateOverwriteAgainstTable(WriteIntent intent, HiveTableHandle hiveHandle,
+            HmsTableInfo tableInfo, boolean isAcid) {
+        WriteIntent.OverwriteMode mode = intent.overwriteMode();
+        boolean partitioned = !hiveHandle.getPartitionKeyNames().isEmpty();
+        if (mode == WriteIntent.OverwriteMode.STATIC_PARTITION && !partitioned) {
+            throw new DorisConnectorException(
+                    "Static-partition overwrite requested on unpartitioned hive table "
+                            + hiveHandle.getDbName() + "." + hiveHandle.getTableName());
+        }
+        if (mode == WriteIntent.OverwriteMode.STATIC_PARTITION) {
+            for (String key : intent.staticPartitions().keySet()) {
+                if (!hiveHandle.getPartitionKeyNames().contains(key)) {
+                    throw new DorisConnectorException(
+                            "Unknown partition column '" + key + "' for hive table "
+                                    + hiveHandle.getDbName() + "." + hiveHandle.getTableName());
+                }
+            }
+        }
+        if (isAcid && mode != WriteIntent.OverwriteMode.NONE) {
+            // Legacy fe-core HMSTransaction never wired INSERT OVERWRITE on
+            // ACID tables — Hive itself maps it to a compactor major /
+            // truncate-then-insert sequence which the plugin write path
+            // does not yet implement. Fail fast with the explicit reason
+            // (handoff: M3-hive-acid-driver follow-up).
+            throw new DorisConnectorException(
+                    "INSERT OVERWRITE is not supported on hive ACID table "
+                            + hiveHandle.getDbName() + "." + hiveHandle.getTableName()
+                            + "; deferred to the M3-hive-acid-driver follow-up");
+        }
+    }
+
+    @Override
+    public void finishInsert(ConnectorSession session, ConnectorInsertHandle handle,
+            Collection<byte[]> fragments) {
+        Objects.requireNonNull(handle, "handle");
+        HiveAcidContext context = ((HiveInsertHandle) handle).getContext();
+        List<THivePartitionUpdate> updates = HiveCommitDataConverter.decodeFragments(fragments);
+        try {
+            if (context.isAcid()) {
+                finishAcid(context, updates, HmsAcidOperation.INSERT);
+            } else {
+                HiveTableHandle tableHandle = rebuildHandle(context);
+                new HiveCommitDriver(hmsClient, requireWriteOpsForNonAcid())
+                        .commitNonAcid(tableHandle, context.getIntent(), updates);
+            }
+        } finally {
+            context.cancelHeartbeat();
+        }
+    }
+
+    @Override
+    public void abortInsert(ConnectorSession session, ConnectorInsertHandle handle) {
+        if (handle == null) {
+            return;
+        }
+        abortContext(((HiveInsertHandle) handle).getContext());
+    }
+
+    @Override
+    public ConnectorDeleteHandle beginDelete(ConnectorSession session, ConnectorTableHandle handle) {
+        Objects.requireNonNull(handle, "handle");
+        HiveTableHandle hiveHandle = (HiveTableHandle) handle;
+        HmsTableInfo tableInfo = hmsClient.getTable(hiveHandle.getDbName(), hiveHandle.getTableName());
+        if (!HiveAcidUtil.isFullAcidTable(tableInfo)) {
+            throw new DorisConnectorException(
+                    "Row-level DELETE requires a hive ACID (transactional) table; "
+                            + hiveHandle.getDbName() + "." + hiveHandle.getTableName()
+                            + " is not transactional");
+        }
+        HiveAcidContext.Builder ctx = HiveAcidContext.builder(
+                        hiveHandle.getDbName(), hiveHandle.getTableName(), WriteIntent.simple())
+                .stagingLocation(tableInfo.getLocation())
+                .acid(true);
+        startAcidTransaction(ctx, hiveHandle, HmsAcidOperation.DELETE, WriteIntent.simple());
+        return new HiveDeleteHandle(ctx.build());
+    }
+
+    @Override
+    public void finishDelete(ConnectorSession session, ConnectorDeleteHandle handle,
+            Collection<byte[]> fragments) {
+        Objects.requireNonNull(handle, "handle");
+        HiveAcidContext context = ((HiveDeleteHandle) handle).getContext();
+        try {
+            finishAcid(context, HiveCommitDataConverter.decodeFragments(fragments), HmsAcidOperation.DELETE);
+        } finally {
+            context.cancelHeartbeat();
+        }
+    }
+
+    @Override
+    public void abortDelete(ConnectorSession session, ConnectorDeleteHandle handle) {
+        if (handle == null) {
+            return;
+        }
+        abortContext(((HiveDeleteHandle) handle).getContext());
+    }
+
+    @Override
+    public ConnectorMergeHandle beginMerge(ConnectorSession session, ConnectorTableHandle handle) {
+        Objects.requireNonNull(handle, "handle");
+        HiveTableHandle hiveHandle = (HiveTableHandle) handle;
+        HmsTableInfo tableInfo = hmsClient.getTable(hiveHandle.getDbName(), hiveHandle.getTableName());
+        if (!HiveAcidUtil.isFullAcidTable(tableInfo)) {
+            throw new DorisConnectorException(
+                    "MERGE / UPDATE requires a hive ACID (transactional) table; "
+                            + hiveHandle.getDbName() + "." + hiveHandle.getTableName()
+                            + " is not transactional");
+        }
+        HiveAcidContext.Builder ctx = HiveAcidContext.builder(
+                        hiveHandle.getDbName(), hiveHandle.getTableName(), WriteIntent.simple())
+                .stagingLocation(tableInfo.getLocation())
+                .acid(true);
+        startAcidTransaction(ctx, hiveHandle, HmsAcidOperation.UPDATE, WriteIntent.simple());
+        return new HiveMergeHandle(ctx.build());
+    }
+
+    @Override
+    public void finishMerge(ConnectorSession session, ConnectorMergeHandle handle,
+            Collection<byte[]> fragments) {
+        Objects.requireNonNull(handle, "handle");
+        HiveAcidContext context = ((HiveMergeHandle) handle).getContext();
+        try {
+            finishAcid(context, HiveCommitDataConverter.decodeFragments(fragments), HmsAcidOperation.UPDATE);
+        } finally {
+            context.cancelHeartbeat();
+        }
+    }
+
+    @Override
+    public void abortMerge(ConnectorSession session, ConnectorMergeHandle handle) {
+        if (handle == null) {
+            return;
+        }
+        abortContext(((HiveMergeHandle) handle).getContext());
+    }
+
+    // ========== ACID transaction helpers ==========
+
+    private void startAcidTransaction(HiveAcidContext.Builder ctx, HiveTableHandle hiveHandle,
+            HmsAcidOperation op, WriteIntent intent) {
+        HmsWriteOps ops = requireWriteOps();
+        boolean exclusive = intent.overwriteMode() != WriteIntent.OverwriteMode.NONE;
+        long txnId = ops.openTxn(currentUser());
+        long writeId;
+        long lockId;
+        try {
+            writeId = ops.allocateWriteId(txnId, hiveHandle.getDbName(), hiveHandle.getTableName());
+            lockId = ops.acquireLock(txnId, currentUser(), currentQueryId(),
+                    hiveHandle.getDbName(), hiveHandle.getTableName(), !exclusive);
+        } catch (RuntimeException e) {
+            // best-effort abort: do not mask the original cause
+            try {
+                ops.abortTxn(txnId);
+            } catch (RuntimeException abortFailure) {
+                e.addSuppressed(abortFailure);
+            }
+            throw e;
+        }
+        ScheduledFuture<?> heartbeat = scheduleHeartbeat(ops, txnId, lockId);
+        ctx.acidOperation(op).txnId(txnId).writeId(writeId).lockId(lockId).heartbeatFuture(heartbeat);
+    }
+
+    private ScheduledFuture<?> scheduleHeartbeat(HmsWriteOps ops, long txnId, long lockId) {
+        if (heartbeatExecutor == null) {
+            return null;
+        }
+        return heartbeatExecutor.scheduleAtFixedRate(() -> {
+            try {
+                ops.heartbeat(txnId, lockId);
+            } catch (RuntimeException e) {
+                LOG.warn("Heartbeat for hive ACID txn {} (lock {}) failed: {}", txnId, lockId, e.toString());
+            }
+        }, heartbeatPeriodMs, heartbeatPeriodMs, TimeUnit.MILLISECONDS);
+    }
+
+    private void finishAcid(HiveAcidContext context, List<THivePartitionUpdate> updates, HmsAcidOperation op) {
+        HmsWriteOps ops = requireWriteOps();
+        List<String> partitionNames = updates.stream()
+                .map(THivePartitionUpdate::getName)
+                .filter(n -> n != null && !n.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+        if (!partitionNames.isEmpty()) {
+            ops.addDynamicPartitions(context.getTxnId(), context.getWriteId(),
+                    context.getDbName(), context.getTableName(), partitionNames, op);
+        }
+        ops.commitTxn(context.getTxnId());
+    }
+
+    private void abortContext(HiveAcidContext context) {
+        try {
+            if (context.isAcid() && writeOps != null) {
+                try {
+                    writeOps.abortTxn(context.getTxnId());
+                } catch (RuntimeException e) {
+                    LOG.warn("abortTxn({}) failed during abort cleanup: {}",
+                            context.getTxnId(), e.toString());
+                }
+            }
+        } finally {
+            context.cancelHeartbeat();
+        }
+    }
+
+    private HmsWriteOps requireWriteOps() {
+        if (writeOps == null) {
+            throw new DorisConnectorException("Hive write path requires HmsWriteOps; none configured");
+        }
+        return writeOps;
+    }
+
+    private HmsWriteOps requireWriteOpsForNonAcid() {
+        return requireWriteOps();
+    }
+
+    private HiveTableHandle rebuildHandle(HiveAcidContext context) {
+        HmsTableInfo tableInfo = hmsClient.getTable(context.getDbName(), context.getTableName());
+        List<String> partKeyNames = tableInfo.getPartitionKeys() != null
+                ? tableInfo.getPartitionKeys().stream().map(ConnectorColumn::getName).collect(Collectors.toList())
+                : Collections.emptyList();
+        return new HiveTableHandle.Builder(context.getDbName(), context.getTableName(),
+                HiveTableType.HIVE)
+                .inputFormat(tableInfo.getInputFormat())
+                .serializationLib(tableInfo.getSerializationLib())
+                .location(tableInfo.getLocation())
+                .partitionKeyNames(partKeyNames)
+                .sdParameters(tableInfo.getSdParameters())
+                .tableParameters(tableInfo.getParameters())
+                .build();
+    }
+
+    private static String currentUser() {
+        String user = System.getProperty("user.name");
+        return user == null ? "doris" : user;
+    }
+
+    private static String currentQueryId() {
+        // queryId is plumbed through ConnectContext in fe-core; the plugin
+        // does not yet have a session-scoped query id, so derive a
+        // monotonic identifier per JVM. Lock requests only need it for
+        // metastore-side grouping / debugging.
+        return "doris-" + System.nanoTime();
+    }
+
+    /** Visible for tests: stmtId sequence used when building delta directories. */
+    int nextStmtId() {
+        return (int) stmtIdSequence.getAndIncrement();
+    }
+
+    /** Visible for tests: a single-thread heartbeat executor with daemon threads. */
+    public static ScheduledExecutorService newHeartbeatExecutor() {
+        return Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "hive-acid-heartbeat");
+            t.setDaemon(true);
+            return t;
+        });
     }
 }

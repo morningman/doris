@@ -68,7 +68,15 @@ public class HiveConnector implements Connector {
     public Set<ConnectorCapability> getCapabilities() {
         return EnumSet.of(
                 ConnectorCapability.SUPPORTS_MTMV,
-                ConnectorCapability.EMITS_AUDIT_EVENTS);
+                ConnectorCapability.EMITS_AUDIT_EVENTS,
+                ConnectorCapability.SUPPORTS_INSERT,
+                ConnectorCapability.SUPPORTS_INSERT_OVERWRITE,
+                ConnectorCapability.SUPPORTS_PARTITION_OVERWRITE,
+                ConnectorCapability.SUPPORTS_DYNAMIC_PARTITION_INSERT,
+                ConnectorCapability.SUPPORTS_PARALLEL_WRITE,
+                ConnectorCapability.SUPPORTS_ROW_LEVEL_DELETE,
+                ConnectorCapability.SUPPORTS_MERGE_INTO,
+                ConnectorCapability.SUPPORTS_ACID_TRANSACTIONS);
     }
 
     private HmsClient getOrCreateClient() {
