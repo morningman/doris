@@ -138,7 +138,16 @@ public class IcebergConnector implements Connector {
                 ConnectorCapability.SUPPORTS_INSERT,
                 ConnectorCapability.SUPPORTS_INSERT_OVERWRITE,
                 ConnectorCapability.SUPPORTS_PARTITION_OVERWRITE,
-                ConnectorCapability.SUPPORTS_DYNAMIC_PARTITION_INSERT);
+                ConnectorCapability.SUPPORTS_DYNAMIC_PARTITION_INSERT,
+                // M3-05: row-level delete via Iceberg RowDelta — position
+                // deletes, equality deletes and deletion vectors are all
+                // routed through TIcebergCommitData#file_content on the
+                // existing thrift; the plugin builds the matching
+                // DeleteFile via FileMetadata.deleteFileBuilder.
+                ConnectorCapability.SUPPORTS_ROW_LEVEL_DELETE,
+                ConnectorCapability.SUPPORTS_POSITION_DELETE,
+                ConnectorCapability.SUPPORTS_EQUALITY_DELETE,
+                ConnectorCapability.SUPPORTS_DELETION_VECTOR);
     }
 
     @Override

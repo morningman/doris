@@ -48,10 +48,12 @@ import org.apache.doris.connector.iceberg.systable.IcebergSystemTableOps;
 import org.apache.iceberg.AppendFiles;
 import org.apache.iceberg.BaseTable;
 import org.apache.iceberg.DataFile;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.PartitionField;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.ReplacePartitions;
+import org.apache.iceberg.RowDelta;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Snapshot;
 import org.apache.iceberg.SnapshotRef;
@@ -668,37 +670,77 @@ public class IcebergConnectorMetadata implements ConnectorMetadata {
         Objects.requireNonNull(handle, "handle");
         IcebergInsertHandle insertHandle = (IcebergInsertHandle) handle;
         Transaction transaction = insertHandle.getTransaction();
-        List<DataFile> dataFiles = IcebergCommitDataConverter.decodeDataFiles(
-                insertHandle.getTable(), fragments);
+        IcebergCommitDataConverter.DecodedCommitFiles decoded =
+                IcebergCommitDataConverter.decodeFragments(insertHandle.getTable(), fragments);
+        List<DataFile> dataFiles = decoded.dataFiles();
+        List<DeleteFile> deleteFiles = decoded.deleteFiles();
 
         WriteIntent.OverwriteMode mode = insertHandle.getIntent().overwriteMode();
         String branch = insertHandle.getIntent().branch().orElse(null);
-        switch (mode) {
-            case NONE:
-                commitAppend(transaction, dataFiles, branch);
-                break;
-            case FULL_TABLE:
-                commitFullTableOverwrite(transaction, dataFiles, branch);
-                break;
-            case STATIC_PARTITION:
-                commitStaticPartitionOverwrite(
-                        transaction,
-                        insertHandle.getIntent().staticPartitions(),
-                        dataFiles,
-                        branch);
-                break;
-            case DYNAMIC_PARTITION:
-                commitDynamicPartitionOverwrite(transaction, dataFiles, branch);
-                break;
-            default:
-                throw new DorisConnectorException("Unsupported iceberg overwrite mode: " + mode);
+
+        if (decoded.hasDeletes()) {
+            // Row-level delete / merge path (M3-05): position deletes,
+            // equality deletes and deletion vectors all flow through
+            // Iceberg's RowDelta API so data + delete files commit
+            // atomically. Combining row-level deletes with INSERT
+            // OVERWRITE is unsupported because the semantics of
+            // "overwrite + per-row deletes" are not well-defined on the
+            // FE→BE write protocol; reject loudly.
+            if (mode != WriteIntent.OverwriteMode.NONE) {
+                throw new DorisConnectorException(
+                        "Iceberg row-level delete fragments are not supported with overwrite mode " + mode);
+            }
+            commitRowDelta(transaction, dataFiles, deleteFiles, branch);
+        } else {
+            switch (mode) {
+                case NONE:
+                    commitAppend(transaction, dataFiles, branch);
+                    break;
+                case FULL_TABLE:
+                    commitFullTableOverwrite(transaction, dataFiles, branch);
+                    break;
+                case STATIC_PARTITION:
+                    commitStaticPartitionOverwrite(
+                            transaction,
+                            insertHandle.getIntent().staticPartitions(),
+                            dataFiles,
+                            branch);
+                    break;
+                case DYNAMIC_PARTITION:
+                    commitDynamicPartitionOverwrite(transaction, dataFiles, branch);
+                    break;
+                default:
+                    throw new DorisConnectorException("Unsupported iceberg overwrite mode: " + mode);
+            }
         }
         transaction.commitTransaction();
         if (LOG.isDebugEnabled()) {
-            LOG.debug("Iceberg insert committed for {}.{} mode={} branch={} files={}",
+            LOG.debug("Iceberg insert committed for {}.{} mode={} branch={} dataFiles={} deleteFiles={}",
                     insertHandle.getDbName(), insertHandle.getTableName(),
-                    mode, branch, dataFiles.size());
+                    mode, branch, dataFiles.size(), deleteFiles.size());
         }
+    }
+
+    private static void commitRowDelta(
+            Transaction transaction,
+            List<DataFile> dataFiles,
+            List<DeleteFile> deleteFiles,
+            String branch) {
+        if (dataFiles.isEmpty() && deleteFiles.isEmpty()) {
+            throw new DorisConnectorException(
+                    "Iceberg row-delta commit requires at least one data file or delete file");
+        }
+        RowDelta rowDelta = transaction.newRowDelta();
+        for (DataFile file : dataFiles) {
+            rowDelta.addRows(file);
+        }
+        for (DeleteFile file : deleteFiles) {
+            rowDelta.addDeletes(file);
+        }
+        if (branch != null) {
+            rowDelta.toBranch(branch);
+        }
+        rowDelta.commit();
     }
 
     private static void commitAppend(Transaction transaction, List<DataFile> dataFiles, String branch) {

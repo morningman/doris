@@ -17,12 +17,15 @@
 
 package org.apache.doris.connector.iceberg;
 
+import org.apache.doris.thrift.TFileContent;
 import org.apache.doris.thrift.TIcebergColumnStats;
 import org.apache.doris.thrift.TIcebergCommitData;
 
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
+import org.apache.iceberg.DeleteFile;
 import org.apache.iceberg.FileFormat;
+import org.apache.iceberg.FileMetadata;
 import org.apache.iceberg.Metrics;
 import org.apache.iceberg.PartitionData;
 import org.apache.iceberg.PartitionSpec;
@@ -79,10 +82,39 @@ final class IcebergCommitDataConverter {
      * fragments produced by BE writers into iceberg {@link DataFile}s ready
      * for commit. Each fragment is expected to be a single
      * {@code TIcebergCommitData} encoded with {@link TBinaryProtocol}.
+     *
+     * <p>This convenience entry point is preserved for callers that only
+     * deal with append/overwrite paths and is equivalent to
+     * {@link #decodeFragments(Table, Collection)}{@code .dataFiles()},
+     * additionally asserting that no row-level delete fragments are
+     * present (which would be silently dropped otherwise).</p>
      */
     static List<DataFile> decodeDataFiles(Table table, Collection<byte[]> fragments) {
+        DecodedCommitFiles decoded = decodeFragments(table, fragments);
+        if (!decoded.deleteFiles().isEmpty()) {
+            throw new IllegalStateException(
+                    "Iceberg commit produced " + decoded.deleteFiles().size()
+                            + " delete file(s) but caller only requested data files; "
+                            + "use decodeFragments() to handle row-level deletes");
+        }
+        return decoded.dataFiles();
+    }
+
+    /**
+     * Decodes a collection of thrift-serialized {@link TIcebergCommitData}
+     * fragments into a partitioned view of {@link DataFile}s and
+     * {@link DeleteFile}s, dispatched on
+     * {@link TIcebergCommitData#getFileContent()}.
+     *
+     * <p>Fragments with {@code file_content == null} are treated as
+     * {@code DATA} (legacy BE behaviour). Position deletes, equality
+     * deletes and deletion vectors are routed into delete files using
+     * the per-fragment {@code partition_spec_id} when set, falling back
+     * to {@link Table#spec()} otherwise.</p>
+     */
+    static DecodedCommitFiles decodeFragments(Table table, Collection<byte[]> fragments) {
         if (fragments == null || fragments.isEmpty()) {
-            return new ArrayList<>(0);
+            return new DecodedCommitFiles(new ArrayList<>(0), new ArrayList<>(0));
         }
         TDeserializer deserializer;
         try {
@@ -91,10 +123,11 @@ final class IcebergCommitDataConverter {
             throw new IllegalStateException("Failed to create thrift deserializer", e);
         }
 
-        FileFormat format = resolveFileFormat(table);
-        PartitionSpec spec = table.spec();
+        FileFormat defaultFormat = resolveFileFormat(table);
+        PartitionSpec defaultSpec = table.spec();
 
-        List<DataFile> dataFiles = new ArrayList<>(fragments.size());
+        List<DataFile> dataFiles = new ArrayList<>();
+        List<DeleteFile> deleteFiles = new ArrayList<>();
         for (byte[] payload : fragments) {
             if (payload == null || payload.length == 0) {
                 continue;
@@ -106,9 +139,123 @@ final class IcebergCommitDataConverter {
                 throw new IllegalStateException(
                         "Failed to deserialize TIcebergCommitData fragment", e);
             }
-            dataFiles.add(toDataFile(commit, format, spec, table));
+            TFileContent content = commit.isSetFileContent() ? commit.getFileContent() : TFileContent.DATA;
+            if (content == TFileContent.DATA) {
+                dataFiles.add(toDataFile(commit, defaultFormat, defaultSpec, table));
+            } else {
+                PartitionSpec spec = resolveSpec(table, commit, defaultSpec);
+                deleteFiles.add(toDeleteFile(commit, defaultFormat, spec, content));
+            }
         }
-        return dataFiles;
+        return new DecodedCommitFiles(dataFiles, deleteFiles);
+    }
+
+    private static PartitionSpec resolveSpec(Table table, TIcebergCommitData commit, PartitionSpec defaultSpec) {
+        if (!commit.isSetPartitionSpecId()) {
+            return defaultSpec;
+        }
+        PartitionSpec spec = table.specs().get(commit.getPartitionSpecId());
+        if (spec == null) {
+            throw new IllegalStateException(
+                    "Unknown partition spec id " + commit.getPartitionSpecId() + " for iceberg table " + table.name());
+        }
+        return spec;
+    }
+
+    private static DeleteFile toDeleteFile(
+            TIcebergCommitData commit,
+            FileFormat defaultFormat,
+            PartitionSpec spec,
+            TFileContent content) {
+        boolean isDeletionVector = content == TFileContent.DELETION_VECTOR
+                || (commit.isSetContentOffset() && commit.isSetContentSizeInBytes());
+        FileFormat effectiveFormat = isDeletionVector ? FileFormat.PUFFIN : defaultFormat;
+        FileMetadata.Builder builder = FileMetadata.deleteFileBuilder(spec)
+                .withPath(commit.getFilePath())
+                .withFormat(effectiveFormat)
+                .withFileSizeInBytes(commit.getFileSize())
+                .withRecordCount(commit.getRowCount());
+
+        switch (content) {
+            case POSITION_DELETES:
+            case DELETION_VECTOR:
+                builder.ofPositionDeletes();
+                break;
+            case EQUALITY_DELETES:
+                List<Integer> equalityFieldIds = commit.getEqualityFieldIds();
+                if (equalityFieldIds == null || equalityFieldIds.isEmpty()) {
+                    throw new IllegalStateException(
+                            "Iceberg EQUALITY_DELETES commit data must carry equality_field_ids, file="
+                                    + commit.getFilePath());
+                }
+                int[] ids = new int[equalityFieldIds.size()];
+                for (int i = 0; i < ids.length; i++) {
+                    ids[i] = equalityFieldIds.get(i);
+                }
+                builder.ofEqualityDeletes(ids);
+                break;
+            default:
+                throw new IllegalStateException(
+                        "Unsupported iceberg delete file content: " + content);
+        }
+
+        if (isDeletionVector) {
+            if (!commit.isSetContentOffset() || !commit.isSetContentSizeInBytes()) {
+                throw new IllegalStateException(
+                        "Iceberg DELETION_VECTOR commit data must carry content_offset and content_size_in_bytes, file="
+                                + commit.getFilePath());
+            }
+            builder.withContentOffset(commit.getContentOffset());
+            builder.withContentSizeInBytes(commit.getContentSizeInBytes());
+        }
+
+        if (commit.isSetReferencedDataFilePath()
+                && commit.getReferencedDataFilePath() != null
+                && !commit.getReferencedDataFilePath().isEmpty()) {
+            builder.withReferencedDataFile(commit.getReferencedDataFilePath());
+        }
+
+        if (spec.isPartitioned()) {
+            List<String> partitionValues = commit.getPartitionValues();
+            if (partitionValues == null || partitionValues.isEmpty()) {
+                throw new IllegalStateException(
+                        "Partitioned iceberg delete file requires partition values, file=" + commit.getFilePath());
+            }
+            builder.withPartition(toPartitionData(partitionValues, spec));
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * Holder for the result of {@link #decodeFragments(Table, Collection)},
+     * exposing the data files and delete files produced by a single BE-side
+     * write task in the order BE emitted them.
+     */
+    static final class DecodedCommitFiles {
+        private final List<DataFile> dataFiles;
+        private final List<DeleteFile> deleteFiles;
+
+        DecodedCommitFiles(List<DataFile> dataFiles, List<DeleteFile> deleteFiles) {
+            this.dataFiles = dataFiles;
+            this.deleteFiles = deleteFiles;
+        }
+
+        List<DataFile> dataFiles() {
+            return dataFiles;
+        }
+
+        List<DeleteFile> deleteFiles() {
+            return deleteFiles;
+        }
+
+        boolean hasDeletes() {
+            return !deleteFiles.isEmpty();
+        }
+
+        boolean isEmpty() {
+            return dataFiles.isEmpty() && deleteFiles.isEmpty();
+        }
     }
 
     private static DataFile toDataFile(
