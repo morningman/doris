@@ -108,7 +108,23 @@ public class PaimonConnector implements Connector {
 
     @Override
     public Set<ConnectorCapability> getCapabilities() {
-        return EnumSet.of(ConnectorCapability.SUPPORTS_MTMV);
+        return EnumSet.of(
+                ConnectorCapability.SUPPORTS_MTMV,
+                // M3-06: paimon WriteOps INSERT (APPEND for append-only
+                // tables, UPSERT for primary-key tables; the row-op
+                // distinction is encoded in the BE-emitted CommitMessage
+                // payload via paimon's _DORIS_DELETE_SIGN_ machinery so
+                // no separate UPSERT branch is needed plugin-side) plus
+                // INSERT OVERWRITE for FULL_TABLE / STATIC_PARTITION via
+                // BatchWriteBuilder.withOverwrite. DYNAMIC_PARTITION is
+                // intentionally rejected at beginInsert because paimon
+                // has no native equivalent of iceberg's
+                // ReplacePartitions today.
+                ConnectorCapability.SUPPORTS_INSERT,
+                ConnectorCapability.SUPPORTS_INSERT_OVERWRITE,
+                ConnectorCapability.SUPPORTS_PARTITION_OVERWRITE,
+                ConnectorCapability.SUPPORTS_UPSERT,
+                ConnectorCapability.SUPPORTS_BRANCH_TAG);
     }
 
     @Override

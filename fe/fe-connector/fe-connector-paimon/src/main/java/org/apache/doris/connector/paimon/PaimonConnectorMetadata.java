@@ -23,14 +23,19 @@ import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableId;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorType;
+import org.apache.doris.connector.api.DorisConnectorException;
 import org.apache.doris.connector.api.cache.MetaCacheHandle;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
+import org.apache.doris.connector.api.handle.ConnectorInsertHandle;
 import org.apache.doris.connector.api.handle.ConnectorTableHandle;
 import org.apache.doris.connector.api.mtmv.MtmvOps;
 import org.apache.doris.connector.api.systable.SysTableSpec;
 import org.apache.doris.connector.api.systable.SystemTableOps;
 import org.apache.doris.connector.api.timetravel.RefOps;
+import org.apache.doris.connector.api.write.ConnectorWriteConfig;
+import org.apache.doris.connector.api.write.ConnectorWriteType;
+import org.apache.doris.connector.api.write.WriteIntent;
 import org.apache.doris.connector.paimon.api.PaimonBackend;
 import org.apache.doris.connector.paimon.api.PaimonBackendContext;
 import org.apache.doris.connector.paimon.cache.PaimonTableCacheKey;
@@ -40,18 +45,25 @@ import org.apache.doris.connector.paimon.systable.PaimonSystemTableOps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.paimon.CoreOptions;
 import org.apache.paimon.catalog.Catalog;
 import org.apache.paimon.catalog.Identifier;
+import org.apache.paimon.table.FileStoreTable;
 import org.apache.paimon.table.Table;
+import org.apache.paimon.table.sink.BatchTableCommit;
+import org.apache.paimon.table.sink.BatchWriteBuilder;
+import org.apache.paimon.table.sink.CommitMessage;
 import org.apache.paimon.types.DataField;
 import org.apache.paimon.types.RowType;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -338,6 +350,227 @@ public class PaimonConnectorMetadata implements ConnectorMetadata {
             handles.put(name, new PaimonColumnHandle(name, i));
         }
         return handles;
+    }
+
+    // ========== ConnectorWriteOps (M3-06) ==========
+
+    /**
+     * Paimon writes are file-based. Append-only tables accept APPEND
+     * (and overwrite shapes that paimon's {@link BatchWriteBuilder}
+     * supports natively); primary-key tables additionally accept UPSERT
+     * because paimon merges row-ops on commit using the configured
+     * merge engine. UPSERT against an append-only table is rejected at
+     * {@link #beginInsert} time. The branch-routed write path (M3-04
+     * mirror) uses paimon's {@link FileStoreTable#switchToBranch} so
+     * commits land on the branch's snapshot lineage and never touch
+     * {@code main}.
+     */
+    @Override
+    public boolean supportsInsert() {
+        return true;
+    }
+
+    @Override
+    public ConnectorWriteConfig getWriteConfig(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            List<ConnectorColumn> columns) {
+        Objects.requireNonNull(handle, "handle");
+        PaimonTableHandle paimonHandle = (PaimonTableHandle) handle;
+        Table table = loadTableForWrite(paimonHandle.getDatabaseName(), paimonHandle.getTableName());
+        Map<String, String> tableOptions = table.options() != null
+                ? table.options() : Collections.emptyMap();
+
+        String fileFormat = tableOptions.getOrDefault(
+                CoreOptions.FILE_FORMAT.key(),
+                CoreOptions.FILE_FORMAT.defaultValue());
+        String compression = tableOptions.getOrDefault(
+                CoreOptions.FILE_COMPRESSION.key(),
+                CoreOptions.FILE_COMPRESSION.defaultValue());
+
+        List<String> partitionColumns = table.partitionKeys() != null
+                ? new ArrayList<>(table.partitionKeys()) : Collections.emptyList();
+
+        Map<String, String> writeProps = new HashMap<>();
+        writeProps.put("file-format", fileFormat);
+        if (table instanceof FileStoreTable) {
+            String location = ((FileStoreTable) table).location() != null
+                    ? ((FileStoreTable) table).location().toString() : null;
+            if (location != null) {
+                writeProps.put("location", location);
+            }
+        }
+        List<String> primaryKeys = table.primaryKeys();
+        if (primaryKeys != null && !primaryKeys.isEmpty()) {
+            writeProps.put("primary-keys", String.join(",", primaryKeys));
+            String mergeEngine = tableOptions.get(CoreOptions.MERGE_ENGINE.key());
+            if (mergeEngine != null) {
+                writeProps.put("merge-engine", mergeEngine);
+            }
+        }
+        String bucket = tableOptions.get(CoreOptions.BUCKET.key());
+        if (bucket != null) {
+            writeProps.put("bucket", bucket);
+        }
+        String writeBufferSize = tableOptions.get(CoreOptions.WRITE_BUFFER_SIZE.key());
+        if (writeBufferSize != null) {
+            writeProps.put("write-buffer-size", writeBufferSize);
+        }
+
+        ConnectorWriteConfig.Builder builder = ConnectorWriteConfig.builder(ConnectorWriteType.FILE_WRITE)
+                .fileFormat(fileFormat)
+                .compression(compression)
+                .partitionColumns(partitionColumns)
+                .properties(writeProps);
+        if (writeProps.containsKey("location")) {
+            builder.writeLocation(writeProps.get("location"));
+        }
+        return builder.build();
+    }
+
+    @Override
+    public ConnectorInsertHandle beginInsert(
+            ConnectorSession session,
+            ConnectorTableHandle handle,
+            List<ConnectorColumn> columns,
+            WriteIntent intent) {
+        Objects.requireNonNull(handle, "handle");
+        Objects.requireNonNull(intent, "intent");
+        PaimonTableHandle paimonHandle = (PaimonTableHandle) handle;
+        Table baseTable = loadTableForWrite(paimonHandle.getDatabaseName(), paimonHandle.getTableName());
+        validateIntentAgainstTable(intent, baseTable);
+        Table targetTable = switchBranchIfRequested(baseTable, intent);
+        BatchWriteBuilder writeBuilder = targetTable.newBatchWriteBuilder();
+        applyOverwriteMode(writeBuilder, intent);
+        return new PaimonInsertHandle(
+                paimonHandle.getDatabaseName(), paimonHandle.getTableName(),
+                targetTable, writeBuilder, intent);
+    }
+
+    private static void validateIntentAgainstTable(WriteIntent intent, Table table) {
+        boolean isPkTable = table.primaryKeys() != null && !table.primaryKeys().isEmpty();
+        if (intent.isUpsert() && !isPkTable) {
+            throw new DorisConnectorException(
+                    "Paimon UPSERT requires a primary-key table; "
+                            + table.fullName() + " is append-only");
+        }
+        WriteIntent.OverwriteMode mode = intent.overwriteMode();
+        boolean partitioned = table.partitionKeys() != null && !table.partitionKeys().isEmpty();
+        if (mode == WriteIntent.OverwriteMode.STATIC_PARTITION && !partitioned) {
+            throw new DorisConnectorException(
+                    "Static-partition overwrite requested on unpartitioned paimon table "
+                            + table.fullName());
+        }
+        if (mode == WriteIntent.OverwriteMode.STATIC_PARTITION) {
+            List<String> partitionKeys = table.partitionKeys();
+            for (String key : intent.staticPartitions().keySet()) {
+                if (!partitionKeys.contains(key)) {
+                    throw new DorisConnectorException(
+                            "Unknown partition column '" + key + "' for paimon table "
+                                    + table.fullName());
+                }
+            }
+        }
+        if (mode == WriteIntent.OverwriteMode.DYNAMIC_PARTITION) {
+            // Paimon's BatchWriteBuilder.withOverwrite(map) only accepts a
+            // *static* partition predicate (or an empty map = full-table
+            // overwrite). There is no native equivalent of iceberg's
+            // ReplacePartitions today; reject loudly so callers know to
+            // either fall back to FULL_TABLE or list partitions explicitly.
+            throw new DorisConnectorException(
+                    "Paimon does not support DYNAMIC_PARTITION overwrite via BatchWriteBuilder; "
+                            + "use STATIC_PARTITION with explicit keys or FULL_TABLE");
+        }
+    }
+
+    private static Table switchBranchIfRequested(Table table, WriteIntent intent) {
+        if (!intent.branch().isPresent()) {
+            return table;
+        }
+        String branchName = intent.branch().get();
+        if (!(table instanceof FileStoreTable)) {
+            throw new DorisConnectorException(
+                    "Paimon branch writes require a FileStoreTable, got "
+                            + table.getClass().getName() + " for " + table.fullName());
+        }
+        FileStoreTable fileStoreTable = (FileStoreTable) table;
+        List<String> branches = fileStoreTable.branchManager().branches();
+        if (branches == null || !branches.contains(branchName)) {
+            throw new DorisConnectorException(
+                    "Paimon branch '" + branchName + "' does not exist on table "
+                            + table.fullName());
+        }
+        return fileStoreTable.switchToBranch(branchName);
+    }
+
+    private static void applyOverwriteMode(BatchWriteBuilder writeBuilder, WriteIntent intent) {
+        switch (intent.overwriteMode()) {
+            case NONE:
+                return;
+            case FULL_TABLE:
+                writeBuilder.withOverwrite(Collections.emptyMap());
+                return;
+            case STATIC_PARTITION:
+                writeBuilder.withOverwrite(new LinkedHashMap<>(intent.staticPartitions()));
+                return;
+            default:
+                // DYNAMIC_PARTITION is rejected upstream in
+                // validateIntentAgainstTable; reaching here is a bug.
+                throw new DorisConnectorException(
+                        "Unhandled paimon overwrite mode: " + intent.overwriteMode());
+        }
+    }
+
+    @Override
+    public void finishInsert(ConnectorSession session,
+            ConnectorInsertHandle handle,
+            Collection<byte[]> fragments) {
+        Objects.requireNonNull(handle, "handle");
+        PaimonInsertHandle insertHandle = (PaimonInsertHandle) handle;
+        List<CommitMessage> messages = PaimonCommitDataConverter.decodeFragments(fragments);
+        try (BatchTableCommit commit = insertHandle.getWriteBuilder().newCommit()) {
+            commit.commit(messages);
+        } catch (Exception e) {
+            if (e instanceof DorisConnectorException) {
+                throw (DorisConnectorException) e;
+            }
+            throw new DorisConnectorException(
+                    "Failed to commit paimon write for "
+                            + insertHandle.getDbName() + "." + insertHandle.getTableName(), e);
+        }
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Paimon insert committed for {}.{} mode={} branch={} messages={}",
+                    insertHandle.getDbName(), insertHandle.getTableName(),
+                    insertHandle.getIntent().overwriteMode(),
+                    insertHandle.getIntent().branch().orElse(null),
+                    messages.size());
+        }
+    }
+
+    @Override
+    public void abortInsert(ConnectorSession session, ConnectorInsertHandle handle) {
+        Objects.requireNonNull(handle, "handle");
+        PaimonInsertHandle insertHandle = (PaimonInsertHandle) handle;
+        // Paimon BatchWriteBuilder hold no external resources before
+        // BE-side writers stage files; with no fragments to pass to
+        // BatchTableCommit#abort the safe behaviour is to drop the
+        // builder reference and let GC reclaim the in-memory state.
+        // Mirrors the iceberg M3-03 abort path.
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("Paimon insert aborted for {}.{} mode={} branch={}",
+                    insertHandle.getDbName(), insertHandle.getTableName(),
+                    insertHandle.getIntent().overwriteMode(),
+                    insertHandle.getIntent().branch().orElse(null));
+        }
+    }
+
+    private Table loadTableForWrite(String dbName, String tableName) {
+        try {
+            return loadTable(dbName, tableName);
+        } catch (Catalog.TableNotExistException e) {
+            throw new DorisConnectorException(
+                    "Paimon table not found: " + dbName + "." + tableName, e);
+        }
     }
 
     /** Load the paimon {@link Table}, routing through the table cache binding when present. */
