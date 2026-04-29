@@ -22,6 +22,7 @@ import org.apache.doris.connector.api.ConnectorMetadata;
 import org.apache.doris.connector.api.ConnectorSession;
 import org.apache.doris.connector.api.ConnectorTableSchema;
 import org.apache.doris.connector.api.ConnectorType;
+import org.apache.doris.connector.api.action.ConnectorActionOps;
 import org.apache.doris.connector.api.event.ConnectorMetaChangeEvent;
 import org.apache.doris.connector.api.event.EventSourceOps;
 import org.apache.doris.connector.api.handle.ConnectorColumnHandle;
@@ -75,6 +76,7 @@ public class HudiConnectorMetadata implements ConnectorMetadata {
     private final String catalogName;
     private final ConnectorContext context;
     private volatile EventSourceOps eventSourceOps;
+    private volatile ConnectorActionOps actionOps;
 
     public HudiConnectorMetadata(HmsClient hmsClient, Map<String, String> properties) {
         this(hmsClient, properties, "", null);
@@ -119,6 +121,33 @@ public class HudiConnectorMetadata implements ConnectorMetadata {
             }
         }
         return ops;
+    }
+
+    // ========== ConnectorActionOps (M3-13) ==========
+
+    /**
+     * Lazily wires {@link HudiActionOps} so the {@code CALL} dispatcher
+     * (M3-10) can enumerate the hudi {@code clean} / {@code compaction}
+     * procedures and route invocations to descriptor-based validation.
+     * Both procedures currently return
+     * {@link org.apache.doris.connector.api.action.ActionResult.Lifecycle#FAILED}
+     * after argument validation because no hudi engine
+     * ({@code HoodieJavaWriteClient}) is on the plugin classpath; tracked
+     * by {@code TODO M3-13-be-hudi-engine-worker}.
+     */
+    @Override
+    public Optional<ConnectorActionOps> actionOps() {
+        ConnectorActionOps ops = actionOps;
+        if (ops == null) {
+            synchronized (this) {
+                ops = actionOps;
+                if (ops == null) {
+                    ops = new HudiActionOps();
+                    actionOps = ops;
+                }
+            }
+        }
+        return Optional.of(ops);
     }
 
     // ========== ConnectorSchemaOps ==========
