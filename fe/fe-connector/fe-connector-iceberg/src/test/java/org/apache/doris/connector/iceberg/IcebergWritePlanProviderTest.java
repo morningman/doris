@@ -212,7 +212,7 @@ public class IcebergWritePlanProviderTest {
     private static IcebergWritePlanProvider providerFor(Table table, RecordingConnectorContext ctx) {
         RecordingIcebergCatalogOps ops = new RecordingIcebergCatalogOps();
         ops.table = table;
-        return new IcebergWritePlanProvider(NON_REST_PROPS, ops, ctx);
+        return new IcebergWritePlanProvider(IcebergCatalogProperties.of(NON_REST_PROPS), ops, ctx);
     }
 
     /** A session that carries the bound iceberg connector transaction (the provider reads it). */
@@ -617,7 +617,7 @@ public class IcebergWritePlanProviderTest {
 
         RecordingIcebergCatalogOps ops = new RecordingIcebergCatalogOps();
         ops.table = vendedTable;
-        IcebergWritePlanProvider provider = new IcebergWritePlanProvider(restVendedProps(), ops, ctx);
+        IcebergWritePlanProvider provider = new IcebergWritePlanProvider(IcebergCatalogProperties.of(restVendedProps()), ops, ctx);
         WriteSession session = new WriteSession(new IcebergConnectorTransaction(42L, ops, ctx));
 
         ConnectorSinkPlan plan = provider.planWrite(session,
@@ -634,8 +634,8 @@ public class IcebergWritePlanProviderTest {
 
     private static Map<String, String> restVendedProps() {
         Map<String, String> props = new HashMap<>();
-        props.put(IcebergConnectorProperties.ICEBERG_CATALOG_TYPE, IcebergConnectorProperties.TYPE_REST);
-        props.put(IcebergConnectorProperties.REST_VENDED_CREDENTIALS_ENABLED, "true");
+        props.put(IcebergCatalogProperties.ICEBERG_CATALOG_TYPE, IcebergCatalogProperties.TYPE_REST);
+        props.put("iceberg.rest.vended-credentials-enabled", "true");
         return props;
     }
 
@@ -956,7 +956,7 @@ public class IcebergWritePlanProviderTest {
     private static IcebergWritePlanProvider supplyProvider(Table table, RecordingConnectorContext ctx) {
         RecordingIcebergCatalogOps ops = new RecordingIcebergCatalogOps();
         ops.table = table;
-        return new IcebergWritePlanProvider(NON_REST_PROPS, ops, ctx);
+        return new IcebergWritePlanProvider(IcebergCatalogProperties.of(NON_REST_PROPS), ops, ctx);
     }
 
     private static WriteSession supplySession(Table table, RecordingConnectorContext ctx, String queryId) {

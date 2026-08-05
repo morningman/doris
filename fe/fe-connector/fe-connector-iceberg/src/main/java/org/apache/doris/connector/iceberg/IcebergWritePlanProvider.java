@@ -127,6 +127,7 @@ public class IcebergWritePlanProvider implements ConnectorWritePlanProvider {
                 "Iceberg row position metadata", false, null, false).invisible();
     }
 
+    private final IcebergCatalogProperties catalogProps;
     private final Map<String, String> properties;
     // Per-request catalog-ops resolver: applied with the current ConnectorSession to obtain the IcebergCatalogOps
     // for that request. For a iceberg.rest.session=user catalog the connector passes this::newCatalogBackedOps so
@@ -138,11 +139,11 @@ public class IcebergWritePlanProvider implements ConnectorWritePlanProvider {
     private final Function<ConnectorSession, IcebergCatalogOps> catalogOpsResolver;
     private final ConnectorContext context;
 
-    public IcebergWritePlanProvider(Map<String, String> properties, IcebergCatalogOps catalogOps,
+    public IcebergWritePlanProvider(IcebergCatalogProperties catalogProps, IcebergCatalogOps catalogOps,
             ConnectorContext context) {
         // Constant resolver: these ctors (offline tests) bind a single ops that ignores the session, so existing
         // behaviour/tests are byte-identical.
-        this(properties, session -> catalogOps, context);
+        this(catalogProps, session -> catalogOps, context);
     }
 
     /**
@@ -151,10 +152,11 @@ public class IcebergWritePlanProvider implements ConnectorWritePlanProvider {
      * resolves the querying user's per-request delegated catalog for the write-side read helpers (the connector
      * passes {@code this::newCatalogBackedOps}); every other catalog resolves the single shared ops.
      */
-    public IcebergWritePlanProvider(Map<String, String> properties,
+    public IcebergWritePlanProvider(IcebergCatalogProperties catalogProps,
             Function<ConnectorSession, IcebergCatalogOps> catalogOpsResolver,
             ConnectorContext context) {
-        this.properties = properties;
+        this.catalogProps = catalogProps;
+        this.properties = catalogProps.getRaw();
         this.catalogOpsResolver = catalogOpsResolver;
         this.context = context;
     }
@@ -764,13 +766,11 @@ public class IcebergWritePlanProvider implements ConnectorWritePlanProvider {
     }
 
     private boolean mappingVarbinaryEnabled() {
-        return Boolean.parseBoolean(properties.getOrDefault(
-                IcebergConnectorProperties.ENABLE_MAPPING_VARBINARY, "false"));
+        return catalogProps.isEnableMappingVarbinary();
     }
 
     private boolean mappingTimestampTzEnabled() {
-        return Boolean.parseBoolean(properties.getOrDefault(
-                IcebergConnectorProperties.ENABLE_MAPPING_TIMESTAMP_TZ, "false"));
+        return catalogProps.isEnableMappingTimestampTz();
     }
 
     private static TFileFormatType toTFileFormatType(FileFormat format) {
