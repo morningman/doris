@@ -79,16 +79,12 @@ import java.util.UUID;
  */
 public class HiveWritePlanProvider implements ConnectorWritePlanProvider {
 
-    // Staging-directory keys (connector-local copies of HMSExternalCatalog.HIVE_STAGING_DIR /
-    // DEFAULT_STAGING_BASE_DIR — connectors must not import fe-core).
-    private static final String HIVE_STAGING_DIR = "hive.staging_dir";
-    private static final String DEFAULT_STAGING_BASE_DIR = "/tmp/.doris_staging";
-
     private final HmsClient hmsClient;
-    private final Map<String, String> properties;
+    private final HiveCatalogProperties properties;
     private final ConnectorContext context;
 
-    public HiveWritePlanProvider(HmsClient hmsClient, Map<String, String> properties, ConnectorContext context) {
+    public HiveWritePlanProvider(HmsClient hmsClient, HiveCatalogProperties properties,
+            ConnectorContext context) {
         this.hmsClient = hmsClient;
         this.properties = properties;
         this.context = context;
@@ -183,7 +179,7 @@ public class HiveWritePlanProvider implements ConnectorWritePlanProvider {
     // keeps rawLoc's scheme/authority.
     private String createTempPath(ConnectorSession session, String rawLocation) {
         String user = session.getUser();
-        String stagingBaseDir = properties.getOrDefault(HIVE_STAGING_DIR, DEFAULT_STAGING_BASE_DIR);
+        String stagingBaseDir = properties.getStagingDir();
         Path prefix = new Path(stagingBaseDir, user);
         Path temp = new Path(new Path(rawLocation, prefix), UUID.randomUUID().toString().replace("-", ""));
         return temp.toString();
@@ -321,9 +317,9 @@ public class HiveWritePlanProvider implements ConnectorWritePlanProvider {
     // value rides on the session properties threaded from the engine.
     private static String resolveTextCompressionDefault(ConnectorSession session) {
         String textCompression = session.getSessionProperties()
-                .get(HiveConnectorProperties.SESSION_HIVE_TEXT_COMPRESSION);
-        if (HiveConnectorProperties.TEXT_COMPRESSION_UNCOMPRESSED.equals(textCompression)) {
-            return HiveConnectorProperties.TEXT_COMPRESSION_PLAIN;
+                .get(HiveConnectorMetadata.SESSION_HIVE_TEXT_COMPRESSION);
+        if (HiveConnectorMetadata.TEXT_COMPRESSION_UNCOMPRESSED.equals(textCompression)) {
+            return HiveConnectorMetadata.TEXT_COMPRESSION_PLAIN;
         }
         return textCompression;
     }
