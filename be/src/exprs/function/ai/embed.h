@@ -71,7 +71,8 @@ public:
             return Status::OK();
         }
 
-        ColumnPtr input_column = input.unnest_nullable().column;
+        ColumnPtr input_column =
+                input.unnest_nullable(input.get_nullable_column_info(), false).column;
         PrimitiveType input_type = remove_nullable(input.type)->get_primitive_type();
         if (input_type == PrimitiveType::TYPE_JSONB) {
             return _execute_multimodal_embed(context, block, result, input_rows_count, config,

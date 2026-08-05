@@ -309,7 +309,8 @@ protected:
                 VectorizedUtils::update_null_map(result_null_map->get_data(),
                                                  nullable.get_null_map_data(), is_const);
             }
-            prompt_columns.emplace_back(argument.unnest_nullable().column);
+            prompt_columns.emplace_back(
+                    argument.unnest_nullable(argument.get_nullable_column_info(), false).column);
         }
 
         if (result_null_map &&
