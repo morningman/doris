@@ -299,6 +299,41 @@ public class LocationPathTest {
     }
 
     @Test
+    public void testAzureOauth2BindingKeepsAbfsAndUsesHdfsReader() {
+        // A bound storage answers for itself (G2): OAuth2 access only works through the Hadoop
+        // ABFS connector, so a non-OneLake abfss path under an OAuth2 binding must keep its
+        // abfs identity and select FILE_HDFS — the scheme table alone would say FILE_S3, which
+        // contradicts the hadoop-config backend map this binding sends to BE.
+        Map<String, String> props = new HashMap<>();
+        props.put("azure.auth_type", "OAuth2");
+        props.put("azure.oauth2_account_host", "mystorageaccount.dfs.core.windows.net");
+        props.put("azure.oauth2_client_id", "client-id");
+        props.put("azure.oauth2_client_secret", "client-secret");
+        props.put("azure.oauth2_server_uri", "https://login.microsoftonline.com/tenant/oauth2/token");
+        props.put("iceberg.catalog.type", "rest");
+        StorageAdapter azure = StorageAdapter.ofProvider("AZURE", props);
+        Map<StorageTypeId, StorageAdapter> map = new HashMap<>();
+        map.put(StorageTypeId.AZURE, azure);
+
+        String location = "abfss://mycontainer@mystorageaccount.dfs.core.windows.net/data/f.parquet";
+        LocationPath locationPath = LocationPath.ofAdapters(location, map);
+        Assertions.assertEquals(location, locationPath.getNormalizedLocation());
+        Assertions.assertEquals(TFileType.FILE_HDFS, locationPath.getTFileTypeForBE());
+    }
+
+    @Test
+    public void testAdapterlessFallbackKeepsLocationDrivenTypes() {
+        // Paths without a binding (TVF splits, connector scan ranges) rely on the legacy
+        // location-driven fallback; the binding-first change must not drop it.
+        LocationPath oneLake = LocationPath.of(
+                "abfss://ws@onelake.dfs.fabric.microsoft.com/lake/Files/f.parquet");
+        Assertions.assertEquals(TFileType.FILE_HDFS, oneLake.getTFileTypeForBE());
+
+        LocationPath ossDls = LocationPath.of("oss://bkt.cn-shanghai.oss-dls.aliyuncs.com/path/f");
+        Assertions.assertEquals(TFileType.FILE_HDFS, ossDls.getTFileTypeForBE());
+    }
+
+    @Test
     public void testLocationPathDirect() {
         StorageAdapter storageProperties = STORAGE_PROPERTIES_MAP.get(StorageTypeId.S3);
         LocationPath locationPath = LocationPath.ofDirect("s3://bucket/key", "s3", "s3://bucket", storageProperties);

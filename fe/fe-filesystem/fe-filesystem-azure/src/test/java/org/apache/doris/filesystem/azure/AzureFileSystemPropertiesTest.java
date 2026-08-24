@@ -23,6 +23,7 @@ import org.apache.doris.filesystem.properties.BackendStorageKind;
 import org.apache.doris.filesystem.properties.BackendStorageProperties;
 import org.apache.doris.filesystem.properties.FsCacheKeys;
 import org.apache.doris.filesystem.properties.StorageKind;
+import org.apache.doris.foundation.property.StoragePropertiesException;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -196,6 +197,78 @@ class AzureFileSystemPropertiesTest {
             Assertions.assertEquals(properties.fsCacheFingerprint(),
                     backendMap.get(FsCacheKeys.fsCacheKeyProperty(scheme)));
         }
+    }
+
+    private static AzureFileSystemProperties oauth2Properties() {
+        return AzureFileSystemProperties.of(Map.of(
+                "azure.endpoint", "account.blob.core.windows.net",
+                "azure.auth_type", "OAuth2",
+                "azure.oauth2_account_host", "myaccount.dfs.core.windows.net",
+                "azure.oauth2_client_id", "client-id",
+                "azure.oauth2_client_secret", "client-secret",
+                "azure.oauth2_server_uri", "https://login.microsoftonline.com/tenant/oauth2/token"));
+    }
+
+    @Test
+    void backendKind_answersPerAuthForm() {
+        AzureFileSystemProperties sharedKey = AzureFileSystemProperties.of(Map.of(
+                "azure.account_name", "account",
+                "azure.account_key", "key"));
+
+        // SharedKey flows through BE's native S3-compatible client; OAuth2 only works through the
+        // Hadoop ABFS connector (its backend map IS a hadoop config dump), so the kind must select
+        // BE's hadoop reader — a constant S3_COMPATIBLE would contradict toMap().
+        Assertions.assertEquals(BackendStorageKind.S3_COMPATIBLE, sharedKey.backendKind());
+        Assertions.assertEquals(BackendStorageKind.HDFS, oauth2Properties().backendKind());
+    }
+
+    @Test
+    void validateAndNormalizeUri_sharedKeyConvertsToS3StyleLikeFeCore() {
+        AzureFileSystemProperties properties = AzureFileSystemProperties.of(Map.of(
+                "azure.account_name", "account",
+                "azure.account_key", "key"));
+
+        Assertions.assertEquals("s3://container/path/file.txt", properties.validateAndNormalizeUri(
+                "wasbs://container@account.blob.core.windows.net/path/file.txt"));
+        Assertions.assertEquals("s3://container/data/f.parquet", properties.validateAndNormalizeUri(
+                "abfss://container@account.dfs.core.windows.net/data/f.parquet"));
+        Assertions.assertEquals("s3://container/data/f.parquet", properties.validateAndNormalizeUri(
+                "https://account.blob.core.windows.net/container/data/f.parquet"));
+        Assertions.assertEquals("s3://bucket/key", properties.validateAndNormalizeUri("s3://bucket/key"));
+    }
+
+    @Test
+    void validateAndNormalizeUri_oauth2KeepsAbfsForHadoopReader() {
+        String path = "abfss://container@account.dfs.core.windows.net/data/f.parquet";
+        // The BE consumer of an OAuth2 binding is the Hadoop ABFS connector (backendKind()==HDFS):
+        // it needs the account authority the s3-style form drops.
+        Assertions.assertEquals(path, oauth2Properties().validateAndNormalizeUri(path));
+        // Non-abfs forms under OAuth2 keep the legacy conversion.
+        Assertions.assertEquals("s3://container/path", oauth2Properties().validateAndNormalizeUri(
+                "wasbs://container@account.blob.core.windows.net/path"));
+    }
+
+    @Test
+    void validateAndNormalizeUri_oneLakeStaysAsIsRegardlessOfAuth() {
+        String oneLake = "abfss://ws@onelake.dfs.fabric.microsoft.com/lake/Files/f.parquet";
+        AzureFileSystemProperties sharedKey = AzureFileSystemProperties.of(Map.of(
+                "azure.account_name", "account",
+                "azure.account_key", "key"));
+        // Location-driven: a Fabric OneLake path is only reachable through the ABFS connector,
+        // whatever auth the binding carries. Mirrored by fe-core's adapter-less fallback.
+        Assertions.assertEquals(oneLake, sharedKey.validateAndNormalizeUri(oneLake));
+        Assertions.assertEquals(oneLake, oauth2Properties().validateAndNormalizeUri(oneLake));
+    }
+
+    @Test
+    void validateAndNormalizeUri_rejectsNonAzureSchemesAndBlank() {
+        AzureFileSystemProperties properties = AzureFileSystemProperties.of(Map.of(
+                "azure.account_name", "account",
+                "azure.account_key", "key"));
+        Assertions.assertThrows(StoragePropertiesException.class,
+                () -> properties.validateAndNormalizeUri("oss://bucket/path"));
+        Assertions.assertThrows(StoragePropertiesException.class,
+                () -> properties.validateAndNormalizeUri(" "));
     }
 
     @Test

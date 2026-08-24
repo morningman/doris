@@ -27,6 +27,7 @@ import org.apache.doris.filesystem.properties.StorageKind;
 import org.apache.doris.foundation.property.ConnectorPropertiesUtils;
 import org.apache.doris.foundation.property.ConnectorProperty;
 import org.apache.doris.foundation.property.ParamRules;
+import org.apache.doris.foundation.property.StoragePropertiesException;
 
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -42,6 +43,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Provider-owned Azure Blob Storage properties.
@@ -226,7 +228,111 @@ public final class AzureFileSystemProperties
 
     @Override
     public BackendStorageKind backendKind() {
-        return BackendStorageKind.S3_COMPATIBLE;
+        // Answer per bound configuration, not per provider: SharedKey flows through BE's native
+        // S3-compatible client (the AWS_* map below), while OAuth2 access only works through the
+        // Hadoop ABFS connector (toMap() hands over a hadoop configuration dump) — so an OAuth2
+        // binding must select BE's hadoop reader. Engine-side consumers map this kind to the BE
+        // file type without any Azure knowledge.
+        return isOauth2Auth() ? BackendStorageKind.HDFS : BackendStorageKind.S3_COMPATIBLE;
+    }
+
+    private static final Pattern ONELAKE_PATTERN = Pattern.compile(
+            "abfs[s]?://([^@]+)@([^/]+)\\.dfs\\.fabric\\.microsoft\\.com(/.*)?", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Azure URI normalization, ported from fe-core's legacy AzurePropertyUtils logic plus one
+     * auth-aware rule — how a location must reach BE depends on how THIS configuration is read
+     * (see {@link #backendKind()}), so the provider owns the answer:
+     *
+     * <ul>
+     *   <li>OneLake locations stay as-is: location-driven and auth-independent (the engine's
+     *       adapter-less fallback mirrors the same predicate in fe-core StorageUriUtils);</li>
+     *   <li>OAuth2 + abfs[s] stays as-is: the BE consumer is the Hadoop ABFS connector
+     *       (backendKind() == HDFS), which needs the account authority the s3-style form drops;</li>
+     *   <li>everything else (SharedKey, and wasb/https under OAuth2) converts to the unified
+     *       {@code s3://container/path} form consumed by BE's S3-compatible client.</li>
+     * </ul>
+     */
+    @Override
+    public String validateAndNormalizeUri(String path) {
+        if (StringUtils.isBlank(path)) {
+            throw new StoragePropertiesException("Path cannot be null or empty");
+        }
+        // Only accept Azure Blob Storage-related URI schemes
+        if (!(path.startsWith("wasb://") || path.startsWith("wasbs://")
+                || path.startsWith("abfs://") || path.startsWith("abfss://")
+                || path.startsWith("https://") || path.startsWith("http://")
+                || path.startsWith("s3://"))) {
+            throw new StoragePropertiesException("Unsupported Azure URI scheme: " + path);
+        }
+        if (ONELAKE_PATTERN.matcher(path).matches()) {
+            return path;
+        }
+        if (isOauth2Auth() && (path.startsWith("abfs://") || path.startsWith("abfss://"))) {
+            return path;
+        }
+        return convertAzureToS3Style(path);
+    }
+
+    /** Legacy fe-core conversion, verbatim: wasb[s]/abfs[s]/https forms to s3://container/path. */
+    private static String convertAzureToS3Style(String uri) {
+        if (uri.startsWith("s3://")) {
+            return uri;
+        }
+        // Handle Azure HDFS-style URIs (wasb://, wasbs://, abfs://, abfss://)
+        if (uri.startsWith("wasb://") || uri.startsWith("wasbs://")
+                || uri.startsWith("abfs://") || uri.startsWith("abfss://")) {
+
+            // Example: wasbs://container@account.blob.core.windows.net/path/file.txt
+            String schemeRemoved = uri.replaceFirst("^[a-z]+s?://", "");
+            int atIndex = schemeRemoved.indexOf('@');
+            if (atIndex < 0) {
+                throw new StoragePropertiesException("Invalid Azure URI, missing '@': " + uri);
+            }
+
+            // Extract container name (before '@')
+            String container = schemeRemoved.substring(0, atIndex);
+
+            // Extract remaining part after '@'
+            String remainder = schemeRemoved.substring(atIndex + 1);
+            int slashIndex = remainder.indexOf('/');
+
+            // Extract the path part if it exists
+            String path = (slashIndex != -1) ? remainder.substring(slashIndex + 1) : "";
+
+            // Normalize to s3-style URI: s3://<container>/<path>
+            return StringUtils.isBlank(path)
+                    ? String.format("s3://%s", container)
+                    : String.format("s3://%s/%s", container, path);
+        }
+
+        // Handle HTTPS/HTTP Azure Blob Storage URLs
+        try {
+            URI parsed = new URI(uri);
+            String host = parsed.getHost();
+            String path = parsed.getPath();
+
+            if (StringUtils.isBlank(host)) {
+                throw new StoragePropertiesException("Invalid Azure HTTPS URI, missing host: " + uri);
+            }
+
+            // Path usually looks like: /<container>/<path>
+            String[] parts = path.split("/", 3);
+            if (parts.length < 2) {
+                throw new StoragePropertiesException("Invalid Azure Blob URL, missing container: " + uri);
+            }
+
+            String container = parts[1];
+            String remainder = (parts.length == 3) ? parts[2] : "";
+
+            // Convert HTTPS URL to s3-style format
+            return StringUtils.isBlank(remainder)
+                    ? String.format("s3://%s", container)
+                    : String.format("s3://%s/%s", container, remainder);
+
+        } catch (URISyntaxException e) {
+            throw new StoragePropertiesException("Invalid HTTPS URI: " + uri, e);
+        }
     }
 
     @Override

@@ -24,6 +24,8 @@ import org.apache.doris.datasource.storage.StorageTypeId;
 import org.apache.doris.datasource.storage.StorageUriUtils;
 import org.apache.doris.filesystem.FileSystemType;
 import org.apache.doris.filesystem.Location;
+import org.apache.doris.filesystem.properties.BackendStorageKind;
+import org.apache.doris.filesystem.properties.BackendStorageProperties;
 import org.apache.doris.foundation.property.StoragePropertiesException;
 import org.apache.doris.thrift.TFileType;
 
@@ -367,18 +369,52 @@ public class LocationPath {
     }
 
     public TFileType getTFileTypeForBE() {
-        if (storageAdapter != null && storageAdapter.isAzureSasStorage()
-                && StorageTypeId.AZURE.equals(StorageRegistry.fromScheme(schema))) {
-            return TFileType.FILE_HDFS;
-        }
+        // OneLake is identified by the LOCATION, independent of any binding or auth form: a Fabric
+        // OneLake path is only reachable through the Hadoop ABFS connector, so it must stay first.
         if (("abfs".equals(schema) || "abfss".equals(schema))
                 && StorageUriUtils.isOneLakeLocation(normalizedLocation)) {
             return TFileType.FILE_HDFS;
+        }
+        // A bound storage answers for itself: the provider-declared backend kind says which BE
+        // reader family opens this configuration (e.g. Azure OAuth2 -> hadoop, SharedKey -> S3;
+        // oss-dls -> hadoop). Bindings that expose no backend properties (broker/local/http) and
+        // kinds with no scheme-independent mapping fall through to the legacy scheme logic.
+        if (storageAdapter != null) {
+            TFileType bound = fromBackendKind(storageAdapter);
+            if (bound != null) {
+                return bound;
+            }
         }
         if (StringUtils.isNotBlank(normalizedLocation) && isHdfsOnOssEndpoint(normalizedLocation)) {
             return TFileType.FILE_HDFS;
         }
         return StorageRegistry.fromSchemeToFileType(schema);
+    }
+
+    /**
+     * Engine-side mapping of the provider-declared {@link BackendStorageKind} to the BE reader
+     * family. Returns null when the binding exposes no backend properties or declares a kind with
+     * no scheme-independent reader mapping — callers fall back to the scheme table.
+     */
+    private static TFileType fromBackendKind(StorageAdapter adapter) {
+        BackendStorageKind kind = adapter.getSpiProperties().toBackendProperties()
+                .map(BackendStorageProperties::backendKind).orElse(null);
+        if (kind == null) {
+            return null;
+        }
+        switch (kind) {
+            case S3_COMPATIBLE:
+                return TFileType.FILE_S3;
+            case HDFS:
+                return TFileType.FILE_HDFS;
+            case BROKER:
+                return TFileType.FILE_BROKER;
+            case LOCAL:
+                return TFileType.FILE_LOCAL;
+            default:
+                // NATIVE and future kinds: no scheme-independent mapping.
+                return null;
+        }
     }
 
     /**

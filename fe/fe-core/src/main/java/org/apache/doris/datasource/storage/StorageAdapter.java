@@ -360,17 +360,15 @@ public final class StorageAdapter {
             // properties; converting this path to another family would select the wrong reader.
             return uri;
         }
-        // Align fe-core AbstractS3CompatibleProperties/AzureProperties: the SPI S3/Azure typed
-        // props do not normalize URIs (compat schemes like cos:// must become s3:// before the
-        // path reaches BE or a concrete filesystem), so the facade owns the legacy logic.
+        // Align fe-core AbstractS3CompatibleProperties: the SPI S3 typed props do not normalize
+        // URIs (compat schemes like cos:// must become s3:// before the path reaches BE or a
+        // concrete filesystem), so the facade owns the legacy logic. Azure answers through its
+        // own spi.validateAndNormalizeUri override (auth-aware, provider-owned).
         if (spi instanceof S3CompatibleFileSystemProperties) {
             return StorageUriUtils.validateAndNormalizeS3Uri(uri,
                     ((S3CompatibleFileSystemProperties) spi).getUsePathStyle(),
                     forceParsingByStandardUriValue,
                     "OSS".equals(providerKey));
-        }
-        if ("AZURE".equals(providerKey)) {
-            return StorageUriUtils.validateAndNormalizeAzureUri(uri);
         }
         if (type == StorageTypeId.HDFS && StorageUriUtils.isJfsLocation(uri)) {
             // Align fe-core: the legacy HDFS typed class accepted {hdfs, viewfs, jfs} while the
