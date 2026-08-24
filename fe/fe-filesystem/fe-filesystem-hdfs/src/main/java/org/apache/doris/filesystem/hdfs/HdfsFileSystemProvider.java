@@ -144,4 +144,10 @@ public class HdfsFileSystemProvider implements FileSystemProvider<HdfsProperties
     public String name() {
         return "HDFS";
     }
+
+    @Override
+    public Set<String> vendedPropertyPrefixes() {
+        // Hadoop-shaped passthrough keys of vended tokens (e.g. fs.oss.accessKeyId, fs.azure.*).
+        return Set.of("fs.");
+    }
 }

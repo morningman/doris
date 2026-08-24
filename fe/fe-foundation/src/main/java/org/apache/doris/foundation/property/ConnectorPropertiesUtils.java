@@ -19,6 +19,8 @@ package org.apache.doris.foundation.property;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -72,6 +74,11 @@ public class ConnectorPropertiesUtils {
         List<Field> supportedProps = getConnectorProperties(target.getClass());
 
         for (Field field : supportedProps) {
+            ConnectorProperty annotation = field.getAnnotation(ConnectorProperty.class);
+            if (!annotation.prefix().isEmpty()) {
+                bindPrefixField(target, field, annotation, props);
+                continue;
+            }
             String matchedName = getMatchedPropertyName(field, props);
             if (isNotBlank(matchedName) && isNotBlank(props.get(matchedName))) {
                 try {
@@ -87,6 +94,50 @@ public class ConnectorPropertiesUtils {
                 }
             }
         }
+    }
+
+    /**
+     * Binds a prefix-declared field: every raw property whose key starts with the prefix is
+     * collected as (key suffix -> value) into the field, which must be a Map. The field keeps its
+     * default when nothing matches, mirroring the blank-value guard on named properties.
+     */
+    private static void bindPrefixField(Object target, Field field, ConnectorProperty annotation,
+            Map<String, String> props) {
+        if (annotation.names().length > 0) {
+            throw new IllegalArgumentException("Field '" + field.getName() + "' declares both names and"
+                    + " prefix; @ConnectorProperty supports only one of them.");
+        }
+        if (!Map.class.isAssignableFrom(field.getType())) {
+            throw new IllegalArgumentException("Field '" + field.getName()
+                    + "' declares @ConnectorProperty(prefix) but is not a Map<String, String>.");
+        }
+        Map<String, String> matched = collectPrefixProperties(annotation.prefix(), props);
+        if (matched.isEmpty()) {
+            return;
+        }
+        try {
+            field.set(target, Collections.unmodifiableMap(matched));
+        } catch (IllegalAccessException e) {
+            throw new IllegalArgumentException("Failed to set prefix property '" + annotation.prefix()
+                    + "' on " + target.getClass().getSimpleName() + ": " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Collects raw properties matching the given prefix as (key suffix -> trimmed value). A key
+     * equal to the bare prefix (empty suffix) and blank values are skipped, mirroring the named
+     * binding's blank guard and trim.
+     */
+    public static Map<String, String> collectPrefixProperties(String prefix, Map<String, String> props) {
+        Map<String, String> matched = new HashMap<>();
+        for (Map.Entry<String, String> entry : props.entrySet()) {
+            String key = entry.getKey();
+            if (key != null && key.length() > prefix.length() && key.startsWith(prefix)
+                    && isNotBlank(entry.getValue())) {
+                matched.put(key.substring(prefix.length()), entry.getValue().trim());
+            }
+        }
+        return matched;
     }
 
     private static void validateValue(Object target, Field field, String propertyName, Object value,
@@ -186,6 +237,22 @@ public class ConnectorPropertiesUtils {
             }
         }
         return keys;
+    }
+
+    /**
+     * Returns the sensitive key prefixes of the given class: the {@code prefix()} of every
+     * {@code @ConnectorProperty(sensitive = true)} prefix-declared field. Companion of
+     * {@link #getSensitiveKeys(Class)}, whose exact-name aliases cannot describe dynamic keys.
+     */
+    public static Set<String> getSensitivePropertyPrefixes(Class<?> clazz) {
+        Set<String> prefixes = new HashSet<>();
+        for (Field field : getConnectorProperties(clazz)) {
+            ConnectorProperty anno = field.getAnnotation(ConnectorProperty.class);
+            if (anno.sensitive() && !anno.prefix().isEmpty()) {
+                prefixes.add(anno.prefix());
+            }
+        }
+        return prefixes;
     }
 
     /**

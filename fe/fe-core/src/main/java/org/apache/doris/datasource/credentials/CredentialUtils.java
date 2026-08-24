@@ -20,9 +20,7 @@ package org.apache.doris.datasource.credentials;
 import org.apache.doris.datasource.storage.StorageAdapter;
 import org.apache.doris.datasource.storage.StorageTypeId;
 
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -37,24 +35,10 @@ public class CredentialUtils {
     private static final String HADOOP_AZURE_FIXED_SAS_TOKEN_PREFIX = "fs.azure.sas.fixed.token.";
 
     /**
-     * Supported cloud storage prefixes for filtering vended credentials
-     */
-    private static final Set<String> CLOUD_STORAGE_PREFIXES = new HashSet<>(Arrays.asList(
-            "fs.",           // file system
-            "s3.",           // Amazon S3
-            "oss.",          // Alibaba OSS
-            "cos.",          // Tencent COS
-            "obs.",          // Huawei OBS
-            "gs.",           // Google Cloud Storage
-            "azure.",        // Microsoft Azure
-            "adls.",         // Iceberg Azure ADLS vended credentials
-            "client.",       // Iceberg client properties (e.g., client.region)
-            "iceberg.rest."  // Iceberg REST catalog properties (e.g., iceberg.rest.access-key-id)
-    ));
-
-    /**
-     * Filter cloud storage properties from raw vended credentials
-     * Only keeps properties with supported cloud storage prefixes
+     * Filter cloud storage properties from raw vended credentials.
+     * Only keeps properties whose key starts with a vended dialect prefix declared by a loaded
+     * filesystem provider ({@code FileSystemProvider.vendedPropertyPrefixes()}) — the plugin
+     * declarations replace the fe-core hardcoded prefix whitelist.
      *
      * @param rawVendedCredentials Raw vended credentials map
      * @return Filtered cloud storage properties
@@ -64,10 +48,11 @@ public class CredentialUtils {
             return new HashMap<>();
         }
 
+        Set<String> prefixes = StorageAdapter.vendedPropertyPrefixes();
         Map<String, String> filtered = new HashMap<>();
         rawVendedCredentials.entrySet().stream()
                 .filter(entry -> entry.getKey() != null && entry.getValue() != null)
-                .filter(entry -> CLOUD_STORAGE_PREFIXES.stream().anyMatch(prefix -> entry.getKey().startsWith(prefix)))
+                .filter(entry -> prefixes.stream().anyMatch(prefix -> entry.getKey().startsWith(prefix)))
                 .forEach(entry -> filtered.put(entry.getKey(), entry.getValue()));
 
         return filtered;

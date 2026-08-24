@@ -104,6 +104,11 @@ public class CosFileSystemProvider implements FileSystemProvider<CosFileSystemPr
         return ConnectorPropertiesUtils.getSensitiveKeys(CosFileSystemProperties.class);
     }
 
+    @Override
+    public Set<String> vendedPropertyPrefixes() {
+        return Set.of("cos.");
+    }
+
     private boolean isExplicitCos(Map<String, String> properties) {
         return STORAGE_TYPE_COS.equalsIgnoreCase(properties.get(STORAGE_TYPE_KEY))
                 || STORAGE_TYPE_COS.equalsIgnoreCase(properties.get(PROVIDER_KEY))

@@ -161,6 +161,11 @@ public class OssFileSystemProvider implements FileSystemProvider<OssFileSystemPr
         return ConnectorPropertiesUtils.getSensitiveKeys(OssFileSystemProperties.class);
     }
 
+    @Override
+    public Set<String> vendedPropertyPrefixes() {
+        return Set.of("oss.");
+    }
+
     private boolean isExplicitOss(Map<String, String> properties) {
         return STORAGE_TYPE_OSS.equalsIgnoreCase(properties.get(PROVIDER_KEY))
                 || Boolean.parseBoolean(properties.getOrDefault(FS_OSS_SUPPORT, "false"));

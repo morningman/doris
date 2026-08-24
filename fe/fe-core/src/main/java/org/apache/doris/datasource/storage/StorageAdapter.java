@@ -244,6 +244,15 @@ public final class StorageAdapter {
         throw new StoragePropertiesException("Broker filesystem provider is not available");
     }
 
+    /**
+     * Aggregated vended-credential dialect key prefixes declared by the loaded filesystem
+     * providers ({@link FileSystemProvider#vendedPropertyPrefixes()}) — the plugin-declared
+     * successor of the fe-core hardcoded whitelist used to filter per-table vended credentials.
+     */
+    public static Set<String> vendedPropertyPrefixes() {
+        return manager().getVendedPropertyPrefixes();
+    }
+
     private static FileSystemPluginManager manager() {
         FileSystemPluginManager managerFromStartup = pluginManager;
         if (managerFromStartup != null) {

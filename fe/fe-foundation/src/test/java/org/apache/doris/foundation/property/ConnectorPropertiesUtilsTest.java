@@ -245,6 +245,117 @@ public class ConnectorPropertiesUtilsTest {
         Assertions.assertFalse(masked.contains("secretValue=***"), masked);
     }
 
+    // ------------------------------------------------------------------
+    // Prefix binding (@ConnectorProperty(prefix = ...)).
+    //
+    // WHY these are pinned: account-scoped vended credentials arrive under dynamic keys
+    // (adls.sas-token.<account-host>) that no static names() list can enumerate. The prefix
+    // contract below (suffix->value map, bare-prefix and blank values skipped, defaults kept on
+    // no match) is what a provider's validate()/toHadoopConfigurationMap() builds on; changing
+    // it silently rewires which accounts a vended credential reaches.
+    // ------------------------------------------------------------------
+
+    @Test
+    void testPrefixBindingCollectsSuffixToValue() {
+        Map<String, String> props = new HashMap<>();
+        props.put("adls.sas-token.acc1.dfs.core.windows.net", "token1");
+        props.put("adls.sas-token.acc2.dfs.core.windows.net", " token2 ");
+        props.put("adls.sas-token-expires-at-ms.acc1.dfs.core.windows.net", "123");
+        props.put("other.key", "ignored");
+
+        PrefixConfig config = new PrefixConfig();
+        ConnectorPropertiesUtils.bindConnectorProperties(config, props);
+
+        Assertions.assertEquals(2, config.getSasTokens().size());
+        Assertions.assertEquals("token1", config.getSasTokens().get("acc1.dfs.core.windows.net"));
+        // The bound value is trimmed, mirroring the named binding.
+        Assertions.assertEquals("token2", config.getSasTokens().get("acc2.dfs.core.windows.net"));
+    }
+
+    @Test
+    void testPrefixBindingSkipsBarePrefixAndBlankValues() {
+        Map<String, String> props = new HashMap<>();
+        props.put("plain.", "bare-prefix-key-is-skipped");
+        props.put("plain.blank", "   ");
+        props.put("plain.kept", "value");
+
+        PrefixConfig config = new PrefixConfig();
+        ConnectorPropertiesUtils.bindConnectorProperties(config, props);
+
+        Assertions.assertEquals(1, config.getPlainValues().size());
+        Assertions.assertEquals("value", config.getPlainValues().get("kept"));
+    }
+
+    @Test
+    void testPrefixBindingWithoutMatchKeepsDefault() {
+        PrefixConfig config = new PrefixConfig();
+        ConnectorPropertiesUtils.bindConnectorProperties(config, new HashMap<>());
+
+        Assertions.assertTrue(config.getSasTokens().isEmpty());
+        Assertions.assertNull(config.getPlainValues());
+    }
+
+    @Test
+    void testPrefixOnNonMapFieldThrows() {
+        IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> ConnectorPropertiesUtils.bindConnectorProperties(
+                        new BadPrefixTypeConfig(), new HashMap<>()));
+        Assertions.assertTrue(ex.getMessage().contains("not a Map"), ex.getMessage());
+    }
+
+    @Test
+    void testPrefixTogetherWithNamesThrows() {
+        IllegalArgumentException ex = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> ConnectorPropertiesUtils.bindConnectorProperties(
+                        new BadPrefixNamesConfig(), new HashMap<>()));
+        Assertions.assertTrue(ex.getMessage().contains("both names and"), ex.getMessage());
+    }
+
+    @Test
+    void testGetSensitivePropertyPrefixes() {
+        Set<String> prefixes = ConnectorPropertiesUtils.getSensitivePropertyPrefixes(PrefixConfig.class);
+        Assertions.assertEquals(1, prefixes.size());
+        Assertions.assertTrue(prefixes.contains("adls.sas-token."));
+    }
+
+    @Test
+    void testToMaskedStringMasksSensitivePrefixMap() {
+        Map<String, String> props = new HashMap<>();
+        props.put("adls.sas-token.acc.dfs.core.windows.net", "TOP_SECRET_SAS");
+
+        PrefixConfig config = new PrefixConfig();
+        ConnectorPropertiesUtils.bindConnectorProperties(config, props);
+
+        String masked = ConnectorPropertiesUtils.toMaskedString(config);
+        Assertions.assertFalse(masked.contains("TOP_SECRET_SAS"), masked);
+    }
+
+    static class PrefixConfig {
+        @ConnectorProperty(prefix = "adls.sas-token.", sensitive = true, required = false)
+        private Map<String, String> sasTokens = new HashMap<>();
+
+        @ConnectorProperty(prefix = "plain.", required = false)
+        private Map<String, String> plainValues;
+
+        Map<String, String> getSasTokens() {
+            return sasTokens;
+        }
+
+        Map<String, String> getPlainValues() {
+            return plainValues;
+        }
+    }
+
+    static class BadPrefixTypeConfig {
+        @ConnectorProperty(prefix = "bad.", required = false)
+        private String notAMap;
+    }
+
+    static class BadPrefixNamesConfig {
+        @ConnectorProperty(names = {"bad.key"}, prefix = "bad.", required = false)
+        private Map<String, String> both;
+    }
+
     static class BaseConfig {
         @ConnectorProperty(names = {"base.key"})
         private String baseValue;

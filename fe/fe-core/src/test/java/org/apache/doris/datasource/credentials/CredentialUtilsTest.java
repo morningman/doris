@@ -109,6 +109,32 @@ public class CredentialUtilsTest {
         Assertions.assertFalse(filtered.containsKey("table.name"));
     }
 
+    /**
+     * Locks the aggregated provider-declared whitelist ({@code vendedPropertyPrefixes()}) to the
+     * legacy fe-core prefix set: dropping any of these silently discards vended credentials of
+     * that dialect before storage binding.
+     */
+    @Test
+    public void testFilterCoversAllProviderDeclaredPrefixFamilies() {
+        Map<String, String> rawCredentials = new HashMap<>();
+        rawCredentials.put("fs.azure.account.auth.type.acc.dfs.core.windows.net", "SAS");
+        rawCredentials.put("s3.access-key-id", "v");
+        rawCredentials.put("oss.access-key-id", "v");
+        rawCredentials.put("cos.secret-key", "v");
+        rawCredentials.put("obs.endpoint", "v");
+        rawCredentials.put("gs.project-id", "v");
+        rawCredentials.put("azure.account-name", "v");
+        rawCredentials.put("adls.sas-token.acc.dfs.core.windows.net", "v");
+        rawCredentials.put("client.region", "v");
+        rawCredentials.put("iceberg.rest.access-key-id", "v");
+        rawCredentials.put("unrelated.key", "v");
+
+        Map<String, String> filtered = CredentialUtils.filterCloudStorageProperties(rawCredentials);
+
+        Assertions.assertEquals(10, filtered.size());
+        Assertions.assertFalse(filtered.containsKey("unrelated.key"));
+    }
+
     @Test
     public void testFilterCloudStoragePropertiesWithEmptyInput() {
         Map<String, String> filtered = CredentialUtils.filterCloudStorageProperties(new HashMap<>());

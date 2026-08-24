@@ -156,6 +156,13 @@ public class S3FileSystemProvider implements FileSystemProvider<S3FileSystemProp
         return ConnectorPropertiesUtils.getSensitiveKeys(S3FileSystemProperties.class);
     }
 
+    @Override
+    public Set<String> vendedPropertyPrefixes() {
+        // The alias table consumes the Iceberg REST vended S3 dialect (s3.access-key-id /
+        // s3.session-token), iceberg.rest.* and client.region.
+        return Set.of("s3.", "client.", "iceberg.rest.");
+    }
+
     private boolean hasAny(Map<String, String> properties, String[] names) {
         for (String name : names) {
             if (StringUtils.isNotBlank(properties.get(name))) {

@@ -104,6 +104,11 @@ public class ObsFileSystemProvider implements FileSystemProvider<ObsFileSystemPr
         return ConnectorPropertiesUtils.getSensitiveKeys(ObsFileSystemProperties.class);
     }
 
+    @Override
+    public Set<String> vendedPropertyPrefixes() {
+        return Set.of("obs.");
+    }
+
     private boolean isExplicitObs(Map<String, String> properties) {
         return STORAGE_TYPE_OBS.equalsIgnoreCase(properties.get(STORAGE_TYPE_KEY))
                 || STORAGE_TYPE_OBS.equalsIgnoreCase(properties.get(PROVIDER_KEY))

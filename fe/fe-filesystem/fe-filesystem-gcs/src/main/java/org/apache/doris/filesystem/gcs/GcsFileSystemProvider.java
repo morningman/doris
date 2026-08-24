@@ -92,4 +92,9 @@ public class GcsFileSystemProvider implements FileSystemProvider<GcsFileSystemPr
     public Set<String> sensitivePropertyKeys() {
         return ConnectorPropertiesUtils.getSensitiveKeys(GcsFileSystemProperties.class);
     }
+
+    @Override
+    public Set<String> vendedPropertyPrefixes() {
+        return Set.of("gs.");
+    }
 }

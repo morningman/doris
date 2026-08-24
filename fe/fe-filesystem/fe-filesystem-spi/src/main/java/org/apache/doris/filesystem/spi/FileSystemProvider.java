@@ -139,6 +139,22 @@ public interface FileSystemProvider<P extends FileSystemProperties> extends Plug
     }
 
     /**
+     * Returns the raw property key prefixes of the vended-credential dialects this provider can
+     * consume (e.g. {@code "s3."} for the Iceberg REST S3 dialect, {@code "adls."} for the Iceberg
+     * Azure dialect).
+     *
+     * <p>Framework code ({@code CredentialUtils.filterCloudStorageProperties}) aggregates these from
+     * all loaded providers to whitelist per-table vended credential keys before storage binding,
+     * without fe-core hardcoding any provider's dialect. Same aggregation contract as
+     * {@link #sensitivePropertyKeys()}.
+     *
+     * @return vended dialect key prefixes; empty if the provider consumes no vended credentials
+     */
+    default Set<String> vendedPropertyPrefixes() {
+        return Collections.emptySet();
+    }
+
+    /**
      * Negotiates the capabilities this provider exposes for the given bound configuration.
      *
      * <p>Capability is a function of the resolved configuration, not of the provider type alone:

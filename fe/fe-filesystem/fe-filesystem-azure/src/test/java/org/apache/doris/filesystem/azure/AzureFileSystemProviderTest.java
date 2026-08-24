@@ -25,6 +25,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 class AzureFileSystemProviderTest {
 
@@ -69,5 +70,13 @@ class AzureFileSystemProviderTest {
         props.put("AZURE_ENDPOINT", endpoint);
         Assertions.assertTrue(provider.supports(props),
                 "endpoint should be recognised as Azure: " + endpoint);
+    }
+
+    // The provider owns the Azure vended dialects: azure.* (Doris keys) and adls.* (the Iceberg
+    // Azure dialect, e.g. adls.sas-token.<account-host>). Dropping either silently discards
+    // vended credentials of that dialect before storage binding.
+    @Test
+    void vendedPropertyPrefixes_declareAzureAndAdlsDialects() {
+        Assertions.assertEquals(Set.of("azure.", "adls."), provider.vendedPropertyPrefixes());
     }
 }

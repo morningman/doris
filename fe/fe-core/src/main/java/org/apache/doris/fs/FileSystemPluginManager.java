@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
@@ -103,6 +104,8 @@ public class FileSystemPluginManager {
             ApiVersionGate.forFamily("filesystem", FileSystemProvider.class);
 
     private final List<FileSystemProvider> providers = new CopyOnWriteArrayList<>();
+    /** Aggregated {@link FileSystemProvider#vendedPropertyPrefixes()} of every active provider. */
+    private final Set<String> vendedPropertyPrefixes = ConcurrentHashMap.newKeySet();
     private final DirectoryPluginRuntimeManager<FileSystemProvider> runtimeManager =
             new DirectoryPluginRuntimeManager<>();
     private final ClassLoadingPolicy classLoadingPolicy =
@@ -118,8 +121,10 @@ public class FileSystemPluginManager {
                         // rejected cleanly instead of aborting startup or leaving an
                         // inventory row for a provider that never became active.
                         Set<String> sensitiveKeys = p.sensitivePropertyKeys();
+                        Set<String> vendedPrefixes = p.vendedPropertyPrefixes();
                         PluginRegistry.getInstance().registerBuiltin(PLUGIN_FAMILY, p);
                         DatasourcePrintableMap.registerSensitiveKeys(sensitiveKeys);
+                        vendedPropertyPrefixes.addAll(vendedPrefixes);
                         providers.add(p);
                         LOG.info("Registered built-in filesystem provider: {}", p.name());
                     } catch (RuntimeException e) {
@@ -168,16 +173,19 @@ public class FileSystemPluginManager {
             // this is plugin code and may throw, and a provider must never be active
             // without its inventory row (or vice versa).
             Set<String> sensitiveKeys;
+            Set<String> vendedPrefixes;
             try {
                 sensitiveKeys = provider.sensitivePropertyKeys();
+                vendedPrefixes = provider.vendedPropertyPrefixes();
             } catch (RuntimeException | LinkageError e) {
                 runtimeManager.discard(handle.getPluginName());
-                LOG.warn("Skip filesystem plugin '{}' from {}: sensitivePropertyKeys() failed",
+                LOG.warn("Skip filesystem plugin '{}' from {}: self-reported metadata failed",
                         handle.getPluginName(), handle.getPluginDir(), e);
                 continue;
             }
             providers.add(provider);
             DatasourcePrintableMap.registerSensitiveKeys(sensitiveKeys);
+            vendedPropertyPrefixes.addAll(vendedPrefixes);
             PluginRegistry.getInstance().registerExternal(PLUGIN_FAMILY, handle);
             LOG.info("Loaded filesystem plugin: name={}, pluginDir={}, jarCount={}",
                     handle.getPluginName(), handle.getPluginDir(),
@@ -213,6 +221,12 @@ public class FileSystemPluginManager {
     public void registerProvider(FileSystemProvider provider) {
         providers.add(0, provider);
         DatasourcePrintableMap.registerSensitiveKeys(provider.sensitivePropertyKeys());
+        vendedPropertyPrefixes.addAll(provider.vendedPropertyPrefixes());
+    }
+
+    /** Aggregated vended-credential dialect key prefixes declared by the loaded providers. */
+    public Set<String> getVendedPropertyPrefixes() {
+        return Collections.unmodifiableSet(vendedPropertyPrefixes);
     }
 
     /** Returns an unmodifiable view of the loaded providers, in registration order. */

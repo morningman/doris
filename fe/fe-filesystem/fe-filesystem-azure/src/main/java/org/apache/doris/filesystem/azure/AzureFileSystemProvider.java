@@ -130,6 +130,13 @@ public class AzureFileSystemProvider implements FileSystemProvider<AzureFileSyst
         return ConnectorPropertiesUtils.getSensitiveKeys(AzureFileSystemProperties.class);
     }
 
+    @Override
+    public Set<String> vendedPropertyPrefixes() {
+        // adls.* is the Iceberg Azure vended dialect (adls.sas-token.<account-host>); declared here
+        // so vended filtering admits it — the typed consumption lands with the SAS auth form.
+        return Set.of("azure.", "adls.");
+    }
+
     private boolean isExplicitAzure(Map<String, String> properties) {
         return STORAGE_TYPE_AZURE.equalsIgnoreCase(properties.get(STORAGE_TYPE_KEY))
                 || "azure".equalsIgnoreCase(properties.get(PROVIDER_KEY));

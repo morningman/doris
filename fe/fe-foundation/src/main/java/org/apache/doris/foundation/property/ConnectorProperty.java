@@ -23,6 +23,16 @@ import java.lang.annotation.RetentionPolicy;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ConnectorProperty {
     String[] names() default {};
+
+    /**
+     * Binds every raw property whose key starts with this prefix into a {@code Map<String, String>}
+     * field (key suffix -> value), for account-scoped dynamic keys such as
+     * {@code adls.sas-token.<account-host>} that cannot be enumerated in {@link #names()}.
+     * Mutually exclusive with {@link #names()}; {@link #validator()} and {@link #required()} are
+     * not applied to prefix fields (validation belongs to the owning class' validate()).
+     */
+    String prefix() default "";
+
     String description() default "";
 
     boolean required() default true;
