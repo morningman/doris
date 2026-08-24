@@ -28,13 +28,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * FIX-REST-VENDED fe-core bridge test: pins that
- * {@link DefaultConnectorContext#vendStorageCredentials} reuses the engine's
+ * FIX-REST-VENDED fe-core bridge test: pins that the storage view resolved by
+ * {@link DefaultConnectorContext#resolveStorage} reuses the engine's
  * {@code StorageProperties} normalization (the same chain legacy
  * {@code AbstractVendedCredentialsProvider} runs) to turn a raw per-table OSS vended token into the
- * BE-facing {@code AWS_*} storage properties. The connector cannot import that machinery, so this
- * hook is the single source of truth — without it a REST native-reader table reaches BE with no
- * usable credentials (403). FAILS before the fix (the method is a no-op default returning empty).
+ * BE-facing {@code AWS_*} storage properties ({@code backendCredentials()}). The connector cannot
+ * import that machinery, so this hook is the single source of truth — without it a REST
+ * native-reader table reaches BE with no usable credentials (403). FAILS before the fix (the SPI
+ * default view returns empty).
  */
 public class DefaultConnectorContextVendTest {
 
@@ -51,7 +52,7 @@ public class DefaultConnectorContextVendTest {
         token.put("fs.oss.securityToken", "testSessionToken789");
         token.put("fs.oss.endpoint", "oss-cn-beijing.aliyuncs.com");
 
-        Map<String, String> be = context().vendStorageCredentials(token);
+        Map<String, String> be = context().resolveStorage(token).backendCredentials();
 
         // WHY: the BE native S3/object-store client consumes ONLY normalized AWS_* keys; the raw
         // fs.oss.* token is unintelligible to it. The bridge must run StorageProperties.createAll +
@@ -71,7 +72,7 @@ public class DefaultConnectorContextVendTest {
                 "adls.sas-token." + accountHost, sasToken,
                 "adls.sas-token-expires-at-ms." + accountHost, "4102444800000");
 
-        Map<String, String> be = context().vendStorageCredentials(token);
+        Map<String, String> be = context().resolveStorage(token).backendCredentials();
 
         String authTypeKey = "fs.azure.account.auth.type." + accountHost;
         String fixedSasTokenKey = "fs.azure.sas.fixed.token." + accountHost;
@@ -91,7 +92,7 @@ public class DefaultConnectorContextVendTest {
     public void emptyOrNullInputYieldsEmpty() {
         // WHY: a non-REST / no-token table passes an empty map; the bridge must short-circuit to
         // empty (no overlay), never NPE. MUTATION: NPE on null, or fabricating props from nothing -> red.
-        Assertions.assertTrue(context().vendStorageCredentials(Collections.emptyMap()).isEmpty());
-        Assertions.assertTrue(context().vendStorageCredentials(null).isEmpty());
+        Assertions.assertTrue(context().resolveStorage(Collections.emptyMap()).backendCredentials().isEmpty());
+        Assertions.assertTrue(context().resolveStorage(null).backendCredentials().isEmpty());
     }
 }

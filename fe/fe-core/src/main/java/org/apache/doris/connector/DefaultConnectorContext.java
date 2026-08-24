@@ -31,6 +31,7 @@ import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorHttpSecurityHook;
 import org.apache.doris.connector.spi.ConnectorSession;
 import org.apache.doris.connector.spi.ConnectorStorageContext;
+import org.apache.doris.connector.spi.ConnectorStorageView;
 import org.apache.doris.datasource.CatalogIf;
 import org.apache.doris.datasource.ExternalCatalog;
 import org.apache.doris.datasource.credentials.CredentialUtils;
@@ -67,7 +68,6 @@ import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
@@ -94,7 +94,7 @@ public class DefaultConnectorContext implements ConnectorContext, ConnectorStora
     private final Supplier<ExecutionAuthenticator> authSupplier;
     // Lazily supplies the catalog's static storage-properties map for storage-URI normalization
     // (FIX-URI-NORMALIZE). Invoked at scan time only (catalog fully initialized). Empty for ctors
-    // that do not wire it — those callers (non-plugin catalogs) never invoke normalizeStorageUri.
+    // that do not wire it — those callers (non-plugin catalogs) never resolve a storage view.
     private final Supplier<Map<StorageTypeId, StorageAdapter>> storagePropertiesSupplier;
     // Supplies the catalog's effective raw storage map (persisted props + derived defaults, empty when the
     // connector supplies vended credentials) for direct fe-filesystem binding in getStorageProperties()
@@ -218,31 +218,79 @@ public class DefaultConnectorContext implements ConnectorContext, ConnectorStora
     }
 
     @Override
-    public Map<String, String> vendStorageCredentials(Map<String, String> rawVendedCredentials) {
-        // Map the per-table vended token to the BE-facing AWS_* properties. Fail-soft (empty) on any
-        // error, matching the legacy provider, so a malformed token degrades gracefully rather than
-        // killing the scan. The outer try also covers getBackendPropertiesFromStorageMap so the
-        // fail-soft boundary is byte-identical to the pre-refactor method; buildVendedStorageMap shares
-        // the typed-map build with normalizeStorageUri (single source of truth — no drift).
-        try {
-            Map<StorageTypeId, StorageAdapter> map = buildVendedStorageMap(rawVendedCredentials);
-            return map == null ? Collections.emptyMap()
-                    : CredentialUtils.getBackendPropertiesFromStorageMap(map);
-        } catch (Exception e) {
-            LOG.warn("Failed to normalize vended credentials", e);
-            return Collections.emptyMap();
-        }
+    public ConnectorStorageView resolveStorage(Map<String, String> rawVendedCredentials) {
+        // One token→storage-config derivation per scan/write, shared by every view method (the
+        // token is scan-invariant; the derivation is StorageAdapter.ofAll + a hadoop config build).
+        // Derived LAZILY on first use so a scan that never asks anything triggers no derivation —
+        // preserving the exception timing of the per-call methods this view replaces. The view is
+        // single-threaded per scan (streaming pump / synchronous loops), so the memo needs no lock.
+        return new ConnectorStorageView() {
+            private Map<StorageTypeId, StorageAdapter> vended;
+            private boolean vendedBuilt;
+
+            private Map<StorageTypeId, StorageAdapter> vendedMap() {
+                if (!vendedBuilt) {
+                    vended = buildVendedStorageMap(rawVendedCredentials);
+                    vendedBuilt = true;
+                }
+                return vended;
+            }
+
+            /** Vended replaces static (legacy VendedCredentialsFactory precedence). */
+            private Map<StorageTypeId, StorageAdapter> effectiveMap() {
+                Map<StorageTypeId, StorageAdapter> vendedStorage = vendedMap();
+                return vendedStorage != null ? vendedStorage : storagePropertiesSupplier.get();
+            }
+
+            @Override
+            public Map<String, String> backendCredentials() {
+                // BE-facing AWS_*/fs.* overlay from the VENDED map only (no static fallback: the
+                // connector overlays this on its static credentials itself). Fail-soft (empty) on
+                // any error, matching the legacy provider, so a malformed token degrades
+                // gracefully rather than killing the scan; the outer try also covers
+                // getBackendPropertiesFromStorageMap, keeping the legacy fail-soft boundary.
+                try {
+                    Map<StorageTypeId, StorageAdapter> vendedStorage = vendedMap();
+                    return vendedStorage == null ? Collections.emptyMap()
+                            : CredentialUtils.getBackendPropertiesFromStorageMap(vendedStorage);
+                } catch (Exception e) {
+                    LOG.warn("Failed to normalize vended credentials", e);
+                    return Collections.emptyMap();
+                }
+            }
+
+            @Override
+            public String normalizeUri(String rawUri) {
+                // Same empty-uri short-circuit BEFORE the derivation, same fail-loud LocationPath
+                // (a path that cannot be normalized would otherwise silently corrupt reads, esp. a
+                // deletion-vector path on merge-on-read) — byte-identical per application to the
+                // per-call normalization this replaces.
+                if (Strings.isNullOrEmpty(rawUri)) {
+                    return rawUri;
+                }
+                return LocationPath.ofAdapters(rawUri, effectiveMap()).toStorageLocation().toString();
+            }
+
+            @Override
+            public String backendFileType(String rawUri) {
+                // Same LocationPath build as normalizeUri, read for the BE file type — per path,
+                // authoritative over the scheme-only default because the bound storage answers for
+                // itself (broker-backed paths, Azure OAuth2/SAS → hadoop). Returns the TFileType
+                // enum NAME (the SPI stays Thrift-free).
+                return LocationPath.ofAdapters(rawUri, effectiveMap()).getTFileTypeForBE().name();
+            }
+        };
     }
 
     /**
      * Builds the vended {@link StorageAdapter} typed map from a raw per-table token: normalize
      * cloud-storage props, run {@link StorageAdapter#ofAll} (normalizes arbitrary token key
      * shapes + derives region/endpoint), then index by {@link StorageTypeId}. Mirrors the
-     * legacy vended-credentials normalization tail exactly, so the BE-credential overlay
-     * ({@link #vendStorageCredentials}) and the URI normalization ({@link #normalizeStorageUri(String,
-     * Map)}) derive the SAME credentials from the SAME token — no drift. Returns {@code null} when the
-     * token is null/empty, yields no cloud-storage props, or normalization throws — replicating the
-     * legacy "return null → fall back to the base/static map" contract.
+     * legacy vended-credentials normalization tail exactly, so the BE-credential overlay and the
+     * URI normalization of one {@link #resolveStorage} view derive the SAME credentials from the
+     * SAME token — no drift. Returns {@code null} when the token is null/empty, yields no
+     * cloud-storage props, or normalization throws — replicating the legacy "return null → fall
+     * back to the base/static map" contract.
      */
     private Map<StorageTypeId, StorageAdapter> buildVendedStorageMap(
             Map<String, String> rawVendedCredentials) {
@@ -275,7 +323,7 @@ public class DefaultConnectorContext implements ConnectorContext, ConnectorStora
         // HDFS) via the SAME CredentialUtils.getBackendPropertiesFromStorageMap legacy/iceberg/hive use
         // — single source of truth, no drift. The map is already validated at catalog creation, so this
         // does not throw; an empty map (non-plugin ctor / local-FS warehouse) yields an empty result
-        // (no overlay) — correct parity, unlike normalizeStorageUri which must fail-loud on a bad path.
+        // (no overlay) — correct parity, unlike the view's normalizeUri which must fail-loud on a bad path.
         return CredentialUtils.getBackendPropertiesFromStorageMap(storagePropertiesSupplier.get());
     }
 
@@ -407,76 +455,6 @@ public class DefaultConnectorContext implements ConnectorContext, ConnectorStora
         if (fs != null) {
             fs.close();
         }
-    }
-
-    @Override
-    public String normalizeStorageUri(String rawUri) {
-        // No vended token → normalize against the catalog's static storage map (behavior unchanged).
-        return normalizeStorageUri(rawUri, null);
-    }
-
-    @Override
-    public String normalizeStorageUri(String rawUri, Map<String, String> rawVendedCredentials) {
-        if (Strings.isNullOrEmpty(rawUri)) {
-            return rawUri;
-        }
-        // Mirror legacy PaimonScanNode's 2-arg LocationPath.of(path, storagePropertiesMap):
-        // scheme-normalize (oss/cos/obs/s3a -> s3, OSS bucket.endpoint -> bucket) so BE's
-        // scheme-dispatched S3 factory can open the file. The storage map follows the vended
-        // precedence: when the connector supplies a per-table vended token
-        // (REST catalogs, whose static map is empty by design) the VENDED map REPLACES the static map;
-        // otherwise the catalog's static storage map is used. Fail-loud (StoragePropertiesException
-        // propagates) — a path that cannot be normalized would otherwise silently corrupt reads (esp. a
-        // deletion-vector path on merge-on-read). Single source of truth: the SAME LocationPath
-        // normalization legacy/iceberg/hive use, so no drift.
-        Map<StorageTypeId, StorageAdapter> vended = buildVendedStorageMap(rawVendedCredentials);
-        Map<StorageTypeId, StorageAdapter> effective =
-                vended != null ? vended : storagePropertiesSupplier.get();
-        return LocationPath.ofAdapters(rawUri, effective).toStorageLocation().toString();
-    }
-
-    @Override
-    public UnaryOperator<String> newStorageUriNormalizer(Map<String, String> rawVendedCredentials) {
-        // PERF: the vended token is scan-invariant, so derive the effective storage map (the expensive
-        // buildVendedStorageMap = StorageProperties.createAll + hadoop config build) ONCE per scan and reuse
-        // it for every per-file normalize, instead of rebuilding it per data/delete file. Each application is
-        // byte-identical to normalizeStorageUri(rawUri, token): the SAME empty-uri short-circuit, the SAME
-        // vended-replaces-static precedence, the SAME fail-loud LocationPath. The derivation is done LAZILY on
-        // the first non-empty URI (not eagerly at construction) so a scan that normalizes zero non-empty URIs
-        // triggers no derivation — preserving the exact exception timing of the per-call method. The returned
-        // normalizer is single-threaded per scan (the streaming pump drives one thread; the synchronous and
-        // position-delete loops are single-threaded), so the memo needs no lock.
-        return new UnaryOperator<String>() {
-            private Map<StorageTypeId, StorageAdapter> effective;
-            private boolean built;
-
-            @Override
-            public String apply(String rawUri) {
-                if (Strings.isNullOrEmpty(rawUri)) {
-                    return rawUri;
-                }
-                if (!built) {
-                    Map<StorageTypeId, StorageAdapter> vended =
-                            buildVendedStorageMap(rawVendedCredentials);
-                    effective = vended != null ? vended : storagePropertiesSupplier.get();
-                    built = true;
-                }
-                return LocationPath.ofAdapters(rawUri, effective).toStorageLocation().toString();
-            }
-        };
-    }
-
-    @Override
-    public String getBackendFileType(String rawUri, Map<String, String> rawVendedCredentials) {
-        // Same LocationPath build as normalizeStorageUri (vended-aware), then read the BE file type from
-        // it — authoritative over the scheme-only default because it also detects a broker-backed path via
-        // the storage properties. Returns the TFileType enum NAME (the SPI stays Thrift-free). Mirrors
-        // legacy IcebergTableSink.bindDataSink's
-        // LocationPath.of(originalLocation, storagePropertiesMap).getTFileTypeForBE().
-        Map<StorageTypeId, StorageAdapter> vended = buildVendedStorageMap(rawVendedCredentials);
-        Map<StorageTypeId, StorageAdapter> effective =
-                vended != null ? vended : storagePropertiesSupplier.get();
-        return LocationPath.ofAdapters(rawUri, effective).getTFileTypeForBE().name();
     }
 
     @Override

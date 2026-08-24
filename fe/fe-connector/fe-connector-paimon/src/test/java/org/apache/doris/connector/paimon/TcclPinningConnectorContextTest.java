@@ -160,12 +160,12 @@ public class TcclPinningConnectorContextTest {
         Assertions.assertSame(delegate.engineFileSystem, ctx.getStorageContext().getFileSystem(null),
                 "getFileSystem must reach the wrapped engine context, not the SPI default (null)");
 
-        // newStorageUriNormalizer fell to the SPI default too. That one stays CORRECT but silently
-        // undoes the optimization it exists for: the default re-derives the storage config for every URI
-        // instead of once per scan, and nothing logs the downgrade.
-        ctx.getStorageContext().newStorageUriNormalizer(Collections.emptyMap());
+        // resolveStorage fell to the SPI default too. That one stays CORRECT but silently undoes the
+        // optimization it exists for: the default view has no engine storage machinery, and nothing
+        // logs the downgrade.
+        ctx.getStorageContext().resolveStorage(Collections.emptyMap());
         Assertions.assertEquals(1, delegate.newNormalizerCount,
-                "newStorageUriNormalizer must reach the wrapped engine context, not the SPI default");
+                "resolveStorage must reach the wrapped engine context, not the SPI default");
     }
 
     /** Wiring-only {@link HadoopAuthenticator} double: records doAs calls and runs the action WITHOUT a UGI. */

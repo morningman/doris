@@ -20,6 +20,7 @@ package org.apache.doris.connector.paimon;
 import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorSession;
 import org.apache.doris.connector.spi.ConnectorStorageContext;
+import org.apache.doris.connector.spi.ConnectorStorageView;
 import org.apache.doris.connector.spi.ConnectorType;
 import org.apache.doris.connector.spi.DorisConnectorException;
 import org.apache.doris.connector.spi.handle.ConnectorColumnHandle;
@@ -789,7 +790,7 @@ public class PaimonScanPlanProviderTest {
                 range.getProperties().get("paimon.deletion_file.path"),
                 "deletion-vector path must be normalized to s3://");
         Assertions.assertEquals(2, ctx.normalizeCount,
-                "both the data-file and the DV path must be routed through normalizeStorageUri");
+                "both the data-file and the DV path must be routed through the storage view's normalizeUri");
     }
 
     @Test
@@ -2562,10 +2563,11 @@ public class PaimonScanPlanProviderTest {
     }
 
     /** A ConnectorContext whose getStorageProperties() (typed fe-filesystem seam, P1-T04) and
-     * vendStorageCredentials return fixed normalized maps. The engine's real StorageProperties
-     * binding/normalization is exercised by the fe-core DefaultConnectorContextStoragePropsTest /
-     * DefaultConnectorContextVendTest; here we pin the connector wiring (static creds sourced from
-     * toBackendProperties().toMap(), overlay order, and that the raw catalog aliases are NOT shipped). */
+     * resolveStorage(token).backendCredentials() return fixed normalized maps. The engine's real
+     * StorageProperties binding/normalization is exercised by the fe-core
+     * DefaultConnectorContextStoragePropsTest / DefaultConnectorContextVendTest; here we pin the
+     * connector wiring (static creds sourced from toBackendProperties().toMap(), overlay order, and
+     * that the raw catalog aliases are NOT shipped). */
     private static ConnectorContext scanContext(Map<String, String> backendStatic, Map<String, String> vended) {
         ConnectorStorageContext storage = new ConnectorStorageContext() {
             @Override
@@ -2576,8 +2578,23 @@ public class PaimonScanPlanProviderTest {
             }
 
             @Override
-            public Map<String, String> vendStorageCredentials(Map<String, String> raw) {
-                return vended;
+            public ConnectorStorageView resolveStorage(Map<String, String> raw) {
+                return new ConnectorStorageView() {
+                    @Override
+                    public Map<String, String> backendCredentials() {
+                        return vended;
+                    }
+
+                    @Override
+                    public String normalizeUri(String rawUri) {
+                        return rawUri;
+                    }
+
+                    @Override
+                    public String backendFileType(String rawUri) {
+                        return "FILE_S3";
+                    }
+                };
             }
         };
         return new ConnectorContext() {

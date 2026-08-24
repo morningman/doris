@@ -23,7 +23,6 @@ import org.apache.doris.filesystem.properties.StorageProperties;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.UnaryOperator;
 
 /**
  * The storage and backend-facing half of a catalog's engine services: credential normalization, URI
@@ -57,125 +56,58 @@ public interface ConnectorStorageContext {
     };
 
     /**
-     * Normalizes raw per-table vended cloud-storage credentials (the token map a REST catalog
-     * returns, e.g. {@code fs.oss.accessKeyId} / {@code s3.access-key}) into the BE-facing storage
-     * property map ({@code AWS_ACCESS_KEY} / {@code AWS_SECRET_KEY} / {@code AWS_TOKEN} /
-     * {@code AWS_ENDPOINT} / {@code AWS_REGION}). The connector extracts the raw token from the live
-     * table (paimon SDK only); the engine performs the same {@code StorageProperties} normalization
-     * it uses for static catalog credentials (the connector cannot import fe-core).
+     * Resolves the storage view of one scan or write from the raw per-table vended token (the map a
+     * REST catalog returns, e.g. {@code fs.oss.accessKeyId} / {@code s3.access-key} /
+     * {@code adls.sas-token.<account-host>}; null/empty for a static-credential catalog). Every
+     * storage answer a connector hands to BE — the credential overlay, canonical URIs, the BE
+     * reader family per path — comes from this ONE handle, so the expensive token→storage-config
+     * derivation runs once per scan/write instead of once per method call per file. Precedence
+     * inside the view is the legacy {@code VendedCredentialsFactory} contract: a token that yields
+     * storage credentials REPLACES the catalog's static map; otherwise the static map answers.
      *
-     * <p>The default returns empty (no normalization machinery / empty input), so every other
-     * connector is unaffected.
+     * <p>The connector builds the view where it extracts the token and threads it through its
+     * per-file builders; the view is single-threaded within the scan (see
+     * {@link ConnectorStorageView}).
      *
-     * @param rawVendedCredentials the raw per-table token map (may be null/empty)
-     * @return the BE-facing normalized storage-property map, or empty when none
+     * <p>The default (no storage machinery / offline connector tests) returns a benign view: empty
+     * credentials, identity URI normalization, and a scheme-only file type (object-store schemes →
+     * {@code FILE_S3}, {@code hdfs}/{@code viewfs} → {@code FILE_HDFS}, {@code file} or no scheme →
+     * {@code FILE_LOCAL}) that cannot detect a broker-backed path — the engine override can.
+     *
+     * @param rawVendedCredentials the raw per-table vended token map (may be null/empty → static)
+     * @return the resolved storage view for this scan/write
      */
-    default Map<String, String> vendStorageCredentials(Map<String, String> rawVendedCredentials) {
-        return Collections.emptyMap();
-    }
+    default ConnectorStorageView resolveStorage(Map<String, String> rawVendedCredentials) {
+        return new ConnectorStorageView() {
+            @Override
+            public Map<String, String> backendCredentials() {
+                return Collections.emptyMap();
+            }
 
-    /**
-     * Normalizes a raw storage URI a connector emits (e.g. a paimon native data-file or
-     * deletion-vector path such as {@code oss://…}, {@code cos://…}, {@code obs://…}, {@code s3a://…},
-     * or the OSS {@code bucket.endpoint} authority form) into BE's canonical, scheme-dispatched form
-     * ({@code s3://…}) using the catalog's storage properties. BE's file factory only recognizes the
-     * canonical scheme, so a connector that hands native file paths to BE MUST route them through this
-     * hook; otherwise the native read fails (data file) or silently returns wrong rows (deletion
-     * vector / merge-on-read). The connector cannot perform this itself (it must not import fe-core's
-     * {@code LocationPath} / {@code StorageProperties}); the engine applies the same normalization it
-     * uses for static catalog paths.
-     *
-     * <p>The default returns the input unchanged (no normalization machinery), so every other
-     * connector — and any URI already in canonical form — is unaffected.
-     *
-     * @param rawUri the raw storage URI (null/blank is returned unchanged)
-     * @return the normalized BE-facing URI
-     * @throws RuntimeException if normalization fails (fail-loud, legacy parity — a wrong path would
-     *         otherwise silently corrupt reads rather than surface the misconfiguration)
-     */
-    default String normalizeStorageUri(String rawUri) {
-        return rawUri;
-    }
+            @Override
+            public String normalizeUri(String rawUri) {
+                return rawUri;
+            }
 
-    /**
-     * Vended-credential-aware variant of {@link #normalizeStorageUri(String)}. For a REST catalog the
-     * catalog's <em>static</em> storage map is empty by design (vended creds are per-table/dynamic), so
-     * the single-arg form would throw on an object-store path. This overload lets the connector pass the
-     * raw per-table vended token (the same map it gives {@link #vendStorageCredentials}); the engine
-     * normalizes the URI against the vended credentials when present and falls back to the static map
-     * otherwise (legacy {@code VendedCredentialsFactory} precedence: vended replaces static).
-     *
-     * <p>The default ignores the token and delegates to {@link #normalizeStorageUri(String)}, so every
-     * connector that has no vended credentials — and the no-op default — is unaffected.
-     *
-     * @param rawUri               the raw storage URI (null/blank is returned unchanged)
-     * @param rawVendedCredentials the raw per-table vended token map (may be null/empty → static path)
-     * @return the normalized BE-facing URI
-     * @throws RuntimeException if normalization fails (fail-loud, legacy parity)
-     */
-    default String normalizeStorageUri(String rawUri, Map<String, String> rawVendedCredentials) {
-        return normalizeStorageUri(rawUri);
-    }
-
-    /**
-     * Scan-scoped batch form of {@link #normalizeStorageUri(String, Map)}: derives the vended storage
-     * configuration from the (scan-invariant) per-table token ONCE and returns a normalizer that applies
-     * it to many raw URIs cheaply. A vended-credentials scan normalizes O(N_files + N_deletes) paths but
-     * the token→storage-config derivation ({@code StorageProperties.createAll} + a hadoop config build) is
-     * a pure function of the token, so hoisting it out of the per-file loop turns O(N) heavy derivations
-     * into one. The connector builds the normalizer once (where it extracts the token) and reuses it for
-     * every data/delete/position-delete path in the scan.
-     *
-     * <p>The default returns a normalizer that delegates per call to {@link #normalizeStorageUri(String,
-     * Map)} — behavior-identical, no hoist — so a connector with no engine context (offline unit tests)
-     * and any connector that does not override the engine side are unaffected. The engine
-     * ({@code DefaultConnectorContext}) overrides this to perform the actual once-per-scan derivation.
-     *
-     * @param rawVendedCredentials the raw per-table vended token map (may be null/empty → static path)
-     * @return a URI normalizer for this scan; each application is byte-identical to
-     *         {@link #normalizeStorageUri(String, Map)} with the same token
-     */
-    default UnaryOperator<String> newStorageUriNormalizer(Map<String, String> rawVendedCredentials) {
-        return rawUri -> normalizeStorageUri(rawUri, rawVendedCredentials);
-    }
-
-    /**
-     * Resolves the BE-facing file type (a {@code TFileType} enum name, e.g. {@code "FILE_S3"}) for a raw
-     * storage URI a connector emits (e.g. an iceberg write output path). A write-side analogue of
-     * {@link #normalizeStorageUri(String, Map)}: a connector that hands an output location to a BE table
-     * sink must tell BE which file-system family to open it with, and that decision (object store vs HDFS
-     * vs local vs broker) lives in the engine's {@code LocationPath} together with the catalog's storage
-     * properties — which the connector must not import. The result is the enum <em>name</em> (a plain
-     * String) so this SPI stays Thrift-free, exactly like {@link #normalizeStorageUri}; the connector,
-     * which has the Thrift types, maps it back. The engine resolves it the same way it does for a legacy
-     * external-table sink.
-     *
-     * <p>The default derives the type from the URI scheme alone (object-store schemes → {@code FILE_S3},
-     * {@code hdfs}/{@code viewfs} → {@code FILE_HDFS}, {@code file} or no scheme → {@code FILE_LOCAL}); it
-     * has no storage-property machinery and so cannot detect a broker-backed path — the engine override
-     * does. Mirrors the vended-aware normalization: the same raw per-table vended token is accepted so a
-     * REST catalog (empty static map) still resolves.
-     *
-     * @param rawUri               the raw storage URI
-     * @param rawVendedCredentials the raw per-table vended token map (may be null/empty → static path)
-     * @return the BE file type enum name for the URI
-     */
-    default String getBackendFileType(String rawUri, Map<String, String> rawVendedCredentials) {
-        if (rawUri == null) {
-            return "FILE_LOCAL";
-        }
-        int schemeEnd = rawUri.indexOf("://");
-        if (schemeEnd < 0) {
-            return "FILE_LOCAL";
-        }
-        String scheme = rawUri.substring(0, schemeEnd).toLowerCase();
-        if ("hdfs".equals(scheme) || "viewfs".equals(scheme)) {
-            return "FILE_HDFS";
-        }
-        if ("file".equals(scheme)) {
-            return "FILE_LOCAL";
-        }
-        return "FILE_S3";
+            @Override
+            public String backendFileType(String rawUri) {
+                if (rawUri == null) {
+                    return "FILE_LOCAL";
+                }
+                int schemeEnd = rawUri.indexOf("://");
+                if (schemeEnd < 0) {
+                    return "FILE_LOCAL";
+                }
+                String scheme = rawUri.substring(0, schemeEnd).toLowerCase();
+                if ("hdfs".equals(scheme) || "viewfs".equals(scheme)) {
+                    return "FILE_HDFS";
+                }
+                if ("file".equals(scheme)) {
+                    return "FILE_LOCAL";
+                }
+                return "FILE_S3";
+            }
+        };
     }
 
     /**

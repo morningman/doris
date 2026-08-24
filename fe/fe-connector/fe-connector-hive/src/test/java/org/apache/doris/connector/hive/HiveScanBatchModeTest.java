@@ -22,6 +22,7 @@ import org.apache.doris.connector.hms.HmsDatabaseInfo;
 import org.apache.doris.connector.hms.HmsPartitionInfo;
 import org.apache.doris.connector.hms.HmsTableInfo;
 import org.apache.doris.connector.spi.ConnectorSession;
+import org.apache.doris.connector.spi.ConnectorStorageView;
 import org.apache.doris.connector.spi.handle.ConnectorColumnHandle;
 import org.apache.doris.connector.spi.scan.ConnectorScanRange;
 import org.apache.doris.connector.spi.scan.ConnectorScanRequest;
@@ -155,8 +156,23 @@ public class HiveScanBatchModeTest {
                         new HiveFileStatus("s3a://bucket/db/t/p/000000_0", 10L, 1L)));
         FakeConnectorContext normCtx = new FakeConnectorContext() {
             @Override
-            public String normalizeStorageUri(String rawUri) {
-                return rawUri == null ? null : rawUri.replace("s3a://", "s3://");
+            public ConnectorStorageView resolveStorage(Map<String, String> rawVendedCredentials) {
+                return new ConnectorStorageView() {
+                    @Override
+                    public Map<String, String> backendCredentials() {
+                        return Collections.emptyMap();
+                    }
+
+                    @Override
+                    public String normalizeUri(String rawUri) {
+                        return rawUri == null ? null : rawUri.replace("s3a://", "s3://");
+                    }
+
+                    @Override
+                    public String backendFileType(String rawUri) {
+                        return "FILE_S3";
+                    }
+                };
             }
         };
         HiveScanPlanProvider provider = new HiveScanPlanProvider(new FakeHmsClient(),

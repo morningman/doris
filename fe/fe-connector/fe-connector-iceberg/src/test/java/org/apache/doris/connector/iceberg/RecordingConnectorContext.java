@@ -22,6 +22,7 @@ import org.apache.doris.connector.spi.ConnectorBrokerAddress;
 import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorSession;
 import org.apache.doris.connector.spi.ConnectorStorageContext;
+import org.apache.doris.connector.spi.ConnectorStorageView;
 import org.apache.doris.filesystem.FileSystem;
 import org.apache.doris.filesystem.properties.StorageProperties;
 import org.apache.doris.thrift.TFileType;
@@ -31,7 +32,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.function.UnaryOperator;
 
 /**
  * Hand-written {@link ConnectorContext} test double (no Mockito), adapted verbatim from the paimon
@@ -62,24 +62,26 @@ final class RecordingConnectorContext implements ConnectorContext, ConnectorStor
      * {@code sp.toBackendProperties().toMap()} (default: none). */
     List<StorageProperties> storageProperties = Collections.emptyList();
 
-    /** BE-canonical vended creds the fake returns from {@link #vendStorageCredentials} for a NON-EMPTY token
-     * (an empty/null token -> empty result, mirroring {@code DefaultConnectorContext} — so a test can prove the
-     * catalog-flag GATE end-to-end: flag off -> empty token -> no vended {@code location.*}). */
+    /** BE-canonical vended creds the fake returns from {@code resolveStorage(token).backendCredentials()}
+     * for a NON-EMPTY token (an empty/null token -> empty result, mirroring
+     * {@code DefaultConnectorContext} — so a test can prove the catalog-flag GATE end-to-end:
+     * flag off -> empty token -> no vended {@code location.*}). */
     Map<String, String> vendedBeProps = Collections.emptyMap();
 
-    /** Raw URIs the connector routed through {@link #normalizeStorageUri} (data/delete-path normalization). */
+    /** Raw URIs the connector routed through {@code resolveStorage(...).normalizeUri}
+     * (data/delete-path normalization). */
     final List<String> normalizedUris = new ArrayList<>();
-    /** Number of times the connector invoked {@link #normalizeStorageUri} (1- or 2-arg). */
+    /** Number of times the connector invoked the view's {@code normalizeUri}. */
     int normalizeCount;
-    /** Number of times the connector built a scan-scoped normalizer via {@link #newStorageUriNormalizer}
+    /** Number of times the connector resolved a scan-scoped storage view via {@code resolveStorage}
      * (should be once per scan — the perf hoist guard). */
     int newNormalizerCount;
-    /** The vended token the connector passed to the most recent 2-arg {@link #normalizeStorageUri} (T09). */
+    /** The vended token the connector passed to the most recent {@code resolveStorage} (T09). */
     Map<String, String> lastVendedToken;
 
-    /** BE file type the fake returns from {@link #getBackendFileType} (T06 iceberg write sink). */
+    /** BE file type the fake returns from {@code resolveStorage(...).backendFileType} (T06 iceberg write sink). */
     TFileType backendFileType = TFileType.FILE_S3;
-    /** The vended token the connector passed to the most recent {@link #getBackendFileType}. */
+    /** The vended token the connector passed to the most recent {@code resolveStorage(...).backendFileType}. */
     Map<String, String> lastFileTypeVendedToken;
 
     /** Broker addresses the fake returns from {@link #getBrokerAddresses()} (broker write sink). Default none,
@@ -92,56 +94,51 @@ final class RecordingConnectorContext implements ConnectorContext, ConnectorStor
     }
 
     @Override
-    public String getBackendFileType(String rawUri, Map<String, String> vendedToken) {
-        lastFileTypeVendedToken = vendedToken;
-        return backendFileType.name();
-    }
-
-    @Override
     public List<ConnectorBrokerAddress> getBrokerAddresses() {
         return brokerAddresses;
     }
 
     @Override
-    public String normalizeStorageUri(String rawUri) {
-        // The 1-arg form folds to the 2-arg with no token (mirrors DefaultConnectorContext), so every caller
-        // path records identically.
-        return normalizeStorageUri(rawUri, null);
-    }
-
-    @Override
-    public String normalizeStorageUri(String rawUri, Map<String, String> vendedToken) {
-        normalizedUris.add(rawUri);
-        normalizeCount++;
-        lastVendedToken = vendedToken;
-        // Canonicalize the scheme the way DefaultConnectorContext does for native paths (oss/cos/obs/s3a ->
-        // s3), so a test can prove the connector routes data/delete paths through this seam AND (2-arg) that
-        // the per-table vended token is threaded to each. Identity for already-canonical s3:// paths.
-        return rawUri == null ? null : rawUri.replaceFirst("^(oss|cos|obs|s3a)://", "s3://");
-    }
-
-    @Override
-    public UnaryOperator<String> newStorageUriNormalizer(Map<String, String> vendedToken) {
-        // Count the once-per-scan derivation (the perf hoist) but still record each per-URI normalize by
-        // delegating every apply back to the recording normalizeStorageUri — so existing recording assertions
-        // (normalizedUris / normalizeCount / lastVendedToken) keep firing, while newNormalizerCount proves the
-        // token->config derivation is entered once per scan, not once per file.
+    public ConnectorStorageView resolveStorage(Map<String, String> vendedToken) {
+        // Count the once-per-scan token->config derivation (the perf hoist guard, successor of the
+        // newStorageUriNormalizer counter) and capture the token it was resolved with; the view then
+        // records each per-URI normalize, so the existing recording assertions
+        // (normalizedUris / normalizeCount / lastVendedToken) keep firing while newNormalizerCount
+        // proves the derivation is entered once per scan, not once per file.
         newNormalizerCount++;
-        return rawUri -> normalizeStorageUri(rawUri, vendedToken);
+        lastVendedToken = vendedToken;
+        lastFileTypeVendedToken = vendedToken;
+        return new ConnectorStorageView() {
+            @Override
+            public Map<String, String> backendCredentials() {
+                // Mirror DefaultConnectorContext: an empty/null token yields no overlay; a non-empty
+                // token yields the configured BE-canonical creds. The real normalization
+                // (StorageAdapter.ofAll -> getBackendPropertiesFromStorageMap) is covered by
+                // fe-core's DefaultConnectorContext tests.
+                return (vendedToken == null || vendedToken.isEmpty())
+                        ? Collections.emptyMap() : vendedBeProps;
+            }
+
+            @Override
+            public String normalizeUri(String rawUri) {
+                normalizedUris.add(rawUri);
+                normalizeCount++;
+                // Canonicalize the scheme the way DefaultConnectorContext does for native paths
+                // (oss/cos/obs/s3a -> s3), so a test can prove the connector routes data/delete paths
+                // through this seam. Identity for already-canonical s3:// paths.
+                return rawUri == null ? null : rawUri.replaceFirst("^(oss|cos|obs|s3a)://", "s3://");
+            }
+
+            @Override
+            public String backendFileType(String rawUri) {
+                return backendFileType.name();
+            }
+        };
     }
 
     @Override
     public List<StorageProperties> getStorageProperties() {
         return storageProperties;
-    }
-
-    @Override
-    public Map<String, String> vendStorageCredentials(Map<String, String> rawVendedCredentials) {
-        // Mirror DefaultConnectorContext: an empty/null token yields no overlay; a non-empty token yields the
-        // configured BE-canonical creds. The real normalization (StorageProperties.createAll ->
-        // getBackendPropertiesFromStorageMap) is covered by fe-core's DefaultConnectorContext tests.
-        return (rawVendedCredentials == null || rawVendedCredentials.isEmpty())
-                ? Collections.emptyMap() : vendedBeProps;
     }
 
     /** The type the wrapper forwarded to {@link #createSiblingConnector} (proves the decorator delegates it). */

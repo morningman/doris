@@ -20,6 +20,7 @@ package org.apache.doris.connector.hive;
 import org.apache.doris.connector.spi.ConnectorBrokerAddress;
 import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorStorageContext;
+import org.apache.doris.connector.spi.ConnectorStorageView;
 import org.apache.doris.filesystem.properties.StorageProperties;
 import org.apache.doris.thrift.TFileType;
 
@@ -47,10 +48,11 @@ final class RecordingConnectorContext implements ConnectorContext, ConnectorStor
 
     int authCount;
 
-    /** BE file type the fake returns from {@link #getBackendFileType} (drives in-place vs staging write path). */
+    /** BE file type the fake returns from {@code resolveStorage(...).backendFileType} (drives in-place vs
+     * staging write path). */
     TFileType backendFileType = TFileType.FILE_S3;
 
-    /** Raw URIs the connector routed through {@link #normalizeStorageUri}. */
+    /** Raw URIs the connector routed through {@code resolveStorage(...).normalizeUri}. */
     final List<String> normalizedUris = new ArrayList<>();
 
     /** Static storage properties the fake returns from {@link #getStorageProperties()} (BE-canonical creds via
@@ -77,21 +79,28 @@ final class RecordingConnectorContext implements ConnectorContext, ConnectorStor
     }
 
     @Override
-    public String getBackendFileType(String rawUri, Map<String, String> rawVendedCredentials) {
-        return backendFileType.name();
-    }
+    public ConnectorStorageView resolveStorage(Map<String, String> rawVendedCredentials) {
+        return new ConnectorStorageView() {
+            @Override
+            public Map<String, String> backendCredentials() {
+                // Mirror the old SPI default this fake inherited: no vended overlay.
+                return Collections.emptyMap();
+            }
 
-    @Override
-    public String normalizeStorageUri(String rawUri) {
-        return normalizeStorageUri(rawUri, null);
-    }
+            @Override
+            public String normalizeUri(String rawUri) {
+                normalizedUris.add(rawUri);
+                // Canonicalize the scheme the way DefaultConnectorContext does for native
+                // object-store paths (oss/cos/obs/s3a -> s3), so a test can prove the connector
+                // routes the location through this seam.
+                return rawUri == null ? null : rawUri.replaceFirst("^(oss|cos|obs|s3a)://", "s3://");
+            }
 
-    @Override
-    public String normalizeStorageUri(String rawUri, Map<String, String> rawVendedCredentials) {
-        normalizedUris.add(rawUri);
-        // Canonicalize the scheme the way DefaultConnectorContext does for native object-store paths
-        // (oss/cos/obs/s3a -> s3), so a test can prove the connector routes the location through this seam.
-        return rawUri == null ? null : rawUri.replaceFirst("^(oss|cos|obs|s3a)://", "s3://");
+            @Override
+            public String backendFileType(String rawUri) {
+                return backendFileType.name();
+            }
+        };
     }
 
     @Override

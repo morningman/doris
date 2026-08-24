@@ -30,7 +30,7 @@ import java.util.concurrent.Callable;
  * <p><b>Why a base class rather than hand-written pass-throughs.</b> Nearly every method on
  * {@link ConnectorContext} has a default implementation whose semantics are a SILENT downgrade —
  * {@code getFileSystem} returns {@code null}, {@code executeAuthenticated} runs the task with no
- * authentication at all, {@code newStorageUriNormalizer} drops the per-scan memoization,
+ * authentication at all, {@code resolveStorage} yields a view with no storage machinery,
  * {@code getStorageProperties} returns nothing. A decorator that implements the interface directly and
  * copies each method by hand therefore fails OPEN: forget one and the call quietly lands on the
  * interface default instead of the engine, with no compiler complaint and, for a classloader-pinning

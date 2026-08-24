@@ -23,6 +23,7 @@ import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorSession;
 import org.apache.doris.connector.spi.ConnectorStatementScope;
 import org.apache.doris.connector.spi.ConnectorStorageContext;
+import org.apache.doris.connector.spi.ConnectorStorageView;
 import org.apache.doris.connector.spi.ConnectorType;
 import org.apache.doris.connector.spi.DorisConnectorException;
 import org.apache.doris.connector.spi.handle.ConnectorTableHandle;
@@ -955,7 +956,9 @@ public class IcebergWritePlanProvider implements ConnectorWritePlanProvider {
         Map<String, String> vendedToken = IcebergScanPlanProvider.extractVendedToken(
                 table, IcebergScanPlanProvider.restVendedCredentialsEnabled(properties));
         if (context != null) {
-            TFileType fileType = TFileType.valueOf(storage().getBackendFileType(rawLocation, vendedToken));
+            // One token→storage-config derivation serves both the file type and the normalized path.
+            ConnectorStorageView storageView = storage().resolveStorage(vendedToken);
+            TFileType fileType = TFileType.valueOf(storageView.backendFileType(rawLocation));
             // A broker backend (ofs://, gfs:// -> FILE_BROKER) must also carry the broker addresses, or BE
             // gets a broker sink with an empty broker list and the write fails. Mirrors legacy
             // IcebergTableSink: resolve broker addresses only when fileType == FILE_BROKER (S3/HDFS/local
@@ -963,7 +966,7 @@ public class IcebergWritePlanProvider implements ConnectorWritePlanProvider {
             List<TNetworkAddress> brokerAddresses = fileType == TFileType.FILE_BROKER
                     ? resolveBrokerAddresses() : Collections.emptyList();
             return new LocationFields(rawLocation,
-                    storage().normalizeStorageUri(rawLocation, vendedToken), fileType, brokerAddresses);
+                    storageView.normalizeUri(rawLocation), fileType, brokerAddresses);
         }
         return new LocationFields(rawLocation, rawLocation, TFileType.FILE_S3, Collections.emptyList());
     }
@@ -1023,14 +1026,15 @@ public class IcebergWritePlanProvider implements ConnectorWritePlanProvider {
             // vending catalog's static storage map is empty by design, so the vended creds are the only ones.
             Map<String, String> vendedToken = IcebergScanPlanProvider.extractVendedToken(
                     table, IcebergScanPlanProvider.restVendedCredentialsEnabled(properties));
-            merged.putAll(storage().vendStorageCredentials(vendedToken));
+            ConnectorStorageView storageView = storage().resolveStorage(vendedToken);
+            merged.putAll(storageView.backendCredentials());
 
             // The row-level DML sink reuses this map to read existing v3 deletion vectors. Unlike a normal
             // scan range, that helper has no per-file fs_name carrier and falls back to fs.defaultFS when the
             // file type is FILE_HDFS. Azure vended SAS properties intentionally do not include a container,
             // so derive the authority from the actual data location instead of letting the BE open hdfs://.
             if (!merged.containsKey("fs.defaultFS")
-                    && TFileType.FILE_HDFS.name().equals(storage().getBackendFileType(dataLocation, vendedToken))) {
+                    && TFileType.FILE_HDFS.name().equals(storageView.backendFileType(dataLocation))) {
                 URI uri = URI.create(dataLocation);
                 if (uri.getScheme() != null && uri.getRawAuthority() != null) {
                     merged.put("fs.defaultFS", uri.getScheme() + "://" + uri.getRawAuthority());

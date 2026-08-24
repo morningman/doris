@@ -38,10 +38,10 @@ import java.util.concurrent.Callable;
  * directly and copy each method by hand, which fails open: nearly every method on that interface has a
  * default implementation whose semantics are a silent downgrade — {@code getFileSystem} returns
  * {@code null}, {@code executeAuthenticated} runs the task with no authentication, and
- * {@code newStorageUriNormalizer} discards the per-scan memoization. Miss one and the compiler says
+ * {@code resolveStorage} yields a view with no engine storage machinery. Miss one and the compiler says
  * nothing; the call simply stops reaching the engine, and for a pinning decorator it also stops being
  * pinned. That is not hypothetical: iceberg had lost {@code getFileSystem}, paimon had lost
- * {@code getFileSystem} and {@code newStorageUriNormalizer}.
+ * {@code getFileSystem} and the scan-scoped storage resolution.
  *
  * <p>So this test does not check a list someone has to remember to update — it reflects over the
  * interface and requires every method to arrive at the wrapped context, which makes adding a method to

@@ -73,9 +73,10 @@ public class ConnectorPluginSurfaceTest {
             Assertions.assertNotNull(in, "missing connector plugin API version resource");
             version.load(in);
         }
-        // Write binding gained execution-capability methods in this surface revision. A plugin built against
-        // major 5 must be refused rather than run against a contract it did not compile against.
-        Assertions.assertEquals("6.0", version.getProperty("api.version"));
+        // The storage services converged onto the resolveStorage(token) view in this surface revision
+        // (the per-method vend/normalize/file-type hooks are gone). A plugin built against major 6
+        // must be refused rather than run against a contract it did not compile against.
+        Assertions.assertEquals("7.0", version.getProperty("api.version"));
     }
 
     /** Root entry points plus provider/handle types returned to connector plugins. */

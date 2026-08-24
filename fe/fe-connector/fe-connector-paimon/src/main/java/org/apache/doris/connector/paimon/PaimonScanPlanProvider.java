@@ -921,15 +921,17 @@ public class PaimonScanPlanProvider implements ConnectorScanPlanProvider {
      * {@code PaimonScanNode}'s 2-arg {@code LocationPath.of(path, storagePropertiesMap)} — BE's S3
      * file factory only recognizes {@code s3://}, so an un-normalized OSS/COS/OBS path fails the
      * native read (data file) or silently drops the deletion vector (merge-on-read wrong rows). The
-     * connector cannot import fe-core's {@code LocationPath}, so it delegates to the
-     * {@link ConnectorStorageContext#normalizeStorageUri(String, Map)} seam, passing the per-table
+     * connector cannot import fe-core's {@code LocationPath}, so it delegates to the engine's
+     * {@code resolveStorage(vendedToken)} view, passing the per-table
      * {@code vendedToken} (empty for non-REST) so a REST object-store path normalizes via the vended
      * credentials — the catalog's static storage map is empty for REST, so the static-only path would
      * throw (FIX-REST-VENDED-URI-NORMALIZE). With no context (offline unit tests) the raw path is
-     * preserved — same null-guard as the {@code vendStorageCredentials} overlay below.
+     * preserved — same null-guard as the credential overlay below. The view is resolved per call to
+     * keep the token-threaded builder signatures testable; hoisting one view per scan (iceberg's
+     * shape) is a known follow-up.
      */
     private String normalizeUri(String rawUri, Map<String, String> vendedToken) {
-        return context != null ? storage().normalizeStorageUri(rawUri, vendedToken) : rawUri;
+        return context != null ? storage().resolveStorage(vendedToken).normalizeUri(rawUri) : rawUri;
     }
 
     @Override
@@ -1053,7 +1055,8 @@ public class PaimonScanPlanProvider implements ConnectorScanPlanProvider {
         // import fe-core's StorageProperties). Vended overlays static (legacy precedence). Skipped
         // when no context (offline unit tests) or the table is non-REST (empty token -> no-op).
         if (context != null) {
-            Map<String, String> vendedBeProps = storage().vendStorageCredentials(extractVendedToken(table));
+            Map<String, String> vendedBeProps =
+                    storage().resolveStorage(extractVendedToken(table)).backendCredentials();
             for (Map.Entry<String, String> e : vendedBeProps.entrySet()) {
                 props.put(ScanNodePropertyKeys.LOCATION_PREFIX + e.getKey(), e.getValue());
             }

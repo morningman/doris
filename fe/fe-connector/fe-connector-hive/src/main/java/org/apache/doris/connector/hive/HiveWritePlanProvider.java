@@ -25,6 +25,7 @@ import org.apache.doris.connector.spi.ConnectorColumn;
 import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorSession;
 import org.apache.doris.connector.spi.ConnectorStorageContext;
+import org.apache.doris.connector.spi.ConnectorStorageView;
 import org.apache.doris.connector.spi.DorisConnectorException;
 import org.apache.doris.connector.spi.handle.ConnectorTableHandle;
 import org.apache.doris.connector.spi.handle.ConnectorTransaction;
@@ -222,9 +223,10 @@ public class HiveWritePlanProvider implements ConnectorWritePlanProvider {
     HiveWriteContext buildWriteContext(ConnectorSession session, HiveTableHandle tableHandle,
             HmsTableInfo table, ConnectorWriteHandle handle) {
         String rawLocation = table.getLocation();
-        TFileType fileType = TFileType.valueOf(storage().getBackendFileType(rawLocation, Collections.emptyMap()));
+        ConnectorStorageView storageView = storage().resolveStorage(Collections.emptyMap());
+        TFileType fileType = TFileType.valueOf(storageView.backendFileType(rawLocation));
         String writePath = fileType == TFileType.FILE_S3
-                ? storage().normalizeStorageUri(rawLocation, Collections.emptyMap())
+                ? storageView.normalizeUri(rawLocation)
                 : createTempPath(session, rawLocation);
         WriteOperation op = handle.getWriteOperation();
         if (op == WriteOperation.INSERT && handle.isOverwrite()) {
@@ -330,6 +332,7 @@ public class HiveWritePlanProvider implements ConnectorWritePlanProvider {
                 table.getDbName(), table.getTableName(), -1);
         List<HmsPartitionInfo> hmsPartitions = hmsClient.getPartitions(
                 table.getDbName(), table.getTableName(), partitionNames);
+        ConnectorStorageView storageView = storage().resolveStorage(Collections.emptyMap());
         for (HmsPartitionInfo partition : hmsPartitions) {
             THivePartition hivePartition = new THivePartition();
             hivePartition.setValues(partition.getValues());
@@ -339,8 +342,7 @@ public class HiveWritePlanProvider implements ConnectorWritePlanProvider {
             // The write and target path of an existing partition are the same (BE reads it in place).
             locationParams.setWritePath(location);
             locationParams.setTargetPath(location);
-            locationParams.setFileType(TFileType.valueOf(
-                    storage().getBackendFileType(location, Collections.emptyMap())));
+            locationParams.setFileType(TFileType.valueOf(storageView.backendFileType(location)));
             hivePartition.setLocation(locationParams);
             partitions.add(hivePartition);
         }

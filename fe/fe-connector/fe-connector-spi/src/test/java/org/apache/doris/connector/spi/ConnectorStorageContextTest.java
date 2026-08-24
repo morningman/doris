@@ -24,7 +24,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.UnaryOperator;
 
 /**
  * The defaults a connector gets when the engine manages no storage for its catalog. These are the same
@@ -45,36 +44,32 @@ public class ConnectorStorageContextTest {
     }
 
     @Test
-    public void getBackendFileType_defaultDerivesFromScheme() {
-        // fe-core overrides it (LocationPath, broker-aware); the default has no storage machinery and derives
-        // the BE file type from the URI scheme alone, returning the TFileType enum NAME so the SPI stays
-        // Thrift-free (like normalizeStorageUri).
-        ConnectorStorageContext ctx = ConnectorStorageContext.NOOP;
-        Assertions.assertEquals("FILE_S3", ctx.getBackendFileType("s3://bucket/data", null));
-        Assertions.assertEquals("FILE_S3", ctx.getBackendFileType("oss://bucket/data", null));
-        Assertions.assertEquals("FILE_HDFS", ctx.getBackendFileType("hdfs://ns/data", null));
-        Assertions.assertEquals("FILE_HDFS", ctx.getBackendFileType("viewfs://ns/data", null));
-        Assertions.assertEquals("FILE_LOCAL", ctx.getBackendFileType("file:///tmp/data", null));
-        Assertions.assertEquals("FILE_LOCAL", ctx.getBackendFileType("/no/scheme", null));
-        Assertions.assertEquals("FILE_LOCAL", ctx.getBackendFileType(null, null));
+    public void resolveStorage_defaultViewDerivesFileTypeFromScheme() {
+        // fe-core overrides resolveStorage (LocationPath, broker-aware); the default view has no
+        // storage machinery and derives the BE file type from the URI scheme alone, returning the
+        // TFileType enum NAME so the SPI stays Thrift-free.
+        ConnectorStorageView view = ConnectorStorageContext.NOOP.resolveStorage(null);
+        Assertions.assertEquals("FILE_S3", view.backendFileType("s3://bucket/data"));
+        Assertions.assertEquals("FILE_S3", view.backendFileType("oss://bucket/data"));
+        Assertions.assertEquals("FILE_HDFS", view.backendFileType("hdfs://ns/data"));
+        Assertions.assertEquals("FILE_HDFS", view.backendFileType("viewfs://ns/data"));
+        Assertions.assertEquals("FILE_LOCAL", view.backendFileType("file:///tmp/data"));
+        Assertions.assertEquals("FILE_LOCAL", view.backendFileType("/no/scheme"));
+        Assertions.assertEquals("FILE_LOCAL", view.backendFileType(null));
     }
 
     @Test
     public void remainingDefaultsAreBenign() {
-        // The other seven, pinned together because each one's default is what makes the storage split safe
-        // for a connector that has no storage: it gets "nothing", never a failure and never a null it has to
-        // check. MUTATION: making any of these throw or return null -> red.
+        // Pinned together because each one's default is what makes the storage split safe for a
+        // connector that has no storage: it gets "nothing", never a failure and never a null it has
+        // to check. MUTATION: making any of these throw or return null -> red.
         ConnectorStorageContext ctx = ConnectorStorageContext.NOOP;
-        Assertions.assertTrue(ctx.vendStorageCredentials(null).isEmpty(),
+        ConnectorStorageView view = ctx.resolveStorage(null);
+        Assertions.assertNotNull(view, "the resolved storage view must never be null");
+        Assertions.assertTrue(view.backendCredentials().isEmpty(),
                 "no vending machinery -> no vended credentials");
-        Assertions.assertEquals("oss://bucket/f", ctx.normalizeStorageUri("oss://bucket/f"),
+        Assertions.assertEquals("oss://bucket/f", view.normalizeUri("oss://bucket/f"),
                 "no normalization machinery -> the URI passes through unchanged");
-        Assertions.assertEquals("oss://bucket/f", ctx.normalizeStorageUri("oss://bucket/f", null),
-                "the vended-aware overload falls back to the single-arg form");
-        UnaryOperator<String> normalizer = ctx.newStorageUriNormalizer(null);
-        Assertions.assertNotNull(normalizer, "the batch normalizer must never be null");
-        Assertions.assertEquals("oss://bucket/f", normalizer.apply("oss://bucket/f"),
-                "each application must match the per-call form");
         Assertions.assertTrue(ctx.getBrokerAddresses().isEmpty(), "no broker machinery -> no brokers");
         Assertions.assertTrue(ctx.getBackendStorageProperties().isEmpty(),
                 "no normalization machinery -> no BE storage properties");

@@ -21,6 +21,7 @@ import org.apache.doris.connector.spi.Connector;
 import org.apache.doris.connector.spi.ConnectorContext;
 import org.apache.doris.connector.spi.ConnectorSession;
 import org.apache.doris.connector.spi.ConnectorStorageContext;
+import org.apache.doris.connector.spi.ConnectorStorageView;
 import org.apache.doris.filesystem.FileSystem;
 import org.apache.doris.filesystem.properties.StorageProperties;
 
@@ -28,7 +29,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.function.UnaryOperator;
 
 /**
  * Hand-written {@link ConnectorContext} test double (no Mockito) used to assert that the
@@ -72,11 +72,11 @@ final class RecordingConnectorContext implements ConnectorContext, ConnectorStor
     List<StorageProperties> storageProperties = Collections.emptyList();
 
     // ---- FIX-URI-NORMALIZE / FIX-REST-VENDED-URI-NORMALIZE: normalizeStorageUri hook ----
-    /** Number of times the connector invoked {@link #normalizeStorageUri}. */
+    /** Number of times the connector invoked {@code resolveStorage(...).normalizeUri}. */
     int normalizeCount;
     /** Number of times the connector asked for a batch normalizer (the once-per-scan derivation). */
     int newNormalizerCount;
-    /** The vended token the connector passed to the most recent 2-arg {@link #normalizeStorageUri}. */
+    /** The vended token the connector passed to the most recent 2-arg {@code resolveStorage(...).normalizeUri}. */
     Map<String, String> lastVendedToken;
 
     @Override
@@ -90,33 +90,39 @@ final class RecordingConnectorContext implements ConnectorContext, ConnectorStor
     }
 
     @Override
-    public String normalizeStorageUri(String rawUri) {
-        // The 1-arg form folds to the 2-arg with no token, so every caller path is recorded identically.
-        return normalizeStorageUri(rawUri, null);
-    }
-
-    @Override
-    public String normalizeStorageUri(String rawUri, Map<String, String> vendedToken) {
-        normalizeCount++;
-        lastVendedToken = vendedToken;
-        // Deterministic stand-in for the engine's oss://->s3:// scheme rewrite, so a connector wiring
-        // test can prove BOTH the data-file and DV paths were routed through this hook AND that the
-        // per-table vended token is threaded to each (the real normalization is covered by
-        // DefaultConnectorContextNormalizeUriTest in fe-core).
-        if (rawUri != null && rawUri.startsWith("oss://")) {
-            return "s3://" + rawUri.substring("oss://".length());
-        }
-        return rawUri;
-    }
-
-    @Override
-    public UnaryOperator<String> newStorageUriNormalizer(Map<String, String> vendedToken) {
-        // A DISTINGUISHABLE normalizer instance. The SPI default builds a fresh lambda that never touches
-        // this context, so a decorator that forgets to forward this method silently gives back the default
-        // one - correct results, but the once-per-scan storage-config derivation degrades to once per file
-        // with nothing in the logs to say so.
+    public ConnectorStorageView resolveStorage(Map<String, String> vendedToken) {
+        // A DISTINGUISHABLE view instance (the SPI default builds one that never touches this
+        // context, so a decorator that forgets to hand back the engine's storage context silently
+        // downgrades with nothing in the logs to say so). Counts each token->config derivation
+        // (successor of the newStorageUriNormalizer counter) and captures the token; the view then
+        // records each per-URI normalize.
         newNormalizerCount++;
-        return rawUri -> normalizeStorageUri(rawUri, vendedToken);
+        lastVendedToken = vendedToken;
+        return new ConnectorStorageView() {
+            @Override
+            public Map<String, String> backendCredentials() {
+                // Mirror the old SPI default this fake inherited: no vended overlay.
+                return Collections.emptyMap();
+            }
+
+            @Override
+            public String normalizeUri(String rawUri) {
+                normalizeCount++;
+                // Deterministic stand-in for the engine's oss://->s3:// scheme rewrite, so a connector
+                // wiring test can prove BOTH the data-file and DV paths were routed through this hook
+                // AND that the per-table vended token is threaded to each (the real normalization is
+                // covered by DefaultConnectorContextNormalizeUriTest in fe-core).
+                if (rawUri != null && rawUri.startsWith("oss://")) {
+                    return "s3://" + rawUri.substring("oss://".length());
+                }
+                return rawUri;
+            }
+
+            @Override
+            public String backendFileType(String rawUri) {
+                return "FILE_S3";
+            }
+        };
     }
 
     @Override

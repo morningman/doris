@@ -867,7 +867,7 @@ public class IcebergWritePlanProviderTest {
         // H-1: a REST vending catalog's static storage map is empty by design; the per-table vended token (read
         // from the table's FileIO) must be overlaid into the write sink's hadoop_config in BE-canonical form
         // (AWS_*), winning over a colliding static key — mirroring the scan path. The token here is non-empty so
-        // RecordingConnectorContext.vendStorageCredentials yields the configured BE-canonical vended creds.
+        // RecordingConnectorContext's storage view yields the configured BE-canonical vended creds.
         //
         // Wrap a real table's operations with a FileIO carrying a non-empty vended token. Keeping the real table
         // operations also exercises the statement-pinned writer identity and fresh-metadata validation.

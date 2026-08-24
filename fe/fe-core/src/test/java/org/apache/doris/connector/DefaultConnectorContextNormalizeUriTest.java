@@ -17,6 +17,7 @@
 
 package org.apache.doris.connector;
 
+import org.apache.doris.connector.spi.ConnectorStorageView;
 import org.apache.doris.datasource.storage.StorageAdapter;
 import org.apache.doris.datasource.storage.StorageTypeId;
 import org.apache.doris.kerberos.ExecutionAuthenticator;
@@ -31,18 +32,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 /**
- * FIX-URI-NORMALIZE fe-core bridge test: pins that
- * {@link DefaultConnectorContext#normalizeStorageUri} rewrites a connector-supplied storage URI to
+ * FIX-URI-NORMALIZE fe-core bridge test: pins that the storage view resolved by
+ * {@link DefaultConnectorContext#resolveStorage} rewrites a connector-supplied storage URI to
  * BE's canonical {@code s3://} scheme using the catalog's storage properties (the same
  * {@code LocationPath} normalization legacy {@code PaimonScanNode} applies via the 2-arg
  * {@code LocationPath.of(path, storagePropertiesMap)}). The paimon connector cannot import that
  * machinery, so this hook is its only access; without it a native ORC/Parquet read on an
  * OSS/COS/OBS warehouse reaches BE with an un-openable {@code oss://} path (data file fails, or a
- * deletion vector is silently dropped). FAILS before the fix (the method is a no-op default
+ * deletion vector is silently dropped). FAILS before the fix (the SPI default view is a no-op
  * returning the raw URI).
  */
 public class DefaultConnectorContextNormalizeUriTest {
@@ -68,9 +68,9 @@ public class DefaultConnectorContextNormalizeUriTest {
         // WHY: BE's scheme-dispatched S3 file factory only recognizes s3://; legacy LocationPath.of
         // rewrites oss:// (and cos/obs/s3a) -> s3://. This hook is the connector's ONLY access to that
         // normalization (it must not import LocationPath). MUTATION: returning the raw oss:// path
-        // (the no-op SPI default) -> red.
+        // (the no-op SPI default view) -> red.
         Assertions.assertEquals("s3://bkt/warehouse/db/t/part-0.parquet",
-                ossContext().normalizeStorageUri("oss://bkt/warehouse/db/t/part-0.parquet"));
+                ossContext().resolveStorage(null).normalizeUri("oss://bkt/warehouse/db/t/part-0.parquet"));
     }
 
     @Test
@@ -78,15 +78,15 @@ public class DefaultConnectorContextNormalizeUriTest {
         // WHY: an already-canonical s3:// path must pass through unchanged (idempotent fast path).
         // MUTATION: mangling the s3:// path -> red.
         Assertions.assertEquals("s3://bkt/warehouse/f.parquet",
-                ossContext().normalizeStorageUri("s3://bkt/warehouse/f.parquet"));
+                ossContext().resolveStorage(null).normalizeUri("s3://bkt/warehouse/f.parquet"));
     }
 
     @Test
     public void nullOrBlankIsReturnedUnchanged() throws Exception {
         // WHY: defensive short-circuit before touching the storage-props supplier -> no NPE on a
         // null/blank path. MUTATION: NPE, or fabricating output from nothing -> red.
-        Assertions.assertNull(ossContext().normalizeStorageUri(null));
-        Assertions.assertEquals("", ossContext().normalizeStorageUri(""));
+        Assertions.assertNull(ossContext().resolveStorage(null).normalizeUri(null));
+        Assertions.assertEquals("", ossContext().resolveStorage(null).normalizeUri(""));
     }
 
     @Test
@@ -98,11 +98,11 @@ public class DefaultConnectorContextNormalizeUriTest {
         // MUTATION: swallowing the error and returning the raw path -> red.
         DefaultConnectorContext noStorage = new DefaultConnectorContext("c", 1L);
         Assertions.assertThrows(RuntimeException.class,
-                () -> noStorage.normalizeStorageUri("oss://bkt/a/part-0.parquet"));
+                () -> noStorage.resolveStorage(null).normalizeUri("oss://bkt/a/part-0.parquet"));
     }
 
-    // ---- FIX-REST-VENDED-URI-NORMALIZE (P9-1): the 2-arg overload normalizes via the per-table
-    //      vended token, which is the ONLY storage map a REST catalog has (its static map is empty). ----
+    // ---- FIX-REST-VENDED-URI-NORMALIZE (P9-1): the vended token resolves the view for a REST
+    //      catalog, which is the ONLY storage map it has (its static map is empty). ----
 
     /** The raw per-table OSS vended token shape a REST catalog returns (mirrors
      *  DefaultConnectorContextVendTest / PaimonVendedCredentialsProviderTest). */
@@ -120,12 +120,12 @@ public class DefaultConnectorContextNormalizeUriTest {
         // THE BUG (P9-1, BLOCKER): a REST catalog's static storage map is EMPTY by design (vended creds
         // are per-table/dynamic), so the static-only path throws "No storage properties found for schema:
         // oss" on a native ORC/Parquet read — the exact corner DV-025 deferred but never closed. The
-        // 2-arg overload normalizes against the per-table VENDED token instead (legacy
-        // VendedCredentialsFactory: the vended map REPLACES the empty static map). MUTATION: ignoring the
-        // token (the old static-only path) -> throws -> red.
+        // vended token resolves the view instead (legacy VendedCredentialsFactory: the vended map
+        // REPLACES the empty static map). MUTATION: ignoring the token (static-only) -> throws -> red.
         DefaultConnectorContext restCtx = new DefaultConnectorContext("c", 1L); // empty static map = REST
         Assertions.assertEquals("s3://bkt/warehouse/db/t/part-0.parquet",
-                restCtx.normalizeStorageUri("oss://bkt/warehouse/db/t/part-0.parquet", ossVendedToken()));
+                restCtx.resolveStorage(ossVendedToken())
+                        .normalizeUri("oss://bkt/warehouse/db/t/part-0.parquet"));
     }
 
     @Test
@@ -136,8 +136,11 @@ public class DefaultConnectorContextNormalizeUriTest {
                 "adls.sas-token-expires-at-ms.account.dfs.core.windows.net", "4102444800000");
         DefaultConnectorContext restCtx = new DefaultConnectorContext("c", 1L);
 
-        Assertions.assertEquals(path, restCtx.normalizeStorageUri(path, token));
-        Assertions.assertEquals(TFileType.FILE_HDFS.name(), restCtx.getBackendFileType(path, token));
+        // ONE view answers both: the abfss path stays intact AND selects the BE hadoop reader —
+        // the pair must agree, or BE opens the wrong client for the path it is given.
+        ConnectorStorageView view = restCtx.resolveStorage(token);
+        Assertions.assertEquals(path, view.normalizeUri(path));
+        Assertions.assertEquals(TFileType.FILE_HDFS.name(), view.backendFileType(path));
     }
 
     @Test
@@ -148,20 +151,21 @@ public class DefaultConnectorContextNormalizeUriTest {
         // when the token is empty -> red.
         DefaultConnectorContext restCtx = new DefaultConnectorContext("c", 1L);
         Assertions.assertThrows(RuntimeException.class,
-                () -> restCtx.normalizeStorageUri("oss://bkt/a/part-0.parquet", Collections.emptyMap()));
+                () -> restCtx.resolveStorage(Collections.emptyMap())
+                        .normalizeUri("oss://bkt/a/part-0.parquet"));
     }
 
     @Test
     public void staticMapPathUnaffectedByEmptyToken() throws Exception {
-        // WHY: the 2-arg overload with an EMPTY token must fold to the static-map path byte-identically
-        // to the 1-arg form, so non-REST (static-cred) reads are unchanged. MUTATION: an empty token
+        // WHY: a view resolved with an EMPTY token must fold to the static-map path byte-identically
+        // to a token-less view, so non-REST (static-cred) reads are unchanged. MUTATION: an empty token
         // suppressing the static map -> no normalization / throw -> red.
         Assertions.assertEquals("s3://bkt/warehouse/db/t/part-0.parquet",
-                ossContext().normalizeStorageUri(
-                        "oss://bkt/warehouse/db/t/part-0.parquet", Collections.emptyMap()));
+                ossContext().resolveStorage(Collections.emptyMap())
+                        .normalizeUri("oss://bkt/warehouse/db/t/part-0.parquet"));
     }
 
-    // ---- T06 write-sink file type: getBackendFileType resolves the BE file type via the SAME
+    // ---- T06 write-sink file type: backendFileType resolves the BE file type via the SAME
     //      LocationPath the legacy IcebergTableSink used (broker-aware), returned as the enum NAME. ----
 
     @Test
@@ -171,69 +175,71 @@ public class DefaultConnectorContextNormalizeUriTest {
         // location yields FILE_S3 (object store). Returned as the enum NAME (the SPI is Thrift-free).
         // MUTATION: scheme-only default that can't see storage props, or a wrong family -> red.
         Assertions.assertEquals(TFileType.FILE_S3.name(),
-                ossContext().getBackendFileType("oss://bkt/warehouse/db/t/data", null));
+                ossContext().resolveStorage(null).backendFileType("oss://bkt/warehouse/db/t/data"));
     }
 
     @Test
     public void backendFileTypeVendedRestResolvesUnderEmptyStaticMap() {
         // WHY: a REST catalog's static storage map is empty; the vended token resolves the file type the
-        // same way the vended-aware normalizeStorageUri resolves the path. MUTATION: ignoring the token
-        // (static-only) throws "no storage properties" -> red.
+        // same way it resolves the path. MUTATION: ignoring the token (static-only) throws "no storage
+        // properties" -> red.
         DefaultConnectorContext restCtx = new DefaultConnectorContext("c", 1L);
         Assertions.assertEquals(TFileType.FILE_S3.name(),
-                restCtx.getBackendFileType("oss://bkt/warehouse/db/t/data", ossVendedToken()));
+                restCtx.resolveStorage(ossVendedToken()).backendFileType("oss://bkt/warehouse/db/t/data"));
     }
 
-    // ---- FIX-PERF-06: newStorageUriNormalizer hoists the (scan-invariant) token->storage-config
-    //      derivation to ONCE per scan; every application must stay byte-identical to a per-call
-    //      normalizeStorageUri(uri, token), across all four cases the per-call form covers. ----
+    // ---- FIX-PERF-06: resolveStorage hoists the (scan-invariant) token->storage-config derivation
+    //      to ONCE per scan; every application on the view must stay byte-identical to a
+    //      freshly-resolved view with the same token, across all four per-call cases. ----
 
     @Test
-    public void newNormalizerVendedMatchesPerCallAndServesManyUris() {
-        // WHY: the scan-scoped normalizer bakes the vended token in once, then normalizes many paths;
-        // each application must equal normalizeStorageUri(uri, token) (REST empty-static -> vended
-        // replaces static), and ONE normalizer must serve multiple files (the whole point of the hoist).
+    public void viewVendedMatchesFreshViewAndServesManyUris() {
+        // WHY: the scan-scoped view bakes the vended token in once, then normalizes many paths;
+        // each application must equal a fresh view's answer (REST empty-static -> vended replaces
+        // static), and ONE view must serve multiple files (the whole point of the hoist).
         // MUTATION: dropping the token (static-only) throws; a stale/rebuilt map yielding a different path
         // -> red.
         DefaultConnectorContext restCtx = new DefaultConnectorContext("c", 1L);
-        UnaryOperator<String> n = restCtx.newStorageUriNormalizer(ossVendedToken());
-        Assertions.assertEquals(restCtx.normalizeStorageUri("oss://bkt/a/f1.parquet", ossVendedToken()),
-                n.apply("oss://bkt/a/f1.parquet"));
-        Assertions.assertEquals("s3://bkt/a/f1.parquet", n.apply("oss://bkt/a/f1.parquet"));
-        // Reuse the SAME normalizer for a second, different path — one derivation, many applications.
-        Assertions.assertEquals("s3://bkt/b/f2.parquet", n.apply("oss://bkt/b/f2.parquet"));
-    }
-
-    @Test
-    public void newNormalizerStaticMapMatchesPerCallUnderEmptyToken() throws Exception {
-        // WHY: with a static OSS map and an empty token, the normalizer folds to the static-map path,
-        // byte-identical to the per-call form. MUTATION: an empty token suppressing the static map -> red.
-        DefaultConnectorContext ctx = ossContext();
-        UnaryOperator<String> n = ctx.newStorageUriNormalizer(Collections.emptyMap());
+        ConnectorStorageView view = restCtx.resolveStorage(ossVendedToken());
         Assertions.assertEquals(
-                ctx.normalizeStorageUri("oss://bkt/warehouse/db/t/part-0.parquet", Collections.emptyMap()),
-                n.apply("oss://bkt/warehouse/db/t/part-0.parquet"));
+                restCtx.resolveStorage(ossVendedToken()).normalizeUri("oss://bkt/a/f1.parquet"),
+                view.normalizeUri("oss://bkt/a/f1.parquet"));
+        Assertions.assertEquals("s3://bkt/a/f1.parquet", view.normalizeUri("oss://bkt/a/f1.parquet"));
+        // Reuse the SAME view for a second, different path — one derivation, many applications.
+        Assertions.assertEquals("s3://bkt/b/f2.parquet", view.normalizeUri("oss://bkt/b/f2.parquet"));
     }
 
     @Test
-    public void newNormalizerShortCircuitsNullAndBlankWithoutForcingDerivation() throws Exception {
-        // WHY: same empty-uri short-circuit as normalizeStorageUri — a null/blank path returns unchanged
+    public void viewStaticMapMatchesPerCallUnderEmptyToken() throws Exception {
+        // WHY: with a static OSS map and an empty token, the view folds to the static-map path,
+        // byte-identical to a fresh view. MUTATION: an empty token suppressing the static map -> red.
+        DefaultConnectorContext ctx = ossContext();
+        ConnectorStorageView view = ctx.resolveStorage(Collections.emptyMap());
+        Assertions.assertEquals(
+                ctx.resolveStorage(Collections.emptyMap())
+                        .normalizeUri("oss://bkt/warehouse/db/t/part-0.parquet"),
+                view.normalizeUri("oss://bkt/warehouse/db/t/part-0.parquet"));
+    }
+
+    @Test
+    public void viewShortCircuitsNullAndBlankWithoutForcingDerivation() {
+        // WHY: same empty-uri short-circuit as the per-call form — a null/blank path returns unchanged
         // and never reaches the fail-loud LocationPath, even on an empty static map + empty token (so a
         // scan that only ever sees blank uris triggers no derivation/throw). MUTATION: NPE / fabricated
         // output / forcing the derivation to throw -> red.
         DefaultConnectorContext restCtx = new DefaultConnectorContext("c", 1L);
-        UnaryOperator<String> n = restCtx.newStorageUriNormalizer(Collections.emptyMap());
-        Assertions.assertNull(n.apply(null));
-        Assertions.assertEquals("", n.apply(""));
+        ConnectorStorageView view = restCtx.resolveStorage(Collections.emptyMap());
+        Assertions.assertNull(view.normalizeUri(null));
+        Assertions.assertEquals("", view.normalizeUri(""));
     }
 
     @Test
-    public void newNormalizerFailsLoudOnBadPathLikePerCall() {
+    public void viewFailsLoudOnBadPathLikePerCall() {
         // WHY: fail-loud parity — an empty static map + empty token has no credential, so applying to a
-        // real oss:// path must throw (not ship the raw path to BE), exactly like normalizeStorageUri.
+        // real oss:// path must throw (not ship the raw path to BE), exactly like the per-call form.
         // MUTATION: swallowing to the raw path -> red.
         DefaultConnectorContext restCtx = new DefaultConnectorContext("c", 1L);
-        UnaryOperator<String> n = restCtx.newStorageUriNormalizer(Collections.emptyMap());
-        Assertions.assertThrows(RuntimeException.class, () -> n.apply("oss://bkt/a/part-0.parquet"));
+        ConnectorStorageView view = restCtx.resolveStorage(Collections.emptyMap());
+        Assertions.assertThrows(RuntimeException.class, () -> view.normalizeUri("oss://bkt/a/part-0.parquet"));
     }
 }

@@ -611,8 +611,8 @@ public class HiveScanPlanProvider implements ConnectorScanPlanProvider {
 
     /**
      * Normalizes a raw HMS storage URI into BE's canonical scheme for a BE-facing native reader path
-     * (e.g. {@code s3a://}/{@code oss://}/{@code cos://} &rarr; {@code s3://}), delegating to the engine seam
-     * {@link ConnectorStorageContext#normalizeStorageUri(String)} — the connector cannot import fe-core's
+     * (e.g. {@code s3a://}/{@code oss://}/{@code cos://} &rarr; {@code s3://}), delegating to the engine's
+     * {@code resolveStorage} view — the connector cannot import fe-core's
      * {@code LocationPath}. BE's native S3 file factory (S3URI) accepts ONLY {@code s3://}, so an un-normalized
      * {@code s3a://} scan path fails the native read with "Invalid S3 URI". Mirrors iceberg/paimon/hudi and hive's
      * OWN write path ({@code HiveWritePlanProvider}); legacy {@code HiveScanNode} normalized via the 2-arg
@@ -620,7 +620,7 @@ public class HiveScanPlanProvider implements ConnectorScanPlanProvider {
      * unchanged. A null context (offline unit tests) preserves the raw URI.
      */
     private String normalizeNativeUri(String rawUri) {
-        return context != null ? storage().normalizeStorageUri(rawUri) : rawUri;
+        return context != null ? storage().resolveStorage(null).normalizeUri(rawUri) : rawUri;
     }
 
     /**

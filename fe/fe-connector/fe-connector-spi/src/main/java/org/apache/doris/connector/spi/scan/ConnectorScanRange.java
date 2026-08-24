@@ -81,9 +81,10 @@ public interface ConnectorScanRange extends Serializable {
     }
 
     /**
-     * Returns an optional BE file type override for this range. Connectors use this when the URI scheme
-     * alone is not sufficient to select the reader, for example an Azure SAS range that must be read by
-     * Hadoop ABFS while retaining its {@code abfs[s]://} path.
+     * Returns an optional BE file type override for this range: the engine's per-path ruling
+     * ({@code ConnectorStorageView.backendFileType}) forwarded by the connector, for ranges whose
+     * URI scheme alone does not select the right reader. Empty means the engine derives the type
+     * from the scheme.
      */
     default Optional<String> getBackendFileType() {
         return Optional.empty();
