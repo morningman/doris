@@ -18,6 +18,7 @@ org.apache.doris.filesystem.spi.FileSystemProvider#sensitivePropertyKeys():java.
 org.apache.doris.filesystem.spi.FileSystemProvider#supports(java.util.Map):boolean
 org.apache.doris.filesystem.spi.FileSystemProvider#supportsExplicit(java.util.Map):boolean
 org.apache.doris.filesystem.spi.FileSystemProvider#supportsGuess(java.util.Map):boolean
+org.apache.doris.filesystem.spi.FileSystemProvider#vendedPropertyPrefixes():java.util.Set
 org.apache.doris.filesystem.spi.ObjFileSystem#capability(java.lang.Class):java.util.Optional
 org.apache.doris.filesystem.spi.ObjFileSystem#close():void
 org.apache.doris.filesystem.spi.ObjFileSystem#completeMultipartUpload(java.lang.String,java.lang.String,java.util.Map):void
