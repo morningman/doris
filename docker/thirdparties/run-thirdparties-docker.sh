@@ -1695,11 +1695,8 @@ start_polaris() {
     register_stack_metadata "polaris" "${POLARIS_DIR}/docker-compose.yaml" ""
     compose_cmd "${POLARIS_DIR}/docker-compose.yaml" "" down --remove-orphans
     if [[ "${STOP}" -ne 1 ]]; then
-        # polaris-init is a one-shot service. Keep it out of `up --wait`,
-        # otherwise Compose reports the successfully exited container as a
-        # failed stack startup.
-        compose_cmd "${POLARIS_DIR}/docker-compose.yaml" "" up -d --wait --remove-orphans polaris
-        compose_cmd "${POLARIS_DIR}/docker-compose.yaml" "" run --rm --no-deps polaris-init
+        # polaris-init stays alive after initialization; its healthcheck marks readiness.
+        compose_cmd "${POLARIS_DIR}/docker-compose.yaml" "" up -d --wait --remove-orphans
     fi
 }
 
