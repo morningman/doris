@@ -109,8 +109,17 @@
  * <li>The {@code Optional<ConnectorExpression> filter} handed to {@code ConnectorScanPlanProvider.planScan}
  *     and {@code getScanNodePropertiesResult} comes from {@code PluginDrivenScanNode.buildRemainingFilter},
  *     which DOES drop conjuncts containing a CAST when
- *     {@link org.apache.doris.connector.spi.ConnectorPushdownOps#supportsCastPredicatePushdown} is false.</li>
+ *     {@link org.apache.doris.connector.spi.ConnectorPushdownOps#supportsCastPredicatePushdown} is false, and
+ *     always drops a conjunct holding a TIMESTAMPTZ cast or a complex-kind cast (below).</li>
  * </ul>
+ *
+ * <p><b>Complex-kind casts.</b> A CAST into or out of ARRAY, MAP or STRUCT, other than one between two types of
+ * the same kind, changes the shape of the value, so the operand that arrives in its place is not what the cast
+ * yields: {@code CAST([true] AS STRING)} is the text {@code [1]} in Doris, but its operand is the element list
+ * {@code [true]}. Of the two paths, only {@code applyFilter} receives such a conjunct. There a literal of type
+ * ARRAY, MAP or STRUCT can face a column of a scalar type, as in {@code p = [true]} or {@code p IN ([true], 'x')}:
+ * it is not a value of that column, so do not render it as text, and do not skip it alone in an IN list, which
+ * would narrow the list. Leave such a predicate to Doris.</p>
  *
  * <p><b>Literal value domain.</b> {@link ConnectorLiteral#getValue()} is one of exactly nine Java shapes.
  * Note that {@code Integer} is never produced and that {@code LARGEINT} arrives as a decimal
